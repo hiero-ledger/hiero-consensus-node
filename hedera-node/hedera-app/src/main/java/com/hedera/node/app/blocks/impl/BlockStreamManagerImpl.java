@@ -391,11 +391,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void setLastExecutionTime(@NonNull final Instant lastExecutionTime) {
-        this.lastExecutionTime = requireNonNull(lastExecutionTime);
-    }
-
-    @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
         if (closesBlock) {
@@ -934,7 +929,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private BlockItem flushChangesFromListener(@NonNull final BoundaryStateChangeListener boundaryStateChangeListener) {
-        final var stateChanges = new StateChanges(asTimestamp(lastExecutionTime), boundaryStateChangeListener.allStateChanges());
+        final var stateChanges =
+                new StateChanges(asTimestamp(lastExecutionTime), boundaryStateChangeListener.allStateChanges());
         boundaryStateChangeListener.reset();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }

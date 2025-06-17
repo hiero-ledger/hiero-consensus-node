@@ -264,7 +264,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
@@ -284,7 +283,6 @@ class BlockStreamManagerImplTest {
         assertDoesNotThrow(() -> subject.confirmPendingWorkFinished());
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
-        verify(boundaryStateChangeListener).setLastConsensusTime(CONSENSUS_NOW);
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertNull(subject.prngSeed());
@@ -362,7 +360,6 @@ class BlockStreamManagerImplTest {
         lenient().when(round.getRoundNum()).thenReturn(ROUND_NO);
         lenient().when(round.getConsensusTimestamp()).thenReturn(CONSENSUS_NOW);
         lenient().when(blockHashSigner.isReady()).thenReturn(false);
-        lenient().when(boundaryStateChangeListener.boundaryTimestampOrThrow()).thenReturn(Timestamp.DEFAULT);
 
         // Initialize the last (N-1) block hash
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
@@ -371,7 +368,6 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
-        verify(boundaryStateChangeListener).setLastConsensusTime(CONSENSUS_NOW);
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertNull(subject.prngSeed());
@@ -401,7 +397,6 @@ class BlockStreamManagerImplTest {
                 aWriter);
         final AtomicReference<BlockHeader> writtenHeader = new AtomicReference<>();
         givenEndOfRoundSetup(writtenHeader);
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(round.getRoundNum()).willReturn(ROUND_NO);
 
@@ -421,7 +416,6 @@ class BlockStreamManagerImplTest {
         assertDoesNotThrow(() -> subject.confirmPendingWorkFinished());
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
-        verify(boundaryStateChangeListener).setLastConsensusTime(CONSENSUS_NOW);
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertNull(subject.prngSeed());
@@ -471,7 +465,6 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
 
         // Assert the internal state of the subject has changed as expected
-        verify(boundaryStateChangeListener).setLastConsensusTime(CONSENSUS_NOW);
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
 
@@ -501,7 +494,6 @@ class BlockStreamManagerImplTest {
         givenEndOfRoundSetup();
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
 
         // Initialize the last (N-1) block hash
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
@@ -512,7 +504,6 @@ class BlockStreamManagerImplTest {
         subject.startRound(round, state);
 
         // Assert the internal state of the subject has changed as expected and the writer has been opened
-        verify(boundaryStateChangeListener).setLastConsensusTime(CONSENSUS_NOW);
         assertEquals(N_MINUS_2_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_2_BLOCK_NO));
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
         assertEquals(N_BLOCK_NO, subject.blockNo());
@@ -600,7 +591,6 @@ class BlockStreamManagerImplTest {
                 .writePbjItemAndBytes(any(), any());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
 
         // Initialize the last (N-1) block hash
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
@@ -672,7 +662,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(blockHashSigner.schemeId()).willReturn(1L);
@@ -748,7 +737,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(Instant.ofEpochSecond(1001)),
                 aWriter);
         givenEndOfRoundSetup();
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(blockHashSigner.schemeId()).willReturn(1L);
@@ -788,7 +776,6 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(null),
                 aWriter);
         givenEndOfRoundSetup();
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(blockHashSigner.isReady()).willReturn(true);
 
         // Set up the signature future to complete immediately and run the callback synchronously
@@ -864,7 +851,6 @@ class BlockStreamManagerImplTest {
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
-        given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
 
         // Set up the signature future to complete immediately
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -952,7 +938,6 @@ class BlockStreamManagerImplTest {
         lenient().when(round.iterator()).thenReturn(mockIterator);
         lenient().when(mockIterator.next()).thenReturn(mockEvent);
         lenient().when(mockEvent.getConsensusTimestamp()).thenReturn(CONSENSUS_NOW);
-        lenient().when(boundaryStateChangeListener.flushChanges()).thenReturn(FAKE_STATE_CHANGES);
         lenient()
                 .doAnswer(invocationOnMock -> {
                     lastAItem.set(invocationOnMock.getArgument(1));

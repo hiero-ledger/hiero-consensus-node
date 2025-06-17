@@ -26,7 +26,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -88,9 +87,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     private final BuilderSink builderSink;
 
     @Nullable
-    private final BlockStreamManager blockStreamManager;
-
-    @Nullable
     private final ImmediateStateChangeListener immediateStateChangeListener;
 
     @Nullable
@@ -108,7 +104,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @param state                       the state
      * @param maxBuildersBeforeUser       the maximum number of preceding builders with available consensus times
      * @param maxBuildersAfterUser        the maximum number of following builders with available consensus times
-     * @param blockStreamManager       the block stream manager
      * @param boundaryStateChangeListener the listener for the round state changes
      * @param immediateStateChangeListener       the listener for the key/value state changes
      * @param streamMode                  the stream mode
@@ -118,7 +113,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final State state,
             final int maxBuildersBeforeUser,
             final int maxBuildersAfterUser,
-            @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final StreamMode streamMode) {
@@ -126,7 +120,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                 state,
                 maxBuildersBeforeUser,
                 maxBuildersAfterUser,
-                blockStreamManager,
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
                 streamMode);
@@ -158,7 +151,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @param state                    the state
      * @param maxBuildersBeforeUser    the maximum number of preceding builders to create
      * @param maxBuildersAfterUser     the maximum number of following builders to create
-     * @param blockStreamManager       the block stream manager
      * @param boundaryStateChangeListener the listener for the round state changes
      * @param immediateStateChangeListener    the listener for the key-value state changes
      * @param streamMode               the stream mode
@@ -167,12 +159,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final State state,
             final int maxBuildersBeforeUser,
             final int maxBuildersAfterUser,
-            @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final StreamMode streamMode) {
         this.state = requireNonNull(state);
-        this.blockStreamManager = requireNonNull(blockStreamManager);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
@@ -629,7 +619,6 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
         BlockRecordSource blockRecordSource = null;
         if (streamMode != RECORDS) {
-            requireNonNull(blockStreamManager).setLastExecutionTime(lastAssignedConsenusTime);
             blockRecordSource = new BlockRecordSource(outputs);
         }
         final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;

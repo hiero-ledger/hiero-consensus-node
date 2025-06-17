@@ -407,7 +407,6 @@ public class ParentTxnFactory {
                 state,
                 maxPrecedingRecords,
                 consensusConfig.handleMaxFollowingRecords(),
-                blockStreamManager,
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
                 blockStreamConfig.streamMode());

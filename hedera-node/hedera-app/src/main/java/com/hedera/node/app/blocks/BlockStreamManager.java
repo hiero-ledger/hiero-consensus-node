@@ -133,8 +133,6 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     @NonNull
     Instant lastHandleTime();
 
-    void setLastExecutionTime(@NonNull Instant lastExecutionTime);
-
     @NonNull
     Instant lastExecutionTime();
 

@@ -5,10 +5,8 @@ import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
@@ -41,8 +39,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;

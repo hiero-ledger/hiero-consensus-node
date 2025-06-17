@@ -269,10 +269,7 @@ public class HandleWorkflow {
                 // FIXME: IT IS ALWAYS TRUE
                 if (blockStreamManager.lastExecutionTime() != null) {
                     transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                            state,
-                            blockStreamManager.lastExecutionTime()
-                                    .plusNanos(1),
-                            systemTransactions);
+                            state, blockStreamManager.lastExecutionTime().plusNanos(1), systemTransactions);
                 }
             } catch (Exception e) {
                 logger.warn("Failed to reward active nodes", e);
@@ -535,9 +532,8 @@ public class HandleWorkflow {
                     - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
-            var nextTime = blockStreamManager
-                    .lastExecutionTime()
-                    .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+            var nextTime =
+                    blockStreamManager.lastExecutionTime().plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in this interval
@@ -565,10 +561,7 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(
-                        writableStates,
-                        entityIdWritableStates,
-                        iter::remove);
+                doStreamingKVChanges(writableStates, entityIdWritableStates, iter::remove);
                 nextTime = blockStreamManager
                         .lastExecutionTime()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
@@ -577,10 +570,7 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(
-                    writableStates,
-                    entityIdWritableStates,
-                    iter::purgeUntilNext);
+            doStreamingKVChanges(writableStates, entityIdWritableStates, iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
@@ -954,7 +944,8 @@ public class HandleWorkflow {
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var workTime = blockHashSigner.isReady() ? blockStreamManager.lastExecutionTime() : roundTimestamp;
+                final var workTime =
+                        blockHashSigner.isReady() ? blockStreamManager.lastExecutionTime() : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
@@ -982,7 +973,12 @@ public class HandleWorkflow {
                         historyWritableStates,
                         null,
                         () -> historyService.reconcile(
-                                activeRosters, currentMetadata, historyStore, blockStreamManager.lastExecutionTime(), tssConfig, isActive));
+                                activeRosters,
+                                currentMetadata,
+                                historyStore,
+                                blockStreamManager.lastExecutionTime(),
+                                tssConfig,
+                                isActive));
             }
         }
     }
