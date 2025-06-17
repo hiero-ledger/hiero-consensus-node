@@ -166,12 +166,13 @@ jobs:
           path: "**/platform-sdk/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
+      # Collect run logs in a log file, ignore last job as it is the one that runs this workflow
       - name: Collect run logs in a log file
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         run: |
-          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[]'); do
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job $job_id..."
 
             current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
