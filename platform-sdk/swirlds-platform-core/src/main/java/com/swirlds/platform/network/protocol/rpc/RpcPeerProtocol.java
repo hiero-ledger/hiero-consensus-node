@@ -52,7 +52,8 @@ interface StreamWriter {
 }
 
 /**
- * Message based implementation of gossip; currently supporting sync Responsible for communication with a single peer
+ * Message based implementation of gossip; currently supporting sync and simplistic broadcast Responsible for
+ * communication with a single peer
  */
 public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
@@ -70,6 +71,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private static final int EVENTS_FINISHED = 4;
     private static final int PING = 5;
     private static final int PING_REPLY = 6;
+    private static final int BROADCAST_EVENT = 7;
 
     /**
      * Maximum amount of events in a single message batch
@@ -450,6 +452,10 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                                         Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF));
                                 inputQueue.add(() -> receiver.receiveEvents(events));
                                 break;
+                            case BROADCAST_EVENT:
+                                final GossipEvent event = input.readPbjRecord(GossipEvent.PROTOBUF);
+                                inputQueue.add(() -> receiver.receiveBroadcastEvent(event));
+                                break;
                             case EVENTS_FINISHED:
                                 inputQueue.add(receiver::receiveEventsFinished);
                                 break;
@@ -516,6 +522,15 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     }
                 }
             }
+        });
+    }
+
+    @Override
+    public void sendBroadcastEvent(final GossipEvent gossipEvent) {
+        outputQueue.add(out -> {
+            out.writeShort(1);
+            out.write(BROADCAST_EVENT);
+            out.writePbjRecord(gossipEvent, GossipEvent.PROTOBUF);
         });
     }
 
