@@ -2,11 +2,17 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -85,15 +91,24 @@ public class StateTransplantCommand extends AbstractCommand {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
                 ConfigurationBuilder.create(), getAbsolutePath("settings.txt"), configurationPaths);
 
+        final PlatformContext platformContext = PlatformContext.create(
+                configuration,
+                Time.getCurrent(),
+                new NoOpMetrics(),
+                FileSystemManager.create(configuration),
+                new SimpleRecycleBin(),
+                MerkleCryptographyFactory.create(configuration)
+        );
+
         System.out.println("Transplanting state from: " + statePath);
-        transplantState(statePath, configuration, new SimpleRecycleBin());
+        transplantState(statePath, platformContext);
 
         return 0;
     }
 
-    public static void transplantState(final Path statePath, final Configuration configuration, final RecycleBin recycleBin)
+    public static void transplantState(final Path statePath, final PlatformContext platformContext)
             throws IOException {
-        final Path pcesFiles = statePath.resolve(configuration.getConfigData(PcesConfig.class).databaseDirectory());
+        final Path pcesFiles = statePath.resolve(platformContext.getConfiguration().getConfigData(PcesConfig.class).databaseDirectory());
         final Path pcesTmp = statePath.resolve("pces-tmp");
 
         Files.move(pcesFiles, pcesTmp);
@@ -103,8 +118,7 @@ public class StateTransplantCommand extends AbstractCommand {
         );
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                configuration,
-                recycleBin,
+                platformContext,
                 pcesTmp,
                 stateMetadata.round(),
                 false
@@ -113,12 +127,11 @@ public class StateTransplantCommand extends AbstractCommand {
         final PcesMultiFileIterator eventIterator = fileTracker.getEventIterator(
                 stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
         final CommonPcesWriter pcesWriter = new CommonPcesWriter(
-                configuration,
+                platformContext.getConfiguration(),
                 new PcesFileManager(
-                        null,
+                        platformContext,
                         new PcesFileTracker(),
                         pcesFiles,
-                        null,
                         stateMetadata.round()
                 )
         );
@@ -128,6 +141,8 @@ public class StateTransplantCommand extends AbstractCommand {
             pcesWriter.getCurrentMutableFile().writeEvent(eventIterator.next());
         }
         pcesWriter.closeCurrentMutableFile();
+
+        FileUtils.deleteDirectory(pcesTmp);
 
     }
 

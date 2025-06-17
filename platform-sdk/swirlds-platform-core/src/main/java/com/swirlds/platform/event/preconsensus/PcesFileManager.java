@@ -84,7 +84,6 @@ public class PcesFileManager {
                 platformContext,
                 files,
                 getDatabaseDirectory(platformContext, selfId),
-                selfId,
                 startingRound
         );
     }
@@ -94,7 +93,6 @@ public class PcesFileManager {
      *
      * @param platformContext the platform context for this node
      * @param files           the files to track
-     * @param selfId          the ID of this node
      * @param startingRound   the round number of the initial state of the system
      * @throws IOException if there is an error reading the files
      */
@@ -102,7 +100,6 @@ public class PcesFileManager {
             @NonNull final PlatformContext platformContext,
             @NonNull final PcesFileTracker files,
             @NonNull final Path databaseDirectory,
-            @NonNull final NodeId selfId,//TODO
             final long startingRound)
             throws IOException {
 
