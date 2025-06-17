@@ -140,7 +140,6 @@ public class NodeCreateTest {
      */
     @HapiTest
     final Stream<DynamicTest> failOnInvalidServiceEndpoint() {
-
         return hapiTest(nodeCreate("nodeCreate").serviceEndpoint(List.of()).hasPrecheck(INVALID_SERVICE_ENDPOINT));
     }
 
@@ -354,6 +353,18 @@ public class NodeCreateTest {
                 overriding("nodes.gossipFqdnRestricted", "false"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate.hasKnownStatus(GRPC_WEB_PROXY_NOT_SUPPORTED));
+    }
+
+    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
+    final Stream<DynamicTest> webProxyAsIpAddressIsRejected() throws CertificateEncodingException {
+        return hapiTest(
+                overriding("nodes.webProxyEndpointsEnabled", "true"),
+                newKeyNamed("adminKey"),
+                nodeCreate("nodeCreate")
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_IP)
+                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
     private static HapiNodeCreate canonicalNodeCreate() throws CertificateEncodingException {
