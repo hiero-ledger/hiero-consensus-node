@@ -35,30 +35,32 @@ import picocli.CommandLine;
 @CommandLine.Command(
         name = "transplant",
         mixinStandardHelpOptions = true,
-        description = "Prepare a state for transplanting to another network.")
+        description = "Prepare a state for transplanting to another network")
 @SubcommandOf(StateCommand.class)
-public class StateTransplantCommand extends AbstractCommand {
+public class PrepareForTransplantCommand extends AbstractCommand {
+    /** The return code for a successful operation. */
     private static final int RETURN_CODE_SUCCESS = 0;
-    private static final int RETURN_CODE_ABORTED = 1;
+    /** The return code when the user does not confirm the prompt */
+    private static final int RETURN_CODE_PROMPT_NO = 1;
+    /** The temporary directory to move PCES files to while there are being filtered out */
+    private static final String PCES_TEMPORARY_DIR = "pces-tmp";
 
+    /** The path to the state to prepare for transplant. */
     private Path statePath;
 
-    /**
-     * Load configuration from these files.
-     */
+    /** Load configuration from these files. */
     private List<Path> configurationPaths = List.of();
 
     @CommandLine.Option(
             names = {"-ac", "--auto-confirm"},
-            description = "Automatically confirm the operation without prompting."
-    )
+            description = "Automatically confirm the operation without prompting")
     @SuppressWarnings("unused") // used by picocli
     private boolean autoConfirm;
 
     /**
-     * Set the path to state A.
+     * Set the path to state to prepare for transplant.
      */
-    @CommandLine.Parameters(description = "The path to the state to transplant")
+    @CommandLine.Parameters(description = "The path to the state to prepare for transplant")
     @SuppressWarnings("unused") // used by picocli
     private void setStatePath(final Path statePath) {
         this.statePath = pathMustExist(statePath.toAbsolutePath());
@@ -69,7 +71,7 @@ public class StateTransplantCommand extends AbstractCommand {
      */
     @CommandLine.Option(
             names = {"-c", "--config"},
-            description = "A path to where a configuration file can be found. If not provided then defaults are used.")
+            description = "A path to where a configuration file can be found. If not provided then defaults are used")
     @SuppressWarnings("unused") // used by picocli
     private void setConfigurationPath(final List<Path> configurationPaths) {
         configurationPaths.forEach(this::pathMustExist);
@@ -84,17 +86,18 @@ public class StateTransplantCommand extends AbstractCommand {
     @Override
     public Integer call() throws IOException {
         if (!autoConfirm) {
-            System.out.println("Warning: This action may have consequences.");
+            System.out.println(
+                    "Warning: This will overwrite the contents of the state directory, this is not reversible.");
             System.out.println("Do you want to continue? (Y/N): ");
 
             final String response;
-            try(final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))){
+            try (final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
                 response = reader.readLine();
             }
             if (!response.toUpperCase().startsWith("Y")) {
                 System.out.println("Operation aborted.");
             }
-            return  RETURN_CODE_ABORTED;
+            return RETURN_CODE_PROMPT_NO;
         }
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
@@ -110,16 +113,25 @@ public class StateTransplantCommand extends AbstractCommand {
         );
 
         System.out.println("Transplanting state from: " + statePath);
-        transplantState(statePath, platformContext);
+        prepareStateForTransplant(statePath, platformContext);
 
         return RETURN_CODE_SUCCESS;
     }
 
-    public static void transplantState(final Path statePath, final PlatformContext platformContext)
+    /**
+     * Prepares the state for transplanting by removing future events from the PCES files.
+     *
+     * @param statePath       the path to the state directory
+     * @param platformContext the platform context
+     * @throws IOException if an I/O error occurs
+     */
+    public static void prepareStateForTransplant(final Path statePath, final PlatformContext platformContext)
             throws IOException {
-        final Path pcesFiles = statePath.resolve(platformContext.getConfiguration().getConfigData(PcesConfig.class).databaseDirectory());
-        final Path pcesTmp = statePath.resolve("pces-tmp");
+        final Path pcesFiles = statePath.resolve(
+                platformContext.getConfiguration().getConfigData(PcesConfig.class).databaseDirectory());
+        final Path pcesTmp = statePath.resolve(PCES_TEMPORARY_DIR);
 
+        // move the old files to a temporary directory
         Files.move(pcesFiles, pcesTmp, StandardCopyOption.REPLACE_EXISTING);
 
         final SavedStateMetadata stateMetadata = SavedStateMetadata.parse(
@@ -146,10 +158,11 @@ public class StateTransplantCommand extends AbstractCommand {
         );
         pcesWriter.beginStreamingNewEvents();
 
+        // Go through the events and write them to the new files, skipping any events that are from a future round
         int discardedEventCount = 0;
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
-            if(event.getBirthRound() > stateMetadata.round()){
+            if (event.getBirthRound() > stateMetadata.round()) {
                 discardedEventCount++;
                 continue;
             }
