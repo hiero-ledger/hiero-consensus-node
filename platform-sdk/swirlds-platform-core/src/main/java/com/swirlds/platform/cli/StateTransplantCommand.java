@@ -9,7 +9,6 @@ import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -23,7 +22,9 @@ import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -37,6 +38,8 @@ import picocli.CommandLine;
         description = "Prepare a state for transplanting to another network.")
 @SubcommandOf(StateCommand.class)
 public class StateTransplantCommand extends AbstractCommand {
+    private static final int RETURN_CODE_SUCCESS = 0;
+    private static final int RETURN_CODE_ABORTED = 1;
 
     private Path statePath;
 
@@ -49,6 +52,7 @@ public class StateTransplantCommand extends AbstractCommand {
             names = {"-ac", "--auto-confirm"},
             description = "Automatically confirm the operation without prompting."
     )
+    @SuppressWarnings("unused") // used by picocli
     private boolean autoConfirm;
 
     /**
@@ -81,19 +85,16 @@ public class StateTransplantCommand extends AbstractCommand {
     public Integer call() throws IOException {
         if (!autoConfirm) {
             System.out.println("Warning: This action may have consequences.");
-//            System.out.print("Do you want to continue? (Y/N): ");
-//
-//            final String response = String.valueOf(System.in.readNBytes(1)[0]);
-//            if (!response.toUpperCase().startsWith("Y")) {
-//                System.out.println("Operation aborted.");
-//                return ReturnCodes.NOT_CONFIRMED.getCode();
-//            }
+            System.out.println("Do you want to continue? (Y/N): ");
 
-//            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-//            System.out.print("Enter a line: ");
-//            String line = reader.readLine();
-//            System.out.println("You entered: " + line);
-
+            final String response;
+            try(final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))){
+                response = reader.readLine();
+            }
+            if (!response.toUpperCase().startsWith("Y")) {
+                System.out.println("Operation aborted.");
+            }
+            return  RETURN_CODE_ABORTED;
         }
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
@@ -111,7 +112,7 @@ public class StateTransplantCommand extends AbstractCommand {
         System.out.println("Transplanting state from: " + statePath);
         transplantState(statePath, platformContext);
 
-        return 0;
+        return RETURN_CODE_SUCCESS;
     }
 
     public static void transplantState(final Path statePath, final PlatformContext platformContext)
@@ -145,8 +146,13 @@ public class StateTransplantCommand extends AbstractCommand {
         );
         pcesWriter.beginStreamingNewEvents();
 
+        int discardedEventCount = 0;
         while (eventIterator.hasNext()) {
             final PlatformEvent event = eventIterator.next();
+            if(event.getBirthRound() > stateMetadata.round()){
+                discardedEventCount++;
+                continue;
+            }
             pcesWriter.prepareOutputStream(event);
             pcesWriter.getCurrentMutableFile().writeEvent(event);
         }
@@ -154,22 +160,8 @@ public class StateTransplantCommand extends AbstractCommand {
 
         FileUtils.deleteDirectory(pcesTmp);
 
-    }
-
-    private enum ReturnCodes {
-        SUCCESS(0),
-        NOT_CONFIRMED(1),
-        ERROR(2);
-
-        private final int code;
-
-        ReturnCodes(final int code) {
-            this.code = code;
-        }
-
-        public int getCode() {
-            return code;
-        }
+        System.out.printf("Transplant complete. %d events were discarded due to being from a future round.%n",
+                discardedEventCount);
     }
 }
 
