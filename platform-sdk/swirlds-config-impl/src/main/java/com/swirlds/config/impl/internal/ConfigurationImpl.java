@@ -186,7 +186,7 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
         if (Comparable.class.isAssignableFrom(propertyType)) {
             return Collections.unmodifiableSortedSet(new TreeSet<>(collection));
         }
-        throw new IllegalArgumentException("Unsupported property type: " + propertyType);
+        throw new IllegalArgumentException("Unsupported, not-Comparable property type: " + propertyType);
     }
 
     @Override

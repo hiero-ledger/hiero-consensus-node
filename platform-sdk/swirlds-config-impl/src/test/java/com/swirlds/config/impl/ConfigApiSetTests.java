@@ -3,6 +3,7 @@ package com.swirlds.config.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,6 +13,8 @@ import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -206,5 +209,51 @@ class ConfigApiSetTests {
 
         // then
         verifyIterationOrder(setTestConfig.testSet(), List.of(111L, 222L, 333L));
+    }
+
+    @Test
+    void checkInetAddressSet() throws UnknownHostException {
+        // InetAddress is not Comparable:
+
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("setinetaddresstest.testInetAddressSet", "1.1.1.1,2.2.2.2"))
+                .build();
+
+        // Case #1: as a List
+        // when
+        final List<InetAddress> list =
+                configuration.getValues("setinetaddresstest.testInetAddressSet", InetAddress.class);
+
+        // then
+        assertNotNull(list);
+        assertEquals(2, list.size());
+        assertEquals(
+                List.of(
+                        InetAddress.getByAddress(new byte[] {1, 1, 1, 1}),
+                        InetAddress.getByAddress(new byte[] {2, 2, 2, 2})),
+                list);
+
+        // Case #2: as a Set
+        // when/then
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> configuration.getValueSet("setinetaddresstest.testInetAddressSet", InetAddress.class),
+                "Unsupported, not-Comparable property type: class java.net.InetAddress");
+    }
+
+    @ConfigData("setinetaddresstest")
+    public record SetInetAddressTestConfig(
+            @ConfigProperty(value = "testInetAddressSet", defaultValue = "1.1.1.1,2.2.2.2") Set<InetAddress> testSet) {}
+
+    @Test
+    void checkInetAddressSetInRecord() {
+        // InetAddress is not Comparable:
+
+        // given/when/then
+        assertThrows(IllegalStateException.class, () -> ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("setinetaddresstest.testInetAddressSet", "1.1.1.1,2.2.2.2"))
+                .withConfigDataType(SetInetAddressTestConfig.class)
+                .build());
     }
 }
