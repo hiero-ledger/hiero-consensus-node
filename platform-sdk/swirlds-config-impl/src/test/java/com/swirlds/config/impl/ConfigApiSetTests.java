@@ -7,9 +7,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -117,6 +120,29 @@ class ConfigApiSetTests {
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list", Integer.class));
     }
 
+    /** Verify if the iteration order of the set is the same as the order of items in the list. */
+    private static <T> void verifyIterationOrder(final Set<T> set, final List<T> list) {
+        assertEquals(list.size(), set.size(), "The list size should be equal to the set size");
+
+        final Iterator<T> setIterator = set.iterator();
+        final Iterator<T> listIterator = list.iterator();
+
+        final List<T> actualOrder = new ArrayList<>(list.size());
+
+        while (listIterator.hasNext()) {
+            assertEquals(listIterator.hasNext(), setIterator.hasNext());
+
+            final T next = setIterator.next();
+            actualOrder.add(next);
+
+            assertEquals(
+                    listIterator.next(),
+                    next,
+                    "The set iteration order should be stable. Expected: " + list + ", actual so far: " + actualOrder);
+        }
+        assertFalse(setIterator.hasNext());
+    }
+
     @Test
     void checkIntegerSetStable() {
         // given
@@ -128,14 +154,7 @@ class ConfigApiSetTests {
         final Set<Integer> values = configuration.getValueSet("testNumbers", Integer.class);
 
         // then
-        final Iterator<Integer> iterator = values.iterator();
-        assertTrue(iterator.hasNext());
-        assertEquals(1, iterator.next().intValue(), "The set should be stable");
-        assertTrue(iterator.hasNext());
-        assertEquals(2, iterator.next().intValue(), "The set should be stable");
-        assertTrue(iterator.hasNext());
-        assertEquals(3, iterator.next().intValue(), "The set should be stable");
-        assertFalse(iterator.hasNext());
+        verifyIterationOrder(values, List.of(1, 2, 3));
     }
 
     @Test
@@ -149,14 +168,7 @@ class ConfigApiSetTests {
         final Set<String> values = configuration.getValueSet("testStrings", String.class);
 
         // then
-        final Iterator<String> iterator = values.iterator();
-        assertTrue(iterator.hasNext());
-        assertEquals("a", iterator.next(), "The set should be stable");
-        assertTrue(iterator.hasNext());
-        assertEquals("d", iterator.next(), "The set should be stable");
-        assertTrue(iterator.hasNext());
-        assertEquals("x", iterator.next(), "The set should be stable");
-        assertFalse(iterator.hasNext());
+        verifyIterationOrder(values, List.of("a", "d", "x"));
     }
 
     @Test
@@ -175,13 +187,24 @@ class ConfigApiSetTests {
         final Set<TestEnum> values = configuration.getValueSet("testEnums", TestEnum.class);
 
         // then
-        final Iterator<TestEnum> iterator = values.iterator();
-        assertTrue(iterator.hasNext());
-        assertEquals(TestEnum.d, iterator.next(), "The set should be stable");
-        assertTrue(iterator.hasNext());
-        assertEquals(TestEnum.x, iterator.next(), "The set should be stable");
-        assertTrue(iterator.hasNext());
-        assertEquals(TestEnum.a, iterator.next(), "The set should be stable");
-        assertFalse(iterator.hasNext());
+        verifyIterationOrder(values, List.of(TestEnum.d, TestEnum.x, TestEnum.a));
+    }
+
+    @ConfigData("settest")
+    public record SetTestConfig(@ConfigProperty(value = "testSet", defaultValue = "666,404,500") Set<Long> testSet) {}
+
+    @Test
+    void checkSetInRecord() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("settest.testSet", "333,111,222"))
+                .withConfigDataType(SetTestConfig.class)
+                .build();
+
+        // when
+        final SetTestConfig setTestConfig = configuration.getConfigData(SetTestConfig.class);
+
+        // then
+        verifyIterationOrder(setTestConfig.testSet(), List.of(111L, 222L, 333L));
     }
 }
