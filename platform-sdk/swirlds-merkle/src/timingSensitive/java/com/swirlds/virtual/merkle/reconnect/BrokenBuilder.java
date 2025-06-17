@@ -3,10 +3,13 @@ package com.swirlds.virtual.merkle.reconnect;
 
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
+
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
@@ -24,9 +27,10 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
     volatile int numCalls = 0;
     volatile int numTimesBroken = 0;
 
-    static volatile Set<VirtualDataSource> COPIES_TO_DESTROY = ConcurrentHashMap.newKeySet();
+    static final Set<VirtualDataSource> COPIES_TO_DESTROY = ConcurrentHashMap.newKeySet();
 
-    public BrokenBuilder() {}
+    public BrokenBuilder() {
+    }
 
     public BrokenBuilder(VirtualDataSourceBuilder delegate) {
         this.delegate = delegate;
@@ -100,12 +104,14 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
     }
 
     public static void closeDatasourceCopies() {
-        COPIES_TO_DESTROY.forEach(v -> {
+        Iterator<VirtualDataSource> iterator = COPIES_TO_DESTROY.iterator();
+        while (iterator.hasNext()) {
             try {
-                v.close();
+                iterator.next().close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        });
+            iterator.remove();
+        }
     }
 }
