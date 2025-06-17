@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.time.Duration;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -88,15 +87,14 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration configuration();
+    NodeConfiguration<?> configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
      *
      * @return the self id
      */
-    @NonNull
-    NodeId selfId();
+    long selfId();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.

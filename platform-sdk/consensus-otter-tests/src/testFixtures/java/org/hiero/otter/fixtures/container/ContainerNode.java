@@ -24,7 +24,6 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -69,9 +68,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * @throws InterruptedException if the thread is interrupted while starting the container
      */
     public ContainerNode(
-            @NonNull final NodeId selfId,
-            @NonNull final Network network,
-            @NonNull final ImageFromDockerfile dockerImage)
+            final long selfId, @NonNull final Network network, @NonNull final ImageFromDockerfile dockerImage)
             throws IOException, InterruptedException {
         super(selfId);
         final String alias = "node" + selfId;
@@ -84,6 +81,7 @@ public class ContainerNode extends AbstractNode implements Node {
         final PlatformStatusLogParser platformStatusLogParser =
                 new PlatformStatusLogParser(newValue -> platformStatus = newValue);
 
+        //noinspection resource
         this.container = new GenericContainer<>(dockerImage)
                 .withNetwork(network)
                 .withNetworkAliases(alias)
@@ -94,7 +92,10 @@ public class ContainerNode extends AbstractNode implements Node {
         final String response = new PostCommand()
                 .withPath("self-id")
                 .withContentType(MediaType.APPLICATION_JSON.getMediaType())
-                .withContent("{\"selfId\":" + selfId.id() + "}")
+                .withContent(new ObjectMapper()
+                        .createObjectNode()
+                        .put("selfId", selfId)
+                        .toString())
                 .withErrorMessage("Failed to set self ID")
                 .send();
         final String base64 =
@@ -102,7 +103,7 @@ public class ContainerNode extends AbstractNode implements Node {
         final byte[] sigCertBytes = Base64.getDecoder().decode(base64);
 
         this.rosterEntry = RosterEntry.newBuilder()
-                .nodeId(selfId.id())
+                .nodeId(selfId)
                 .weight(1L)
                 .gossipCaCertificate(Bytes.wrap(sigCertBytes))
                 .gossipEndpoint(ServiceEndpoint.newBuilder()
@@ -178,7 +179,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public NodeConfiguration configuration() {
+    public NodeConfiguration<?> configuration() {
         return nodeConfiguration;
     }
 

@@ -10,7 +10,6 @@ import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 
 /**
@@ -23,7 +22,7 @@ public class TurtleInstrumentedNode extends TurtleNode implements InstrumentedNo
     public TurtleInstrumentedNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
-            @NonNull final NodeId nodeId,
+            long nodeId,
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,

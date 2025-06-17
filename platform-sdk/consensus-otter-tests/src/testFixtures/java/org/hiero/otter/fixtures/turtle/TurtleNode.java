@@ -77,6 +77,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
 
+    private final NodeId selfId;
     private final Randotron randotron;
     private final Time time;
     private final Roster roster;
@@ -113,16 +114,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     public TurtleNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
-            @NonNull final NodeId selfId,
+            long selfId,
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
         super(selfId);
+        this.selfId = NodeId.of(selfId);
         logging.addNodeLogging(selfId, outputDirectory);
         try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
+            ThreadContext.put(THREAD_CONTEXT_NODE_ID, this.selfId.toString());
 
             this.randotron = requireNonNull(randotron);
             this.time = requireNonNull(time);
@@ -248,7 +250,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     public SingleNodeLogResult getLogResult() {
         final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
-        return new SingleNodeLogResultImpl(selfId, logs);
+        return new SingleNodeLogResultImpl(selfId.id(), logs);
     }
 
     /**
@@ -266,7 +268,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult getPcesResult() {
-        return new SingleNodePcesResultImpl(selfId, platformContext);
+        return new SingleNodePcesResultImpl(selfId.id(), platformContext);
     }
 
     /**
@@ -299,7 +301,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             doShutdownNode();
             lifeCycle = DESTROYED;
 
-            logging.removeNodeLogging(selfId);
+            logging.removeNodeLogging(selfId.id());
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);

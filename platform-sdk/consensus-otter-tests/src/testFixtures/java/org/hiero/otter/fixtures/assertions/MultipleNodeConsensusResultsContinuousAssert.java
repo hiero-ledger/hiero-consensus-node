@@ -31,7 +31,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
         DESTROYED
     }
 
-    private final Set<NodeId> suppressedNodeIds = ConcurrentHashMap.newKeySet();
+    private final Set<Long> suppressedNodeIds = ConcurrentHashMap.newKeySet();
     private volatile State state = State.ACTIVE;
 
     /**
@@ -87,7 +87,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final NodeId nodeId) {
+    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(final long nodeId) {
         suppressedNodeIds.add(nodeId);
         return this;
     }
@@ -110,7 +110,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final NodeId nodeId) {
+    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(final long nodeId) {
         suppressedNodeIds.remove(nodeId);
         return this;
     }
@@ -145,7 +145,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
                     @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
-                        if (!suppressedNodeIds.contains(nodeId)) {
+                        if (!suppressedNodeIds.contains(nodeId.id())) {
                             for (final ConsensusRound round : rounds) {
                                 final RoundFromNode reference = referenceRounds.computeIfAbsent(
                                         round.getRoundNum(), key -> new RoundFromNode(nodeId, round));

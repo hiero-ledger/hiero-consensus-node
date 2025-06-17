@@ -18,8 +18,7 @@ import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
@@ -58,14 +57,14 @@ public class DockerApp {
     /**
      * Creates a new DockerApp instance with the specified parameters.
      *
-     * @param selfId              the unique identifier for this node
-     * @param version             the semantic version of the application
-     * @param genesisRoster       the initial roster of nodes in the network
-     * @param keysAndCerts        the keys and certificates for this node
+     * @param id                   the unique identifier for this node
+     * @param version              the semantic version of the application
+     * @param genesisRoster        the initial roster of nodes in the network
+     * @param keysAndCerts         the keys and certificates for this node
      * @param overriddenProperties properties to override in the configuration
      */
     public DockerApp(
-            @NonNull final NodeId selfId,
+            final long id,
             @NonNull final SemanticVersion version,
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
@@ -73,12 +72,13 @@ public class DockerApp {
         // --- Configure platform infrastructure and derive node id from the command line and environment ---
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
-        final ConfigurationBuilder configurationBuilder =
-                ConfigurationBuilder.create().autoDiscoverExtensions();
+
+        final NodeId selfId = NodeId.of(id);
+        final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
         if (overriddenProperties != null) {
-            configurationBuilder.withSource(new SimpleConfigSource(overriddenProperties));
+            overriddenProperties.forEach(configurationBuilder::withValue);
         }
-        final Configuration platformConfig = configurationBuilder.build();
+        final Configuration platformConfig = configurationBuilder.getOrCreateConfig();
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig

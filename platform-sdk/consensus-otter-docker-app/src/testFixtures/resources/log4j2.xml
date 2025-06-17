@@ -18,23 +18,16 @@
       </Filters>
     </Console>
 
-    <File name="FileLogger" fileName="${logDir}/otter.log" append="true">
+    <File name="FileLogger" fileName="${logDir}/swirlds.log" append="true">
       <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
-      <Filters>
-        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
-      </Filters>
-    </File>
-
-    <File name="FileLogger-nodeId-0" fileName="${logDir}/nodeId-0/swirlds.log" append="true">
-      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
       <Filters>
         <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
         <MarkerFilter marker="STATE_HASH" onMatch="DENY" onMismatch="NEUTRAL"/>
       </Filters>
     </File>
 
-    <File name="HashStreamLogger-nodeId-0" fileName="${logDir}/nodeId-0/swirlds-hashstream.log" append="true">
-      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [nodeId-%X{nodeId}] [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+    <File name="HashStreamLogger" fileName="${logDir}/swirlds-hashstream.log" append="true">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
       <Filters>
         <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
         <MarkerFilter marker="STATE_HASH" onMatch="NEUTRAL" onMismatch="DENY"/>

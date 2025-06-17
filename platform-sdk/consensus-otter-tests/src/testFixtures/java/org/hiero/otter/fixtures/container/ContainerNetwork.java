@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -99,7 +98,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final List<ContainerNode> newNodes = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            final NodeId selfId = NodeId.of(nextNodeId++);
+            final long selfId = nextNodeId++;
             final ContainerNode node = new ContainerNode(selfId, network, dockerImage);
             newNodes.add(node);
         }

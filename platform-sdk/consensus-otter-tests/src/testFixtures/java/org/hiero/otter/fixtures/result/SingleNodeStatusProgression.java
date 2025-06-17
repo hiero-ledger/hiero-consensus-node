@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures.result;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -19,7 +18,7 @@ public interface SingleNodeStatusProgression {
      * @return the node ID
      */
     @NonNull
-    NodeId nodeId();
+    Long nodeId();
 
     /**
      * Returns the list of platform status progression created during the test.

@@ -8,7 +8,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.CryptoStatic;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.security.KeyStoreException;
@@ -34,7 +33,7 @@ public class DockerInit {
     private DockerApp app;
 
     @Nullable
-    private NodeId selfId;
+    private Long selfId;
 
     @Nullable
     private KeysAndCerts keysAndCerts;
@@ -59,8 +58,8 @@ public class DockerInit {
         server.addPost("/self-id", (req, body) -> {
             try {
                 final JsonNode json = new ObjectMapper().readTree(body);
-                selfId = NodeId.of(json.get("selfId").asLong());
-                if (selfId.id() < 1L) {
+                selfId = json.get("selfId").asLong();
+                if (selfId < 1L) {
                     throw new IllegalArgumentException("selfId must be a positive number");
                 }
                 keysAndCerts = generateKeysAndCerts(selfId);
@@ -121,9 +120,10 @@ public class DockerInit {
         server.addGet("/status", req -> app.getStatus());
     }
 
-    private static KeysAndCerts generateKeysAndCerts(@NonNull final NodeId selfId) {
+    private static KeysAndCerts generateKeysAndCerts(final long selfId) {
         try {
-            return CryptoStatic.generateKeysAndCerts(List.of(selfId), null).get(selfId);
+            final NodeId nodeId = NodeId.of(selfId);
+            return CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }

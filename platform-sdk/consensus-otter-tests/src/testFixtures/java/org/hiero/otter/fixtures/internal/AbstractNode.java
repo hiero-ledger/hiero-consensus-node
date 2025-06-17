@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 
@@ -25,7 +24,7 @@ public abstract class AbstractNode implements Node {
         DESTROYED
     }
 
-    protected final NodeId selfId;
+    protected final long selfId;
 
     protected LifeCycle lifeCycle = LifeCycle.INIT;
     protected SemanticVersion version = Node.DEFAULT_VERSION;
@@ -38,8 +37,8 @@ public abstract class AbstractNode implements Node {
      *
      * @param selfId the unique identifier for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId) {
-        this.selfId = requireNonNull(selfId);
+    protected AbstractNode(final long selfId) {
+        this.selfId = selfId;
     }
 
     /**
@@ -55,8 +54,7 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public NodeId selfId() {
+    public long selfId() {
         return selfId;
     }
 

@@ -18,7 +18,6 @@ import org.apache.logging.log4j.core.config.builder.api.KeyValuePairComponentBui
 import org.apache.logging.log4j.core.config.builder.api.LayoutComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.api.RootLoggerComponentBuilder;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Provides logging configurations and functionality for the Turtle framework.
@@ -26,19 +25,19 @@ import org.hiero.consensus.model.node.NodeId;
 public class TurtleLogging {
 
     private final Path globalLogFile;
-    private final Map<NodeId, Path> nodeIdConfigurations = new ConcurrentHashMap<>();
+    private final Map<Long, Path> nodeIdConfigurations = new ConcurrentHashMap<>();
 
     public TurtleLogging(@NonNull final Path rootOutputDirectory) {
         globalLogFile = rootOutputDirectory.resolve("otter.log");
         updateLogging();
     }
 
-    public void addNodeLogging(@NonNull final NodeId nodeId, @NonNull final Path outputDirectory) {
+    public void addNodeLogging(final long nodeId, @NonNull final Path outputDirectory) {
         nodeIdConfigurations.put(nodeId, outputDirectory);
         updateLogging();
     }
 
-    public void removeNodeLogging(@NonNull final NodeId nodeId) {
+    public void removeNodeLogging(final long nodeId) {
         nodeIdConfigurations.remove(nodeId);
         updateLogging();
     }
@@ -67,11 +66,11 @@ public class TurtleLogging {
 
         final RootLoggerComponentBuilder rootLogger = configuration.newRootLogger(Level.ALL);
 
-        for (final Map.Entry<NodeId, Path> entry : nodeIdConfigurations.entrySet()) {
-            final NodeId nodeId = entry.getKey();
+        for (final Map.Entry<Long, Path> entry : nodeIdConfigurations.entrySet()) {
+            final long nodeId = entry.getKey();
             final Path outputDirectory = entry.getValue();
             final KeyValuePairComponentBuilder keyValuePair =
-                    configuration.newKeyValuePair("nodeId", nodeId.toString());
+                    configuration.newKeyValuePair("nodeId", String.valueOf(nodeId));
 
             final FilterComponentBuilder excludeNodeFilter = configuration
                     .newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)

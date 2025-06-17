@@ -24,7 +24,7 @@ public interface SingleNodeLogResult {
      * @return the {@link NodeId} of the node
      */
     @NonNull
-    NodeId nodeId();
+    Long nodeId();
 
     /**
      * Returns the list of all log entries captured for this node.
