@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventTransaction;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -120,8 +121,8 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
         int currentIndex = startIndex + 1;
         boolean hasEventOrStateChange = false;
-        var isLastEventTxnAtomicBatch = false;
-        var functionOfLastEventTxn = HederaFunctionality.NONE;
+        var isLastParentEventTxnAtomicBatch = false;
+        var functionOfLastParentEventTxn = HederaFunctionality.NONE;
 
         // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
@@ -131,11 +132,15 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 hasEventOrStateChange = true;
                 currentIndex++;
             } else if (item.hasEventTransaction()) {
-                functionOfLastEventTxn = functionOfTxn(item, currentIndex);
-                isLastEventTxnAtomicBatch = functionOfLastEventTxn.equals(HederaFunctionality.ATOMIC_BATCH);
+                functionOfLastParentEventTxn = functionOfTxn(item, currentIndex);
+                if (item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.STARTING_PARENT
+                        || item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.PARENT) {
+                    isLastParentEventTxnAtomicBatch =
+                            functionOfLastParentEventTxn.equals(HederaFunctionality.ATOMIC_BATCH);
+                }
                 currentIndex = validateTransactionGroup(items, currentIndex);
             } else if (item.hasTransactionResult()) {
-                if (!isLastEventTxnAtomicBatch) {
+                if (!isLastParentEventTxnAtomicBatch) {
                     logger.error(
                             "Found transaction result or output without preceding event transaction at index {}",
                             currentIndex);

@@ -78,6 +78,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
+@Tag(ADHOC)
 public class AtomicBatchTest {
     @HapiTest
     public Stream<DynamicTest> validateFeesForChildren() {
