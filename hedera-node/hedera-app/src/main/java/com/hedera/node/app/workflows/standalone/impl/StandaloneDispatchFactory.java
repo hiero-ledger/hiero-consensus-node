@@ -13,6 +13,7 @@ import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -83,6 +84,7 @@ public class StandaloneDispatchFactory {
     private final TransactionDispatcher transactionDispatcher;
     private final NetworkUtilizationManager networkUtilizationManager;
     private final TransactionChecker transactionChecker;
+    private final BlockStreamManager blockStreamManager;
 
     @Inject
     public StandaloneDispatchFactory(
@@ -98,7 +100,8 @@ public class StandaloneDispatchFactory {
             @NonNull final ChildDispatchFactory childDispatchFactory,
             @NonNull final TransactionDispatcher transactionDispatcher,
             @NonNull final NetworkUtilizationManager networkUtilizationManager,
-            @NonNull final TransactionChecker transactionChecker) {
+            @NonNull final TransactionChecker transactionChecker,
+            @NonNull final BlockStreamManager blockStreamManager) {
         this.feeManager = requireNonNull(feeManager);
         this.authorizer = requireNonNull(authorizer);
         this.networkInfo = requireNonNull(networkInfo);
@@ -112,6 +115,7 @@ public class StandaloneDispatchFactory {
         this.storeMetricsService = requireNonNull(storeMetricsService);
         this.networkUtilizationManager = requireNonNull(networkUtilizationManager);
         this.transactionChecker = requireNonNull(transactionChecker);
+        this.blockStreamManager = requireNonNull(blockStreamManager);
     }
 
     /**
@@ -135,6 +139,7 @@ public class StandaloneDispatchFactory {
                 state,
                 consensusConfig.handleMaxPrecedingRecords(),
                 consensusConfig.handleMaxFollowingRecords(),
+                blockStreamManager,
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new ImmediateStateChangeListener(),
                 blockStreamConfig.streamMode());

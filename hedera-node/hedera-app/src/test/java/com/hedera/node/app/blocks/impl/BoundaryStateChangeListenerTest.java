@@ -83,7 +83,7 @@ class BoundaryStateChangeListenerTest {
 
     @Test
     void testFlushChanges() {
-        listener.setBoundaryTimestamp(Instant.now());
+        listener.setLastConsensusTime(Instant.now());
         listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
         BlockItem blockItem = listener.flushChanges();
 

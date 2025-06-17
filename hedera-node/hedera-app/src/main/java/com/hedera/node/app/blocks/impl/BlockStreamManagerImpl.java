@@ -23,6 +23,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
@@ -273,7 +274,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (writer == null) {
             writer = writerSupplier.get();
             blockTimestamp = round.getConsensusTimestamp();
-            boundaryStateChangeListener.setBoundaryTimestamp(blockTimestamp);
             lastExecutionTime = round.getConsensusTimestamp();
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
@@ -386,6 +386,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
+    public @NonNull Instant lastExecutionTime() {
+        return lastExecutionTime;
+    }
+
+    @Override
+    public void setLastExecutionTime(@NonNull final Instant lastExecutionTime) {
+        this.lastExecutionTime = requireNonNull(lastExecutionTime);
+    }
+
+    @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
         if (closesBlock) {
@@ -399,7 +409,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 hederaStateRoot.commitSingletons();
             }
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(boundaryStateChangeListener.flushChanges());
+
+            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             final var consensusHeaderHash = consensusHeaderHasher.rootHash().join();
@@ -421,7 +432,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
             final var blockStreamInfoState = writableState.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY);
-            final var boundaryTimestamp = boundaryStateChangeListener.boundaryTimestampOrThrow();
             blockStreamInfoState.put(new BlockStreamInfo(
                     blockNumber,
                     blockTimestamp(),
@@ -431,7 +441,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockStartStateHash,
                     stateChangesTreeStatus.numLeaves(),
                     stateChangesTreeStatus.rightmostHashes(),
-                    boundaryTimestamp,
+                    asTimestamp(lastExecutionTime),
                     pendingWork != POST_UPGRADE_WORK,
                     version,
                     asTimestamp(lastIntervalProcessTime),
@@ -441,7 +451,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     outputHash));
             ((CommittableWritableStates) writableState).commit();
 
-            worker.addItem(boundaryStateChangeListener.flushChanges());
+            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             final var stateChangesHash = stateChangesHasher.rootHash().join();
@@ -921,5 +931,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public Optional<Integer> getEventIndex(@NonNull Hash eventHash) {
         return Optional.ofNullable(eventIndexInBlock.get(eventHash));
+    }
+
+    private BlockItem flushChangesFromListener(@NonNull final BoundaryStateChangeListener boundaryStateChangeListener) {
+        final var stateChanges = new StateChanges(asTimestamp(lastExecutionTime), boundaryStateChangeListener.allStateChanges());
+        boundaryStateChangeListener.reset();
+        return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 }

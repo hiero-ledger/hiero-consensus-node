@@ -8,6 +8,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -29,6 +30,9 @@ class SavepointStackImplBlocksStreamModeTest {
     private StreamBuilder streamBuilder;
 
     @Mock
+    private BlockStreamManager blockStreamManager;
+
+    @Mock
     private BoundaryStateChangeListener boundaryStateChangeListener;
 
     @Mock
@@ -39,7 +43,7 @@ class SavepointStackImplBlocksStreamModeTest {
     @BeforeEach
     void setUp() {
         subject = SavepointStackImpl.newRootStack(
-                state, 3, 50, boundaryStateChangeListener, immediateStateChangeListener, BLOCKS);
+                state, 3, 50, blockStreamManager, boundaryStateChangeListener, immediateStateChangeListener, BLOCKS);
     }
 
     @Test

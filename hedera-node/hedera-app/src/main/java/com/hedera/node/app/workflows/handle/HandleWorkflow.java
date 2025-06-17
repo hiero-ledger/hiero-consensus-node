@@ -266,11 +266,11 @@ public class HandleWorkflow {
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
                 // Dispatch rewards for active nodes after at least one user transaction is handled
-                if (boundaryStateChangeListener.lastConsensusTime() != null) {
+                // FIXME: IT IS ALWAYS TRUE
+                if (blockStreamManager.lastExecutionTime() != null) {
                     transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
                             state,
-                            boundaryStateChangeListener
-                                    .lastConsensusTimeOrThrow()
+                            blockStreamManager.lastExecutionTime()
                                     .plusNanos(1),
                             systemTransactions);
                 }
@@ -535,8 +535,8 @@ public class HandleWorkflow {
                     - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
-            var nextTime = boundaryStateChangeListener
-                    .lastConsensusTimeOrThrow()
+            var nextTime = blockStreamManager
+                    .lastExecutionTime()
                     .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStore(entityIdWritableStates);
@@ -568,10 +568,9 @@ public class HandleWorkflow {
                 doStreamingKVChanges(
                         writableStates,
                         entityIdWritableStates,
-                        boundaryStateChangeListener.lastConsensusTimeOrThrow(),
                         iter::remove);
-                nextTime = boundaryStateChangeListener
-                        .lastConsensusTimeOrThrow()
+                nextTime = blockStreamManager
+                        .lastExecutionTime()
                         .plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
                 n--;
             }
@@ -581,7 +580,6 @@ public class HandleWorkflow {
             doStreamingKVChanges(
                     writableStates,
                     entityIdWritableStates,
-                    boundaryStateChangeListener.lastConsensusTimeOrThrow(),
                     iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
@@ -626,7 +624,7 @@ public class HandleWorkflow {
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var entityCounters = new WritableEntityIdStore(entityIdWritableStates);
-            doStreamingKVChanges(writableStates, entityIdWritableStates, now, () -> {
+            doStreamingKVChanges(writableStates, entityIdWritableStates, () -> {
                 final var scheduleStore = new WritableScheduleStoreImpl(writableStates, entityCounters);
                 scheduleStore.purgeExpiredRangeClosed(then.getEpochSecond(), now.getEpochSecond() - 1);
             });
@@ -677,10 +675,7 @@ public class HandleWorkflow {
                     final var schedulingConfig = parentTxn.config().getConfigData(SchedulingConfig.class);
                     doStreamingKVChanges(
                             writableTokenStates,
-                            // Ensure that even if the user txn has preceding children, these state changes still have
-                            // an earlier consensus time; since in fact they are, in fact, committed first
                             writableEntityIdStates,
-                            parentTxn.consensusNow().minusNanos(schedulingConfig.reservedSystemTxnNanos()),
                             () -> stakeInfoHelper.adjustPostUpgradeStakes(
                                     networkInfo,
                                     parentTxn.config(),
@@ -789,13 +784,11 @@ public class HandleWorkflow {
      *
      * @param writableStates the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
-     * @param now the consensus timestamp of the action
      * @param action the action to commit
      */
     private void doStreamingKVChanges(
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
-            @NonNull final Instant now,
             @NonNull final Runnable action) {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges();
@@ -808,10 +801,9 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             final var changes = immediateStateChangeListener.getKvStateChanges();
             if (!changes.isEmpty()) {
-                final var stateChangesItem = BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(changes)))
-                        .build();
-                blockStreamManager.writeItem(stateChangesItem);
+                blockStreamManager.writeItem((lastExecutionTime) -> BlockItem.newBuilder()
+                        .stateChanges(new StateChanges(asTimestamp(lastExecutionTime), new ArrayList<>(changes)))
+                        .build());
             }
         }
     }
@@ -956,25 +948,22 @@ public class HandleWorkflow {
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
-            final var boundaryTimestamp = boundaryStateChangeListener.lastConsensusTimeOrThrow();
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStore(state.getWritableStates(EntityIdService.NAME));
             final var activeRosters = ActiveRosters.from(rosterStore);
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var workTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
+                final var workTime = blockHashSigner.isReady() ? blockStreamManager.lastExecutionTime() : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
-                        workTime,
                         () -> hintsService.executeCrsWork(
                                 new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        workTime,
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
@@ -992,9 +981,8 @@ public class HandleWorkflow {
                 doStreamingKVChanges(
                         historyWritableStates,
                         null,
-                        boundaryTimestamp,
                         () -> historyService.reconcile(
-                                activeRosters, currentMetadata, historyStore, boundaryTimestamp, tssConfig, isActive));
+                                activeRosters, currentMetadata, historyStore, blockStreamManager.lastExecutionTime(), tssConfig, isActive));
             }
         }
     }
