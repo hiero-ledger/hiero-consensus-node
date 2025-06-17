@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -110,8 +111,7 @@ public class PrepareForTransplantCommand extends AbstractCommand {
                 new NoOpMetrics(),
                 FileSystemManager.create(configuration),
                 new SimpleRecycleBin(),
-                MerkleCryptographyFactory.create(configuration)
-        );
+                MerkleCryptographyFactory.create(configuration));
 
         System.out.println("Transplanting state from: " + statePath);
         prepareStateForTransplant(statePath, platformContext);
@@ -126,37 +126,28 @@ public class PrepareForTransplantCommand extends AbstractCommand {
      * @param platformContext the platform context
      * @throws IOException if an I/O error occurs
      */
-    public static void prepareStateForTransplant(@NonNull final Path statePath, @NonNull final PlatformContext platformContext)
-            throws IOException {
-        final Path pcesFiles = statePath.resolve(
-                platformContext.getConfiguration().getConfigData(PcesConfig.class).databaseDirectory());
+    public static void prepareStateForTransplant(
+            @NonNull final Path statePath, @NonNull final PlatformContext platformContext) throws IOException {
+        final Path pcesFiles = statePath.resolve(platformContext
+                .getConfiguration()
+                .getConfigData(PcesConfig.class)
+                .databaseDirectory());
         final Path pcesTmp = statePath.resolve(PCES_TEMPORARY_DIR);
 
         // move the old files to a temporary directory
         Files.move(pcesFiles, pcesTmp, StandardCopyOption.REPLACE_EXISTING);
 
-        final SavedStateMetadata stateMetadata = SavedStateMetadata.parse(
-                statePath.resolve(SavedStateMetadata.FILE_NAME)
-        );
+        final SavedStateMetadata stateMetadata =
+                SavedStateMetadata.parse(statePath.resolve(SavedStateMetadata.FILE_NAME));
 
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                platformContext,
-                pcesTmp,
-                stateMetadata.round(),
-                false
-        );
+        final PcesFileTracker fileTracker =
+                PcesFileReader.readFilesFromDisk(platformContext, pcesTmp, stateMetadata.round(), false);
 
-        final PcesMultiFileIterator eventIterator = fileTracker.getEventIterator(
-                stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
+        final PcesMultiFileIterator eventIterator =
+                fileTracker.getEventIterator(stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
         final CommonPcesWriter pcesWriter = new CommonPcesWriter(
                 platformContext,
-                new PcesFileManager(
-                        platformContext,
-                        new PcesFileTracker(),
-                        pcesFiles,
-                        stateMetadata.round()
-                )
-        );
+                new PcesFileManager(platformContext, new PcesFileTracker(), pcesFiles, stateMetadata.round()));
         pcesWriter.beginStreamingNewEvents();
 
         // Go through the events and write them to the new files, skipping any events that are from a future round
@@ -174,9 +165,8 @@ public class PrepareForTransplantCommand extends AbstractCommand {
 
         FileUtils.deleteDirectory(pcesTmp);
 
-        System.out.printf("Transplant complete. %d events were discarded due to being from a future round.%n",
+        System.out.printf(
+                "Transplant complete. %d events were discarded due to being from a future round.%n",
                 discardedEventCount);
     }
 }
-
-

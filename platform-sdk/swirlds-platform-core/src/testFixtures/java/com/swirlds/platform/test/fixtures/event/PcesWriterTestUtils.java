@@ -17,7 +17,6 @@ import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,7 +28,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class PcesWriterTestUtils {
@@ -99,8 +97,7 @@ public class PcesWriterTestUtils {
             lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getBirthRound());
         }
 
-        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
-                platformContext, pcesDirectory, 0, false);
+        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(platformContext, pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);

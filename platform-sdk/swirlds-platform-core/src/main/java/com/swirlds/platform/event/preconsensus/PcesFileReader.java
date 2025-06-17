@@ -7,7 +7,6 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.fileSanityCh
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
