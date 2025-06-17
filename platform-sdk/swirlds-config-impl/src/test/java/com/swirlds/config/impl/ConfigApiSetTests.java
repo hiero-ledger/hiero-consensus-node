@@ -2,6 +2,7 @@
 package com.swirlds.config.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -113,5 +115,73 @@ class ConfigApiSetTests {
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list"));
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list", String.class));
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list", Integer.class));
+    }
+
+    @Test
+    void checkIntegerSetStable() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("testNumbers", "3,1,2"))
+                .build();
+
+        // when
+        final Set<Integer> values = configuration.getValueSet("testNumbers", Integer.class);
+
+        // then
+        final Iterator<Integer> iterator = values.iterator();
+        assertTrue(iterator.hasNext());
+        assertEquals(1, iterator.next().intValue(), "The set should be stable");
+        assertTrue(iterator.hasNext());
+        assertEquals(2, iterator.next().intValue(), "The set should be stable");
+        assertTrue(iterator.hasNext());
+        assertEquals(3, iterator.next().intValue(), "The set should be stable");
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    void checkStringSetStable() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("testStrings", "x,a,d"))
+                .build();
+
+        // when
+        final Set<String> values = configuration.getValueSet("testStrings", String.class);
+
+        // then
+        final Iterator<String> iterator = values.iterator();
+        assertTrue(iterator.hasNext());
+        assertEquals("a", iterator.next(), "The set should be stable");
+        assertTrue(iterator.hasNext());
+        assertEquals("d", iterator.next(), "The set should be stable");
+        assertTrue(iterator.hasNext());
+        assertEquals("x", iterator.next(), "The set should be stable");
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    void checkEnumSetStable() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("testEnums", "x,a,d"))
+                .build();
+        enum TestEnum {
+            d,
+            x,
+            a
+        }
+
+        // when
+        final Set<TestEnum> values = configuration.getValueSet("testEnums", TestEnum.class);
+
+        // then
+        final Iterator<TestEnum> iterator = values.iterator();
+        assertTrue(iterator.hasNext());
+        assertEquals(TestEnum.d, iterator.next(), "The set should be stable");
+        assertTrue(iterator.hasNext());
+        assertEquals(TestEnum.x, iterator.next(), "The set should be stable");
+        assertTrue(iterator.hasNext());
+        assertEquals(TestEnum.a, iterator.next(), "The set should be stable");
+        assertFalse(iterator.hasNext());
     }
 }
