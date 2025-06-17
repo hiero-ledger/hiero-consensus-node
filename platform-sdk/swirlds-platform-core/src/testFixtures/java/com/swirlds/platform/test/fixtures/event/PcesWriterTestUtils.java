@@ -22,6 +22,7 @@ import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,7 +88,7 @@ public class PcesWriterTestUtils {
      * @param truncatedFileCount the expected number of truncated files
      */
     public static void verifyStream(
-            @NonNull final NodeId selfId,
+            @NonNull final Path pcesDirectory,
             @NonNull final List<PlatformEvent> events,
             @NonNull final PlatformContext platformContext,
             final int truncatedFileCount)
@@ -99,7 +100,7 @@ public class PcesWriterTestUtils {
         }
 
         final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(
-                platformContext, PcesUtilities.getDatabaseDirectory(platformContext, selfId), 0, false);
+                platformContext, pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);

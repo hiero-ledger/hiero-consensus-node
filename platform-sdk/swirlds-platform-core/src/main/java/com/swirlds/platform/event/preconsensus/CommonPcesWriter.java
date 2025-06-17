@@ -7,7 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.LongRunningAverage;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -106,23 +105,18 @@ public class CommonPcesWriter {
      */
     private final PcesFileWriterType pcesFileWriterType;
 
-    public CommonPcesWriter(
-            @NonNull final PlatformContext platformContext, @NonNull final PcesFileManager fileManager) {
-        this(platformContext.getConfiguration(),
-                fileManager);
-    }
-
     /**
      * Constructor
      *
+     * @param platformContext the platform context
      * @param fileManager     manages all PCES files currently on disk
      */
     public CommonPcesWriter(
-            @NonNull final Configuration configuration, @NonNull final PcesFileManager fileManager) {
-        Objects.requireNonNull(configuration, "platformContext is required");
+            @NonNull final PlatformContext platformContext, @NonNull final PcesFileManager fileManager) {
+        Objects.requireNonNull(platformContext, "platformContext is required");
         this.fileManager = Objects.requireNonNull(fileManager, "fileManager is required");
 
-        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
+        final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
 
         previousSpan = pcesConfig.bootstrapSpan();
         bootstrapSpanOverlapFactor = pcesConfig.bootstrapSpanOverlapFactor();

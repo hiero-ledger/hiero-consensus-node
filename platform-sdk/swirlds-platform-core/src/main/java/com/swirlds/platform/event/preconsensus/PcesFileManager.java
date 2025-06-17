@@ -68,32 +68,10 @@ public class PcesFileManager {
     /**
      * Constructor
      *
-     * @param platformContext the platform context for this node
-     * @param files           the files to track
-     * @param selfId          the ID of this node
-     * @param startingRound   the round number of the initial state of the system
-     * @throws IOException if there is an error reading the files
-     */
-    public PcesFileManager(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final PcesFileTracker files,
-            @NonNull final NodeId selfId,
-            final long startingRound)
-            throws IOException {
-        this(
-                platformContext,
-                files,
-                getDatabaseDirectory(platformContext, selfId),
-                startingRound
-        );
-    }
-
-    /**
-     * Constructor
-     *
-     * @param platformContext the platform context for this node
-     * @param files           the files to track
-     * @param startingRound   the round number of the initial state of the system
+     * @param platformContext   the platform context for this node
+     * @param files             the files to track
+     * @param databaseDirectory the directory where new files will be created
+     * @param startingRound     the round number of the initial state of the system
      * @throws IOException if there is an error reading the files
      */
     public PcesFileManager(

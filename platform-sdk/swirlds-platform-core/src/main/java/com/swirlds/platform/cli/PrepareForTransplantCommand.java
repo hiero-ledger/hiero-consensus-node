@@ -22,6 +22,7 @@ import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -125,7 +126,7 @@ public class PrepareForTransplantCommand extends AbstractCommand {
      * @param platformContext the platform context
      * @throws IOException if an I/O error occurs
      */
-    public static void prepareStateForTransplant(final Path statePath, final PlatformContext platformContext)
+    public static void prepareStateForTransplant(@NonNull final Path statePath, @NonNull final PlatformContext platformContext)
             throws IOException {
         final Path pcesFiles = statePath.resolve(
                 platformContext.getConfiguration().getConfigData(PcesConfig.class).databaseDirectory());
@@ -148,7 +149,7 @@ public class PrepareForTransplantCommand extends AbstractCommand {
         final PcesMultiFileIterator eventIterator = fileTracker.getEventIterator(
                 stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());
         final CommonPcesWriter pcesWriter = new CommonPcesWriter(
-                platformContext.getConfiguration(),
+                platformContext,
                 new PcesFileManager(
                         platformContext,
                         new PcesFileTracker(),

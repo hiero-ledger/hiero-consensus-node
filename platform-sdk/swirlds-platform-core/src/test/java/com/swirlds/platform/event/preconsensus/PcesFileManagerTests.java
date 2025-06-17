@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -90,7 +89,7 @@ class PcesFileManagerTests {
         final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, NodeId.of(0), 0);
+        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
 
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
@@ -179,7 +178,7 @@ class PcesFileManagerTests {
         final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, NodeId.of(0), 0);
+        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
 
         assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
