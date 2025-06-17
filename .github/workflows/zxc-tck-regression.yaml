@@ -175,7 +175,7 @@ jobs:
           for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job ${job_id}..."
 
-            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == ${job_id}) | .name')
 
             echo "Logs for job $current_job_name :" >> run.log
 
