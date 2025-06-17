@@ -31,8 +31,12 @@ import java.util.Optional;
 /**
  * Groups the block items used to represent a single logical HAPI transaction, which itself may be part of a larger
  * transactional unit with parent/child relationships.
+ * <p>
+ * The transactionParts will be null for the batch inner transaction parts initially, because each batch inner
+ * transaction will not be associated with an event transaction. It will be set using {@link #withTransactionParts(TransactionParts)}
+ * when the inner transaction is processed.
  *
- * @param transactionParts the parts of the transaction
+ * @param transactionParts the parts of the transaction.
  * @param transactionResult the result of processing the transaction
  * @param role the role of the transaction in the group
  * @param traces any traces associated with the transaction
@@ -47,6 +51,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the status of the transaction.
+     *
      * @return the status
      */
     public ResponseCodeEnum status() {
@@ -55,6 +60,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the body of the transaction.
+     *
      * @return the body
      */
     public TransactionBody body() {
@@ -63,6 +69,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the functionality of the transaction.
+     *
      * @return the functionality
      */
     public HederaFunctionality functionality() {
@@ -71,6 +78,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the transaction ID.
+     *
      * @return the transaction ID
      */
     public TransactionID transactionIdOrThrow() {
@@ -79,6 +87,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the consensus timestamp.
+     *
      * @return the consensus timestamp
      */
     public Timestamp consensusTimestamp() {
@@ -87,6 +96,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the transaction fee.
+     *
      * @return the transaction fee
      */
     public long transactionFee() {
@@ -95,6 +105,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the transfer list.
+     *
      * @return the transfer list
      */
     public TransferList transferList() {
@@ -103,6 +114,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the token transfer lists.
+     *
      * @return the token transfer lists
      */
     public List<TokenTransferList> tokenTransferLists() {
@@ -111,6 +123,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the automatic token associations.
+     *
      * @return the automatic token associations
      */
     public List<TokenAssociation> automaticTokenAssociations() {
@@ -119,6 +132,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the paid staking rewards.
+     *
      * @return the paid staking rewards
      */
     public List<AccountAmount> paidStakingRewards() {
@@ -127,6 +141,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the memo.
+     *
      * @return the memo
      */
     public String memo() {
@@ -135,6 +150,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the parent consensus timestamp.
+     *
      * @return the parent consensus timestamp
      */
     public Timestamp parentConsensusTimestamp() {
@@ -142,7 +158,9 @@ public record BlockTransactionParts(
     }
 
     /**
-     * Sets the transaction parts for this block transaction parts.
+     * Sets the transaction parts for this block transaction parts. This will be used for the batch inner transactions
+     * that are not associated with an event transaction.
+     *
      * @param transactionParts the transaction parts to set
      * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
      */
@@ -152,6 +170,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the hash of the transaction.
+     *
      * @return the hash
      */
     public Bytes transactionHash() {
@@ -219,6 +238,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the {@link TransactionOutput} of the given kind if it is present.
+     *
      * @param kind the kind of output
      * @return the output if present
      */
@@ -233,6 +253,7 @@ public record BlockTransactionParts(
 
     /**
      * Returns the assessed custom fees.
+     *
      * @return the assessed custom fees
      */
     public List<AssessedCustomFee> assessedCustomFees() {

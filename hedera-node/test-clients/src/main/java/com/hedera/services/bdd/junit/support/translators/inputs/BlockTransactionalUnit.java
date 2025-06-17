@@ -28,6 +28,11 @@ public record BlockTransactionalUnit(
                 .toList();
     }
 
+    /**
+     * Returns the unit with the inner transactions of any atomic batch transaction parts replaced with their
+     * respective inner transactions.
+     * @return the unit with inner transactions replaced with their respective inner transactions
+     */
     public BlockTransactionalUnit withBatchTransactionParts() {
         boolean anyUnitMissing = false;
         for (final var parts : blockTransactionParts) {
@@ -45,18 +50,18 @@ public record BlockTransactionalUnit(
                 .filter(parts -> parts.functionality() == HederaFunctionality.ATOMIC_BATCH)
                 .findFirst()
                 .orElseThrow();
-        // get queue of inner txns from the atomic batch parts
+        // get queue of inner transactions from the atomic batch parts
         final var innerTxns = new ArrayDeque<>(batchParts.body().atomicBatchOrThrow().transactions().stream()
                 .map(txn -> Transaction.PROTOBUF.toBytes(
                         Transaction.newBuilder().signedTransactionBytes(txn).build()))
                 .map(TransactionParts::from)
                 .toList());
         // Insert the inner transactions into the block transaction parts. Once we insert them, we can
-        // do rest of the logic like usual
+        //  do the rest of the logic like usual
         for (int i = 0; i < blockTransactionParts.size(); i++) {
             final var parts = blockTransactionParts.get(i);
             if (parts.transactionParts() == null) {
-                // replace with inner transaction
+                // replace it with inner transaction
                 blockTransactionParts.set(i, parts.withTransactionParts(innerTxns.removeFirst()));
             }
         }
