@@ -537,6 +537,8 @@ public class BlockStreamBuilder
      */
     public Output build() {
         final var blockItems = new ArrayList<BlockItem>();
+        // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
+        // can be inferred from the parent transaction.
         if (category != HandleContext.TransactionCategory.BATCH_INNER) {
             blockItems.add(BlockItem.newBuilder()
                     .eventTransaction(EventTransaction.newBuilder()

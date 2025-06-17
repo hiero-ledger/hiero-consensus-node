@@ -121,8 +121,8 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
         int currentIndex = startIndex + 1;
         boolean hasEventOrStateChange = false;
-        var isLastParentEventTxnAtomicBatch = false;
-        var functionOfLastParentEventTxn = HederaFunctionality.NONE;
+        var isLatestParentBatchTxn = false;
+        var latestParentFunction = HederaFunctionality.NONE;
 
         // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
@@ -132,15 +132,13 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 hasEventOrStateChange = true;
                 currentIndex++;
             } else if (item.hasEventTransaction()) {
-                functionOfLastParentEventTxn = functionOfTxn(item, currentIndex);
-                if (item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.STARTING_PARENT
-                        || item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.PARENT) {
-                    isLastParentEventTxnAtomicBatch =
-                            functionOfLastParentEventTxn.equals(HederaFunctionality.ATOMIC_BATCH);
+                latestParentFunction = functionOfTxn(item, currentIndex);
+                if (isParent(item)) {
+                    isLatestParentBatchTxn = latestParentFunction.equals(HederaFunctionality.ATOMIC_BATCH);
                 }
                 currentIndex = validateTransactionGroup(items, currentIndex);
             } else if (item.hasTransactionResult()) {
-                if (!isLastParentEventTxnAtomicBatch) {
+                if (!isLatestParentBatchTxn) {
                     logger.error(
                             "Found transaction result or output without preceding event transaction at index {}",
                             currentIndex);
@@ -162,6 +160,24 @@ public class BlockContentsValidator implements BlockStreamValidator {
         return currentIndex;
     }
 
+    /**
+     * Checks if the given block item is a parent or starting parent transaction.
+     *
+     * @param item the block item to check
+     * @return true if the item is a parent transaction, false otherwise
+     */
+    private static boolean isParent(final BlockItem item) {
+        return item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.STARTING_PARENT
+                || item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.PARENT;
+    }
+
+    /**
+     * Determines the Hedera functionality of the transaction in the given block item.
+     *
+     * @param item the block item containing the event transaction
+     * @param currentIndex the index of the block item in the block
+     * @return the Hedera functionality of the transaction, or HederaFunctionality.NONE if it cannot be determined
+     */
     private HederaFunctionality functionOfTxn(final BlockItem item, final int currentIndex) {
         try {
             final var eventTransaction = item.eventTransactionOrThrow();

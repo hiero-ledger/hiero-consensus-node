@@ -51,18 +51,6 @@ public record TransactionParts(
         }
     }
 
-    public static TransactionParts fromInner(@NonNull final Bytes serializedTransaction) {
-        try {
-            final var signedTxn = SignedTransaction.PROTOBUF.parse(serializedTransaction);
-            final var bodyBytes = signedTxn.bodyBytes();
-            final var body = TransactionBody.PROTOBUF.parse(bodyBytes);
-            return new TransactionParts(null, body, functionOf(body));
-        } catch (ParseException | UnknownHederaFunctionality e) {
-            // Fail immediately with invalid transactions that should not be in any production record stream
-            throw new IllegalArgumentException(e);
-        }
-    }
-
     private static Bytes bodyBytesOf(final Transaction txn) throws ParseException {
         if (txn.signedTransactionBytes().length() > 0) {
             final var signedTxn = SignedTransaction.PROTOBUF.parse(txn.signedTransactionBytes());

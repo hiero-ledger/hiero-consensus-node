@@ -141,6 +141,11 @@ public record BlockTransactionParts(
         return transactionResult.parentConsensusTimestamp();
     }
 
+    /**
+     * Sets the transaction parts for this block transaction parts.
+     * @param transactionParts the transaction parts to set
+     * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
+     */
     public BlockTransactionParts withTransactionParts(final TransactionParts transactionParts) {
         return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs);
     }

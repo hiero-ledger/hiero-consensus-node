@@ -123,7 +123,6 @@ public class AtomicBatchTest {
 
     @HapiTest
     @DisplayName("Validate batch transaction passed")
-    @Tag(ADHOC)
     public Stream<DynamicTest> simpleBatchTest() {
         final var batchOperator = "batchOperator";
         final var innerTxnPayer = "innerPayer";
