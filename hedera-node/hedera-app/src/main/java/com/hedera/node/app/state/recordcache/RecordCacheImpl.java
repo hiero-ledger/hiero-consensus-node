@@ -360,7 +360,7 @@ public class RecordCacheImpl implements HederaRecordCache {
             final var changes = immediateStateChangeListener.getQueueStateChanges();
             if (!changes.isEmpty()) {
                 blockStreamManager.writeItem((instant -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(instant.plusNanos(1)), new ArrayList<>(changes)))
+                        .stateChanges(new StateChanges(asTimestamp(instant), new ArrayList<>(changes)))
                         .build()));
             }
         }
