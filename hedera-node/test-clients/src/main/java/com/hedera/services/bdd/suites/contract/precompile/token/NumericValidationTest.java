@@ -127,11 +127,11 @@ public class NumericValidationTest {
      * Validate that functions calls to the HTS system contract that take numeric values handle error cases correctly.
      */
     @Nested
-    @DisplayName("calls fail to approve functions with invalid amounts")
+    @DisplayName("Approve functions")
     class ApproveTests {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT approve(address,uint256)")
+        @DisplayName("FT redirect proxy approve(address,uint256)")
         public Stream<DynamicTest> failToApproveViaProxyFungibleToken() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -145,7 +145,8 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT approve(address,uint256)")
+        @DisplayName("NFT redirect proxy approve(address,uint256)")
+        // HTS proxy approve with NFT
         public Stream<DynamicTest> failToApproveViaProxyNft() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -160,7 +161,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("approve(address,address,uint256)")
+        @DisplayName("FT 0x167 approve(address,address,uint256)")
         public Stream<DynamicTest> failToApproveFungibleToken() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -174,7 +175,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("approveNFT(address,address,uint256)")
+        @DisplayName("NFT 0x167 approveNFT(address,address,uint256)")
         public Stream<DynamicTest> failToApproveNft() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -190,11 +191,11 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("calls fail to burn functions with invalid amounts")
+    @DisplayName("Burn functions")
     class BurnTests {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT burnToken(address,uint64,int64[])")
+        @DisplayName("FT 0x167 burnToken(address,uint64,int64[])")
         public Stream<DynamicTest> failToBurnFtV1() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -207,7 +208,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT burnToken(address,uint64,int64[])")
+        @DisplayName("NFT 0x167 burnToken(address,uint64,int64[])")
         public Stream<DynamicTest> failToBurnNftV1() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -222,7 +223,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT burnToken(address,int64,int64[])")
+        @DisplayName("FT 0x167 burnToken(address,int64,int64[])")
         public Stream<DynamicTest> failToBurnFtV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -236,7 +237,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT burnToken(address,int64,int64[])")
+        @DisplayName("NFT 0x167 burnToken(address,int64,int64[])")
         public Stream<DynamicTest> failToBurnNftV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -253,11 +254,11 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("calls fail to mint functions with invalid amounts")
+    @DisplayName("Mint functions")
     class MintTests {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT mintToken(address,uint64,bytes[])")
+        @DisplayName("FT 0x167 mintToken(address,uint64,bytes[])")
         public Stream<DynamicTest> failToMintFtV1() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -272,7 +273,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT mintToken(address,uint64,bytes[])")
+        @DisplayName("NFT 0x167 mintToken(address,uint64,bytes[])")
         public Stream<DynamicTest> failToMintNftV1() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -289,7 +290,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT mintToken(address,int64,bytes[])")
+        @DisplayName("FT 0x167 mintToken(address,int64,bytes[])")
         public Stream<DynamicTest> failToMintFTV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -303,7 +304,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT mintToken(address,int64,bytes[])")
+        @DisplayName("NFT 0x167 mintToken(address,int64,bytes[])")
         public Stream<DynamicTest> failToMintNftV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -318,11 +319,11 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("calls fail to wipe functions with invalid amounts")
+    @DisplayName("Wipe functions")
     class WipeTests {
 
         @HapiTest
-        @DisplayName("wipeTokenAccount(address,address,uint32)")
+        @DisplayName("FT 0x167 wipeTokenAccount(address,address,uint32)")
         public Stream<DynamicTest> failToWipeFtV1() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -333,7 +334,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("wipeTokenAccount(address,address,int64)")
+        @DisplayName("FT 0x167 wipeTokenAccount(address,address,int64)")
         public Stream<DynamicTest> failToWipeFtV2() {
             // only negative numbers are invalid. zero is considered valid and the abi definition will block an attempt
             // to send number greater than Long.MAX_VALUE
@@ -347,7 +348,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("wipeTokenAccountNFT(address,address,int64[])")
+        @DisplayName("NFT 0x167 wipeTokenAccountNFT(address,address,int64[])")
         public Stream<DynamicTest> failToWipeNft() {
             // only negative number serial numbers are invalid. zero is considered valid and the abi definition will
             // block an attempt to send number greater than Long.MAX_VALUE
@@ -365,11 +366,11 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("calls fail to static functions with invalid amounts")
+    @DisplayName("Static functions")
     class StaticFunctionsTests {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT tokenURI(uint256)")
+        @DisplayName("NFT redirect proxy tokenURI(uint256)")
         public Stream<DynamicTest> failTokenURI() {
             return Stream.of(
                             // ERC721Metadata: URI query for nonexistent token
@@ -383,7 +384,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("NFT getTokenKey(address,uint256)")
+        @DisplayName("NFT 0x167 getTokenKey(address,uint256)")
         public Stream<DynamicTest> failToGetTokenKeyNft() {
             return Stream.of(
                             // KEY_NOT_PROVIDED
@@ -397,7 +398,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT getTokenKey(address,uint256)")
+        @DisplayName("FT 0x167 getTokenKey(address,uint256)")
         public Stream<DynamicTest> failToGetTokenKeyFt() {
             return Stream.of(
                             // KEY_NOT_PROVIDED
@@ -411,7 +412,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("getNonFungibleTokenInfo(address,int64)")
+        @DisplayName("NFT 0x167 getNonFungibleTokenInfo(address,int64)")
         public Stream<DynamicTest> failToGetNonFungibleTokenInfo() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
@@ -425,7 +426,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("getApproved(address,uint256)")
+        @DisplayName("NFT 0x167 getApproved(address,uint256)")
         public Stream<DynamicTest> failToGetApproved() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
@@ -439,7 +440,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("getApproved(uint256)")
+        @DisplayName("NFT redirect proxy getApproved(uint256)")
         public Stream<DynamicTest> failToGetApprovedERC() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
@@ -453,7 +454,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("ownerOf(uint256)")
+        @DisplayName("NFT redirect proxy ownerOf(uint256)")
         public Stream<DynamicTest> failToOwnerOf() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
@@ -468,7 +469,7 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("fail to call HAS functions with invalid amounts")
+    @DisplayName("HAS functions")
     class HASFunctionsTests {
 
         @Account(name = "owner", tinybarBalance = ONE_HUNDRED_HBARS)
@@ -483,9 +484,10 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("hbarApprove(address,int256)")
+        @DisplayName("redirect proxy hbarApprove(address,int256)")
         public Stream<DynamicTest> failToApproveHbar() {
-            // TODO Glib: hbarApprove(address,int256) call from contract not going to HbarApproveTranslator.callFrom
+            // https://github.com/hiero-ledger/hiero-consensus-node/issues/19704 call from contract not going to
+            // HbarApproveTranslator.callFrom
             // see also HbarAllowanceApprovalTest.hrc632ApproveFromEOA test
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -501,7 +503,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("hbarApprove(address,address,int256)")
+        @DisplayName("0x16a hbarApprove(address,address,int256)")
         public Stream<DynamicTest> failToHbarApprove() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
@@ -517,11 +519,11 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("fail to call Exchange Rate System contract functions")
+    @DisplayName("Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("tinycentsToTinybars(uint256)")
+        @DisplayName("0x168 tinycentsToTinybars(uint256)")
         public Stream<DynamicTest> convertTinycentsToTinybars() {
             // function working with uint256->BigInteger, so all examples as SUCCESS
             return Stream.of(
@@ -534,7 +536,7 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("tinybarsToTinycents(uint256)")
+        @DisplayName("0x168 tinybarsToTinycents(uint256)")
         public Stream<DynamicTest> convertTinybarsToTinycents() {
             // function working with uint256->BigInteger, so all examples as SUCCESS
             return Stream.of(
