@@ -32,7 +32,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOINT_CANNOT_HAVE_FQDN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_IPV4_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_DESCRIPTION;
@@ -172,7 +171,7 @@ public class NodeUpdateTest {
                 nodeUpdate("testNode")
                         .adminKey("adminKey")
                         .grpcProxyEndpoint(invalidServiceEndpoint())
-                        .hasKnownStatus(INVALID_IPV4_ADDRESS));
+                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -369,7 +368,7 @@ public class NodeUpdateTest {
                 nodeUpdate("testNode")
                         .grpcProxyEndpoint(toPbj(ServiceEndpoint.getDefaultInstance()))
                         .signedBy("adminKey", DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_ENDPOINT));
+                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
     @LeakyHapiTest(overrides = {"nodes.nodeMaxDescriptionUtf8Bytes"})

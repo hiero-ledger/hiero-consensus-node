@@ -28,7 +28,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
@@ -634,7 +633,7 @@ public class NodeCreateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .grpcWebProxyEndpoint(ServiceEndpoint.getDefaultInstance())
                         .description("newNode")
-                        .hasKnownStatus(INVALID_ENDPOINT));
+                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
     private static void assertEqualServiceEndpoints(
