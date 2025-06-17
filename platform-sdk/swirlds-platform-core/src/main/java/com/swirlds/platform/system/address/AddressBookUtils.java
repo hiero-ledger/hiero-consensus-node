@@ -228,7 +228,6 @@ public class AddressBookUtils {
      * @param initialState         the initial state of the platform
      * @param bootstrapAddressBook the bootstrap address book
      * @param platformContext      the platform context
-     * @return the initialized address book
      */
     public static void initializeAddressBook(
             @NonNull final NodeId selfId,
