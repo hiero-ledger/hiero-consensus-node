@@ -26,7 +26,9 @@ import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -79,13 +81,19 @@ public class StateTransplantCommand extends AbstractCommand {
     public Integer call() throws IOException {
         if (!autoConfirm) {
             System.out.println("Warning: This action may have consequences.");
-            System.out.print("Do you want to continue? (Y/N): ");
+//            System.out.print("Do you want to continue? (Y/N): ");
+//
+//            final String response = String.valueOf(System.in.readNBytes(1)[0]);
+//            if (!response.toUpperCase().startsWith("Y")) {
+//                System.out.println("Operation aborted.");
+//                return ReturnCodes.NOT_CONFIRMED.getCode();
+//            }
 
-            final String response = System.console().readLine().trim().toLowerCase();
-            if (!response.toUpperCase().startsWith("Y")) {
-                System.out.println("Operation aborted.");
-                return ReturnCodes.NOT_CONFIRMED.getCode();
-            }
+//            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+//            System.out.print("Enter a line: ");
+//            String line = reader.readLine();
+//            System.out.println("You entered: " + line);
+
         }
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
@@ -111,7 +119,7 @@ public class StateTransplantCommand extends AbstractCommand {
         final Path pcesFiles = statePath.resolve(platformContext.getConfiguration().getConfigData(PcesConfig.class).databaseDirectory());
         final Path pcesTmp = statePath.resolve("pces-tmp");
 
-        Files.move(pcesFiles, pcesTmp);
+        Files.move(pcesFiles, pcesTmp, StandardCopyOption.REPLACE_EXISTING);
 
         final SavedStateMetadata stateMetadata = SavedStateMetadata.parse(
                 statePath.resolve(SavedStateMetadata.FILE_NAME)
@@ -138,7 +146,9 @@ public class StateTransplantCommand extends AbstractCommand {
         pcesWriter.beginStreamingNewEvents();
 
         while (eventIterator.hasNext()) {
-            pcesWriter.getCurrentMutableFile().writeEvent(eventIterator.next());
+            final PlatformEvent event = eventIterator.next();
+            pcesWriter.prepareOutputStream(event);
+            pcesWriter.getCurrentMutableFile().writeEvent(event);
         }
         pcesWriter.closeCurrentMutableFile();
 
