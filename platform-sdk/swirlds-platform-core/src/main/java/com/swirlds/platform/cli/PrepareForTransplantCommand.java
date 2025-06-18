@@ -69,7 +69,8 @@ public class PrepareForTransplantCommand extends AbstractCommand {
             return RETURN_CODE_PROMPT_NO;
         }
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
         final PlatformContext platformContext = PlatformContext.create(
                 configuration,
@@ -87,5 +88,4 @@ public class PrepareForTransplantCommand extends AbstractCommand {
 
         return RETURN_CODE_SUCCESS;
     }
-
 }
