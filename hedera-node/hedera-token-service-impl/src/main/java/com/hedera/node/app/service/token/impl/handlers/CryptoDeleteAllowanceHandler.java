@@ -37,6 +37,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FeesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import javax.inject.Inject;
@@ -205,12 +206,18 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         final var body = feeContext.body();
         final var op = body.cryptoDeleteAllowanceOrThrow();
-        return feeContext
+        final var feesConfig= feeContext.configuration().getConfigData(FeesConfig.class);
+        final var oldFees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .addBytesPerTransaction((long) op.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
                         + (long) countNftDeleteSerials(op.nftAllowances()) * LONG_SIZE)
                 .calculate();
+        if(feesConfig.simpleFeesEnabled()) {
+            return new Fees(0,0,0);
+        } else {
+            return oldFees;
+        }
     }
 
     private int countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {
