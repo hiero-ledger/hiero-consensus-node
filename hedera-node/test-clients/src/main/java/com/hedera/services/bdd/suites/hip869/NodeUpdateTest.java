@@ -195,7 +195,7 @@ public class NodeUpdateTest {
             reason = NEEDS_STATE_ACCESS,
             overrides = {"nodes.webProxyEndpointsEnabled"})
     final Stream<DynamicTest> updateMultipleFieldsWork() throws CertificateEncodingException {
-        final var proxyWebEndpoint = toPbj(endpointFor("127.0.0.3", 123));
+        final var proxyWebEndpoint = toPbj(endpointFor("grpc.web.proxy.com", 123));
         final var updateOp = nodeUpdate("testNode")
                 .adminKey("adminKey2")
                 .signedBy(DEFAULT_PAYER, "adminKey", "adminKey2")

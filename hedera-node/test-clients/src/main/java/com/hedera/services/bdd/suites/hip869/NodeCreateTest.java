@@ -293,7 +293,8 @@ public class NodeCreateTest {
         final var nodeCreate = canonicalNodeCreate()
                 .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                 .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
-                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_IP);
+                // The web proxy endpoint can never be an IP address
+                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_FQDN);
         return hapiTest(
                 overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
@@ -302,7 +303,7 @@ public class NodeCreateTest {
                 viewNode("nodeCreate", node -> {
                     assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_IPS, node.gossipEndpoint());
                     assertEqualServiceEndpoints(SERVICES_ENDPOINTS_IPS, node.serviceEndpoint());
-                    assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_IP, node.grpcProxyEndpoint());
+                    assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
                 }));
     }
 
