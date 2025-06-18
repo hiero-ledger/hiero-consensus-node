@@ -649,7 +649,15 @@ public class HandleWorkflow {
                 // Flushes the BUSY builder to the stream, no other side effects
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
+                final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
+                advanceTimeFor(parentTxn, dispatch);
+                logPreDispatch(parentTxn);
                 if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
+                    logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
+                    systemTransactions.doPostUpgradeSetup(dispatch);
+                    if (streamMode != RECORDS) {
+                        blockStreamManager.confirmPendingWorkFinished();
+                    }
                     // Since we track node stake metadata separately from the future address book (FAB),
                     // we need to update that stake metadata from any node additions or deletions that
                     // just took effect; it would be nice to unify the FAB and stake metadata in the future.
@@ -676,17 +684,6 @@ public class HandleWorkflow {
                         // Only update this if we are relying on RecordManager state for post-upgrade processing
                         blockRecordManager.markMigrationRecordsStreamed();
                         parentTxn.stack().commitFullStack();
-                    }
-                }
-
-                final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                advanceTimeFor(parentTxn, dispatch);
-                logPreDispatch(parentTxn);
-                if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
-                    logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
-                    systemTransactions.doPostUpgradeSetup(dispatch);
-                    if (streamMode != RECORDS) {
-                        blockStreamManager.confirmPendingWorkFinished();
                     }
                 }
                 hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
