@@ -55,14 +55,6 @@ public class SoloNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void shutdownGracefully() throws InterruptedException {
-        defaultAsyncAction.shutdownGracefully();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void start() throws InterruptedException {
         defaultAsyncAction.start();
     }
@@ -202,14 +194,6 @@ public class SoloNode implements Node {
          */
         @Override
         public void start() throws InterruptedException {
-            throw new UnsupportedOperationException("Not implemented yet!");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void shutdownGracefully() throws InterruptedException {
             throw new UnsupportedOperationException("Not implemented yet!");
         }
 
