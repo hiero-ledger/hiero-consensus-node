@@ -8,13 +8,12 @@ import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkUtils;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -29,13 +28,11 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
     private static final Logger logger = LogManager.getLogger(ReconnectSyncHelper.class);
 
     /** supplier of the initial signed state against which to perform a delta based reconnect */
-    private final Supplier<MerkleNodeState> workingStateSupplier;
+    private final Supplier<State> workingStateSupplier;
     /** provides the latest signed state round for which we have a supermajority of signatures */
     private final LongSupplier lastCompleteRoundSupplier;
     /** Creates instances of {@link ReconnectLearner} to execute the second phase, receiving a signed state */
     private final ReconnectLearnerFactory reconnectLearnerFactory;
-    /** configuration for the state from the platform */
-    private final StateConfig stateConfig;
     /** provides access to the platform state */
     private final PlatformStateFacade platformStateFacade;
 
@@ -48,21 +45,18 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
      *                                  signatures
      * @param reconnectLearnerFactory   Creates instances of {@link ReconnectLearner} to execute the second phase,
      *                                  receiving a signed state
-     * @param stateConfig               configuration for the state from the platform
      * @param platformStateFacade       provides access to the platform state
      */
     public ReconnectSyncHelper(
-            @NonNull final Supplier<MerkleNodeState> workingStateSupplier,
+            @NonNull final Supplier<State> workingStateSupplier,
             @NonNull final LongSupplier lastCompleteRoundSupplier,
             @NonNull final ReconnectLearnerFactory reconnectLearnerFactory,
-            @NonNull final StateConfig stateConfig,
             @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.connectionProvider = new BlockingResourceProvider<>();
         this.workingStateSupplier = Objects.requireNonNull(workingStateSupplier);
         this.lastCompleteRoundSupplier = Objects.requireNonNull(lastCompleteRoundSupplier);
         this.reconnectLearnerFactory = Objects.requireNonNull(reconnectLearnerFactory);
-        this.stateConfig = Objects.requireNonNull(stateConfig);
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
     }
 
@@ -122,7 +116,7 @@ public class ReconnectSyncHelper implements ReconnectNetworkHelper {
                 """
                         Information for state received during reconnect:
                         {}""",
-                () -> platformStateFacade.getInfoString(reservedState.get().getState(), stateConfig.debugHashDepth()));
+                () -> platformStateFacade.getInfoString(reservedState.get().getState()));
 
         return reservedState;
     }

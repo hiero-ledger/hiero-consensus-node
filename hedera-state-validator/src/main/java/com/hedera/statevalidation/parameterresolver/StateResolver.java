@@ -8,6 +8,7 @@ import static com.hedera.statevalidation.parameterresolver.InitUtils.initService
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.HederaNewStateRoot;
 import com.hedera.node.app.HederaStateRoot;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.services.ServicesRegistryImpl;
@@ -86,7 +87,10 @@ public class StateResolver implements ParameterResolver {
                 new RosterService(roster -> true, (r, b) -> {}, StateResolver::getState, platformStateFacade));
         final PlatformContext platformContext = createPlatformContext();
         deserializedSignedState = readStateFile(
-                Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(), platformStateFacade, platformContext);
+                Path.of(Constants.STATE_DIR, "SignedState.swh").toAbsolutePath(),
+                HederaNewStateRoot::new,
+                platformStateFacade,
+                platformContext);
         final MerkleStateRoot servicesState = (MerkleStateRoot)
                 deserializedSignedState.reservedSignedState().get().getState();
 

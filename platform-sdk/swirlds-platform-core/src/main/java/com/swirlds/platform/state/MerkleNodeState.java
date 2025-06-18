@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.state.State;
@@ -16,7 +17,7 @@ import java.util.function.Supplier;
  * Represent a state backed up by the Merkle tree. It's a {@link State} implementation that is backed by a Merkle tree.
  * It provides methods to manage the service states in the merkle tree.
  */
-public interface MerkleNodeState extends State {
+public interface MerkleNodeState extends State, Reservable {
 
     /**
      * @return an instance representing a root of the Merkle tree. For the most of the implementations
@@ -35,16 +36,30 @@ public interface MerkleNodeState extends State {
     MerkleNodeState copy();
 
     /**
+     * Initializes the defined service state.
+     * Note: This method replaces the deprecated {@link #putServiceStateIfAbsent(StateMetadata, Supplier)} methods,
+     * which were specifically used with {@code MerkleStateRoot}. This method will be utilized instead with {@code NewStateRoot}.
+     *
+     * @param md The metadata associated with the state.
+     * @throws IllegalArgumentException if md doesn't have a label, or if the label isn't right.
+     */
+    default void initializeState(@NonNull final StateMetadata<?, ?> md) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Puts the defined service state and its associated node into the merkle tree. The precondition
      * for calling this method is that node MUST be a {@link MerkleMap} or {@link VirtualMap} and
      * MUST have a correct label applied. If the node is already present, then this method does nothing
      * else.
      *
+     * @deprecated This method is only required for the {@code MerkleStateRoot} class and will be removed together with that class.
      * @param md The metadata associated with the state
      * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
      *                                  it doesn't have a label, or if the label isn't right.
      */
+    @Deprecated
     default void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md, @NonNull final Supplier<? extends MerkleNode> nodeSupplier) {
         putServiceStateIfAbsent(md, nodeSupplier, n -> {});
@@ -56,12 +71,14 @@ public interface MerkleNodeState extends State {
      * MUST have a correct label applied. No matter if the resulting node is newly created or already
      * present, calls the provided initialization consumer with the node.
      *
+     * @deprecated This method is only required for the {@code MerkleStateRoot} class and will be removed together with that class.
      * @param md The metadata associated with the state
      * @param nodeSupplier Returns the node to add. Cannot be null. Can be used to create the node on-the-fly.
      * @param nodeInitializer The node's initialization logic.
      * @throws IllegalArgumentException if the node is neither a merkle map nor virtual map, or if
      *                                  it doesn't have a label, or if the label isn't right.
      */
+    @Deprecated
     <T extends MerkleNode> void putServiceStateIfAbsent(
             @NonNull final StateMetadata<?, ?> md,
             @NonNull final Supplier<T> nodeSupplier,
@@ -108,5 +125,30 @@ public interface MerkleNodeState extends State {
      */
     default MerkleNodeState loadSnapshot(final @NonNull Path targetPath) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    default void reserve() {
+        getRoot().reserve();
+    }
+
+    @Override
+    default boolean tryReserve() {
+        return getRoot().tryReserve();
+    }
+
+    @Override
+    default int getReservationCount() {
+        return getRoot().getReservationCount();
+    }
+
+    @Override
+    default boolean release() {
+        return getRoot().release();
+    }
+
+    @Override
+    default boolean isDestroyed() {
+        return getRoot().isDestroyed();
     }
 }

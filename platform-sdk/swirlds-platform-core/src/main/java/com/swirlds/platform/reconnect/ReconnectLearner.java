@@ -3,6 +3,7 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
@@ -24,11 +25,14 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
+import com.swirlds.state.State;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,11 +47,12 @@ public class ReconnectLearner {
 
     private final Connection connection;
     private final Roster roster;
-    private final MerkleNodeState currentState;
+    private final State currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
     private final SignedStateValidationData stateValidationData;
     private final PlatformStateFacade platformStateFacade;
+    private final Function<VirtualMap, ? extends State> stateFunction;
 
     private SigSet sigSet;
     private final PlatformContext platformContext;
@@ -73,17 +78,21 @@ public class ReconnectLearner {
      * 		reconnect metrics
      * @param platformStateFacade
      *      the facade to access the platform state
+     * @param stateFunction
+     *      a function to instantiate the state root object from a Virtual Map
      */
     public ReconnectLearner(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Connection connection,
             @NonNull final Roster roster,
-            @NonNull final MerkleNodeState currentState,
+            @NonNull final State currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final PlatformStateFacade platformStateFacade) {
-        this.platformStateFacade = platformStateFacade;
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Function<VirtualMap, ? extends State> stateFunction) {
+        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
+        this.stateFunction = Objects.requireNonNull(stateFunction);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
@@ -189,18 +198,20 @@ public class ReconnectLearner {
                 threadManager,
                 in,
                 out,
-                currentState.getRoot(),
+                ((MerkleNodeState) currentState).getRoot(),
                 connection::disconnect,
                 platformContext.getMerkleCryptography(),
                 reconnectConfig,
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final MerkleNodeState state = (MerkleNodeState) synchronizer.getRoot();
+        final State merkleNodeState =
+                initializeMerkleNodeState(stateFunction, synchronizer.getRoot(), platformContext.getMetrics());
+
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 CryptoStatic::verifySignature,
-                state,
+                merkleNodeState,
                 "ReconnectLearner.reconnect()",
                 false,
                 false,

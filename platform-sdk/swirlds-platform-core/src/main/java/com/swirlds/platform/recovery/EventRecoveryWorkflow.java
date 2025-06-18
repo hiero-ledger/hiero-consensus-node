@@ -34,7 +34,6 @@ import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -53,7 +52,6 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -138,7 +136,13 @@ public final class EventRecoveryWorkflow {
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
 
         try (final ReservedSignedState initialState = SignedStateFileReader.readStateFile(
-                        signedStateFile, platformStateFacade, platformContext)
+                        signedStateFile,
+                        (virtualMap) -> {
+                            https: // github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                            throw new UnsupportedOperationException();
+                        },
+                        platformStateFacade,
+                        platformContext)
                 .reservedSignedState()) {
             logger.info(
                     STARTUP.getMarker(),
@@ -329,16 +333,7 @@ public final class EventRecoveryWorkflow {
         }
 
         logger.info(STARTUP.getMarker(), "Hashing resulting signed state");
-        try {
-            platformContext
-                    .getMerkleCryptography()
-                    .digestTreeAsync(signedState.get().getState().getRoot())
-                    .get();
-        } catch (final InterruptedException e) {
-            throw new RuntimeException("interrupted while attempting to hash the state", e);
-        } catch (final ExecutionException e) {
-            throw new RuntimeException(e);
-        }
+        signedState.get().getState().getHash();
         logger.info(STARTUP.getMarker(), "Hashing complete");
 
         // Let the application know about the recovered state
@@ -367,7 +362,7 @@ public final class EventRecoveryWorkflow {
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
         previousState.getState().throwIfImmutable();
-        final MerkleNodeState newState = previousState.getState().copy();
+        final State newState = previousState.getState().copy();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
         final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
@@ -461,9 +456,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            final MerkleNodeState immutableState,
-            final MerkleNodeState mutableState,
+            final ConsensusStateEventHandler consensusStateEventHandler,
+            final State immutableState,
+            final State mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();

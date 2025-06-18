@@ -4,7 +4,8 @@ package com.hedera.node.app.service.token.impl.test.handlers.util;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.AIRDROPS;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -21,6 +22,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNftStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
@@ -32,8 +34,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
@@ -46,8 +46,6 @@ import java.util.Map;
 public final class TestStoreFactory {
 
     private static final WritableEntityCounters entityCounters = mock(WritableEntityCounters.class);
-
-    private static final Configuration CONFIGURATION = HederaTestConfigBuilder.createConfig();
 
     private TestStoreFactory() {
         throw new UnsupportedOperationException("Utility Class");
@@ -84,7 +82,11 @@ public final class TestStoreFactory {
 
     private static Map<String, MapWritableKVState<?, ?>> writableAccountStates(final Account... accounts) {
         final var wrappingState = newAccountStateFromAccounts(accounts);
-        return Map.of(ACCOUNTS_KEY, wrappingState, ALIASES_KEY, new MapWritableKVState<>(ALIASES_KEY, new HashMap<>()));
+        return Map.of(
+                ACCOUNTS_KEY,
+                wrappingState,
+                ALIASES_KEY,
+                new MapWritableKVState<>(TokenService.NAME, ALIASES_KEY, new HashMap<>()));
     }
 
     private static MapWritableKVState<AccountID, Account> newAccountStateFromAccounts(Account... accounts) {
@@ -93,7 +95,7 @@ public final class TestStoreFactory {
             backingMap.put(account.accountId(), account);
         }
 
-        return new MapWritableKVState<>(ACCOUNTS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, backingMap);
     }
 
     /**
@@ -113,7 +115,7 @@ public final class TestStoreFactory {
     public static ReadableTokenRelationStore newReadableStoreWithTokenRels(final TokenRelation... tokenRels) {
         final var wrappedState = newTokenRelStateFromTokenRels(tokenRels);
         return new ReadableTokenRelationStoreImpl(
-                new MapReadableStates(Map.of(V0490TokenSchema.TOKEN_RELS_KEY, wrappedState)), entityCounters);
+                new MapReadableStates(Map.of(TOKEN_RELS_KEY, wrappedState)), entityCounters);
     }
 
     private static MapWritableKVState<EntityIDPair, TokenRelation> newTokenRelStateFromTokenRels(
@@ -128,7 +130,7 @@ public final class TestStoreFactory {
                     tokenRel);
         }
 
-        return new MapWritableKVState<>(ACCOUNTS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, ACCOUNTS_KEY, backingMap);
     }
 
     /**
@@ -139,7 +141,7 @@ public final class TestStoreFactory {
     public static WritableTokenRelationStore newWritableStoreWithTokenRels(final TokenRelation... tokenRels) {
         final var wrappingState = newTokenRelStateFromTokenRels(tokenRels);
         return new WritableTokenRelationStore(
-                new MapWritableStates(Map.of(V0490TokenSchema.TOKEN_RELS_KEY, wrappingState)), entityCounters);
+                new MapWritableStates(Map.of(TOKEN_RELS_KEY, wrappingState)), entityCounters);
     }
 
     /**
@@ -170,7 +172,7 @@ public final class TestStoreFactory {
             backingMap.put(token.tokenId(), token);
         }
 
-        return new MapWritableKVState<>(TOKENS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, TOKENS_KEY, backingMap);
     }
 
     private static MapWritableKVState<NftID, Nft> newNftStateFromNfts(Nft... nfts) {
@@ -179,12 +181,12 @@ public final class TestStoreFactory {
             backingMap.put(nft.nftId(), nft);
         }
 
-        return new MapWritableKVState<>(V0490TokenSchema.NFTS_KEY, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, V0490TokenSchema.NFTS_KEY, backingMap);
     }
 
     public static WritableAirdropStore newWritableStoreWithAirdrops(PendingAirdropId... airdrops) {
         return new WritableAirdropStore(
-                new MapWritableStates(Map.of(AIRDROPS, newAirdropStateFromAirdrops(airdrops))), entityCounters);
+                new MapWritableStates(Map.of(AIRDROPS_KEY, newAirdropStateFromAirdrops(airdrops))), entityCounters);
     }
 
     private static MapWritableKVState<PendingAirdropId, AccountPendingAirdrop> newAirdropStateFromAirdrops(
@@ -194,6 +196,6 @@ public final class TestStoreFactory {
             backingMap.put(airdrop, AccountPendingAirdrop.newBuilder().build());
         }
 
-        return new MapWritableKVState<>(AIRDROPS, backingMap);
+        return new MapWritableKVState<>(TokenService.NAME, AIRDROPS_KEY, backingMap);
     }
 }

@@ -12,6 +12,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.config.DefaultConfiguration;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateComparison;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
@@ -21,7 +22,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
@@ -121,17 +121,16 @@ public final class CompareStatesCommand extends AbstractCommand {
         logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", statePath);
 
         final ReservedSignedState signedState = SignedStateFileReader.readStateFile(
-                        statePath, DEFAULT_PLATFORM_STATE_FACADE, platformContext)
+                        statePath,
+                        (virtualMap) -> {
+                            // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
+                            throw new UnsupportedOperationException();
+                        },
+                        DEFAULT_PLATFORM_STATE_FACADE,
+                        platformContext)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
-        try {
-            platformContext
-                    .getMerkleCryptography()
-                    .digestTreeAsync(signedState.get().getState().getRoot())
-                    .get();
-        } catch (final InterruptedException | ExecutionException e) {
-            throw new RuntimeException("unable to hash state", e);
-        }
+        signedState.get().getState().getHash();
 
         return signedState;
     }
@@ -153,8 +152,8 @@ public final class CompareStatesCommand extends AbstractCommand {
             try (final ReservedSignedState stateB = loadAndHashState(platformContext, stateBPath)) {
                 SignedStateComparison.printMismatchedNodes(
                         SignedStateComparison.mismatchedNodeIterator(
-                                stateA.get().getState().getRoot(),
-                                stateB.get().getState().getRoot(),
+                                ((MerkleNodeState) stateA.get().getState()).getRoot(),
+                                ((MerkleNodeState) stateB.get().getState()).getRoot(),
                                 deepComparison),
                         nodeLimit);
             }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,6 +26,10 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * @deprecated This test class is only required for the testing of MerkleStateRoot class and will be removed together with that class.
+ */
+@Deprecated
 @DisplayName("State Registry Tests")
 class StateRegistryTests {
 
@@ -96,7 +101,7 @@ class StateRegistryTests {
         final InputOutputStream io = new InputOutputStream();
         io.getOutput().writeMerkleTree(dir, stateToSerialize);
         io.startReading();
-        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(dir, 5);
+        final TestMerkleStateRoot deserializedState = io.getInput().readMerkleTree(CONFIGURATION, dir, 5);
         states.add(deserializedState);
         assertEquals(
                 states.size(),

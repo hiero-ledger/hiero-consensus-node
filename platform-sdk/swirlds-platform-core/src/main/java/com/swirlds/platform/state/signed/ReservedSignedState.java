@@ -4,6 +4,7 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
+import com.swirlds.platform.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
@@ -38,7 +39,7 @@ public class ReservedSignedState implements AutoCloseableNonThrowing {
     /**
      * Create a wrapper around null.
      */
-    public static @NonNull ReservedSignedState createNullReservation() {
+    public static <T extends MerkleNodeState> @NonNull ReservedSignedState createNullReservation() {
         return new ReservedSignedState();
     }
 

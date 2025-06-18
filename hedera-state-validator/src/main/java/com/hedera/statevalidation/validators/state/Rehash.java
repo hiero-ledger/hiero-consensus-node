@@ -13,6 +13,7 @@ import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import java.util.Arrays;
@@ -39,7 +40,11 @@ public class Rehash {
         final Hash originalHash = deserializedSignedState.originalHash();
         final Hash calculatedHash = rehashTree(
                 merkleCryptography,
-                deserializedSignedState.reservedSignedState().get().getState().getRoot());
+                ((MerkleNodeState) deserializedSignedState
+                                .reservedSignedState()
+                                .get()
+                                .getState())
+                        .getRoot());
 
         // Add data to the report, adding it before the assertion so that the report is written even if the test fails
         var stateReport = report.getStateReport();
@@ -63,7 +68,7 @@ public class Rehash {
 
         var platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
         var infoStringFromState = platformStateFacade.getInfoString(
-                deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
+                deserializedSignedState.reservedSignedState().get().getState());
 
         final var originalLines = Arrays.asList(hashInfo.content().split("\n"));
         final var fullList = Arrays.asList(infoStringFromState.split("\n"));

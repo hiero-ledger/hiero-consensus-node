@@ -33,6 +33,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,6 +50,7 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,12 +58,23 @@ import org.junit.jupiter.api.Test;
 class IssDetectorTests extends PlatformTest {
     private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
 
+    private StateLifecycleManager stateLifecycleManager;
+
+    @BeforeEach
+    void setUp() {
+        stateLifecycleManager = mock(StateLifecycleManager.class);
+        final MerkleNodeState consensusState = mock(MerkleNodeState.class);
+        when(stateLifecycleManager.getMutableState()).thenReturn(consensusState);
+        when(consensusState.getInfoJson()).thenReturn("");
+    }
+
     @Test
     @DisplayName("State reservation is released")
     void stateReservationIsReleased() {
         final Randotron random = Randotron.create();
         final RandomSignedStateGenerator stateGenerator = new RandomSignedStateGenerator(random);
-        final ReservedSignedState stateWrapperForTest = stateGenerator.build().reserve("Test caller reference");
+        final ReservedSignedState stateWrapperForTest =
+                stateGenerator.setCalculateHash(true).build().reserve("Test caller reference");
         final ReservedSignedState stateWrapperForIssDetector =
                 stateWrapperForTest.getAndReserve("ISS Detector caller reference");
         assertEquals(
@@ -71,7 +84,12 @@ class IssDetectorTests extends PlatformTest {
 
         final PlatformContext platformContext = createDefaultPlatformContext();
         final IssDetector issDetector = new DefaultIssDetector(
-                platformContext, mock(Roster.class), SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+                platformContext,
+                stateLifecycleManager,
+                mock(Roster.class),
+                SemanticVersion.DEFAULT,
+                false,
+                DO_NOT_IGNORE_ROUNDS);
 
         issDetector.handleState(stateWrapperForIssDetector);
         assertTrue(stateWrapperForIssDetector.isClosed(), "State passed to the ISS Detector should be closed");
@@ -94,8 +112,8 @@ class IssDetectorTests extends PlatformTest {
 
         final PlatformContext platformContext = createDefaultPlatformContext();
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, stateLifecycleManager, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -222,8 +240,8 @@ class IssDetectorTests extends PlatformTest {
             }
         }
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, stateLifecycleManager, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -319,8 +337,8 @@ class IssDetectorTests extends PlatformTest {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, stateLifecycleManager, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -435,8 +453,8 @@ class IssDetectorTests extends PlatformTest {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, stateLifecycleManager, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -521,8 +539,8 @@ class IssDetectorTests extends PlatformTest {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, stateLifecycleManager, roster, SemanticVersion.DEFAULT, false, DO_NOT_IGNORE_ROUNDS);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -600,8 +618,8 @@ class IssDetectorTests extends PlatformTest {
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, SemanticVersion.DEFAULT, false, 1);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, stateLifecycleManager, roster, SemanticVersion.DEFAULT, false, 1);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;

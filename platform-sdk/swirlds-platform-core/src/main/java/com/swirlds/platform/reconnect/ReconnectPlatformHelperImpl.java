@@ -6,8 +6,8 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.logging.legacy.payload.ReconnectLoadFailurePayload;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -24,7 +24,7 @@ public class ReconnectPlatformHelperImpl implements ReconnectPlatformHelper {
     /** clears all data that is no longer needed since we fell behind */
     private final Clearable clearAll;
     /** supplier of the initial signed state against which to perform a delta based reconnect */
-    private final Supplier<MerkleNodeState> workingStateSupplier;
+    private final Supplier<State> workingStateSupplier;
     /** performs the third phase, loading signed state data */
     private final Consumer<SignedState> loadSignedState;
 
@@ -42,7 +42,7 @@ public class ReconnectPlatformHelperImpl implements ReconnectPlatformHelper {
     public ReconnectPlatformHelperImpl(
             @NonNull final Runnable pauseGossip,
             @NonNull final Clearable clearAll,
-            @NonNull final Supplier<MerkleNodeState> workingStateSupplier,
+            @NonNull final Supplier<State> workingStateSupplier,
             @NonNull final Consumer<SignedState> loadSignedState,
             @NonNull final MerkleCryptography merkleCryptography) {
         this.pauseGossip = pauseGossip;

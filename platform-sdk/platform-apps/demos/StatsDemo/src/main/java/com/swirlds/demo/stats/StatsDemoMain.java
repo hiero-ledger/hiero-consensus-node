@@ -20,6 +20,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.metrics.api.Metric;
@@ -32,6 +33,9 @@ import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -41,6 +45,7 @@ import java.util.IllegalFormatException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import java.util.function.Function;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -309,10 +314,26 @@ public class StatsDemoMain implements SwirldMain<StatsDemoState> {
         return state;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19004
+     * </p>
+     */
+    @Override
+    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap() {
+        throw new UnsupportedOperationException();
+    }
+
     @NonNull
     @Override
     public ConsensusStateEventHandler newConsensusStateEvenHandler() {
         return NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
+    }
+
+    @Override
+    public StateLifecycleManager newStateLifecycleManager() {
+        return new StateLifecycleManagerImpl(new NoOpMetrics());
     }
 
     /**

@@ -26,7 +26,6 @@ public class DefaultHashLogger implements HashLogger {
 
     private static final MessageFactory MESSAGE_FACTORY = ParameterizedMessageFactory.INSTANCE;
     private final AtomicLong lastRoundLogged = new AtomicLong(-1);
-    private final int depth;
     private final Logger logOutput; // NOSONAR: selected logger to output to.
     private final boolean isEnabled;
     private final PlatformStateFacade platformStateFacade;
@@ -53,7 +52,6 @@ public class DefaultHashLogger implements HashLogger {
             @NonNull final Logger logOutput,
             @NonNull final PlatformStateFacade platformStateFacade) {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        depth = stateConfig.debugHashDepth();
         isEnabled = stateConfig.enableHashStreamLogging();
         this.logOutput = Objects.requireNonNull(logOutput);
         this.platformStateFacade = platformStateFacade;
@@ -99,7 +97,7 @@ public class DefaultHashLogger implements HashLogger {
      */
     @NonNull
     private Message generateLogMessage(@NonNull final SignedState signedState) {
-        final String platformInfo = platformStateFacade.getInfoString(signedState.getState(), depth);
+        final String platformInfo = platformStateFacade.getInfoString(signedState.getState());
 
         return MESSAGE_FACTORY.newMessage(
                 """

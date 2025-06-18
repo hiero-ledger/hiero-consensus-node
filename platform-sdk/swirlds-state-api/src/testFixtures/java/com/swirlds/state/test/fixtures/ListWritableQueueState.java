@@ -18,11 +18,13 @@ public class ListWritableQueueState<E> extends WritableQueueStateBase<E> {
      * pre-populate the queue, or if you want to use Mockito to mock it or cause it to throw
      * exceptions when certain keys are accessed, etc.
      *
+     * @param serviceName The service name
      * @param stateKey The state key for this state
      * @param backingStore The backing store to use
      */
-    public ListWritableQueueState(@NonNull final String stateKey, @NonNull final Queue<E> backingStore) {
-        super(stateKey);
+    public ListWritableQueueState(
+            @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final Queue<E> backingStore) {
+        super(serviceName, stateKey);
         this.backingStore = Objects.requireNonNull(backingStore);
     }
 
@@ -46,13 +48,15 @@ public class ListWritableQueueState<E> extends WritableQueueStateBase<E> {
      * Create a new {@link ListWritableQueueState.Builder} for building a {@link ListWritableQueueState}. The builder has
      * convenience methods for pre-populating the queue.
      *
-     * @param stateKey The state key
+     * @param <E>         The element type
+     * @param serviceName The service name
+     * @param stateKey    The state key
      * @return A {@link ListWritableQueueState.Builder} to be used for creating a {@link ListWritableQueueState}.
-     * @param <E> The element type
      */
     @NonNull
-    public static <E> ListWritableQueueState.Builder<E> builder(@NonNull final String stateKey) {
-        return new ListWritableQueueState.Builder<>(stateKey);
+    public static <E> ListWritableQueueState.Builder<E> builder(
+            @NonNull final String serviceName, @NonNull final String stateKey) {
+        return new ListWritableQueueState.Builder<>(serviceName, stateKey);
     }
 
     /**
@@ -61,8 +65,10 @@ public class ListWritableQueueState<E> extends WritableQueueStateBase<E> {
     public static final class Builder<E> {
         private final Queue<E> backingStore = new LinkedList<>();
         private final String stateKey;
+        private final String serviceName;
 
-        Builder(@NonNull final String stateKey) {
+        Builder(@NonNull final String serviceName, @NonNull final String stateKey) {
+            this.serviceName = serviceName;
             this.stateKey = stateKey;
         }
 
@@ -86,7 +92,7 @@ public class ListWritableQueueState<E> extends WritableQueueStateBase<E> {
          */
         @NonNull
         public ListWritableQueueState<E> build() {
-            return new ListWritableQueueState<>(stateKey, new LinkedList<>(backingStore));
+            return new ListWritableQueueState<>(serviceName, stateKey, new LinkedList<>(backingStore));
         }
     }
 }

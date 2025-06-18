@@ -7,8 +7,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
@@ -20,8 +18,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends PartialMerkleLeaf
-        implements VirtualRoot<K, V>, MerkleLeaf {
+class DummyVirtualRoot extends PartialMerkleLeaf implements VirtualRoot, MerkleLeaf {
 
     private static final long CLASS_ID = 0x37cc269627e18eb6L;
 
@@ -33,8 +30,8 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
     private final CountDownLatch mergeLatch;
     private boolean hashed;
 
-    private DummyVirtualRoot<K, V> previous;
-    private DummyVirtualRoot<K, V> next;
+    private DummyVirtualRoot previous;
+    private DummyVirtualRoot next;
 
     private int copyIndex;
 
@@ -46,7 +43,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
      */
     private Predicate<Integer /* copy index */> shouldFlushPredicate;
 
-    private final VirtualPipeline<K, V> pipeline;
+    private final VirtualPipeline pipeline;
 
     private boolean detached = false;
 
@@ -62,7 +59,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
     private final VirtualMapStatistics statistics;
 
     public DummyVirtualRoot(final String label, VirtualMapConfig virtualMapConfig) {
-        pipeline = new VirtualPipeline<>(virtualMapConfig, label);
+        pipeline = new VirtualPipeline(virtualMapConfig, label);
         flushLatch = new CountDownLatch(1);
         mergeLatch = new CountDownLatch(1);
         statistics = new VirtualMapStatistics(label);
@@ -85,7 +82,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
         this.crashOnFlush = b;
     }
 
-    protected DummyVirtualRoot(final DummyVirtualRoot<K, V> that) {
+    protected DummyVirtualRoot(final DummyVirtualRoot that) {
         this.pipeline = that.pipeline;
         flushLatch = new CountDownLatch(1);
         mergeLatch = new CountDownLatch(1);
@@ -104,7 +101,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
     /**
      * Get a reference to the pipeline.
      */
-    public VirtualPipeline<K, V> getPipeline() {
+    public VirtualPipeline getPipeline() {
         return pipeline;
     }
 
@@ -155,9 +152,9 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
      * {@inheritDoc}
      */
     @Override
-    public DummyVirtualRoot<K, V> copy() {
+    public DummyVirtualRoot copy() {
         setImmutable(true);
-        final DummyVirtualRoot<K, V> copy = new DummyVirtualRoot<>(this);
+        final DummyVirtualRoot copy = new DummyVirtualRoot(this);
         pipeline.registerCopy(copy);
         return copy;
     }
@@ -182,7 +179,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
         if (shouldBeFlushed) {
             return true;
         }
-        final long flushThreshold = VIRTUAL_MAP_CONFIG.copyFlushThreshold();
+        final long flushThreshold = VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
         return (flushThreshold > 0) && (estimatedSize() >= flushThreshold);
     }
 
@@ -205,14 +202,14 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
         if (flushed) {
             throw new IllegalStateException("copy is already flushed");
         }
-        if (!shouldBeFlushed && (estimatedSize < VIRTUAL_MAP_CONFIG.copyFlushThreshold())) {
+        if (!shouldBeFlushed && (estimatedSize < VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold())) {
             throw new IllegalStateException("copy should not be flushed");
         }
         if (!hashed) {
             throw new IllegalStateException("should be hashed before a flush");
         }
 
-        DummyVirtualRoot<K, V> target = this.previous;
+        DummyVirtualRoot target = this.previous;
         while (target != null) {
             if (!(target.isDestroyed() || target.isDetached())) {
                 throw new IllegalStateException("all older copies should have been destroyed or detached");
@@ -252,8 +249,8 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
         statistics.recordFlush(copyIndex); // Use copyIndex as flush duration
     }
 
-    private static boolean shouldBeFlushed(DummyVirtualRoot<?, ?> copy) {
-        final long copyFlushThreshold = VIRTUAL_MAP_CONFIG.copyFlushThreshold();
+    private static boolean shouldBeFlushed(DummyVirtualRoot copy) {
+        final long copyFlushThreshold = VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold();
         return (copy.shouldBeFlushed()) || ((copyFlushThreshold > 0) && (copy.estimatedSize() >= copyFlushThreshold));
     }
 
@@ -386,7 +383,7 @@ class DummyVirtualRoot<K extends VirtualKey, V extends VirtualValue> extends Par
      * {@inheritDoc}
      */
     @Override
-    public RecordAccessor<K, V> detach() {
+    public RecordAccessor detach() {
         this.detached = true;
         return null;
     }

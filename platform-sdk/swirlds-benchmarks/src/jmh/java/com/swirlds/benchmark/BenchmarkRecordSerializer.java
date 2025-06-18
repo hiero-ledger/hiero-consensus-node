@@ -9,7 +9,12 @@ public class BenchmarkRecordSerializer implements BaseSerializer<BenchmarkRecord
 
     @Override
     public int getSerializedSize() {
-        return Integer.BYTES + BenchmarkRecord.getSerializedSize();
+        return VARIABLE_DATA_SIZE;
+    }
+
+    @Override
+    public int getSerializedSize(final BenchmarkRecord record) {
+        return record.getSizeInBytes();
     }
 
     @Override

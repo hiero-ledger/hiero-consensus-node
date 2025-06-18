@@ -1,48 +1,39 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import com.swirlds.virtualmap.VirtualValue;
-import java.io.IOException;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-public final class TestValue implements VirtualValue {
+public final class TestValue {
 
     private String s;
 
-    public TestValue() {}
-
-    public TestValue(long path) {
-        this("Value " + path);
-    }
-
     public TestValue(String s) {
         this.s = s;
+    }
+
+    public TestValue(final ReadableSequentialData in) {
+        final int len = in.readInt();
+        final byte[] bytes = new byte[len];
+        in.readBytes(bytes);
+        this.s = new String(bytes, StandardCharsets.UTF_8);
     }
 
     public String getValue() {
         return s;
     }
 
-    @Override
-    public long getClassId() {
-        return 0x155bb9565ebfad3aL;
+    public int getSizeInBytes() {
+        final byte[] value = s.getBytes(StandardCharsets.UTF_8);
+        return Integer.BYTES + value.length;
     }
 
-    @Override
-    public int getVersion() {
-        return 1;
-    }
-
-    @Override
-    public void serialize(SerializableDataOutputStream out) throws IOException {
-        out.writeNormalisedString(s);
-    }
-
-    @Override
-    public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-        s = in.readNormalisedString(1024);
+    public void writeTo(final WritableSequentialData out) {
+        final byte[] value = s.getBytes(StandardCharsets.UTF_8);
+        out.writeInt(value.length);
+        out.writeBytes(value);
     }
 
     @Override
@@ -61,15 +52,5 @@ public final class TestValue implements VirtualValue {
     @Override
     public String toString() {
         return "TestValue{ " + s + " }";
-    }
-
-    @Override
-    public TestValue copy() {
-        return new TestValue(s);
-    }
-
-    @Override
-    public VirtualValue asReadOnly() {
-        return this; // No setters on this thing, just don't deserialize...
     }
 }

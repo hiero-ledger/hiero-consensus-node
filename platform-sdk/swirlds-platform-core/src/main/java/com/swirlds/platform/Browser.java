@@ -58,6 +58,8 @@ import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.StateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
@@ -67,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -264,6 +267,7 @@ public class Browser {
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
+                    stateRootFromVirtualMap(appMain),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -282,11 +286,12 @@ public class Browser {
                     consensusStateEventHandler,
                     platformStateFacade);
 
+            final StateLifecycleManager stateLifecycleManager = appMain.newStateLifecycleManager();
             // Build the platform with the given values
             final State state = initialState.get().getState();
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
-            final PlatformBuilder builder = PlatformBuilder.create(
+            final PlatformBuilder<?> builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     appMain.getSemanticVersion(),
@@ -295,7 +300,9 @@ public class Browser {
                     nodeId,
                     AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
                     rosterHistory,
-                    platformStateFacade);
+                    platformStateFacade,
+                    stateRootFromVirtualMap(appMain),
+                    stateLifecycleManager);
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
@@ -380,5 +387,15 @@ public class Browser {
                 .setRunnable(appMain)
                 .setDaemon(false)
                 .build(true);
+    }
+
+    /**
+     * A function to instantiate the state root object from a Virtual Map.
+     *
+     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
+     */
+    private static Function<VirtualMap, State> stateRootFromVirtualMap(@NonNull final SwirldMain appMain) {
+        Objects.requireNonNull(appMain);
+        return appMain.stateRootFromVirtualMap();
     }
 }
