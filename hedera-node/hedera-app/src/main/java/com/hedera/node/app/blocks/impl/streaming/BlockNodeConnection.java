@@ -244,7 +244,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                 consecutiveHighLatencyEvents++;
 
                 if (consecutiveHighLatencyEvents >= highLatencyEventsBeforeSwitching) {
-                    logger.warn(
+                    logger.info(
                             "[{}] Block node has exceeded high latency threshold {} times consecutively. "
                                     + "Latest latency: {}ms. Switching to a different node.",
                             this,
