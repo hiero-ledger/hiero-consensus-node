@@ -61,7 +61,7 @@ class DefaultInlinePcesWriterTest {
 
         final PcesFileTracker pcesFiles = new PcesFileTracker();
 
-        final PcesFileManager fileManager = new PcesFileManager(platformContext, pcesFiles, selfId, 0);
+        final PcesFileManager fileManager = new PcesFileManager(platformContext, pcesFiles, tempDir, 0);
         final DefaultInlinePcesWriter writer = new DefaultInlinePcesWriter(platformContext, fileManager, selfId);
 
         writer.beginStreamingNewEvents();
@@ -72,7 +72,7 @@ class DefaultInlinePcesWriterTest {
         // forces the writer to close the current file so that we can verify the stream
         writer.registerDiscontinuity(1L);
 
-        PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0);
+        PcesWriterTestUtils.verifyStream(tempDir, events, platformContext, 0);
     }
 
     @Test
@@ -85,7 +85,7 @@ class DefaultInlinePcesWriterTest {
         final int stepsUntilAncient = random.nextInt(50, 100);
         final PcesFileTracker pcesFiles = new PcesFileTracker();
 
-        final PcesFileManager fileManager = new PcesFileManager(platformContext, pcesFiles, selfId, 0);
+        final PcesFileManager fileManager = new PcesFileManager(platformContext, pcesFiles, tempDir, 0);
         final DefaultInlinePcesWriter writer = new DefaultInlinePcesWriter(platformContext, fileManager, selfId);
 
         // We will add this event at the very end, it should be ancient by then
@@ -133,6 +133,6 @@ class DefaultInlinePcesWriterTest {
         // forces the writer to close the current file so that we can verify the stream
         writer.registerDiscontinuity(1L);
 
-        PcesWriterTestUtils.verifyStream(selfId, events, platformContext, 0);
+        PcesWriterTestUtils.verifyStream(tempDir, events, platformContext, 0);
     }
 }
