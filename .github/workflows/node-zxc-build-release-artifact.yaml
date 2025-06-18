@@ -306,12 +306,6 @@ jobs:
         with:
           name: version.txt
 
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          path: ~/artifact-build
-          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
-
       - name: Gradle Assemble
         id: gradle-build
         run: ./gradlew assemble
@@ -332,6 +326,12 @@ jobs:
           cp -f hedera-node/configuration/update/during-freeze.sh "${BUILD_BASE_DIR}"
 
           echo "folder=${BUILD_BASE_DIR}" >>"${GITHUB_OUTPUT}"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          path: ~/artifact-build
+          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Write Artifact Version Descriptor
         working-directory: ${{ steps.artifact-staging.outputs.folder }}
