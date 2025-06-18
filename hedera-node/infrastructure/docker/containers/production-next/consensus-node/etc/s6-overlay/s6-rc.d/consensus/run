@@ -14,7 +14,7 @@ trap "kill 0" EXIT
 
 if [ "${AUTO_START_CONSENSUS_SERVICE:-true}" == false ]; then
   # Exit on initial start
-  if [ "${INITIAL_START}" = "true" ]; then
+  if [ "${INITIAL_START}" == "true" ]; then
     exit
   fi
 fi
