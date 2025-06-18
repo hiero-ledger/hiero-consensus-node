@@ -360,9 +360,10 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     }
 
     private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
-        // The SystemContractGasCalculator's feeCalculator relies on the parent contract call context.
-        // The batchKey check is used to differentiate batch inner transactions from system contract calls
-        // dispatched by inner transactions.
+        // Certain batch transactions can trigger child transactions inside the batch itself. Such child transactions
+        // must be verified with the parent transaction's context instead of the signatures on the child transaction.
+        // We therefore need to differentiate contextual child transactions from the batch's submitted inner transaction
+        // bodies themselves, which we'll do by checking the transaction body for an included batch key.
         return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
