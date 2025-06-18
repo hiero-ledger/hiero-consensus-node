@@ -14,7 +14,7 @@ import java.io.IOException;
  * <p><b>Where is it used?</b></p>
  * This class is used within on-disk queue implementations to encode and decode queue states as they
  * are written to or read from persistent storage.
- * For example: The {@link com.swirlds.state.merkle.disk.OnDiskQueueHelper} uses it to persist and retrieve
+ * For example: The {@link com.swirlds.state.BinaryState} uses it to persist and retrieve
  * the {@link QueueState} for defining boundaries and metadata of a queue.
  */
 public class QueueStateCodec implements Codec<QueueState> {

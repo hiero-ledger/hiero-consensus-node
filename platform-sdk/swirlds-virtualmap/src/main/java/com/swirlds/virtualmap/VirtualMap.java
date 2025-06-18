@@ -658,7 +658,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         put(keyBytes, null, null, valueBytes);
     }
 
-    private <V> void put(final Bytes key, final V value, final Codec<V> valueCodec, final Bytes valueBytes) {
+    private <V> void put(
+            @NonNull final Bytes key,
+            @Nullable final V value,
+            @Nullable final Codec<V> valueCodec,
+            final Bytes valueBytes) {
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());

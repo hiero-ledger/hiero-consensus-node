@@ -14,7 +14,9 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.BinaryState;
+import com.swirlds.state.BinaryStateUtils;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
@@ -36,7 +38,7 @@ class WritablePlatformStateStoreTest {
     private WritablePlatformStateStore store;
 
     private Randotron randotron;
-    private VirtualMap virtualMap;
+    private BinaryState binaryState;
 
     @BeforeEach
     void setUp() {
@@ -44,16 +46,18 @@ class WritablePlatformStateStoreTest {
 
         final String virtualMapLabel =
                 "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
-        virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+        final VirtualMap virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+
+        binaryState = new VirtualMapBinaryState(virtualMap);
 
         virtualMap.put(
-                StateUtils.getVirtualMapKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY),
+                BinaryStateUtils.getVirtualMapKeyForSingleton(PlatformStateService.NAME, PLATFORM_STATE_KEY),
                 toPbjPlatformState(randomPlatformState(randotron)),
                 PlatformState.PROTOBUF);
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
                 .thenReturn(new OnDiskWritableSingletonState<>(
-                        PlatformStateService.NAME, PLATFORM_STATE_KEY, PlatformState.PROTOBUF, virtualMap));
+                        PlatformStateService.NAME, PLATFORM_STATE_KEY, PlatformState.PROTOBUF, binaryState));
         store = new WritablePlatformStateStore(writableStates);
     }
 
@@ -158,7 +162,7 @@ class WritablePlatformStateStoreTest {
 
     @AfterEach
     void tearDown() {
-        virtualMap.release();
+        binaryState.release();
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }
