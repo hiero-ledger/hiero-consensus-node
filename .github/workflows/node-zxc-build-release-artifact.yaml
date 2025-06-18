@@ -536,6 +536,7 @@ jobs:
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
       registry-name: gcp
       custom-job-name: "Publish Production Image (GCP)"
+      ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
@@ -554,6 +555,7 @@ jobs:
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
       registry-name: jfrog
       custom-job-name: "Publish Production Image (JFrog)"
+      ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
