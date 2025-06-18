@@ -42,7 +42,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.HederaNewStateRoot;
+import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -54,6 +54,8 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -146,13 +148,19 @@ class BlockStreamManagerImplTest {
     private Round round;
 
     @Mock
-    private HederaNewStateRoot state;
+    private HederaVirtualMapState state;
 
     @Mock
     private Iterator<ConsensusEvent> mockIterator;
 
     @Mock
     private ConsensusEvent mockEvent;
+
+    @Mock
+    private Metrics metrics;
+
+    @Mock
+    private Counter indirectProofsCounter;
 
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
@@ -166,6 +174,7 @@ class BlockStreamManagerImplTest {
     @BeforeEach
     void setUp() {
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenReturn(indirectProofsCounter);
     }
 
     @Test
@@ -227,7 +236,8 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
-                lifecycle);
+                lifecycle,
+                metrics);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -250,7 +260,8 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
-                lifecycle);
+                lifecycle,
+                metrics);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -649,6 +660,8 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO + 1, bProof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, bProof.blockSignature());
         assertTrue(bProof.siblingHashes().isEmpty());
+
+        verify(indirectProofsCounter).increment();
     }
 
     @Test
@@ -920,7 +933,8 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
-                lifecycle);
+                lifecycle,
+                metrics);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
         infoRef.set(blockStreamInfo);

@@ -58,7 +58,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -193,10 +192,6 @@ public final class EventRecoveryWorkflow {
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
             final PcesFile preconsensusEventFile = PcesFile.of(
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode(),
                     Instant.now(),
                     0,
                     recoveredState.judge().getGeneration(),
@@ -389,15 +384,7 @@ public final class EventRecoveryWorkflow {
                     getHashEventsCons(platformStateFacade.legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
             v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
-                    round.getRoundNum(),
-                    lastEvent.getConsensusOrder(),
-                    currentRoundTimestamp,
-                    config,
-                    platformContext
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode(),
-                    lastEvent));
+                    round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
             v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
         });
 

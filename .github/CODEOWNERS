@@ -10,6 +10,11 @@
 /example-apps/**/module-info.java               @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /example-apps/swirlds-platform-base-example/    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
+############################
+##### State Validator ######
+############################
+/hedera-state-validator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
+
 #########################
 ##### HAPI protobuf #####
 #########################

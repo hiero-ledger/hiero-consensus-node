@@ -23,7 +23,7 @@ import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.NewStateRoot.MerkleWritableStates;
+import com.swirlds.state.merkle.VirtualMapState.MerkleWritableStates;
 import com.swirlds.state.spi.FilteredReadableStates;
 import com.swirlds.state.spi.FilteredWritableStates;
 import com.swirlds.state.spi.WritableStates;

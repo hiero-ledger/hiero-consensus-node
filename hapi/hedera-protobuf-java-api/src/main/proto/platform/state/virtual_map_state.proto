@@ -378,11 +378,6 @@ enum SingletonType {
    */
   TokenService__NODE_REWARDS = 50;
 
-  /**
-   * Virtual Map State metadata
-   */
-  VIRTUAL_MAP_STATE = 51;
-
   // Queue metadata
 
   /**

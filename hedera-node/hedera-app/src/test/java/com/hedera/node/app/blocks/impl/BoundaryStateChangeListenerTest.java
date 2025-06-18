@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
@@ -23,7 +22,6 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
@@ -38,7 +36,6 @@ class BoundaryStateChangeListenerTest {
     private static final int STATE_ID = 1;
     private static final int STATE_ID_ENTITY_COUNTS = 41;
     public static final ProtoString PROTO_STRING = new ProtoString("test");
-    public static final ProtoBytes PROTO_BYTES = new ProtoBytes(Bytes.wrap(new byte[] {1, 2, 3}));
     public static final EntityCounts ENTITY_COUNTS = EntityCounts.newBuilder()
             .numNfts(1)
             .numAccounts(2)

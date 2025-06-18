@@ -28,7 +28,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.NewStateRoot;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.StringLeaf;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -166,8 +166,8 @@ public class TestingAppStateInitializer {
      * @return a list of builders for the states that were initialized. Currently, returns an empty list.
      */
     public List<Builder> initRosterState(@NonNull final MerkleNodeState state) {
-        if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof NewStateRoot<?>)) {
-            throw new IllegalArgumentException("Can only be used with MerkleStateRoot or NewStateRoot instances");
+        if (!(state instanceof MerkleStateRoot<?>) && !(state instanceof VirtualMapState<?>)) {
+            throw new IllegalArgumentException("Can only be used with MerkleStateRoot or VirtualMapState instances");
         }
         final var schema = new V0540RosterBaseSchema();
         schema.statesToCreate().stream()
@@ -214,10 +214,10 @@ public class TestingAppStateInitializer {
             MerkleNodeState state, StateMetadata<?, ?> md, Supplier<? extends MerkleNode> nodeSupplier) {
         switch (state) {
             case MerkleStateRoot<?> ignored -> state.putServiceStateIfAbsent(md, nodeSupplier);
-            case NewStateRoot<?> ignored -> state.initializeState(md);
+            case VirtualMapState<?> ignored -> state.initializeState(md);
             default ->
                 throw new IllegalStateException(
-                        "Expecting MerkleStateRoot or NewStateRoot instance to be used for state initialization");
+                        "Expecting MerkleStateRoot or VirtualMapState instance to be used for state initialization");
         }
     }
 }

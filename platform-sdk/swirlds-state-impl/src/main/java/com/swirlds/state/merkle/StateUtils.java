@@ -8,7 +8,6 @@ import com.hedera.hapi.platform.state.VirtualMapKey;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -42,8 +41,15 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 public final class StateUtils {
 
     private static final int UNKNOWN_STATE_ID = -1;
+
     private static final IntFunction<String> UPGRADE_DATA_FILE_FORMAT =
             n -> String.format("UPGRADE_DATA\\[FileID\\[shardNum=\\d+, realmNum=\\d+, fileNum=%s]]", n);
+
+    /** Cache for pre-computed virtual map keys for singleton states. */
+    private static final Bytes[] VIRTUAL_MAP_KEY_CACHE = new Bytes[65536];
+
+    /** Cache to store and retrieve pre-computed labels for specific service states. */
+    private static final Map<String, String> LABEL_CACHE = new ConcurrentHashMap<>();
 
     /** Prevent instantiation */
     private StateUtils() {}
@@ -349,9 +355,20 @@ public final class StateUtils {
     }
 
     /**
-     * A static cache to store and retrieve pre-computed labels for specific service states.
+     * Validates that the state ID for the given service name and state key is within valid range.
+     *
+     * @param serviceName the service name
+     * @param stateKey the state key
+     * @return the validated state ID (between 0 and 65535 inclusive)
+     * @throws IllegalArgumentException if the state ID is outside the valid range
      */
-    private static final Map<String, String> LABEL_CACHE = new ConcurrentHashMap<>();
+    private static int getValidatedStateId(@NonNull final String serviceName, @NonNull final String stateKey) {
+        final int stateId = stateIdFor(serviceName, stateKey);
+        if (stateId < 0 || stateId > 65535) {
+            throw new IllegalArgumentException("State ID " + stateId + " must fit in [0..65535]");
+        }
+        return stateId;
+    }
 
     /**
      * Computes the label for a Merkle node given the service name and state key.
@@ -394,8 +411,6 @@ public final class StateUtils {
         return Pair.of(serviceName, stateKey);
     }
 
-    private static final Bytes[] VIRTUAL_MAP_KEY_CACHE = new Bytes[65536];
-
     /**
      * Creates an instance of {@link VirtualMapKey} for a singleton state, serializes into a {@link Bytes} object
      * and returns it.
@@ -419,52 +434,31 @@ public final class StateUtils {
     }
 
     /**
-     * Generates a 10 bytes key for a Virtual Map. Used for queue states.
-     * <p>
-     * The key structure is:
-     * <ul>
-     *   <li>2 bytes: the state ID (big‑endian)</li>
-     *   <li>8 bytes: the index (big‑endian)</li>
-     * </ul>
+     * Creates an instance of {@link VirtualMapKey} for a queue element, serializes into a {@link Bytes} object
+     * and returns it.
      *
      * @param serviceName the service name
      * @param stateKey    the state key
      * @param index       the queue element index
-     * @return a {@link Bytes} object containing exactly 10 bytes in big‑endian order
+     * @return a {@link VirtualMapKey} for a queue element serialized into {@link Bytes} object
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
     public static Bytes getVirtualMapKeyForQueue(
             @NonNull final String serviceName, @NonNull final String stateKey, final long index) {
-
         return VirtualMapKey.PROTOBUF.toBytes(new VirtualMapKey(new OneOf<>(
                 VirtualMapKey.KeyOneOfType.fromProtobufOrdinal(getValidatedStateId(serviceName, stateKey)), index)));
     }
 
-    private static int getValidatedStateId(String serviceName, String stateKey) {
-        final int stateId = stateIdFor(serviceName, stateKey);
-        if (stateId < 0 || stateId > 65535) {
-            throw new IllegalArgumentException("State ID " + stateId + " must fit in [0..65535]");
-        }
-        return stateId;
-    }
-
     /**
-     * Generates a key for a Virtual Map.
-     * <p>
-     * The key structure is:
-     * <ul>
-     *   <li>2 bytes: the state ID (big‑endian)</li>
-     *   <li>N bytes: the key bytes (serialized form of the provided key)</li>
-     * </ul>
-     * If an {@link IOException} occurs during serialization, it is wrapped in a {@link RuntimeException}.
+     * Creates an instance of {@link VirtualMapKey} for a k/v state, serializes into a {@link Bytes} object
+     * and returns it.
      *
      * @param <K>         the type of the key
      * @param serviceName the service name
      * @param stateKey    the state key
-     * @param key         the key to be serialized and appended
-     * @return a {@link Bytes} object consisting of the 2‑byte state ID (big‑endian) followed by the serialized key bytes
+     * @param key         the key object
+     * @return a {@link VirtualMapKey} for a k/v state, serialized into {@link Bytes} object
      * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
-     * @throws RuntimeException         if an {@link IOException} occurs during key serialization
      */
     public static <K> Bytes getVirtualMapKeyForKv(
             @NonNull final String serviceName, @NonNull final String stateKey, final K key) {
@@ -473,13 +467,55 @@ public final class StateUtils {
     }
 
     /**
-     * Writes an unsigned 2‑byte value (a short) in big‑endian order into the given BufferedData.
+     * Creates Protocol Buffer encoded byte array for a VirtualMapKey field.
+     * Follows protobuf encoding format: tag (field number + wire type), length, and value.
      *
-     * @param writer the BufferedData to write into
-     * @param value  the unsigned 2‑byte value to write (must be in [0..65535])
+     * @param serviceName       the service name
+     * @param stateKey          the state key
+     * @param keyObjectBytes    the serialized key object
+     * @return Properly encoded Protocol Buffer byte array
+     * @throws IllegalArgumentException if the derived state ID is not within the range [0..65535]
      */
-    private static void writeUnsignedShort(@NonNull final BufferedData writer, final int value) {
-        writer.writeByte((byte) (value >>> 8)); // extract high-order 8 bits
-        writer.writeByte((byte) value); // extract low-order 8 bits
+    public static byte[] createVirtualMapKeyBytesForKV(
+            @NonNull final String serviceName, @NonNull final String stateKey, byte[] keyObjectBytes) {
+        final int stateId = getValidatedStateId(serviceName, stateKey);
+        int wireType = 2; // length-delimited
+
+        // This matches the Protocol Buffer tag format: (field_number << TAG_TYPE_BITS) | wire_type
+        int tag = (stateId << 3) | wireType;
+
+        // Should encode tag as varint
+        byte[] tagBytes = encodeVarInt(tag);
+        byte[] lengthPrefix = encodeVarInt(keyObjectBytes.length);
+
+        // Final byte array: tag + length + value
+        byte[] result = new byte[tagBytes.length + lengthPrefix.length + keyObjectBytes.length];
+        System.arraycopy(tagBytes, 0, result, 0, tagBytes.length);
+
+        System.arraycopy(lengthPrefix, 0, result, tagBytes.length, lengthPrefix.length);
+        System.arraycopy(keyObjectBytes, 0, result, tagBytes.length + lengthPrefix.length, keyObjectBytes.length);
+
+        return result;
+    }
+
+    /**
+     * Encodes an integer value as a Protocol Buffer varint.
+     *
+     * @param value The integer to encode
+     * @return Byte array containing the varint representation
+     */
+    private static byte[] encodeVarInt(int value) {
+        if (value < 0x80) {
+            return new byte[] {(byte) value};
+        } else {
+            // full varint encoding for completeness
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            while ((value & 0xFFFFFF80) != 0L) {
+                out.write((value & 0x7F) | 0x80);
+                value >>>= 7;
+            }
+            out.write(value & 0x7F);
+            return out.toByteArray();
+        }
     }
 }

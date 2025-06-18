@@ -110,7 +110,8 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRound(firstRound)
                 .setSignatures(signatures)
                 .setCalculateHash(true)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestNewMerkleStateRoot
+                .setState(
+                        new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestVirtualMapMerkleNodeState
                 .build();
         stateFromDisk.getState().setHash(stateHash);
 

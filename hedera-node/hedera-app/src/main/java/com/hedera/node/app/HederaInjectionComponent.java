@@ -211,7 +211,7 @@ public interface HederaInjectionComponent {
         Builder boundaryStateChangeListener(BoundaryStateChangeListener boundaryStateChangeListener);
 
         @BindsInstance
-        Builder kvStateChangeListener(ImmediateStateChangeListener immediateStateChangeListener);
+        Builder immediateStateChangeListener(ImmediateStateChangeListener immediateStateChangeListener);
 
         @BindsInstance
         Builder migrationStateChanges(List<StateChanges.Builder> migrationStateChanges);

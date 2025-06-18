@@ -40,7 +40,6 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.validation.ExpiryValidation;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -77,11 +76,6 @@ class SolvencyPreCheckTest extends AppTestBase {
         when(authorizer.hasPrivilegedAuthorization(any(), any(), any())).thenReturn(SystemPrivilege.UNNECESSARY);
 
         subject = new SolvencyPreCheck(exchangeRateManager, feeManager, expiryValidation, authorizer);
-    }
-
-    @AfterEach
-    void tearDown() {
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @SuppressWarnings("ConstantConditions")

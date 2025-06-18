@@ -111,7 +111,7 @@ public class VirtualMapValidator {
     }
 
     private void verifyMatch(final int round, final VirtualMap snapshot, final Map<Bytes, Bytes> reference) {
-        assertEquals(reference.size(), snapshot.size() - 1); // -1 for the VM state key/value
+        assertEquals(reference.size(), snapshot.size());
         for (final Bytes key : reference.keySet()) {
             if (!reference.get(key).equals(snapshot.getBytes(key))) {
                 // Failed to match. Print out debug info.

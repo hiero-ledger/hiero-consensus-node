@@ -18,6 +18,8 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer;
@@ -125,10 +127,7 @@ class ThrottleAccumulatorTest {
             .build();
     private static final ScheduleID SCHEDULE_ID =
             ScheduleID.newBuilder().scheduleNum(333333L).build();
-
     private static final ScaleFactor NFT_SCALE_FACTOR = ScaleFactor.from("5:2");
-    private static final String ALIASES_KEY = "ALIASES";
-
     private static final Bytes ETH_LAZY_CREATE = Bytes.fromHex(
             "02f8ad82012a80a000000000000000000000000000000000000000000000000000000000000003e8a0000000000000000000000000000000000000000000000000000000746a528800831e848094fee687d5088faff48013a6767505c027e2742536880de0b6b3a764000080c080a0f5ddf2394311e634e2147bf38583a017af45f4326bdf5746cac3a1110f973e4fa025bad52d9a9f8b32eb983c9fb8959655258bd75e2826b2c6a48d4c26ec30d112");
 
@@ -146,6 +145,9 @@ class ThrottleAccumulatorTest {
 
     @Mock
     private LeakyBucketDeterministicThrottle bytesThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle opsDurationThrottle;
 
     @Mock
     private ThrottleMetrics throttleMetrics;
@@ -204,7 +206,8 @@ class ThrottleAccumulatorTest {
                 NOOP_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
         assertFalse(subject.checkAndEnforceThrottle(
                 TRANSACTION_GET_RECEIPT, TIME_INSTANT, query, state, AccountID.DEFAULT));
@@ -222,7 +225,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -258,7 +262,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
         final var query = Query.newBuilder()
@@ -268,8 +273,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>(TokenService.NAME, "ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(states);
 
@@ -302,7 +307,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
         final var query = Query.newBuilder()
@@ -312,8 +318,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(2).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>(TokenService.NAME, "ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
@@ -351,7 +357,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
         final var query = Query.newBuilder()
@@ -361,8 +368,8 @@ class ThrottleAccumulatorTest {
                 .build();
         final var account = Account.newBuilder().numberAssociations(0).build();
         final var states = MapReadableStates.builder()
-                .state(new MapReadableKVState<>(TokenService.NAME, "ACCOUNTS", Map.of(RECEIVER_ID, account)))
-                .state(new MapReadableKVState<>(TokenService.NAME, "ALIASES", Map.of()))
+                .state(new MapReadableKVState<>(TokenService.NAME, ACCOUNTS_KEY, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(TokenService.NAME, ALIASES_KEY, Map.of()))
                 .build();
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
@@ -400,7 +407,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -446,7 +454,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -491,7 +500,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -539,7 +549,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -584,7 +595,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -624,7 +636,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -666,7 +679,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -710,7 +724,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -753,7 +768,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -795,7 +811,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -837,7 +854,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -877,7 +895,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -918,7 +937,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -959,7 +979,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -1003,7 +1024,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -1047,7 +1069,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
         given(accountsConfig.lastThrottleExempt()).willReturn(100L);
@@ -1093,7 +1116,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1155,6 +1179,7 @@ class ThrottleAccumulatorTest {
         // when
         subject.applyGasConfig();
         subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
@@ -1189,6 +1214,7 @@ class ThrottleAccumulatorTest {
         // when
         subject.applyGasConfig();
         subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
@@ -1222,6 +1248,7 @@ class ThrottleAccumulatorTest {
         // when
         subject.applyGasConfig();
         subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
@@ -1256,6 +1283,7 @@ class ThrottleAccumulatorTest {
         // when
         subject.applyGasConfig();
         subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
@@ -1293,6 +1321,7 @@ class ThrottleAccumulatorTest {
         // when
         subject.applyGasConfig();
         subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
@@ -1328,6 +1357,7 @@ class ThrottleAccumulatorTest {
         // when
         subject.applyGasConfig();
         subject.applyBytesConfig();
+        subject.applyDurationConfig();
 
         // then
         assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null));
@@ -1415,7 +1445,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1485,7 +1516,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1501,7 +1533,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1521,7 +1554,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1539,7 +1573,8 @@ class ThrottleAccumulatorTest {
                 FRONTEND_THROTTLE,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
         final var defs = getThrottleDefs("bootstrap/throttles.json");
 
         subject.rebuildFor(defs);
@@ -1572,7 +1607,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1626,7 +1662,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
@@ -1679,7 +1716,8 @@ class ThrottleAccumulatorTest {
                 throttleType,
                 throttleMetrics,
                 gasThrottle,
-                bytesThrottle);
+                bytesThrottle,
+                opsDurationThrottle);
 
         given(configProvider.getConfiguration()).willReturn(configuration);
         given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);

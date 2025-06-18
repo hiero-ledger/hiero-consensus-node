@@ -9,6 +9,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -588,7 +590,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                     .build();
             when(baseState.getReadableStates(FOOD_SERVICE)).thenReturn(readableStates);
             when(baseState.getWritableStates(FOOD_SERVICE)).thenReturn(writableStates);
-            final var accountsState = new MapWritableKVState<AccountID, Account>(TokenService.NAME, "ACCOUNTS");
+            final var accountsState = new MapWritableKVState<AccountID, Account>(TokenService.NAME, ACCOUNTS_KEY);
             accountsState.put(ALICE.accountID(), ALICE.account());
             when(baseState.getWritableStates(TokenService.NAME))
                     .thenReturn(MapWritableStates.builder().state(accountsState).build());
@@ -836,9 +838,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         lenient()
                 .when(stack.getWritableStates(TokenService.NAME))
                 .thenReturn(MapWritableStates.builder()
-                        .state(MapWritableKVState.builder(TokenService.NAME, "ACCOUNTS")
+                        .state(MapWritableKVState.builder(TokenService.NAME, ACCOUNTS_KEY)
                                 .build())
-                        .state(MapWritableKVState.builder(TokenService.NAME, "ALIASES")
+                        .state(MapWritableKVState.builder(TokenService.NAME, ALIASES_KEY)
                                 .build())
                         .build());
         lenient().when(writableStates.<EntityNumber>getSingleton(anyString())).thenReturn(entityNumberState);

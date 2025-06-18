@@ -101,12 +101,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Constructs the root {@link SavepointStackImpl} for the given state at the start of handling a user transaction.
      *
-     * @param state                       the state
-     * @param maxBuildersBeforeUser       the maximum number of preceding builders with available consensus times
-     * @param maxBuildersAfterUser        the maximum number of following builders with available consensus times
-     * @param boundaryStateChangeListener the listener for the round state changes
-     * @param immediateStateChangeListener       the listener for the key/value state changes
-     * @param streamMode                  the stream mode
+     * @param state                         the state
+     * @param maxBuildersBeforeUser         the maximum number of preceding builders with available consensus times
+     * @param maxBuildersAfterUser          the maximum number of following builders with available consensus times
+     * @param boundaryStateChangeListener   the listener for the round state changes
+     * @param immediateStateChangeListener  the listener for the key/value state changes
+     * @param streamMode                    the stream mode
      * @return the root {@link SavepointStackImpl}
      */
     public static SavepointStackImpl newRootStack(
@@ -148,12 +148,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Constructs a new root {@link SavepointStackImpl} with the given root state.
      *
-     * @param state                    the state
-     * @param maxBuildersBeforeUser    the maximum number of preceding builders to create
-     * @param maxBuildersAfterUser     the maximum number of following builders to create
-     * @param boundaryStateChangeListener the listener for the round state changes
-     * @param immediateStateChangeListener    the listener for the key-value state changes
-     * @param streamMode               the stream mode
+     * @param state                         the state
+     * @param maxBuildersBeforeUser         the maximum number of preceding builders to create
+     * @param maxBuildersAfterUser          the maximum number of following builders to create
+     * @param boundaryStateChangeListener   the listener for the round state changes
+     * @param immediateStateChangeListener  the listener for the key-value state changes
+     * @param streamMode                    the stream mode
      */
     private SavepointStackImpl(
             @NonNull final State state,

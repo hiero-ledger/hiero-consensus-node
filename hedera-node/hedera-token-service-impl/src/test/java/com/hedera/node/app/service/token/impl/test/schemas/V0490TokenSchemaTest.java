@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.test.schemas;
 
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
@@ -57,7 +58,7 @@ final class V0490TokenSchemaTest {
 
     @BeforeEach
     void setUp() {
-        accounts = MapWritableKVState.<AccountID, Account>builder(TokenService.NAME, V0490TokenSchema.ACCOUNTS_KEY)
+        accounts = MapWritableKVState.<AccountID, Account>builder(TokenService.NAME, ACCOUNTS_KEY)
                 .build();
 
         newStates = newStatesInstance(
@@ -105,7 +106,7 @@ final class V0490TokenSchemaTest {
         return MapWritableStates.builder()
                 .state(accts)
                 .state(aliases)
-                .state(MapWritableKVState.builder(TokenService.NAME, V0490TokenSchema.STAKING_INFO_KEY)
+                .state(MapWritableKVState.builder(TokenService.NAME, STAKING_INFO_KEY)
                         .build())
                 .state(new FunctionWritableSingletonState<>(
                         TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))

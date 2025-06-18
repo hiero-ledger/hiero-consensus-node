@@ -74,7 +74,7 @@ class ImmediateStateChangeListenerTest {
     }
 
     @Test
-    void targetTypeIsQueue() {
+    void targetTypeIsMapAndQueue() {
         assertEquals(Set.of(MAP, QUEUE), listener.stateTypes());
     }
 

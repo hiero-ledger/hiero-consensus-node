@@ -336,7 +336,8 @@ class DefaultSignedStateValidatorTests {
         };
 
         return new RandomSignedStateGenerator()
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestNewMerkleStateRoot
+                .setState(
+                        new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestVirtualMapMerkleNodeState
                 .setRound(ROUND)
                 .setRoster(roster)
                 .setStateHash(stateHash)

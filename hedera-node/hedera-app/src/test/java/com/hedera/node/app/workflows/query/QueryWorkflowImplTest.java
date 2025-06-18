@@ -73,7 +73,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.State;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -223,7 +222,6 @@ class QueryWorkflowImplTest extends AppTestBase {
     @AfterEach
     void tearDown() {
         state.release();
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @SuppressWarnings("ConstantConditions")

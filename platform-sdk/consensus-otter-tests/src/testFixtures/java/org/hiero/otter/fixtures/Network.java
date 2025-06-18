@@ -51,6 +51,10 @@ public interface Network {
     /**
      * Get the list of nodes in the network.
      *
+     * <p>The {@link List} cannot be modified directly. However, if a node is added or removed from the network, the
+     * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
+     * create a copy.
+     *
      * @return a list of nodes in the network
      */
     @NonNull

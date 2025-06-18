@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -137,9 +136,8 @@ public class RoundElections {
     /**
      * @return create a {@link MinimumJudgeInfo} instance for this round
      */
-    public @NonNull MinimumJudgeInfo createMinimumJudgeInfo(final AncientMode ancientMode) {
-        return new MinimumJudgeInfo(
-                round, ancientMode == AncientMode.GENERATION_THRESHOLD ? getMinGeneration() : getMinBirthRound());
+    public @NonNull MinimumJudgeInfo createMinimumJudgeInfo() {
+        return new MinimumJudgeInfo(round, getMinBirthRound());
     }
 
     /**

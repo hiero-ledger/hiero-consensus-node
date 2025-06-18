@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newReadableStoreWithTokens;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithTokenRels;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.TestStoreFactory.newWritableStoreWithTokens;
@@ -364,8 +365,8 @@ class TokenUpdateNftsHandlerTest extends CryptoTokenHandlerTestBase {
                 .build());
         writableNftStore = new WritableNftStore(
                 new MapWritableStates(Map.of(
-                        "NFTS",
-                        MapWritableKVState.builder(TokenService.NAME, "NFTS").build())),
+                        NFTS_KEY,
+                        MapWritableKVState.builder(TokenService.NAME, NFTS_KEY).build())),
                 writableEntityCounters);
 
         final var txn = new TokenUpdateNftBuilder()

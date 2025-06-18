@@ -34,7 +34,6 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
@@ -92,7 +91,6 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -157,7 +155,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
     /**
      * {@inheritDoc}
-     * Specifically, {@link HederaNewStateRoot}.
+     * Specifically, {@link HederaVirtualMapState}.
      */
     @Override
     public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap() {
@@ -334,8 +332,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hedera.setInitialStateHash(reservedState.hash());
 
         // --- Create the platform context and initialize the cryptography ---
-        final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-        final var currentRoster = requireNonNull(rosterStore.getActiveRoster());
+        final var rosterHistory = RosterUtils.createRosterHistory(state);
+        final var currentRoster = rosterHistory.getCurrentRoster();
         // For now we convert to a legacy representation of the roster for convenience
         final var addressBook = requireNonNull(buildAddressBook(currentRoster));
         if (!addressBook.contains(selfId)) {
@@ -346,7 +344,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         cryptography.digestSync(addressBook);
 
         // --- Now build the platform and start it ---
-        final var rosterHistory = RosterUtils.createRosterHistory(rosterStore);
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
                         Hedera.SWIRLD_NAME,

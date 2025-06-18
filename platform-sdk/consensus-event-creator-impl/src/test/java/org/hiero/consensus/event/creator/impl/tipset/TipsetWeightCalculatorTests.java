@@ -2,7 +2,6 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
-import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -218,12 +217,7 @@ class TipsetWeightCalculatorTests {
                 parentTipsets.add(tipsetTracker.getTipset(parent));
             }
 
-            final Tipset newTipset;
-            if (parentTipsets.isEmpty()) {
-                newTipset = new Tipset(roster);
-            } else {
-                newTipset = merge(parentTipsets);
-            }
+            final Tipset newTipset = new Tipset(roster).merge(parentTipsets);
 
             final TipsetAdvancementWeight expectedAdvancementScoreChange =
                     previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);

@@ -36,7 +36,6 @@ import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.exec.utils.PropagatedCallFailureRef;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
@@ -131,12 +130,12 @@ class FrameRunnerTest {
         final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
 
         givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
         final var contractId = ContractID.newBuilder()
                 .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
                 .build();
         given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
-        given(worldUpdater.getHederaContractId(NON_SYSTEM_LONG_ZERO_ADDRESS)).willReturn(contractId);
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
 
@@ -155,6 +154,11 @@ class FrameRunnerTest {
 
         givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getRevertReason()).willReturn(Optional.of(SOME_REVERT_REASON));
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -175,6 +179,11 @@ class FrameRunnerTest {
 
         givenBaseReceiverSigCheckHaltWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(INVALID_SIGNATURE));
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -195,6 +204,11 @@ class FrameRunnerTest {
 
         givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(FAILURE_DURING_LAZY_ACCOUNT_CREATION));
+        final var contractId = ContractID.newBuilder()
+                .contractNum(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -217,6 +231,11 @@ class FrameRunnerTest {
 
         givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(INSUFFICIENT_CHILD_RECORDS));
+        final var contractId = ContractID.newBuilder()
+                .evmAddress(Bytes.wrap(NON_SYSTEM_LONG_ZERO_ADDRESS.toArray()))
+                .build();
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(contractId);
 
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
@@ -296,8 +315,6 @@ class FrameRunnerTest {
                 .getOrCreateConfig();
         given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
         given(frame.getContextVariable(FrameUtils.TRACKER_CONTEXT_VARIABLE)).willReturn(null);
-        given(frame.getContextVariable(FrameUtils.HEDERA_OPS_DURATION))
-                .willReturn(new HederaOpsDurationCounter(GAS_LIMIT / 2));
         given(childFrame.getContextVariable(FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE))
                 .willReturn(propagatedCallFailure);
         given(frame.getGasPrice()).willReturn(Wei.of(NETWORK_GAS_PRICE));
@@ -310,13 +327,10 @@ class FrameRunnerTest {
         }
         given(frame.getRecipientAddress()).willReturn(receiver);
         given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
         final var contractId = ContractID.newBuilder()
                 .evmAddress(Bytes.wrap(receiver.toArray()))
                 .build();
-        given(worldUpdater.getHederaContractId(receiver)).willReturn(contractId);
         given(childFrame.getMessageFrameStack()).willReturn(messageFrameStack);
-        given(entityIdFactory.hexLongZero(0)).willReturn("1234");
     }
 
     private long expectedGasUsed(@NonNull final MessageFrame frame) {

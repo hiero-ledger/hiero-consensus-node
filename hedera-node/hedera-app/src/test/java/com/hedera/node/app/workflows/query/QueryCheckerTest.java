@@ -49,7 +49,6 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -108,7 +107,6 @@ class QueryCheckerTest extends AppTestBase {
         if (state != null) {
             state.release();
         }
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @SuppressWarnings("ConstantConditions")

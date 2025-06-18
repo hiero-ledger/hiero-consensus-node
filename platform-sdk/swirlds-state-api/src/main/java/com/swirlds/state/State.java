@@ -138,6 +138,10 @@ public interface State extends FastCopyable, Hashable {
         return true;
     }
 
+    /**
+     * Returns a JSON string containing information about the current state.
+     * @return A JSON representation of the state information, or an empty string if no information is available.
+     */
     default String getInfoJson() {
         return "";
     }

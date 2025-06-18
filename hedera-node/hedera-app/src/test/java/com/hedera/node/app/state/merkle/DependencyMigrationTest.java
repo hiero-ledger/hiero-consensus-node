@@ -12,7 +12,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.node.app.HederaNewStateRoot;
+import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -21,7 +21,6 @@ import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -60,12 +59,12 @@ class DependencyMigrationTest extends MerkleTestBase {
 
     private ConfigProviderImpl configProvider;
 
-    private HederaNewStateRoot merkleTree;
+    private HederaVirtualMapState merkleTree;
 
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new HederaNewStateRoot(CONFIGURATION, new NoOpMetrics());
+        merkleTree = new HederaVirtualMapState(CONFIGURATION, new NoOpMetrics());
         configProvider = new ConfigProviderImpl();
         storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
     }
@@ -73,7 +72,6 @@ class DependencyMigrationTest extends MerkleTestBase {
     @AfterEach
     void tearDown() {
         merkleTree.release();
-        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Nested

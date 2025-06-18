@@ -134,7 +134,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.NewStateRoot;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -543,7 +543,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .forEach(servicesRegistry::register);
         try {
             consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
-            final Supplier<MerkleNodeState> baseSupplier = () -> new HederaNewStateRoot(platformConfig, metrics);
+            final Supplier<MerkleNodeState> baseSupplier = () -> new HederaVirtualMapState(platformConfig, metrics);
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
@@ -588,7 +588,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      */
     @Override
     public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap() {
-        return HederaNewStateRoot::new;
+        return HederaVirtualMapState::new;
     }
 
     /**
@@ -612,8 +612,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 startGrpcServer();
                 if (initState != null) {
                     // Disabling start up mode, so since now singletons will be commited only on block close
-                    if (initState instanceof NewStateRoot<?> newStateRoot) {
-                        newStateRoot.disableStartupMode();
+                    if (initState instanceof VirtualMapState<?> virtualMapState) {
+                        virtualMapState.disableStartupMode();
                     } else if (initState instanceof MerkleStateRoot<?> merkleStateRoot) {
                         // Non production case (testing tools)
                         // Otherwise assume it is a MerkleStateRoot
@@ -926,7 +926,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
 
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof HederaNewStateRoot msr) {
+            if (state instanceof HederaVirtualMapState msr) {
                 msr.close();
             }
 
@@ -1086,7 +1086,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         return streamMode != RECORDS;
     }
 
-    public ImmediateStateChangeListener kvStateChangeListener() {
+    public ImmediateStateChangeListener immediateStateChangeListener() {
         return immediateStateChangeListener;
     }
 
@@ -1189,7 +1189,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .instantSource(appContext.instantSource())
                 .throttleFactory(appContext.throttleFactory())
                 .metrics(metrics)
-                .kvStateChangeListener(immediateStateChangeListener)
+                .immediateStateChangeListener(immediateStateChangeListener)
                 .boundaryStateChangeListener(boundaryStateChangeListener)
                 .migrationStateChanges(migrationStateChanges != null ? migrationStateChanges : new ArrayList<>())
                 .initialStateHash(initialStateHash)

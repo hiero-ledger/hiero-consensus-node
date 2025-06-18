@@ -145,7 +145,7 @@ class IngestComponentTest {
                 .instantSource(InstantSource.system())
                 .softwareVersion(mock(SemanticVersion.class))
                 .metrics(metrics)
-                .kvStateChangeListener(new ImmediateStateChangeListener())
+                .immediateStateChangeListener(new ImmediateStateChangeListener())
                 .boundaryStateChangeListener(new BoundaryStateChangeListener(
                         new StoreMetricsServiceImpl(metrics), configProvider::getConfiguration))
                 .migrationStateChanges(List.of())

@@ -19,7 +19,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -86,10 +86,10 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
      * 		Cannot be null.
      * @param originalState
-     * 		A {@link VirtualMapState} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		unmodified <strong>original</strong> tree. Cannot be null.
      * @param reconnectState
-     * 		A {@link VirtualMapState} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
      * @param mapStats
@@ -99,8 +99,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             final ReconnectConfig reconnectConfig,
             final VirtualMap map,
             final RecordAccessor originalRecords,
-            final VirtualMapState originalState,
-            final VirtualMapState reconnectState,
+            final VirtualMapMetadata originalState,
+            final VirtualMapMetadata reconnectState,
             final ReconnectNodeRemover nodeRemover,
             final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {

@@ -20,6 +20,7 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SignatureException;
+import java.util.List;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -189,6 +190,15 @@ public class MigrationTestingToolMain implements SwirldMain<MigrationTestingTool
     @Override
     public ConsensusStateEventHandler<MigrationTestingToolState> newConsensusStateEvenHandler() {
         return new MigrationTestToolConsensusStateEventHandler();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public List<Class<? extends Record>> getConfigDataTypes() {
+        return List.of(MigrationTestingToolConfig.class);
     }
 
     /**

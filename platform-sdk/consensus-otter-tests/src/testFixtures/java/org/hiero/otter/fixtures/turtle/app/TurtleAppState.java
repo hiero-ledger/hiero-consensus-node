@@ -10,12 +10,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.merkle.NewStateRoot;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.roster.RosterUtils;
 
-public class TurtleAppState extends NewStateRoot<TurtleAppState> implements MerkleNodeState {
+public class TurtleAppState extends VirtualMapState<TurtleAppState> implements MerkleNodeState {
 
     long state;
 

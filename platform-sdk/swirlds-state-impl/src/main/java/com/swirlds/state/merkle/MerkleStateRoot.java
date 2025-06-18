@@ -7,6 +7,7 @@ import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
+import static com.swirlds.state.merkle.StateUtils.createVirtualMapKeyBytesForKV;
 import static com.swirlds.state.merkle.StateUtils.decomposeLabel;
 import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForQueue;
 import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
@@ -1033,9 +1034,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
 
             // Validate all states migrated to the Virtual Map
             if (validateMigrationEnabled) {
-                // The `+1` accounts for the `VirtualMapState`, which is expected to already exist in the VirtualMap
-                // before the migration begins.
-                assert virtualMapRef.get().size() == totalMigratedObjects.get() + 1;
+                assert virtualMapRef.get().size() == totalMigratedObjects.get();
                 logger.info(STARTUP.getMarker(), "Total validation time {} ms", totalValidationTimeMs.get());
             }
 
@@ -1231,7 +1230,6 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                     final var labelPair = decomposeLabel(virtualMapToMigrate.getLabel());
                     final var serviceName = labelPair.key();
                     final var stateKey = labelPair.value();
-                    final var stateIdBytes = getVirtualMapKeyForSingleton(serviceName, stateKey);
 
                     InterruptableConsumer<Pair<Bytes, Bytes>> handler = (pair) -> {
                         VirtualMap currentMap = virtualMapRef.get();
@@ -1241,7 +1239,9 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                             older.release();
                             virtualMapRef.set(currentMap);
                         }
-                        virtualMapRef.get().putBytes(stateIdBytes.append(pair.key()), pair.value());
+                        final var keyBytes = Bytes.wrap(createVirtualMapKeyBytesForKV(
+                                serviceName, stateKey, pair.key().toByteArray()));
+                        virtualMapRef.get().putBytes(keyBytes, pair.value());
                     };
 
                     try {
@@ -1284,7 +1284,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                                 "Validating the new Virtual Map contains all data from the KV State {}",
                                 virtualMapToMigrate.getLabel());
 
-                        validateKVStateMigrated(virtualMapRef.get(), virtualMapToMigrate, stateIdBytes);
+                        validateKVStateMigrated(virtualMapRef.get(), virtualMapToMigrate, serviceName, stateKey);
 
                         long validationTimeMs = System.currentTimeMillis() - validationStartTime;
                         logger.info(
@@ -1300,12 +1300,14 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
     }
 
     private static void validateKVStateMigrated(
-            VirtualMap virtualMap, VirtualMap virtualMapToMigrate, Bytes stateIdBytes) {
+            VirtualMap virtualMap, VirtualMap virtualMapToMigrate, String serviceName, String stateKey) {
         MerkleIterator<MerkleNode> merkleNodeMerkleIterator = virtualMapToMigrate.treeIterator();
         while (merkleNodeMerkleIterator.hasNext()) {
             MerkleNode next = merkleNodeMerkleIterator.next();
             if (next instanceof VirtualLeafNode virtualLeafNode) {
-                assert virtualMap.containsKey(stateIdBytes.append(virtualLeafNode.getKey()));
+                final var keyBytes = Bytes.wrap(createVirtualMapKeyBytesForKV(
+                        serviceName, stateKey, virtualLeafNode.getKey().toByteArray()));
+                assert virtualMap.containsKey(keyBytes);
             }
         }
     }

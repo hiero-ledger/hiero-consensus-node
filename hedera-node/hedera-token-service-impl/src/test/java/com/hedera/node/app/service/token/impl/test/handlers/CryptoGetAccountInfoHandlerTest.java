@@ -8,9 +8,9 @@ import static com.hedera.hapi.node.base.TokenKycStatus.KYC_NOT_APPLICABLE;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
-import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.NETWORK_REWARDS;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -473,8 +473,9 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
         final AtomicReference<NetworkStakingRewards> backingValue =
                 new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState =
-                new FunctionReadableSingletonState<>(TokenService.NAME, NETWORK_REWARDS, backingValue::get);
-        given(readableStates.getSingleton(NETWORK_REWARDS)).willReturn((ReadableSingletonState) stakingRewardsState);
+                new FunctionReadableSingletonState<>(TokenService.NAME, STAKING_NETWORK_REWARDS_KEY, backingValue::get);
+        given(readableStates.getSingleton(STAKING_NETWORK_REWARDS_KEY))
+                .willReturn((ReadableSingletonState) stakingRewardsState);
         final var readableRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(readableStates);
         when(context.createStore(ReadableNetworkStakingRewardsStore.class)).thenReturn(readableRewardsStore);
     }

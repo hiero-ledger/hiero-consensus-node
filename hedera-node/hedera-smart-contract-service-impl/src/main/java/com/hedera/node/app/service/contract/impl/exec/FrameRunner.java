@@ -5,7 +5,6 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPropagatedCallFailure;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.maybeNext;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
@@ -94,18 +93,17 @@ public class FrameRunner {
 
         // And return the result, success or failure
         final var gasUsed = effectiveGasUsed(gasLimit, frame);
-        final var opsDuration = getHederaOpsDuration(frame);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
                     gasUsed,
-                    opsDuration,
                     senderId,
                     recipientMetadata.hederaId(),
                     asEvmContractId(entityIdFactory, recipientAddress),
                     frame,
-                    tracer);
+                    tracer,
+                    entityIdFactory);
         } else {
-            return failureFrom(gasUsed, opsDuration, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
+            return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }
     }
 
@@ -121,7 +119,7 @@ public class FrameRunner {
 
     private RecipientMetadata computeRecipientMetadata(
             @NonNull final MessageFrame frame, @NonNull final Address address) {
-        if (isLongZero(entityIdFactory, address)) {
+        if (isLongZero(address)) {
             return new RecipientMetadata(false, asNumberedContractId(entityIdFactory, address));
         } else {
             final var updater = proxyUpdaterFor(frame);

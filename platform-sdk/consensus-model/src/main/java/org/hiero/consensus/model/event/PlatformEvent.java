@@ -182,6 +182,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return the generation of the event
      */
+    @Deprecated(forRemoval = true)
     public long getGeneration() {
         return metadata.getGeneration();
     }

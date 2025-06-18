@@ -9,7 +9,7 @@ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualRoot;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -255,7 +255,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             return virtualMaps.stream()
                     .map(virtualMap -> {
                         final long start = System.currentTimeMillis();
-                        final ExternalVirtualMapState state = virtualMap.getLeft();
+                        final ExternalVirtualMapMetadata state = virtualMap.getLeft();
                         final String label = state.getLabel();
                         final VirtualMap curMap = virtualMap.copy();
 

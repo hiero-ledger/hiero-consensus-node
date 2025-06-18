@@ -138,7 +138,7 @@ public final class OnDiskQueueHelper<E> {
         if (state == null) {
             return null;
         }
-        // FUTURE WORK: optimize performance here
+        // FUTURE WORK: optimize performance here, see https://github.com/hiero-ledger/hiero-consensus-node/issues/19670
         return new QueueState(state.getHead(), state.getTail());
     }
 

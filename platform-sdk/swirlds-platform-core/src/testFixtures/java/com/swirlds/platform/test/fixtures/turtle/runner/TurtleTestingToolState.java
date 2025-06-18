@@ -7,7 +7,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.*;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.state.merkle.NewStateRoot;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -19,7 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *   ﹉∏﹉∏﹉                   ﹉∏﹉∏﹉
  * </pre>
  */
-public class TurtleTestingToolState extends NewStateRoot<TurtleTestingToolState> implements MerkleNodeState {
+public class TurtleTestingToolState extends VirtualMapState<TurtleTestingToolState> implements MerkleNodeState {
 
     long state;
 

@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.TokenKycStatus.REVOKED;
 import static com.hedera.hapi.node.base.TokenPauseStatus.PAUSED;
 import static com.hedera.hapi.node.base.TokenPauseStatus.PAUSE_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenPauseStatus.UNPAUSED;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -94,9 +95,9 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidToken() {
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .build();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(state);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createTokenGetInfoQuery(fungibleTokenId);
@@ -110,9 +111,9 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void validatesQueryIfInvalidTokenInTrans() {
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .build();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(state);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createEmptyTokenGetInfoQuery();
@@ -146,9 +147,9 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void getsResponseIfInvalidToken() {
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .build();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(state);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
 
         final var responseHeader = ResponseHeader.newBuilder()
@@ -199,10 +200,10 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         final var expectedInfo = getExpectInfoDefaultKeys();
 
         fungibleToken = setFungibleTokenKeys();
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(fungibleTokenId, fungibleToken)
                 .build();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(state);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
 
         checkResponse(responseHeader, expectedInfo, store);
@@ -216,10 +217,10 @@ class TokenGetInfoHandlerTest extends CryptoTokenHandlerTestBase {
         final var expectedInfo = getExpectInfoDefaultStatus();
 
         fungibleToken = setFungibleTokenDefaultStatus();
-        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS)
+        final var state = MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(fungibleTokenId, fungibleToken)
                 .build();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(state);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(state);
         final var store = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
 
         checkResponse(responseHeader, expectedInfo, store);

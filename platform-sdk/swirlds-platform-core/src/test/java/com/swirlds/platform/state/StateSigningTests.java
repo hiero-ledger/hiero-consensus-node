@@ -367,7 +367,8 @@ class StateSigningTests {
                 .setCalculateHash(true)
                 .setSignatures(new HashMap<>())
                 .setCalculateHash(true)
-                .setState(new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestNewMerkleStateRoot
+                .setState(
+                        new TestMerkleStateRoot()) // FUTURE WORK: remove this line to use TestVirtualMapMerkleNodeState
                 .build();
 
         final SigSet sigSet = signedState.getSigSet();

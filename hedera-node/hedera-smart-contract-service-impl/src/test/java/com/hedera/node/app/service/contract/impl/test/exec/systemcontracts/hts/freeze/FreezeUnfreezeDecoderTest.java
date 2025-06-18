@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -12,6 +13,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.freeze.FreezeUnfreezeDecoder;
@@ -30,6 +32,9 @@ class FreezeUnfreezeDecoderTest {
     @Mock
     private HtsCallAttempt attempt;
 
+    @Mock
+    private HederaNativeOperations nativeOperations;
+
     private final FreezeUnfreezeDecoder subject = new FreezeUnfreezeDecoder();
 
     @Test
@@ -39,6 +44,8 @@ class FreezeUnfreezeDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(any())).willReturn(OWNER_ID);
         final var body = subject.decodeFreeze(attempt);
         assertFreezePresent(body, FUNGIBLE_TOKEN_ID, OWNER_ID);
@@ -49,6 +56,9 @@ class FreezeUnfreezeDecoderTest {
         final var encoded = FreezeUnfreezeTranslator.UNFREEZE
                 .encodeCallWithArgs(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, OWNER_HEADLONG_ADDRESS)
                 .array();
+
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(addressIdConverter.convert(any())).willReturn(OWNER_ID);

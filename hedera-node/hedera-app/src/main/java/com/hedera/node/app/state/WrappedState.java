@@ -109,6 +109,9 @@ public class WrappedState implements State, Hashable {
         delegate.setHash(hash);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isStartUpMode() {
         return delegate.isStartUpMode();

@@ -22,7 +22,7 @@ class StateUtilsTest {
 
     public static Stream<Arguments> stateIdsByName() {
         return Arrays.stream(StateIdentifier.values())
-                .filter(v -> v != StateIdentifier.UNKNOWN && v != StateIdentifier.STATE_ID_VIRTUAL_MAP_STATE)
+                .filter(v -> v != StateIdentifier.UNKNOWN)
                 .map(stateId -> Arguments.of(nameOf(stateId), stateId));
     }
 
@@ -90,8 +90,6 @@ class StateUtilsTest {
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
-            case STATE_ID_VIRTUAL_MAP_STATE ->
-                throw new IllegalArgumentException("VIRTUAL_MAP_STATE doesn't map to a state name");
         };
     }
 }

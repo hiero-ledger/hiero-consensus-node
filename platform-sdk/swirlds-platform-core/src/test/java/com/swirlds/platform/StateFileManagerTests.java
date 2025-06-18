@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.node.app.HederaNewStateRoot;
+import com.hedera.node.app.HederaVirtualMapState;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
@@ -151,7 +151,10 @@ class StateFileManagerTests {
         Configuration configuration =
                 TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile, HederaNewStateRoot::new, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+                stateFile,
+                HederaVirtualMapState::new,
+                TEST_PLATFORM_STATE_FACADE,
+                PlatformContext.create(configuration));
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
@@ -340,8 +343,8 @@ class StateFileManagerTests {
 
                 assertNotNull(stateSavingResult, "state should have been saved");
                 assertEquals(
-                        oldestMetadata.minimumGenerationNonAncient(),
-                        stateSavingResult.oldestMinimumGenerationOnDisk());
+                        oldestMetadata.minimumBirthRoundNonAncient(),
+                        stateSavingResult.oldestMinimumBirthRoundOnDisk());
 
                 assertTrue(
                         currentStatesOnDisk.size() <= statesOnDisk,
@@ -358,7 +361,7 @@ class StateFileManagerTests {
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
                                             savedStateInfo.stateFile(),
-                                            HederaNewStateRoot::new,
+                                            HederaVirtualMapState::new,
                                             TEST_PLATFORM_STATE_FACADE,
                                             PlatformContext.create(configuration))
                                     .reservedSignedState()
