@@ -2378,7 +2378,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
             final var updateAdminKey = tokenUpdate(FT_FOR_TOKEN_BURN)
                     .payingWith(OWNER)
                     .adminKey(newAdminKey)
-                    .signedBy(OWNER, adminKey)
+                    .signedBy(OWNER, adminKey, newAdminKey)
                     .via("unfreezeTxn")
                     .batchKey(BATCH_OPERATOR);
 
@@ -2553,7 +2553,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
             final var updateAdminKey = tokenUpdate(FT_FOR_TOKEN_BURN)
                     .payingWith(OWNER)
                     .adminKey(newAdminKey)
-                    .signedBy(OWNER, adminKey)
+                    .signedBy(OWNER, adminKey, newAdminKey)
                     .via("unfreezeTxn")
                     .batchKey(BATCH_OPERATOR);
 
