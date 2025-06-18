@@ -21,6 +21,8 @@ import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
+import com.swirlds.state.BinaryState;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -49,6 +51,7 @@ class WritableRosterStoreTest {
         final String virtualMapLabel =
                 "vm-" + WritableRosterStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+        final BinaryState binaryState = new VirtualMapBinaryState(virtualMap);
 
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         RosterStateId.NAME, WritableRosterStore.ROSTER_KEY)
@@ -57,7 +60,7 @@ class WritableRosterStoreTest {
                 .thenReturn(rosters);
         when(writableStates.<RosterState>getSingleton(WritableRosterStore.ROSTER_STATES_KEY))
                 .thenReturn(new OnDiskWritableSingletonState<>(
-                        RosterStateId.NAME, WritableRosterStore.ROSTER_STATES_KEY, RosterState.PROTOBUF, virtualMap));
+                        RosterStateId.NAME, WritableRosterStore.ROSTER_STATES_KEY, RosterState.PROTOBUF, binaryState));
 
         readableRosterStore = new ReadableRosterStoreImpl(writableStates);
         writableRosterStore = new WritableRosterStore(writableStates);

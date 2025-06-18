@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.swirlds.state.BinaryStateUtils.getValidatedStateId;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
@@ -36,8 +37,8 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.BinaryStateUtils;
 import com.swirlds.state.StateChangeListener;
-import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.LinkedList;
@@ -56,7 +57,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
     private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
-    private static final int ENTITY_COUNTS_STATE_ID = StateUtils.stateIdFor(EntityIdService.NAME, ENTITY_COUNTS_KEY);
+    private static final int ENTITY_COUNTS_STATE_ID = getValidatedStateId(EntityIdService.NAME, ENTITY_COUNTS_KEY);
 
     @NonNull
     private final StoreMetricsService storeMetricsService;
@@ -126,7 +127,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     @Override
     public int stateIdFor(@NonNull final String serviceName, @NonNull final String stateKey) {
-        return StateUtils.stateIdFor(serviceName, stateKey);
+        return BinaryStateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
