@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -61,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -249,17 +247,9 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                 "VirtualMapState has to be initialized before hashing. merkleCryptography is not set.");
         virtualMap.throwIfMutable("Hashing should only be done on immutable states");
         virtualMap.throwIfDestroyed("Hashing should not be done on destroyed states");
-        if (getHash() != null) {
-            return;
-        }
-        try {
-            merkleCryptography.digestTreeAsync(virtualMap).get();
-        } catch (final ExecutionException e) {
-            logger.error(EXCEPTION.getMarker(), "Exception occurred during hashing", e);
-        } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "Interrupted while hashing state. Expect buggy behavior.");
-            Thread.currentThread().interrupt();
-        }
+
+        // this call will result in synchronous hash computation
+        virtualMap.getHash();
     }
 
     /**

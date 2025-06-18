@@ -3807,7 +3807,6 @@ public class TraceabilitySuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     @Order(12)
     final Stream<DynamicTest> traceabilityE2EScenario12() {
         final var contract = "CreateTrivial";
