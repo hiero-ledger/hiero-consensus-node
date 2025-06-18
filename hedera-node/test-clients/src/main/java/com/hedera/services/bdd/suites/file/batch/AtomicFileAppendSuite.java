@@ -23,7 +23,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
 // This test cases are direct copies of FileAppendSuite. The difference here is that
-// we are wrapping the operations in an atomic batch to confirm the fees are the same
+// we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 public class AtomicFileAppendSuite {
 
