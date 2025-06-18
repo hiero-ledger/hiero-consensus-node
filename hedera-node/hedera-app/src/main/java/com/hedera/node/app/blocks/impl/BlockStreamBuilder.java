@@ -537,12 +537,16 @@ public class BlockStreamBuilder
      */
     public Output build() {
         final var blockItems = new ArrayList<BlockItem>();
-        blockItems.add(BlockItem.newBuilder()
-                .eventTransaction(EventTransaction.newBuilder()
-                        .applicationTransaction(getSerializedTransaction())
-                        .transactionGroupRole(role)
-                        .build())
-                .build());
+        // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
+        // can be inferred from the parent transaction.
+        if (category != HandleContext.TransactionCategory.BATCH_INNER) {
+            blockItems.add(BlockItem.newBuilder()
+                    .eventTransaction(EventTransaction.newBuilder()
+                            .applicationTransaction(getSerializedTransaction())
+                            .transactionGroupRole(role)
+                            .build())
+                    .build());
+        }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
         if (slotUsages != null || contractActions != null || initcodes != null || logs != null) {
