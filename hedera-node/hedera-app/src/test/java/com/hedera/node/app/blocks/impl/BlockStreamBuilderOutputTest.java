@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
@@ -15,18 +11,25 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.node.app.blocks.BlockItemsTranslator;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.util.List;
-import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.function.Consumer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamBuilderOutputTest {
@@ -38,6 +41,8 @@ class BlockStreamBuilderOutputTest {
             AccountID.newBuilder().accountNum(1L).build();
     private static final ContractFunctionResult FUNCTION_RESULT =
             ContractFunctionResult.newBuilder().amount(666L).build();
+    private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
+            EvmTransactionResult.newBuilder().build();
     private static final BlockItem EVENT_TRANSACTION = BlockItem.newBuilder()
             .eventTransaction(EventTransaction.newBuilder()
                     .applicationTransaction(Bytes.wrap("MOCK"))
@@ -54,7 +59,7 @@ class BlockStreamBuilderOutputTest {
             .build();
     private static final BlockItem SECOND_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
-                    .contractCall(new CallContractOutput(FUNCTION_RESULT))
+                    .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                     .build())
             .build();
     private static final BlockItem STATE_CHANGES = BlockItem.newBuilder()

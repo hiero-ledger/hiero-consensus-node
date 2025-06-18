@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
-
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.TraceData;
@@ -12,7 +9,13 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Translates a contract call transaction into a {@link SingleTransactionRecord}.
@@ -33,10 +36,17 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var resultBuilder = callContractOutput
                                     .contractCallResultOrThrow()
                                     .copyBuilder();
+                            final var derivedBuilder = resultBuilderFrom(callContractOutput.evmTransactionResultOrThrow());
                             if (parts.status() == SUCCESS) {
                                 mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                mapTracesToVerboseLogs(derivedBuilder, parts.traces());
+                            }
+                            if (parts.isTopLevel()) {
+                                baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
                             }
                             final var result = resultBuilder.build();
+                            final var derivedResult = derivedBuilder.build();
+                            assertEquals(derivedResult, result);
                             recordBuilder.contractCallResult(result);
                             if (parts.transactionIdOrThrow().nonce() == 0 && result.gasUsed() > 0L) {
                                 receiptBuilder.contractID(result.contractID());

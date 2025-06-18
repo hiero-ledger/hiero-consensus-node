@@ -41,6 +41,12 @@ message CallContractOutput {
      * call transaction as well as basic accounting results.
      */
     proto.ContractFunctionResult contract_call_result = 1;
+
+    /**
+     * An EVM transaction result. Contains just the information not already
+     * externalized in the matching transaction body.
+     */
+    proto.EvmTransactionResult evm_transaction_result = 2;
 }
 
 /**
@@ -57,6 +63,12 @@ message CreateContractOutput {
      * create transaction as well as basic accounting results.
      */
     proto.ContractFunctionResult contract_create_result = 1;
+
+    /**
+     * An EVM transaction result. Contains just the information not already
+     * externalized in the matching transaction body.
+     */
+    proto.EvmTransactionResult evm_transaction_result = 2;
 }
 
 // no evm exec, only modified entity
@@ -123,6 +135,22 @@ message EthereumOutput {
          * create transaction as well as basic accounting results.
          */
         proto.ContractFunctionResult ethereum_create_result = 3;
+    }
+
+    oneof txn_result {
+        /**
+         * An EVM transaction result for an Ethereum transaction executed as a
+         * call. Contains just the information not already externalized in the
+         * matching transaction body.
+         */
+        proto.EvmTransactionResult evm_call_transaction_result = 4;
+
+        /**
+         * An EVM transaction result for an Ethereum transaction executed as a
+         * create. Contains just the information not already externalized in the
+         * matching transaction body.
+         */
+        proto.EvmTransactionResult evm_create_transaction_result = 5;
     }
 }
 

@@ -1,6 +1,66 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.stream.output.MapChangeKey;
+import com.hedera.hapi.block.stream.output.MapUpdateChange;
+import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.PendingAirdropId;
+import com.hedera.hapi.node.base.PendingAirdropValue;
+import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.PendingAirdropRecord;
+import com.hedera.hapi.node.transaction.TransactionReceipt;
+import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractActions;
+import com.hedera.hapi.streams.ContractBytecode;
+import com.hedera.hapi.streams.ContractStateChange;
+import com.hedera.hapi.streams.ContractStateChanges;
+import com.hedera.hapi.streams.StorageChange;
+import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hyperledger.besu.evm.log.Log;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -25,62 +85,6 @@ import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateT
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
-
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
-import com.hedera.hapi.block.stream.trace.TraceData;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.hapi.node.base.PendingAirdropValue;
-import com.hedera.hapi.node.base.ScheduleID;
-import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TokenAssociation;
-import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.node.contract.ContractLoginfo;
-import com.hedera.hapi.node.state.contract.SlotKey;
-import com.hedera.hapi.node.transaction.ExchangeRateSet;
-import com.hedera.hapi.node.transaction.PendingAirdropRecord;
-import com.hedera.hapi.node.transaction.TransactionReceipt;
-import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
-import com.hedera.hapi.streams.ContractActions;
-import com.hedera.hapi.streams.ContractBytecode;
-import com.hedera.hapi.streams.ContractStateChange;
-import com.hedera.hapi.streams.ContractStateChanges;
-import com.hedera.hapi.streams.StorageChange;
-import com.hedera.hapi.streams.TransactionSidecarRecord;
-import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
-import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream
@@ -339,6 +343,25 @@ public class BaseTranslator {
     }
 
     /**
+     * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
+     * @param resultBuilder the builder to populate with created IDs
+     * @param stateChanges the state changes to process
+     */
+    public void addCreatedIdsTo(@NonNull final ContractFunctionResult.Builder resultBuilder,
+                                @NonNull final List<StateChange> stateChanges) {
+        requireNonNull(resultBuilder);
+        requireNonNull(stateChanges);
+        final var createdIds = stateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
+                .filter(StateChange::hasMapUpdate)
+                .map(StateChange::mapUpdateOrThrow)
+                .map(MapUpdateChange::keyOrThrow)
+                .map(MapChangeKey::contractIdKeyOrThrow)
+                .toList();
+        resultBuilder.createdContractIDs(createdIds);
+    }
+
+    /**
      * Given a {@link BlockTransactionParts} and a {@link Spec}, translates the implied {@link SingleTransactionRecord}.
      *
      * @param parts the parts of the transaction
@@ -540,6 +563,29 @@ public class BaseTranslator {
             }
         }
         return sidecars;
+    }
+
+    /**
+     * Initializes a {@link ContractFunctionResult.Builder} from the given {@link EvmTransactionResult}.
+     * @param result the EVM transaction result to initialize from
+     * @return a builder for the contract function result
+     */
+    public static ContractFunctionResult.Builder resultBuilderFrom(@NonNull final EvmTransactionResult result) {
+        requireNonNull(result);
+        final var builder = ContractFunctionResult.newBuilder()
+                .senderId(result.senderIdOrThrow())
+                .contractID(result.contractIdOrThrow())
+                .contractCallResult(result.resultData())
+                .errorMessage(result.errorMessage())
+                .gasUsed(result.gasUsed());
+        if (result.hasInternalCallContext()) {
+            final var context = result.internalCallContextOrThrow();
+            builder
+                    .gas(context.gas())
+                    .functionParameters(context.callData())
+                    .amount(context.value());
+        }
+        return builder;
     }
 
     /**

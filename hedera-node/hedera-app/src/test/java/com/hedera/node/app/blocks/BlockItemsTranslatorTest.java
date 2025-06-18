@@ -1,26 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
-import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
-import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static org.junit.jupiter.api.Assertions.*;
-
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
@@ -49,6 +29,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -69,10 +50,31 @@ import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+
+import java.util.List;
+
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class BlockItemsTranslatorTest {
     private static final long FEE = 12324567890L;
@@ -81,6 +83,8 @@ class BlockItemsTranslatorTest {
     private static final Timestamp PARENT_CONSENSUS_TIME = new Timestamp(1_234_567, 0);
     private static final ScheduleID SCHEDULE_REF =
             ScheduleID.newBuilder().scheduleNum(123L).build();
+    private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
+            EvmTransactionResult.newBuilder().build();
     private static final ContractFunctionResult FUNCTION_RESULT =
             ContractFunctionResult.newBuilder().amount(666L).build();
     private static final List<AssessedCustomFee> ASSESSED_CUSTOM_FEES = List.of(new AssessedCustomFee(
@@ -378,7 +382,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCallUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(FUNCTION_RESULT))
+                .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CALL, CONTRACT_ID);
 
@@ -411,7 +415,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCallUsesResultOutputAndTraceLogsIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(FUNCTION_RESULT))
+                .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CALL, CONTRACT_ID);
 
@@ -445,7 +449,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCreateUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCreate(new CreateContractOutput(FUNCTION_RESULT))
+                .contractCreate(new CreateContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context =
                 new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CREATE, CONTRACT_ID);
@@ -555,7 +559,7 @@ class BlockItemsTranslatorTest {
     @Test
     void cryptoTransferUsesSynthResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(FUNCTION_RESULT))
+                .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new BaseOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CRYPTO_TRANSFER);
 
