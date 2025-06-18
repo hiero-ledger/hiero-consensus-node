@@ -17,6 +17,9 @@ import static com.hedera.node.app.hapi.utils.EntityType.NODE;
 import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
 import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
 import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
 import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator.EXCHANGE_RATES_FILE_NUM;
 import static java.util.Collections.emptyList;
@@ -26,6 +29,7 @@ import static java.util.stream.Collectors.toMap;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -37,6 +41,8 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -50,12 +56,14 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,6 +80,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream
@@ -433,7 +442,7 @@ public class BaseTranslator {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
                             final var writtenKey = writes.get(read.indexOrThrow());
-                            final var slotKey = new SlotKey(contractId, leftPad32(writtenKey));
+                            final var slotKey = new SlotKey(contractId, ConversionUtils.leftPad32(writtenKey));
                             Bytes value = null;
                             for (final var nextEvmTraceData : followingEvmTraces) {
                                 final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
@@ -533,14 +542,65 @@ public class BaseTranslator {
         return sidecars;
     }
 
-    private static Bytes leftPad32(@NonNull final Bytes bytes) {
-        final int n = (int) bytes.length();
-        if (n == 32) {
-            return bytes;
+    /**
+     * Maps the given traces to verbose logs in the provided {@link ContractFunctionResult.Builder}.
+     * @param resultBuilder the builder to populate with verbose logs
+     * @param traces the list of traces to map to verbose logs
+     */
+    public static void mapTracesToVerboseLogs(
+            @NonNull final ContractFunctionResult.Builder resultBuilder, @Nullable List<TraceData> traces) {
+        if (traces == null || traces.stream().noneMatch(BaseTranslator::impliesLogs)) {
+            resultBuilder.logInfo(List.of());
+        } else {
+            final List<Log> besuLogs = new ArrayList<>();
+            final List<ContractLoginfo> verboseLogs = new ArrayList<>();
+            traces.stream()
+                    .filter(TraceData::hasEvmTraceData)
+                    .map(TraceData::evmTraceDataOrThrow)
+                    .forEach(traceData -> traceData.logs().forEach(log -> {
+                        final var besuLog = asBesuLog(
+                                log,
+                                log.topics().stream()
+                                        .map(ConversionUtils::leftPad32)
+                                        .toList());
+                        besuLogs.add(besuLog);
+                        verboseLogs.add(asContractLogInfo(log, besuLog));
+                    }));
+            resultBuilder.logInfo(verboseLogs).bloom(bloomForAll(besuLogs));
         }
-        final var padded = new byte[32];
-        bytes.getBytes(0, padded, 32 - n, n);
-        return Bytes.wrap(padded);
+    }
+
+    /**
+     * Determines if the given {@link TraceData} implies that there are logs present in the V6 function result.
+     * @param traceData the trace data to check
+     * @return true if the trace data implies logs, false otherwise
+     */
+    private static boolean impliesLogs(@NonNull final TraceData traceData) {
+        if (!traceData.hasEvmTraceData()) {
+            return false;
+        } else {
+            final var evmTraceData = traceData.evmTraceDataOrThrow();
+            return !evmTraceData.logs().isEmpty()
+                    || !evmTraceData.contractSlotUsages().isEmpty()
+                    || !evmTraceData.contractActions().isEmpty();
+        }
+    }
+
+    /**
+     * Converts a concise EVM transaction log into a verbose {@link ContractLoginfo}.
+     *
+     * @param log the concise EVM transaction log to convert
+     * @param besuLog the Besu log associated with the EVM transaction log
+     * @return the verbose {@link ContractLoginfo} representation of the log
+     */
+    private static ContractLoginfo asContractLogInfo(@NonNull final EvmTransactionLog log, @NonNull final Log besuLog) {
+        requireNonNull(log);
+        return ContractLoginfo.newBuilder()
+                .contractID(log.contractIdOrThrow())
+                .bloom(bloomFor(besuLog))
+                .data(log.data())
+                .topic(log.topics().stream().map(ConversionUtils::leftPad32).toList())
+                .build();
     }
 
     private static Bytes sansLeadingZeros(@NonNull final Bytes bytes) {

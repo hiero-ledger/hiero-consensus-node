@@ -6,6 +6,9 @@ on:
       ref:
         required: true
         description: "The github branch or tag that triggered the workflow"
+      ref_name:
+        required: true
+        description: "The name of the github branch or tag that triggered the workflow"
 
 permissions:
   contents: read
@@ -30,9 +33,9 @@ jobs:
         id: gather-commit-info
         run: |
           # Fetch info from the most recent commit for the given ref
-          COMMIT_AUTHOR="$(git log -1 --pretty=format:'%an')"
-          COMMIT_MSG="$(git log -1 --pretty=format:'%s')"
-          COMMIT_SHA="$(git rev-parse HEAD)"
+          COMMIT_SHA=${{ inputs.ref }}
+          COMMIT_AUTHOR="$(git show -s --format='%an' ${COMMIT_SHA})"
+          COMMIT_MSG="$(git show -s --format='%s' ${COMMIT_SHA})"
 
           # Print them to the console
           echo "Commit Author: $COMMIT_AUTHOR"
@@ -42,7 +45,6 @@ jobs:
           # Expose them as outputs for the next steps
           echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           echo "msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
-          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
 
       - name: Notify Jenkins of Release (Integration)
         id: jenkins-integration
@@ -51,10 +53,10 @@ jobs:
           url: ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }}
           data: |
             '{
-              "ref": "${{ inputs.ref }}",
+              "ref": "${{ inputs.ref_name }}",
               "author": "${{ steps.gather-commit-info.outputs.author }}",
               "msg": "${{ steps.gather-commit-info.outputs.msg }}",
-              "sha": "${{ steps.gather-commit-info.outputs.sha }}"
+              "sha": "${{ inputs.ref }}"
             }'
 
       - name: Display Jenkins Payload

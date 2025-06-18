@@ -31,7 +31,7 @@ public interface ContractCreateStreamBuilder extends StreamBuilder, ContractOper
      * @return this builder
      */
     @NonNull
-    ContractCreateStreamBuilder contractID(@Nullable ContractID contractId);
+    ContractCreateStreamBuilder createdContractID(@Nullable ContractID contractId);
 
     /**
      * Tracks the account id created by a successful top-level contract creation.

@@ -40,7 +40,6 @@ import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import com.swirlds.platform.wiring.PlatformWiring;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.List;
@@ -155,8 +154,6 @@ public class TurtleNode {
                 platformContext);
         final var initialState = reservedState.state();
 
-        final State state = initialState.get().getState();
-        final long round = platformStateFacade.roundOf(state);
         final PlatformBuilder platformBuilder = PlatformBuilder.create(
                         "foo",
                         "bar",
@@ -165,7 +162,7 @@ public class TurtleNode {
                         TURTLE_CONSENSUS_STATE_EVENT_HANDLER,
                         nodeId,
                         AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                        RosterUtils.buildRosterHistory(initialState.get().getState(), round),
+                        RosterUtils.createRosterHistory(initialState.get().getState()),
                         platformStateFacade)
                 .withModel(model)
                 .withRandomBuilder(new RandomBuilder(randotron.nextLong()))
