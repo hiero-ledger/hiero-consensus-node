@@ -44,6 +44,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SERVICE_ENDPOI
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -356,20 +357,40 @@ public class NodeUpdateTest {
                         .hasKnownStatus(GOSSIP_ENDPOINTS_EXCEEDED_LIMIT));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
-    final Stream<DynamicTest> updateWithDefaultGrpcProxyFails() throws CertificateEncodingException {
-        return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
-                newKeyNamed("adminKey"),
-                nodeCreate("testNode")
-                        .adminKey("adminKey")
-                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
-                        .description("newNode"),
-                nodeUpdate("testNode")
-                        .grpcProxyEndpoint(toPbj(ServiceEndpoint.getDefaultInstance()))
-                        .signedBy("adminKey", DEFAULT_PAYER)
-                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
-    }
+	@LeakyEmbeddedHapiTest(reason=NEEDS_STATE_ACCESS, overrides = {"nodes.webProxyEndpointsEnabled"})
+	final Stream<DynamicTest> sentinelUnsetsGrpcWebProxyEndpoint() throws CertificateEncodingException {
+		return hapiTest(
+				overriding("nodes.webProxyEndpointsEnabled", "true"),
+				newKeyNamed("adminKey"),
+				nodeCreate("testNode")
+						.adminKey("adminKey")
+						.gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+						.grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_FQDN)
+						.description("newNode"),
+				viewNode("testNode", node -> assertNotNull(node.grpcProxyEndpoint())),
+				nodeUpdate("testNode")
+						.grpcProxyEndpoint(com.hedera.hapi.node.base.ServiceEndpoint.DEFAULT)
+						.description("updatedNode")
+						.signedByPayerAnd("adminKey"),
+				viewNode("testNode", node -> assertNull(node.grpcProxyEndpoint())));
+	}
+
+	@LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, overrides = {"nodes.webProxyEndpointsEnabled"})
+	final Stream<DynamicTest> unsetGrpcProxyFieldDoesntEraseExistingGrpcProxy() throws CertificateEncodingException {
+		return hapiTest(
+				overriding("nodes.webProxyEndpointsEnabled", "true"),
+				newKeyNamed("adminKey"),
+				nodeCreate("testNode")
+						.adminKey("adminKey")
+						.gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+						.grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_FQDN)
+						.description("newNode"),
+				viewNode("testNode", node -> assertNotNull(node.grpcProxyEndpoint())),
+				nodeUpdate("testNode")
+						.description("arbitrary update of something other than the grpc proxy endpoint")
+						.signedByPayerAnd("adminKey"),
+				viewNode("testNode", node -> assertNotNull(node.grpcProxyEndpoint())));
+	}
 
     @LeakyHapiTest(overrides = {"nodes.nodeMaxDescriptionUtf8Bytes"})
     final Stream<DynamicTest> updateTooLargeDescriptionFail() throws CertificateEncodingException {
