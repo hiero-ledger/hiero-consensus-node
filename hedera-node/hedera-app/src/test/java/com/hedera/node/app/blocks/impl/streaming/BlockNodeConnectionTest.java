@@ -49,14 +49,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle eosTimestampsHandle;
-    private static final VarHandle blockSendTimestampsHandle;
+    private static final String LOCALHOST_8080 = "localhost:8080";
+    private static final VarHandle BLOCK_SEND_TIMESTAMPS_HANDLE;
 
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
             eosTimestampsHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
                     .findVarHandle(BlockNodeConnection.class, "endOfStreamTimestamps", Queue.class);
-            blockSendTimestampsHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
+            BLOCK_SEND_TIMESTAMPS_HANDLE = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
                     .findVarHandle(BlockNodeConnection.class, "blockSendTimestamps", ConcurrentMap.class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
@@ -500,7 +501,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(requestObserver).onNext(request);
 
-        final Map<Long, Instant> blockSendTimestamps = (Map<Long, Instant>) blockSendTimestampsHandle.get(connection);
+        final Map<Long, Instant> blockSendTimestamps =
+                (Map<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
         assertThat(blockSendTimestamps).containsKey(1L);
         assertThat(blockSendTimestamps.get(1L)).isNotNull();
 
@@ -525,7 +527,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(requestObserver).onNext(request);
 
-        final Map<Long, Instant> blockSendTimestamps = (Map<Long, Instant>) blockSendTimestampsHandle.get(connection);
+        final Map<Long, Instant> blockSendTimestamps =
+                (Map<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
         assertThat(blockSendTimestamps).containsKey(1L);
         assertThat(blockSendTimestamps).doesNotContainKey(2L);
         assertThat(blockSendTimestamps.get(1L)).isNotNull();
@@ -624,7 +627,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
 
         final ConcurrentMap<Long, Instant> blockSendTimestamps =
-                (ConcurrentMap<Long, Instant>) blockSendTimestampsHandle.get(connection);
+                (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
         final Instant sendTime = Instant.now().minus(Duration.ofMillis(100));
         blockSendTimestamps.put(1L, sendTime);
 
@@ -633,7 +636,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(response);
 
         verify(metrics).incrementAcknowledgedBlockCount();
-        verify(metrics).recordAcknowledgementLatency(eq("localhost:8080"), anyLong());
+        verify(metrics).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
         verifyNoMoreInteractions(metrics);
 
         assertThat(blockSendTimestamps).doesNotContainKey(1L);
@@ -644,7 +647,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
 
         final ConcurrentMap<Long, Instant> blockSendTimestamps =
-                (ConcurrentMap<Long, Instant>) blockSendTimestampsHandle.get(connection);
+                (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
         final Instant sendTime = Instant.now().minus(Duration.ofMillis(1000));
         blockSendTimestamps.put(1L, sendTime);
 
@@ -653,8 +656,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(response);
 
         verify(metrics).incrementAcknowledgedBlockCount();
-        verify(metrics).recordAcknowledgementLatency(eq("localhost:8080"), anyLong());
-        verify(metrics).recordHighLatencyEvent(eq("localhost:8080"));
+        verify(metrics).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
+        verify(metrics).recordHighLatencyEvent(eq(LOCALHOST_8080));
         verifyNoMoreInteractions(metrics);
 
         assertThat(blockSendTimestamps).doesNotContainKey(1L);
@@ -665,7 +668,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
 
         final ConcurrentMap<Long, Instant> blockSendTimestamps =
-                (ConcurrentMap<Long, Instant>) blockSendTimestampsHandle.get(connection);
+                (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
         final Instant sendTime = Instant.now().minus(Duration.ofMillis(1000));
         blockSendTimestamps.put(1L, sendTime);
         blockSendTimestamps.put(2L, sendTime);
@@ -676,8 +679,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(createBlockAckResponse(3L, false));
 
         verify(metrics, times(3)).incrementAcknowledgedBlockCount();
-        verify(metrics, times(3)).recordAcknowledgementLatency(eq("localhost:8080"), anyLong());
-        verify(metrics, times(3)).recordHighLatencyEvent(eq("localhost:8080"));
+        verify(metrics, times(3)).recordAcknowledgementLatency(eq(LOCALHOST_8080), anyLong());
+        verify(metrics, times(3)).recordHighLatencyEvent(eq(LOCALHOST_8080));
 
         verify(connectionManager)
                 .rescheduleAndSelectNewNode(eq(connection), eq(BlockNodeConnection.LONGER_RETRY_DELAY));

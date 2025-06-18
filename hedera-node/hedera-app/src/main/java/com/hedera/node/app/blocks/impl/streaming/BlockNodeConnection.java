@@ -105,7 +105,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     /**
      * Counter for tracking consecutive high latency events.
      */
-    private int consecutiveHighLatencyEvents = 0;
+    private int consecutiveHighLatencyEvents;
     /**
      * Queue for tracking the instances of EndOfStream responses received from the block node for this connection. This
      * queue will be periodically pruned.
@@ -236,7 +236,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             final Duration latency = Duration.between(sendTime, Instant.now());
             final long latencyMs = latency.toMillis();
 
-            String nodeAddress = blockNodeConfig.address() + ":" + blockNodeConfig.port();
+            final String nodeAddress = blockNodeConfig.address() + ":" + blockNodeConfig.port();
             blockStreamMetrics.recordAcknowledgementLatency(nodeAddress, latencyMs);
 
             if (latencyMs > highLatencyThresholdMs) {
@@ -481,7 +481,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             if (request.blockItems() != null
                     && !request.blockItems().blockItems().isEmpty()) {
                 // Find the first block item with a block proof to get the block number
-                for (BlockItem item : request.blockItems().blockItems()) {
+                for (final BlockItem item : request.blockItems().blockItems()) {
                     if (item.hasBlockProof()) {
                         blockSendTimestamps.put(item.blockProof().block(), Instant.now());
                         break;

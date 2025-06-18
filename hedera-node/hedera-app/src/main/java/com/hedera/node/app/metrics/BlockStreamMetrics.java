@@ -271,9 +271,9 @@ public class BlockStreamMetrics {
         requireNonNull(nodeAddress, "nodeAddress must not be null");
 
         // Get or create a gauge for this specific block node
-        DoubleGauge latencyGauge = acknowledgementLatencyGauges.computeIfAbsent(nodeAddress, address -> {
-            final long localNodeId = selfNodeInfo.nodeId();
-            String metricName = "blockNodeLatency_" + address + "_node" + localNodeId;
+        final long localNodeId = selfNodeInfo.nodeId();
+        final String metricName = "blockNodeLatency_" + nodeAddress + "_node" + localNodeId;
+        final DoubleGauge latencyGauge = acknowledgementLatencyGauges.computeIfAbsent(nodeAddress, address -> {
             return metrics.getOrCreate(new DoubleGauge.Config(APP_CATEGORY, metricName)
                     .withDescription("Latency (ms) for block acknowledgements from block node " + address));
         });
@@ -291,9 +291,9 @@ public class BlockStreamMetrics {
         requireNonNull(nodeAddress, "nodeAddress must not be null");
 
         // Get or create a counter for this specific block node
-        Counter highLatencyCounter = highLatencyCounters.computeIfAbsent(nodeAddress, address -> {
-            final long localNodeId = selfNodeInfo.nodeId();
-            String metricName = "highLatencyEvents_" + address + "_node" + localNodeId;
+        final long localNodeId = selfNodeInfo.nodeId();
+        final String metricName = "highLatencyEvents_" + nodeAddress + "_node" + localNodeId;
+        final Counter highLatencyCounter = highLatencyCounters.computeIfAbsent(nodeAddress, address -> {
             return metrics.getOrCreate(new Counter.Config(APP_CATEGORY, metricName)
                     .withDescription("Count of high latency events from block node " + address));
         });
