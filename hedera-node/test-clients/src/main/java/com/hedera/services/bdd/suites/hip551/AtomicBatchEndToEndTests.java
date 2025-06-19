@@ -13,12 +13,15 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -34,8 +37,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -100,8 +105,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 10, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -150,9 +154,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 10, OWNER, adminKey),
                     createNFTWithAdminKey(NFT_FOR_END_TO_END, OWNER, supplyKey),
                     MintNFT(NFT_FOR_END_TO_END, 0, 10),
@@ -198,8 +200,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -242,8 +243,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -291,8 +291,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
                     // fill in the 1 free auto-association slotMore actions
@@ -346,8 +345,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -395,8 +393,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -421,7 +418,6 @@ public class AtomicBatchEndToEndTests {
                     getTokenInfo(FT_FOR_END_TO_END)
                             .hasTreasury(OWNER)));
         }
-        // update treasury account of a token and transfer signed by the token admin key and the old treasury account fails in batch
         @HapiTest
         @DisplayName("Update Token Treasury Account and Token Transfer from new Treasury with Transfer Signed by the old Treasury Fails in Atomic Batch")
         public Stream<DynamicTest> updateTokenTreasuryAndTokenTransferWithTransferSignedByOldTreasuryFailsInAtomicBatch() {
@@ -444,8 +440,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -493,8 +488,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -542,8 +536,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -568,7 +561,7 @@ public class AtomicBatchEndToEndTests {
                     getTokenInfo(FT_FOR_END_TO_END)
                             .hasTreasury(OWNER)));
         }
-        // update treasury account of a token not signed by the new treasury key fails in batch
+
         @HapiTest
         @DisplayName("Update Token Treasury Account and Token Transfer from new Treasury with Update Not Signed by the New Treasury Key Fails in Atomic Batch")
         public Stream<DynamicTest> updateTokenTreasuryAndTokenTransferWithUpdateNotSignedByNewTreasuryKeyFailsInAtomicBatch() {
@@ -591,8 +584,7 @@ public class AtomicBatchEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
@@ -618,68 +610,182 @@ public class AtomicBatchEndToEndTests {
                             .hasTreasury(OWNER)));
         }
 
-        // update token admin key, update treasury account of a token signed by new admin key and new treasury account key success in batch
         @HapiTest
-        @DisplayName("Update Token Admin Key, Update Treasury Account and Token Transfer from new Treasury Success in Atomic Batch")
-        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAndTokenTransferSuccessInAtomicBatch() {
+        @DisplayName("Update Token Admin Key And Update Treasury Account Success in Atomic Batch")
+        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSuccessInAtomicBatch() {
 
-            // update token inner transaction
-            final var updateTokenAdminKeyAndTreasury = tokenUpdate(FT_FOR_END_TO_END)
-                    .treasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+            // update token inner transactions
+            final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
                     .adminKey(newAdminKey)
-                    .payingWith(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                    .signedBy(adminKey, newAdminKey, NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .payingWith(OWNER)
+                    .signedBy(adminKey, newAdminKey, OWNER)
                     .via("updateTokenTxn")
                     .batchKey(BATCH_OPERATOR);
 
-            // transfer token from new treasury to receiver associated account
-            final var tokenTransferFromNewTreasury = cryptoTransfer(
-                    moving(10, FT_FOR_END_TO_END).between(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS, RECEIVER_ASSOCIATED_FIRST))
+            final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
+                    .treasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                     .payingWith(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                    .signedBy(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                    .via("transferFromNewTreasuryTxn")
+                    .signedBy(newAdminKey, NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .via("updateTokenTxn")
                     .batchKey(BATCH_OPERATOR);
 
             return hapiTest(flattened(
                     // create keys, tokens and accounts
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(newAdminKey),
+                    createAccountsAndKeys(),
                     createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
-                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
                     // perform the atomic batch transaction
                     atomicBatch(
-                            updateTokenAdminKeyAndTreasury,
-                            tokenTransferFromNewTreasury)
+                            updateTokenAdminKey,
+                            updateTokenTreasury)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
                     validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
-                    // validate account balances and token info
-                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
-                            .hasTokenBalance(FT_FOR_END_TO_END, 10L),
-                    getAccountBalance(OWNER)
-                            .hasTokenBalance(FT_FOR_END_TO_END, 0L),
-                    getAccountBalance(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                            .hasTokenBalance(FT_FOR_END_TO_END, 90L),
-
-                    // confirm treasury is updated
+                    // confirm token is updated
                     getTokenInfo(FT_FOR_END_TO_END)
-                            .hasTreasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)));
+                            .hasTreasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
+                    withOpContext((spec, opLog) -> {
+                        final var newAdminKeyFromRegistry = spec.registry().getKey(newAdminKey);
+                        final var tokenInfoOperation =
+                                getTokenInfo(FT_FOR_END_TO_END).hasAdminKey(toPbj(newAdminKeyFromRegistry));
+                        allRunFor(spec, tokenInfoOperation);
+                    })));
         }
-        // update token admin key, update treasury account of a token signed by old admin key and new treasury account key fails in batch
-        // update token admin key, update treasury account of a token signed by new admin key and old treasury account key fails in batch
-        // update token admin key, update treasury account of a token signed by old admin key and old treasury account key fails in batch
-        // update token admin key, update treasury account of a token not signed by the new admin key fails in batch
-        // update token admin key, update treasury account of a token not signed by the new treasury account key fails in batch
 
-        // multi-signature admin keys scenarios
+        @HapiTest
+        @DisplayName("Update Token Admin Key And Update Treasury Account Signed by Old Admin Key Fails in Atomic Batch")
+        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldAdminKeyFailsInAtomicBatch() {
 
+            // update token inner transactions
+            final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
+                    .adminKey(newAdminKey)
+                    .payingWith(OWNER)
+                    .signedBy(adminKey, newAdminKey, OWNER)
+                    .via("updateTokenTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
+                    .treasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .payingWith(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .signedBy(adminKey, NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .via("updateTokenTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys, tokens and accounts
+                    createAccountsAndKeys(),
+                    createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            updateTokenAdminKey,
+                            updateTokenTreasury)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // confirm token is not updated
+                    getTokenInfo(FT_FOR_END_TO_END)
+                            .hasTreasury(OWNER),
+                    withOpContext((spec, opLog) -> {
+                        final var adminKeyFromRegistry = spec.registry().getKey(adminKey);
+                        final var tokenInfoOperation =
+                                getTokenInfo(FT_FOR_END_TO_END).hasAdminKey(toPbj(adminKeyFromRegistry));
+                        allRunFor(spec, tokenInfoOperation);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName("Update Token Admin Key And Update Treasury Account Signed by Old Treasury Fails in Atomic Batch")
+        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldTreasuryFailsInAtomicBatch() {
+
+            // update token inner transactions
+            final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
+                    .adminKey(newAdminKey)
+                    .payingWith(OWNER)
+                    .signedBy(adminKey, newAdminKey, OWNER)
+                    .via("updateTokenTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
+                    .treasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .payingWith(OWNER)
+                    .signedBy(newAdminKey, OWNER)
+                    .via("updateTokenTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys, tokens and accounts
+                    createAccountsAndKeys(),
+                    createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            updateTokenAdminKey,
+                            updateTokenTreasury)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // confirm token is not updated
+                    getTokenInfo(FT_FOR_END_TO_END)
+                            .hasTreasury(OWNER),
+                    withOpContext((spec, opLog) -> {
+                        final var adminKeyFromRegistry = spec.registry().getKey(adminKey);
+                        final var tokenInfoOperation =
+                                getTokenInfo(FT_FOR_END_TO_END).hasAdminKey(toPbj(adminKeyFromRegistry));
+                        allRunFor(spec, tokenInfoOperation);
+                    })));
+        }
+
+        @HapiTest
+        @DisplayName("Update Token Admin Key And Update Treasury Account Signed by Old Admin Key and Old Treasury Fails in Atomic Batch")
+        public Stream<DynamicTest> updateTokenAdminKeyAndTreasuryAccountSignedByOldAdminAndTreasuryFailsInAtomicBatch() {
+
+            // update token inner transactions
+            final var updateTokenAdminKey = tokenUpdate(FT_FOR_END_TO_END)
+                    .adminKey(newAdminKey)
+                    .payingWith(OWNER)
+                    .signedBy(adminKey, newAdminKey, OWNER)
+                    .via("updateTokenTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var updateTokenTreasury = tokenUpdate(FT_FOR_END_TO_END)
+                    .treasury(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                    .payingWith(OWNER)
+                    .signedBy(adminKey, OWNER)
+                    .via("updateTokenTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys, tokens and accounts
+                    createAccountsAndKeys(),
+                    createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            updateTokenAdminKey,
+                            updateTokenTreasury)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // confirm token is not updated
+                    getTokenInfo(FT_FOR_END_TO_END)
+                            .hasTreasury(OWNER),
+                    withOpContext((spec, opLog) -> {
+                        final var adminKeyFromRegistry = spec.registry().getKey(adminKey);
+                        final var tokenInfoOperation =
+                                getTokenInfo(FT_FOR_END_TO_END).hasAdminKey(toPbj(adminKeyFromRegistry));
+                        allRunFor(spec, tokenInfoOperation);
+                    })));
+        }
     }
-
-
 
     private HapiTokenCreate createFungibleTokenWithAdminKey(String tokenName, long supply, String treasury, String adminKey) {
         return tokenCreate(tokenName)
@@ -710,7 +816,7 @@ public class AtomicBatchEndToEndTests {
                         .toList());
     }
 
-    private List<SpecOperation> createAccounts() {
+    private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
@@ -721,7 +827,9 @@ public class AtomicBatchEndToEndTests {
                 cryptoCreate(NEW_TREASURY_WITH_ZERO_AUTO_ASSOCIATIONS)
                         .balance(ONE_HUNDRED_HBARS).maxAutomaticTokenAssociations(0),
                 cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
-                cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR));
+                cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),
+                newKeyNamed(adminKey),
+                newKeyNamed(newAdminKey),
+                newKeyNamed(supplyKey));
     }
-
 }
