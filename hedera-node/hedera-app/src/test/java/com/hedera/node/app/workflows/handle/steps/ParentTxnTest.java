@@ -1,20 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
-import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
-import static java.util.Collections.emptyMap;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -54,8 +40,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
-import java.time.Instant;
-import java.util.function.Consumer;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,6 +47,22 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Instant;
+import java.util.function.Consumer;
+
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static java.util.Collections.emptyMap;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
 class ParentTxnTest {
@@ -161,9 +161,8 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
-        assertSame(ORDINARY_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
         assertSame(state, subject.state());
@@ -185,7 +184,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         assertNull(factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback));
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
     }
 
     @Test
@@ -208,7 +207,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -241,7 +240,7 @@ class ParentTxnTest {
 
         final var factory = createUserTxnFactory();
         final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 

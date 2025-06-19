@@ -1,23 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
-import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
-import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
-import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
-import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
-import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-import static com.hedera.node.app.records.BlockRecordService.EPOCH;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
-import static java.util.Objects.requireNonNull;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -61,6 +44,14 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.Round;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -83,13 +74,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.base.concurrent.AbstractTask;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.hashgraph.Round;
+
+import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
+import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
+import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static java.util.Objects.requireNonNull;
 
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
@@ -134,7 +135,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Bytes lastBlockHash;
     private Instant blockTimestamp;
     private Instant consensusTimeLastRound;
-    private Instant lastExecutionTime;
+    private Timestamp lastExecutionTime;
     private BlockItemWriter writer;
     // stream hashers
     private StreamingTreeHasher inputTreeHasher;
@@ -285,7 +286,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (writer == null) {
             writer = writerSupplier.get();
             blockTimestamp = round.getConsensusTimestamp();
-            lastExecutionTime = round.getConsensusTimestamp();
+            lastExecutionTime = asTimestamp(round.getConsensusTimestamp());
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
@@ -398,7 +399,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public @NonNull Instant lastExecutionTime() {
-        return lastExecutionTime;
+        return asInstant(lastExecutionTime);
     }
 
     @Override
@@ -447,7 +448,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockStartStateHash,
                     stateChangesTreeStatus.numLeaves(),
                     stateChangesTreeStatus.rightmostHashes(),
-                    asTimestamp(lastExecutionTime),
+                    lastExecutionTime,
                     pendingWork != POST_UPGRADE_WORK,
                     version,
                     asTimestamp(lastIntervalProcessTime),
@@ -544,18 +545,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void writeItem(@NonNull final BlockItem item) {
-        // advance the latest execution-assigned time
-        final var stateChanges = item.stateChanges();
-        if (stateChanges != null) {
-            lastExecutionTime = asInstant(stateChanges.consensusTimestamp());
-        }
-
+        lastExecutionTime = switch (item.item().kind()) {
+            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
+            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
+            default -> lastExecutionTime;
+        };
         worker.addItem(item);
     }
 
     @Override
-    public void writeItem(@NonNull Function<Instant, BlockItem> itemSpec) {
-        worker.addItem(itemSpec.apply(lastExecutionTime));
+    public void writeItem(@NonNull final Function<Timestamp, BlockItem> itemSpec) {
+        requireNonNull(itemSpec);
+        writeItem(itemSpec.apply(lastExecutionTime));
     }
 
     @Override
@@ -945,7 +946,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private BlockItem flushChangesFromListener(@NonNull final BoundaryStateChangeListener boundaryStateChangeListener) {
         final var stateChanges =
-                new StateChanges(asTimestamp(lastExecutionTime), boundaryStateChangeListener.allStateChanges());
+                new StateChanges(lastExecutionTime, boundaryStateChangeListener.allStateChanges());
         boundaryStateChangeListener.reset();
         return BlockItem.newBuilder().stateChanges(stateChanges).build();
     }
