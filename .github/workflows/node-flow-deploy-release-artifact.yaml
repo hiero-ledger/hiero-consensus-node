@@ -184,7 +184,7 @@ jobs:
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
   deploy-xts-ci-trigger:
-    name: Trigger XTS CI Flows
+    name: Trigger XTS CI Flow
     runs-on: hiero-network-node-linux-medium
     needs:
       - release-branch
@@ -226,7 +226,7 @@ jobs:
             }'
 
   deploy-integration-ci-trigger:
-    name: Trigger XTS CI Flows
+    name: Trigger Deploy Integration Flow
     runs-on: hiero-network-node-linux-medium
     if: ${{ inputs.dry-run-enabled == false }}
     needs:
