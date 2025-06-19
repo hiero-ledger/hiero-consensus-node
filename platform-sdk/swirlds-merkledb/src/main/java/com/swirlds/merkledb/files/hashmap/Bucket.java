@@ -82,7 +82,7 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
      */
     protected final ReusableBucketPool bucketPool;
 
-    private BufferedData bucketData;
+    private volatile BufferedData bucketData;
 
     private volatile long bucketIndexFieldOffset = 0;
 
@@ -145,7 +145,7 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
     }
 
     /** Set the index for this bucket */
-    public void setBucketIndex(int index) {
+    public void setBucketIndex(final int index) {
         bucketData.position(bucketIndexFieldOffset);
         ProtoWriterTools.writeTag(bucketData, FIELD_BUCKET_INDEX);
         bucketData.writeInt(index);
@@ -290,6 +290,7 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
         in.readBytes(bucketData);
         bucketData.flip();
 
+        bucketIndexFieldOffset = 0;
         entryCount = 0;
         while (bucketData.hasRemaining()) {
             final long fieldOffset = bucketData.position();
@@ -315,12 +316,105 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
                 throw new IllegalArgumentException("Unknown bucket field: " + fieldNum);
             }
         }
+
         checkLargestBucket(entryCount);
+    }
+
+    private static int readBucketEntryHashCode(final ReadableSequentialData in) {
+        while (in.hasRemaining()) {
+            final int tag = in.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            if (fieldNum == FIELD_BUCKETENTRY_HASHCODE.number()) {
+                return in.readInt();
+            } else if (fieldNum == FIELD_BUCKETENTRY_VALUE.number()) {
+                in.readLong();
+            } else if (fieldNum == FIELD_BUCKETENTRY_KEYBYTES.number()) {
+                final int bytesSize = in.readVarInt(false);
+                in.skip(bytesSize);
+            } else {
+                throw new IllegalArgumentException("Unknown bucket entry field: " + fieldNum);
+            }
+        }
+        throw new IllegalArgumentException("No bucket entry hash code found");
     }
 
     public void writeTo(final WritableSequentialData out) {
         bucketData.resetPosition();
         out.writeBytes(bucketData);
+    }
+
+    /**
+     * First, this method updates bucket index of the current bucket to the given value. Second,
+     * it iterates over all bucket entries and runs a check against entry hash codes. If the lower
+     * specified number of bits of entry hash code are equal to the bucket index, the entry is
+     * retained in the bucket, otherwise it's removed.
+     *
+     * <p>This method is used by {@link HalfDiskHashMap} after resize. During resize, no bucket
+     * data is copied anywhere, but only bucket index entries are updated. It leads to some buckets
+     * to have wrong numbers (some lower bits match, but higher bits are different). Besides that,
+     * some bucket entries may not be valid. For example, an entry may be valid for a bucket with
+     * mask 0b0111, but when the mask becomes 0b1111 as a result of map resize, the entry may now
+     * belong to a bucket with a different number. This method removes all such entries.
+     *
+     * @param expectedIndex Bucket index to set to this bucket
+     * @param expectedMaskBits Bucket mask bits to validate all bucket entries against
+     */
+    public void sanitize(final int expectedIndex, final int expectedMaskBits) {
+        final int expectedMask = (1 << expectedMaskBits) - 1;
+        bucketData.resetPosition();
+        long srcIndex = 0;
+        long dstIndex = 0;
+        while (bucketData.hasRemaining()) {
+            final long fieldOffset = bucketData.position();
+            final int tag = bucketData.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+            if (fieldNum == FIELD_BUCKET_INDEX.number()) {
+                bucketData.writeInt(expectedIndex);
+                final long fieldLenWithTag = bucketData.position() - fieldOffset;
+                srcIndex += fieldLenWithTag;
+                dstIndex += fieldLenWithTag;
+            } else if (fieldNum == FIELD_BUCKET_ENTRIES.number()) {
+                final int entrySize = bucketData.readVarInt(false);
+                final long nextEntryOffset = bucketData.position() + entrySize;
+                final long entryLenWithTag = nextEntryOffset - fieldOffset;
+                final long oldLimit = bucketData.limit();
+                bucketData.limit(nextEntryOffset);
+                final int entryHashCode = readBucketEntryHashCode(bucketData);
+                bucketData.limit(oldLimit);
+                if ((entryHashCode & expectedMask) == expectedIndex) {
+                    copyBucketDataBytes(srcIndex, dstIndex, entryLenWithTag);
+                    dstIndex += entryLenWithTag;
+                }
+                srcIndex += entryLenWithTag;
+                bucketData.position(nextEntryOffset);
+            }
+        }
+        bucketData.position(0);
+        bucketData.limit(dstIndex);
+    }
+
+    /**
+     * Copies len {@link #bucketData} bytes from src offset to dst offset.
+     *
+     * <p>If src and dst offsets are equal, this method is a no-op. This method makes no
+     * checks against the length and the offsets, assuming they are within bucket data
+     * buffer limits.
+     */
+    private void copyBucketDataBytes(final long src, final long dst, final long len) {
+        if (src == dst) {
+            return;
+        }
+        final long limit = bucketData.limit();
+        final long pos = bucketData.position();
+        final BufferedData srcBuf = bucketData.slice(src, len);
+        try {
+            bucketData.position(dst);
+            bucketData.limit(dst + len);
+            bucketData.writeBytes(srcBuf);
+        } finally {
+            bucketData.limit(limit);
+            bucketData.position(pos);
+        }
     }
 
     // =================================================================================================================

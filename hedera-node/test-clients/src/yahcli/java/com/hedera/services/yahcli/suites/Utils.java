@@ -49,7 +49,7 @@ public class Utils {
 
     // (FUTURE) Remove this method. It's temporary scaffolding until all yahcli ops are properly using shard/realm
     public static String extractAccount(final String account) {
-        return extractEntity(HapiPropertySource.shard, HapiPropertySource.realm, account);
+        return extractEntity(HapiPropertySource.getConfigShard(), HapiPropertySource.getConfigRealm(), account);
     }
 
     public static Instant parseFormattedInstant(final String timeStampInStr) {

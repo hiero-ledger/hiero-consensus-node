@@ -3,13 +3,9 @@ package com.hedera.services.bdd.suites.contract.evm;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -44,7 +40,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.Utils.nonMirrorAddrWith;
@@ -70,7 +68,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
@@ -246,7 +243,8 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, ctxLog) -> spec.registry()
                         .saveContractId(
                                 "nonExistingMirrorAddress",
-                                asContractIdWithEvmAddress(ByteString.copyFrom(unhex(NON_EXISTING_MIRROR_ADDRESS))))),
+                                spec,
+                                ByteString.copyFrom(unhex(NON_EXISTING_MIRROR_ADDRESS)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("nonExistingMirrorAddress", getABIFor(FUNCTION, NAME, ERC_721_ABI))
@@ -276,8 +274,8 @@ public class Evm46ValidationSuite {
                 withOpContext((spec, ctxLog) -> spec.registry()
                         .saveContractId(
                                 "nonExistingNonMirrorAddress",
-                                asContractIdWithEvmAddress(
-                                        ByteString.copyFrom(unhex(NON_EXISTING_NON_MIRROR_ADDRESS))))),
+                                spec,
+                                ByteString.copyFrom(unhex(NON_EXISTING_NON_MIRROR_ADDRESS)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(
@@ -377,37 +375,16 @@ public class Evm46ValidationSuite {
                 cryptoCreate("MirrorAccount").balance(ONE_HUNDRED_HBARS).exposingCreatedIdTo(mirrorAccountID::set),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, ECDSA_KEY, ONE_HUNDRED_HBARS)),
                 withOpContext((spec, opLog) -> {
-                    spec.registry()
-                            .saveContractId(
-                                    "mirrorAddress",
-                                    asContract(
-                                            spec.shard(),
-                                            spec.realm(),
-                                            mirrorAccountID.get().getAccountNum()));
+                    spec.registry().saveContractId("mirrorAddress", asContract(mirrorAccountID.get()));
                     updateSpecFor(spec, ECDSA_KEY);
                     final var ecdsaKey = spec.registry()
                             .getKey(ECDSA_KEY)
                             .getECDSASecp256K1()
                             .toByteArray();
                     final var senderAddress = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
+                    spec.registry().saveContractId("nonMirrorAddress", spec, senderAddress);
                     spec.registry()
-                            .saveContractId(
-                                    "nonMirrorAddress",
-                                    ContractID.newBuilder()
-                                            .setShardNum(spec.shard())
-                                            .setRealmNum(spec.realm())
-                                            .setEvmAddress(senderAddress)
-                                            .build());
-                    spec.registry()
-                            .saveAccountId(
-                                    "NonMirrorAccount",
-                                    AccountID.newBuilder()
-                                            .setShardNum(spec.shard())
-                                            .setRealmNum(spec.realm())
-                                            .setAccountNum(spec.registry()
-                                                    .getAccountID(ECDSA_KEY)
-                                                    .getAccountNum())
-                                            .build());
+                            .saveAccountId("NonMirrorAccount", spec.registry().getAccountID(ECDSA_KEY));
                 }),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
@@ -453,8 +430,7 @@ public class Evm46ValidationSuite {
 
     @HapiTest
     final Stream<DynamicTest> internalCallToExistingMirrorAddressResultsInSuccessfulCall() {
-
-        final AtomicLong calleeNum = new AtomicLong();
+        final AtomicReference<ContractID> calleeId = new AtomicReference<>();
 
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT, INTERNAL_CALLEE_CONTRACT),
@@ -463,17 +439,12 @@ public class Evm46ValidationSuite {
                         // Adding refusingEthConversion() due to fee differences and not supported address type
                         .refusingEthConversion(),
                 contractCreate(INTERNAL_CALLEE_CONTRACT)
-                        .exposingNumTo(calleeNum::set)
+                        .exposingContractIdTo(calleeId::set)
                         // Adding refusingEthConversion() due to fee differences and not supported address type
                         .refusingEthConversion(),
-                withOpContext((spec, ignored) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        INTERNAL_CALLER_CONTRACT,
-                                        CALL_EXTERNAL_FUNCTION,
-                                        mirrorAddrWith(spec, calleeNum.get()))
-                                .gas(GAS_LIMIT_FOR_CALL * 2)
-                                .via(INNER_TXN))),
+                contractCall(INTERNAL_CALLER_CONTRACT, CALL_EXTERNAL_FUNCTION, () -> mirrorAddrWith(calleeId.get()))
+                        .gas(GAS_LIMIT_FOR_CALL * 2)
+                        .via(INNER_TXN),
                 getTxnRecord(INNER_TXN)
                         .hasPriority(recordWith()
                                 .status(SUCCESS)
@@ -505,21 +476,19 @@ public class Evm46ValidationSuite {
     @HapiTest
     final Stream<DynamicTest> internalCallToExistingRevertingResultsInSuccessfulTopLevelTxn() {
 
-        final AtomicLong calleeNum = new AtomicLong();
+        final AtomicReference<ContractID> calleeId = new AtomicReference<>();
 
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT, INTERNAL_CALLEE_CONTRACT),
                 contractCreate(INTERNAL_CALLER_CONTRACT).balance(ONE_HBAR),
-                contractCreate(INTERNAL_CALLEE_CONTRACT).exposingNumTo(calleeNum::set),
-                withOpContext((spec, ignored) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        INTERNAL_CALLER_CONTRACT,
-                                        CALL_REVERT_WITH_REVERT_REASON_FUNCTION,
-                                        mirrorAddrWith(spec, calleeNum.get()))
-                                .gas(GAS_LIMIT_FOR_CALL * 8)
-                                .hasKnownStatus(SUCCESS)
-                                .via(INNER_TXN))),
+                contractCreate(INTERNAL_CALLEE_CONTRACT).exposingContractIdTo(calleeId::set),
+                contractCall(
+                                INTERNAL_CALLER_CONTRACT,
+                                CALL_REVERT_WITH_REVERT_REASON_FUNCTION,
+                                () -> mirrorAddrWith(calleeId.get()))
+                        .gas(GAS_LIMIT_FOR_CALL * 8)
+                        .hasKnownStatus(SUCCESS)
+                        .via(INNER_TXN),
                 getTxnRecord(INNER_TXN).hasPriority(recordWith().status(SUCCESS)));
     }
 
@@ -828,7 +797,7 @@ public class Evm46ValidationSuite {
 
     @HapiTest
     final Stream<DynamicTest> internalCallToDeletedContractReturnsSuccessfulNoop() {
-        final AtomicLong calleeNum = new AtomicLong();
+        final AtomicReference<ContractID> calleeId = new AtomicReference<>();
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT, INTERNAL_CALLEE_CONTRACT),
                 contractCreate(INTERNAL_CALLER_CONTRACT)
@@ -842,16 +811,11 @@ public class Evm46ValidationSuite {
                         // tokenAssociate,
                         // since we have CONTRACT_ID key
                         .refusingEthConversion()
-                        .exposingNumTo(calleeNum::set),
+                        .exposingContractIdTo(calleeId::set),
                 contractDelete(INTERNAL_CALLEE_CONTRACT),
-                withOpContext((spec, ignored) -> allRunFor(
-                        spec,
-                        contractCall(
-                                        INTERNAL_CALLER_CONTRACT,
-                                        CALL_EXTERNAL_FUNCTION,
-                                        mirrorAddrWith(spec, calleeNum.get()))
-                                .gas(50_000L)
-                                .via(INNER_TXN))),
+                contractCall(INTERNAL_CALLER_CONTRACT, CALL_EXTERNAL_FUNCTION, () -> mirrorAddrWith(calleeId.get()))
+                        .gas(50_000L)
+                        .via(INNER_TXN),
                 withOpContext((spec, opLog) -> {
                     final var lookup = getTxnRecord(INNER_TXN);
                     allRunFor(spec, lookup);
@@ -1130,15 +1094,10 @@ public class Evm46ValidationSuite {
                 uploadInitCode(MAKE_CALLS_CONTRACT),
                 contractCreate(MAKE_CALLS_CONTRACT).gas(400_000L),
                 balanceSnapshot("initialBalance", MAKE_CALLS_CONTRACT),
-                contractCall(
-                                MAKE_CALLS_CONTRACT,
-                                withAmount,
-                                idAsHeadlongAddress(AccountID.newBuilder()
-                                        .setShardNum(shard)
-                                        .setRealmNum(realm)
-                                        .setAccountNum(357)
-                                        .build()),
-                                new byte[] {"system account".getBytes()[0]})
+                contractCall(MAKE_CALLS_CONTRACT, withAmount, (spec) -> List.of(
+                                        idAsHeadlongAddress(asAccount(spec, 357)),
+                                        new byte[] {"system account".getBytes()[0]})
+                                .toArray())
                         .gas(GAS_LIMIT_FOR_CALL * 4)
                         .sending(2L)
                         .via(INNER_TXN)
@@ -1383,9 +1342,7 @@ public class Evm46ValidationSuite {
         return hapiTest(
                 cryptoCreate("account").balance(ONE_HUNDRED_HBARS),
                 withOpContext((spec, opLog) -> spec.registry()
-                        .saveContractId(
-                                "contract",
-                                asContractIdWithEvmAddress(ByteString.copyFrom(asSolidityAddress(shard, realm, 629))))),
+                        .saveContractId("contract", spec, ByteString.copyFrom(asSolidityAddress(spec, 629)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi("contract", getABIFor(FUNCTION, NAME, ERC_721_ABI))

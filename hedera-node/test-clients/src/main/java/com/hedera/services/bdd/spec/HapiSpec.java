@@ -829,7 +829,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     "default.realm", "" + targetNetwork.realm()));
         } catch (Exception ignore) {
             targetNetwork = RemoteNetwork.newRemoteNetwork(
-                    hapiSetup.nodes(), clientsFor(hapiSetup), HapiPropertySource.shard, HapiPropertySource.realm);
+                    hapiSetup.nodes(),
+                    clientsFor(hapiSetup),
+                    HapiPropertySource.getConfigShard(),
+                    HapiPropertySource.getConfigRealm());
         }
     }
 

@@ -42,7 +42,7 @@ public class DeleteCommand implements Callable<Integer> {
             NodesCommand.validateKeyAt(adminKeyPath, yahcli);
         }
 
-        final var delegate = new DeleteNodeSuite(config.asSpecConfig(), targetId, adminKeyPath);
+        final var delegate = new DeleteNodeSuite(config, targetId, adminKeyPath);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

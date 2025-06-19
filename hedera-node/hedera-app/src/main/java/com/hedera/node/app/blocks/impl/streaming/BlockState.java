@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import com.hedera.hapi.block.PublishStreamRequest;
 import com.hedera.hapi.block.stream.BlockItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.block.api.PublishStreamRequest;
 
 /**
  * Track the current block state

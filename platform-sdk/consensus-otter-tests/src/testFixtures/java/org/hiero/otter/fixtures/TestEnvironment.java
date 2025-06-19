@@ -33,15 +33,7 @@ public interface TestEnvironment {
      * @return the transaction generator
      */
     @NonNull
-    TransactionGenerator generator();
-
-    /**
-     * Get the validator associated with this test environment.
-     *
-     * @return the validator
-     */
-    @NonNull
-    Validator validator();
+    TransactionGenerator transactionGenerator();
 
     /**
      * Destroys the test environment. Once this method is called, the test environment and all its

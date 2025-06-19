@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForCost;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.reflectForPrecheck;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransferList;
@@ -14,7 +15,6 @@ import static java.util.stream.Collectors.toList;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryCheckStateException;
@@ -173,7 +173,6 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
 
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        fixNodeFor(spec);
         configureTlsFor(spec);
 
         Transaction payment = Transaction.getDefaultInstance();
@@ -433,13 +432,13 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
         return self();
     }
 
-    public T setNode(String account) {
-        node = Optional.of(HapiPropertySource.asAccount(account));
+    public T setNode(String accountNum) {
+        node = Optional.of(accountNum);
         return self();
     }
 
     public T setNodeFrom(Supplier<String> accountSupplier) {
-        nodeSupplier = Optional.of(() -> HapiPropertySource.asAccount(accountSupplier.get()));
+        nodeSupplier = Optional.of(() -> asAccount(accountSupplier.get()));
         return self();
     }
 

@@ -24,7 +24,42 @@ description = "Consensus Otter Test Framework"
 testModuleInfo {
     requires("com.swirlds.logging")
     requires("org.apache.logging.log4j")
-    requires("org.hiero.consensus.utility")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
+}
+
+// Runs tests against the Turtle environment
+tasks.register<Test>("testTurtle") {
+    useJUnitPlatform {}
+
+    // Disable all parallelism
+    systemProperty("junit.jupiter.execution.parallel.enabled", false)
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
+    // Tell our launcher to target a repeatable embedded network
+    systemProperty("otter.env", "turtle")
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
+}
+
+// Runs tests against the Solo environment
+tasks.register<Test>("testSolo") {
+    useJUnitPlatform {}
+
+    // Disable all parallelism
+    systemProperty("junit.jupiter.execution.parallel.enabled", false)
+    systemProperty(
+        "junit.jupiter.testclass.order.default",
+        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+    )
+    // Tell our launcher to target a repeatable embedded network
+    systemProperty("otter.env", "solo")
+
+    // Limit heap and number of processors
+    maxHeapSize = "8g"
+    jvmArgs("-XX:ActiveProcessorCount=6")
 }

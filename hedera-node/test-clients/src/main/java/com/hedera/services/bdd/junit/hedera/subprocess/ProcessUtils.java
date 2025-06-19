@@ -142,6 +142,8 @@ public class ProcessUtils {
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
+        environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
+        environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts
         environment.putAll(prCheckOverrides());
         // Give any overrides set by the test author the highest priority

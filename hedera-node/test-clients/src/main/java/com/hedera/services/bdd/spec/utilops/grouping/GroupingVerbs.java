@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.grouping;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -42,7 +40,8 @@ public class GroupingVerbs {
      */
     public static SysFileLookups getSystemFiles(final long sysfileNub, @NonNull final Consumer<Bytes> observer) {
         final Consumer<Map<FileID, Bytes>> temp = map -> {
-            final Bytes contents = map.get(new FileID(SHARD, REALM, sysfileNub));
+            final Bytes contents = map.get(
+                    new FileID(HapiPropertySource.getConfigShard(), HapiPropertySource.getConfigRealm(), sysfileNub));
             observer.accept(contents);
         };
         return new SysFileLookups(fileNum -> fileNum == sysfileNub, temp);

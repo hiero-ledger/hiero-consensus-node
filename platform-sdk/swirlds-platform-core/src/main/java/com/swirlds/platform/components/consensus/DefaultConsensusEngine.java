@@ -9,7 +9,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.RoundCalculationUtils;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
@@ -23,9 +23,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.FutureEventBuffer;
-import org.hiero.consensus.model.event.AncientMode;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -50,14 +49,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     private final Consensus consensus;
 
-    /** The way the ancient threshold is defined */
-    private final AncientMode ancientMode;
-
     private final int roundsNonAncient;
 
     private final AddedEventMetrics eventAddedMetrics;
 
-    private final FreezeRoundFilter freezeRoundFilter;
+    private final FreezeRoundController freezeRoundController;
 
     /**
      * Constructor
@@ -77,18 +73,15 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(platformContext, selfId);
-        futureEventBuffer = new FutureEventBuffer(platformContext.getConfiguration(), platformContext.getMetrics());
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
+        futureEventBuffer =
+                new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
         roundsNonAncient = platformContext
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
         eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
-        this.freezeRoundFilter = new FreezeRoundFilter(freezeChecker);
+        this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
     /**
@@ -107,7 +100,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
-        if (freezeRoundFilter.isFrozen()) {
+        if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
             return List.of();
         }
@@ -147,9 +140,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
-        freezeRoundFilter.filter(allConsensusRounds);
-
-        return allConsensusRounds;
+        return freezeRoundController.filterAndModify(allConsensusRounds);
     }
 
     /**
@@ -157,10 +148,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshot snapshot) {
-        final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
-        final EventWindow eventWindow =
-                new EventWindow(snapshot.round(), ancientThreshold, ancientThreshold, ancientMode);
-
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
         linker.clear();
         linker.setEventWindow(eventWindow);
         futureEventBuffer.clear();

@@ -572,7 +572,6 @@ class HevmTransactionFactoryTest {
         givenInsteadHydratedEthTxWithRightChainId(dataToUse);
         final var sig = EthTxSigs.extractSignatures(dataToUse);
         given(ethereumSignatures.computeIfAbsent(dataToUse)).willReturn(sig);
-        System.out.println(dataToUse);
         final var transaction = getManufacturedEthTx(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE));
         final var expectedSenderId =
                 AccountID.newBuilder().alias(Bytes.wrap(sig.address())).build();

@@ -40,9 +40,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.gossip.FallenBehindManager;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -116,11 +114,6 @@ public class ShadowgraphSynchronizer {
     private final int maximumEventsPerSync;
 
     /**
-     * The current ancient mode.
-     */
-    private final AncientMode ancientMode;
-
-    /**
      * Constructs a new ShadowgraphSynchronizer.
      *
      * @param platformContext      the platform context
@@ -158,11 +151,6 @@ public class ShadowgraphSynchronizer {
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
-
-        this.ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
     }
 
     /**
@@ -209,7 +197,7 @@ public class ShadowgraphSynchronizer {
             final List<ShadowEvent> myTips = getTips();
             // READ and WRITE event windows numbers & tip hashes
             final TheirTipsAndEventWindow theirTipsAndEventWindow = readWriteParallel(
-                    readTheirTipsAndEventWindow(connection, numberOfNodes, ancientMode),
+                    readTheirTipsAndEventWindow(connection, numberOfNodes),
                     writeMyTipsAndEventWindow(connection, myWindow, myTips),
                     connection);
             timing.setTimePoint(1);
@@ -283,6 +271,8 @@ public class ShadowgraphSynchronizer {
         final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
         if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
             fallenBehindManager.reportFallenBehind(connection.getOtherId());
+        } else {
+            fallenBehindManager.clearFallenBehind(connection.getOtherId());
         }
 
         if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
@@ -316,7 +306,7 @@ public class ShadowgraphSynchronizer {
 
         // add to knownSet all the ancestors of each known event
         final Set<ShadowEvent> knownAncestors = shadowGraph.findAncestors(
-                knownSet, SyncUtils.unknownNonAncient(knownSet, myEventWindow, theirEventWindow, ancientMode));
+                knownSet, SyncUtils.unknownNonAncient(knownSet, myEventWindow, theirEventWindow));
 
         // since knownAncestors is a lot bigger than knownSet, it is a lot cheaper to add knownSet to knownAncestors
         // then vice versa
@@ -326,7 +316,7 @@ public class ShadowgraphSynchronizer {
 
         // predicate used to search for events to send
         final Predicate<ShadowEvent> knownAncestorsPredicate =
-                SyncUtils.unknownNonAncient(knownAncestors, myEventWindow, theirEventWindow, ancientMode);
+                SyncUtils.unknownNonAncient(knownAncestors, myEventWindow, theirEventWindow);
 
         // in order to get the peer the latest events, we get a new set of tips to search from
         final List<ShadowEvent> myNewTips = shadowGraph.getTips();

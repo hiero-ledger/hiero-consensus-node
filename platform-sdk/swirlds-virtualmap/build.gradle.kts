@@ -24,44 +24,20 @@ jmhModuleInfo {
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
-    requires("org.hiero.base.utility.test.fixtures")
     requires("jmh.core")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
 }
 
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.virtualmap.test.fixtures")
-    requires("org.hiero.base.utility.test.fixtures")
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
-    requires("org.mockito")
-}
-
-timingSensitiveModuleInfo {
-    requires("com.swirlds.base")
-    requires("com.swirlds.common")
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.config.api")
-    requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap.test.fixtures")
-    requires("org.hiero.base.crypto")
-    requires("org.hiero.consensus.model")
-    requires("org.hiero.base.concurrent")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
-}
-
-hammerModuleInfo {
-    requires("com.swirlds.virtualmap")
-    requires("com.swirlds.virtualmap.test.fixtures")
-    requires("com.swirlds.config.api")
-    requires("org.junit.jupiter.api")
-    runtimeOnly("com.swirlds.config.impl")
 }
 
 tasks.register<JMHTask>("jmhReconnect") {

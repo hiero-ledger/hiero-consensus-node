@@ -106,7 +106,7 @@ public class SysFileUploadCommand implements Callable<Integer> {
 
         final var finalSpecs = delegate.getFinalSpecs();
         if (!finalSpecs.isEmpty()) {
-            if (finalSpecs.get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+            if (finalSpecs.getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
                 COMMON_MESSAGES.info("SUCCESS - Uploaded all requested system files");
             } else {
                 COMMON_MESSAGES.warn("FAILED Uploading requested system files");

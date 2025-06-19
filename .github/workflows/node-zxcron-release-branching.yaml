@@ -141,7 +141,7 @@ jobs:
                         "type": "header",
                         "text": {
                           "type": "plain_text",
-                          "text": ":evergreen_tree: Hedera Services - Automatic Release Branching",
+                          "text": ":evergreen_tree: Hiero Consensus Node - Automatic Release Branching",
                           "emoji": true
                         }
                       },
@@ -293,7 +293,7 @@ jobs:
                         "type": "header",
                         "text": {
                           "type": "plain_text",
-                          "text": ":ideograph_advantage: Hedera Services - Automatic Release Tagging",
+                          "text": ":ideograph_advantage: Hiero Consensus Node - Automatic Release Tagging",
                           "emoji": true
                         }
                       },

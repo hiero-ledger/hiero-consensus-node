@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.nodes;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
@@ -78,17 +79,30 @@ public class CreateCommand implements Callable<Integer> {
             paramLabel = "path to the admin key to use")
     String adminKeyPath;
 
+    @CommandLine.Option(
+            names = "--declineRewards",
+            paramLabel = "trigger indicating the node should decline reward payments; false otherwise",
+            arity = "0..1",
+            defaultValue = "true",
+            fallbackValue = "true")
+    Boolean declineRewards;
+
+    @CommandLine.Option(
+            names = {"--grpcProxyEndpoint"},
+            paramLabel = "a web proxy endpoint for gRPC from non-gRPC clients, e.g. 10.0.0.1:50051,my.fqdn.com:50051")
+    String grpcProxyEndpoint;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
 
         validateAdminKeyLoc(adminKeyPath);
-        final var accountId = validatedAccountId(accountNum);
-        final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + accountId.getAccountNum());
+        final var accountId = Long.parseLong(accountNum);
+        final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + accountId);
         final var maybeFeeAccountKeyPath = feeAccountKeyFile.map(File::getPath).orElse(null);
         if (maybeFeeAccountKeyPath == null) {
-            COMMON_MESSAGES.warn("No key on disk for account 0.0." + accountId.getAccountNum()
+            COMMON_MESSAGES.warn("No key on disk for account " + accountId
                     + ", payer and admin key signatures must meet its signing requirements");
         }
 
@@ -96,8 +110,9 @@ public class CreateCommand implements Callable<Integer> {
                 gossipCaCertificatePath, gossipCaCertificatePfxPath, gossipCaCertificatePfxAlias, yahcli);
         // Throws if the cert is not valid
         validatedX509Cert(hapiCertificatePath, null, null, yahcli);
+        final boolean parsedDeclineRewards = declineRewards == null || declineRewards;
         final var delegate = new CreateNodeSuite(
-                config.asSpecConfig(),
+                config,
                 accountId,
                 Optional.ofNullable(description).orElse(""),
                 asCsServiceEndpoints(gossipEndpoints),
@@ -105,7 +120,9 @@ public class CreateCommand implements Callable<Integer> {
                 gossipCert,
                 noThrowSha384HashOf(allBytesAt(Paths.get(hapiCertificatePath))),
                 adminKeyPath,
-                maybeFeeAccountKeyPath);
+                maybeFeeAccountKeyPath,
+                parsedDeclineRewards,
+                grpcProxyEndpoint == null ? null : asTypedServiceEndpoint(grpcProxyEndpoint));
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

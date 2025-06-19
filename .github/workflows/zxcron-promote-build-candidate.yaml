@@ -128,7 +128,7 @@ jobs:
           echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Increment Build Promotion Index
-        uses: step-security/increment@c2cdc97bbfdf3f5ef530d5c1f28311ff8f0c70f4 # v2.0.1
+        uses: step-security/increment@f07ae8bfe2d5ddd67e68f0eb153010db6e5fdbd1 # v2.14.0
         id: increment
         with:
           name: "XTS_BUILD_PROMOTION_INDEX"
@@ -173,7 +173,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Promoted for Single Day Performance/Longevity Tests",
                         "emoji": true
                       }
                     },
@@ -231,96 +231,89 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Report failure (PagerDuty)
+      - name: Build Slack Payload Message
+        id: payload
         run: |
-          curl --request 'POST' \
-          --url 'https://events.pagerduty.com/v2/enqueue' \
-          --header 'Content-Type: application/json' \
-          --data '{
-            "payload": {
-              "summary": "Hedera Services - eXtended Test Suite Failure",
-              "severity": "error",
-              "source": "GitHub Actions - eXtended Test Suite",
-              "custom_details": {
-                "Fetch Latest Build Candidate": "${{ needs.determine-build-candidate.result }}",
-                "Promote Build Candidate": "${{ needs.promote-build-candidate.result }}",
-                "Source Commit": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>",
-                "Workflow Run": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: Hiero Consensus Node - Build Candidate Promotion Error Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Fetch Latest Build Candidate"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.determine-build-candidate.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Promote Build Candidate"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.promote-build-candidate.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Additional Information:*"
+                    },
+                    "fields":[
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
               }
-            },
-            "routing_key": "${{ secrets.PAGERDUTY_CITR_INTEGRATION_KEY }}",
-            "event_action": "trigger"
-          }'
+            ]
+          }
+          EOF
 
-      - name: Report failure (slack)
+      - name: Report failure (slack citr-operations)
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#FF0000",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - Build Candidate Promotion Error Report",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Build Candidate Promotion Job Resulted in failure. See status below.*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Fetch Latest Build Candidate"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.determine-build-candidate.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Promote Build Candidate"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.promote-build-candidate.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Additional Information:*"
-                      },
-                      "fields":[
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow Run*: \n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

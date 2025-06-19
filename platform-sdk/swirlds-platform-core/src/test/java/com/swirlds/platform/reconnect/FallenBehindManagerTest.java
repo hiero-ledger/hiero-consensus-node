@@ -2,6 +2,8 @@
 package com.swirlds.platform.reconnect;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.google.common.collect.ImmutableSet;
@@ -65,6 +67,41 @@ class FallenBehindManagerTest {
         assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
 
         manager.reportFallenBehind(NodeId.of(7));
+        manager.reportFallenBehind(NodeId.of(8));
+        assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
+
+        manager.resetFallenBehind();
+        assertFallenBehind(false, 0, "resetting should return to default");
+    }
+
+    @Test
+    void testRemoveFallenBehind() {
+        assertFallenBehind(false, 0, "default should be none report fallen behind");
+
+        // node 1 reports fallen behind
+        manager.reportFallenBehind(NodeId.of(1));
+        assertFallenBehind(false, 1, "one node only reported fallen behind");
+
+        // if the same node reports again, nothing should change
+        manager.reportFallenBehind(NodeId.of(1));
+        assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
+
+        manager.reportFallenBehind(NodeId.of(2));
+        manager.reportFallenBehind(NodeId.of(3));
+        manager.reportFallenBehind(NodeId.of(4));
+        manager.reportFallenBehind(NodeId.of(5));
+        assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
+
+        manager.reportFallenBehind(NodeId.of(6));
+        manager.clearFallenBehind(NodeId.of(4));
+        assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
+
+        manager.reportFallenBehind(NodeId.of(7));
+        assertFallenBehind(true, 6, "we should be fallen behind");
+        assertTrue(manager.shouldReconnectFrom(NodeId.of(6)));
+        assertFalse(manager.shouldReconnectFrom(NodeId.of(4)));
+
+        manager.reportFallenBehind(NodeId.of(4));
         manager.reportFallenBehind(NodeId.of(8));
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 

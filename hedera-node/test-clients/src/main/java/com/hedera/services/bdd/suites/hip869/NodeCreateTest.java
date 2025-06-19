@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -444,6 +445,7 @@ public class NodeCreateTest {
                         .adminKey(ED_25519_KEY)
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .setNode("4")
                         .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)

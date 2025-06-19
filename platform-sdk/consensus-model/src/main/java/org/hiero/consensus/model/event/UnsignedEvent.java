@@ -10,7 +10,6 @@ import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
@@ -64,13 +63,7 @@ public class UnsignedEvent implements Hashable {
         this.parents = this.metadata.getAllParents().stream()
                 .map(EventDescriptorWrapper::eventDescriptor)
                 .toList();
-        this.eventCore = new EventCore(
-                creatorId.id(),
-                birthRound,
-                HapiUtils.asTimestamp(timeCreated),
-                // this is where parents used to be stored
-                Collections.emptyList(),
-                softwareVersion);
+        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), softwareVersion);
     }
 
     /**

@@ -44,7 +44,6 @@ class CommonPcesWriterTest {
                         new TestingEventBuilder(random).setBirthRound(150).build())
                 .setOtherParent(
                         new TestingEventBuilder(random).setBirthRound(150).build())
-                .overrideOtherParentGeneration(150)
                 .setBirthRound(150)
                 .build();
         fileManager = mock(PcesFileManager.class);
@@ -85,7 +84,7 @@ class CommonPcesWriterTest {
     @Test
     void testUpdateNonAncientEventBoundary() {
         EventWindow mockWindow = mock(EventWindow.class);
-        when(mockWindow.getAncientThreshold()).thenReturn(100L);
+        when(mockWindow.ancientThreshold()).thenReturn(100L);
 
         commonPcesWriter.updateNonAncientEventBoundary(mockWindow);
 

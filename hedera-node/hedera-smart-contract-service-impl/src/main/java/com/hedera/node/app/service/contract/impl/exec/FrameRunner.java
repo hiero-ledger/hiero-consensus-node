@@ -100,7 +100,8 @@ public class FrameRunner {
                     recipientMetadata.hederaId(),
                     asEvmContractId(entityIdFactory, recipientAddress),
                     frame,
-                    tracer);
+                    tracer,
+                    entityIdFactory);
         } else {
             return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }
@@ -118,7 +119,7 @@ public class FrameRunner {
 
     private RecipientMetadata computeRecipientMetadata(
             @NonNull final MessageFrame frame, @NonNull final Address address) {
-        if (isLongZero(entityIdFactory, address)) {
+        if (isLongZero(address)) {
             return new RecipientMetadata(false, asNumberedContractId(entityIdFactory, address));
         } else {
             final var updater = proxyUpdaterFor(frame);

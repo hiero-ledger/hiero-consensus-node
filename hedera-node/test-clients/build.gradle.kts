@@ -221,6 +221,12 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("")
     systemProperty("hapi.spec.initial.port", initialPort)
+    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
+    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
+    // the majority of the hapi tests - with a nonzero shard/realm
+    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
+    systemProperty("hapi.spec.default.shard", 11)
+    systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
@@ -396,6 +402,10 @@ tasks.register<Test>("testEmbedded") {
     )
     // Tell our launcher to target a concurrent embedded network
     systemProperty("hapi.spec.embedded.mode", "concurrent")
+    // Running all the tests that are executed in testEmbedded with 0 for shard and realm,
+    // so we can maintain confidence that there are no regressions in the code.
+    systemProperty("hapi.spec.default.shard", 0)
+    systemProperty("hapi.spec.default.realm", 0)
 
     // Limit heap and number of processors
     maxHeapSize = "8g"

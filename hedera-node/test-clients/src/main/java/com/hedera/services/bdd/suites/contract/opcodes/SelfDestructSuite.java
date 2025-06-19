@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.nonExistingSystemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -46,12 +47,14 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.contract.HapiGetContractInfo;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -269,17 +272,17 @@ public class SelfDestructSuite {
 
     final Stream<DynamicTest> selfDestructFailsWhenBeneficiaryHasReceiverSigRequiredAndHasNotSignedTheTxn(
             @NonNull final String evmVersion) {
-        final AtomicLong beneficiaryId = new AtomicLong();
+        final AtomicReference<AccountID> beneficiaryId = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(BENEFICIARY)
                         .balance(ONE_HUNDRED_HBARS)
                         .receiverSigRequired(true)
-                        .exposingCreatedIdTo(id -> beneficiaryId.set(id.getAccountNum())),
+                        .exposingCreatedIdTo(id -> beneficiaryId.set(id)),
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
                 sourcing(() -> contractCall(
                                 SELF_DESTRUCT_CALLABLE_CONTRACT,
                                 "destroyExplicitBeneficiary",
-                                mirrorAddrParamFunction(beneficiaryId.get()))
+                                () -> mirrorAddrWith(beneficiaryId.get()))
                         .hasKnownStatus(INVALID_SIGNATURE)),
                 getAccountInfo(BENEFICIARY).has(accountWith().balance(ONE_HUNDRED_HBARS)),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
@@ -288,16 +291,16 @@ public class SelfDestructSuite {
 
     final Stream<DynamicTest> selfDestructSucceedsWhenContractSelfDestructsItselfWithTokens(
             @NonNull final String evmVersion) {
-        final AtomicLong contractNum = new AtomicLong();
+        final AtomicReference<ContractID> contractId = new AtomicReference<>();
         return hapiTest(
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .balance(ONE_HBAR)
-                        .exposingNumTo(contractNum::set),
-                sourcing(() -> contractCall(
+                        .exposingContractIdTo(contractId::set),
+                contractCall(
                                 SELF_DESTRUCT_CALLABLE_CONTRACT,
                                 DESTROY_EXPLICIT_BENEFICIARY,
-                                mirrorAddrParamFunction(contractNum.get()))
-                        .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID)),
+                                () -> mirrorAddrWith(contractId.get()))
+                        .hasKnownStatus(OBTAINER_SAME_CONTRACT_ID),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .has(contractWith().balance(ONE_HBAR)));
     }

@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
-import static org.hiero.otter.fixtures.Validator.EventStreamConfig.ignoreNode;
-import static org.hiero.otter.fixtures.Validator.LogFilter.ignoreMarkers;
-import static org.hiero.otter.fixtures.Validator.RatioConfig.within;
+import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
+import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
-import com.swirlds.logging.legacy.LogMarker;
 import java.time.Duration;
 import java.util.List;
+import org.apache.logging.log4j.Level;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.Validator.Profile;
 import org.junit.jupiter.api.Disabled;
 
 public class SandboxTest {
@@ -31,33 +30,29 @@ public class SandboxTest {
 
         // Setup simulation
         final List<Node> nodes = network.addNodes(4);
-        network.start(ONE_MINUTE);
-        env.generator().start();
+        network.start();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
 
         // Kill node
         final Node node = nodes.getFirst();
-        node.failUnexpectedly(ONE_MINUTE);
+        node.killImmediately();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
 
         // Revive node
-        node.revive(ONE_MINUTE);
+        node.start();
 
         // Wait for two minutes
         timeManager.waitFor(TWO_MINUTES);
 
         // Validations
-        env.validator()
-                .assertLogs(
-                        ignoreMarkers(LogMarker.SOCKET_EXCEPTIONS, LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
-                .assertStdOut()
-                .eventStream(ignoreNode(node))
-                .reconnectEventStream(node)
-                .validateRemaining(Profile.DEFAULT);
+        assertThat(network.getLogResults()
+                        .ignoring(SOCKET_EXCEPTIONS)
+                        .ignoring(TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT))
+                .noMessageWithLevelHigherThan(Level.INFO);
     }
 
     @OtterTest
@@ -69,10 +64,9 @@ public class SandboxTest {
         // Setup simulation
         network.addNodes(3);
         final InstrumentedNode nodeX = network.addInstrumentedNode();
-        network.start(ONE_MINUTE);
-        env.generator().start();
+        network.start();
 
-        // Wait for one minute
+        // Wait for ten seconds
         timeManager.waitFor(TEN_SECONDS);
 
         // Start branching
@@ -80,11 +74,5 @@ public class SandboxTest {
 
         // Wait for one minute
         timeManager.waitFor(ONE_MINUTE);
-
-        // Validations
-        env.validator()
-                .consensusRatio(within(0.8, 1.0))
-                .staleRatio(within(0.0, 0.1))
-                .validateRemaining(Profile.HASHGRAPH);
     }
 }

@@ -3,8 +3,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.PublishStreamRequest;
-import com.hedera.hapi.block.PublishStreamResponse;
 import com.hedera.node.internal.network.BlockNodeConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.stub.StreamObserver;
@@ -16,6 +14,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 
 /**
  * Represents a single connection to a block node. Each connection is responsible for connecting to configured block nodes
@@ -249,41 +250,36 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         }
     }
 
-    private void handleAcknowledgement(@NonNull PublishStreamResponse.Acknowledgement acknowledgement) {
-        if (acknowledgement.hasBlockAck()) {
-            final var blockAck = acknowledgement.blockAck();
-            final var acknowledgedBlockNumber = blockAck.blockNumber();
-            final var blockAlreadyExists = blockAck.blockAlreadyExists();
-            final var currentBlock = getCurrentBlockNumber();
+    private void handleAcknowledgement(@NonNull BlockAcknowledgement acknowledgement) {
+        final var acknowledgedBlockNumber = acknowledgement.blockNumber();
+        final var blockAlreadyExists = acknowledgement.blockAlreadyExists();
+        final var currentBlock = getCurrentBlockNumber();
 
-            // Update the last verified block by the current connection
-            blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
-            // Remove all block states up to and including this block number
-            blockStreamStateManager.removeBlockStatesUpTo(acknowledgedBlockNumber);
+        // Update the last verified block by the current connection
+        blockNodeConnectionManager.updateLastVerifiedBlock(blockNodeConfig, acknowledgedBlockNumber);
+        // Remove all block states up to and including this block number
+        blockStreamStateManager.removeBlockStatesUpTo(acknowledgedBlockNumber);
 
-            if (blockAlreadyExists) {
-                logger.warn("Block {} already exists on block node {}", acknowledgedBlockNumber, connectionDescriptor);
-            } else {
-                logger.debug(
-                        "Block {} acknowledged and successfully processed by block node {}",
-                        acknowledgedBlockNumber,
-                        connectionDescriptor);
-            }
-
-            if (currentBlock > acknowledgedBlockNumber) {
-                logger.debug(
-                        "Current block number {} is higher than the acknowledged block number {}",
-                        currentBlock,
-                        acknowledgedBlockNumber);
-            } else if (currentBlock < acknowledgedBlockNumber) {
-                logger.debug(
-                        "Consensus node is behind and current block number {} is before the acknowledged block number {}",
-                        currentBlock,
-                        acknowledgedBlockNumber);
-                jumpToBlock(acknowledgedBlockNumber + 1);
-            }
+        if (blockAlreadyExists) {
+            logger.warn("Block {} already exists on block node {}", acknowledgedBlockNumber, connectionDescriptor);
         } else {
-            logger.warn("Unknown acknowledgement received: {}", acknowledgement);
+            logger.debug(
+                    "Block {} acknowledged and successfully processed by block node {}",
+                    acknowledgedBlockNumber,
+                    connectionDescriptor);
+        }
+
+        if (currentBlock > acknowledgedBlockNumber) {
+            logger.debug(
+                    "Current block number {} is higher than the acknowledged block number {}",
+                    currentBlock,
+                    acknowledgedBlockNumber);
+        } else if (currentBlock < acknowledgedBlockNumber) {
+            logger.debug(
+                    "Consensus node is behind and current block number {} is before the acknowledged block number {}",
+                    currentBlock,
+                    acknowledgedBlockNumber);
+            jumpToBlock(acknowledgedBlockNumber + 1);
         }
     }
 
