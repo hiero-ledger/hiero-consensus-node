@@ -29,6 +29,7 @@ import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
+import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
@@ -695,7 +696,7 @@ public class PlatformComponentBuilder {
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
                         blocks.platformContext(),
                         blocks.initialPcesFiles(),
-                        blocks.selfId(),
+                        PcesUtilities.getDatabaseDirectory(blocks.platformContext(), blocks.selfId()),
                         blocks.initialState().get().getRound());
                 inlinePcesWriter = new DefaultInlinePcesWriter(
                         blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());

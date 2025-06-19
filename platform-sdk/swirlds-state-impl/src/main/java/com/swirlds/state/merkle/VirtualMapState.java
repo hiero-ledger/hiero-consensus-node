@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -61,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -76,9 +74,9 @@ import org.json.JSONObject;
  */
 public abstract class VirtualMapState<T extends VirtualMapState<T>> implements State {
 
-    private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
+    private static final String LABEL = "state";
 
-    private MerkleCryptography merkleCryptography;
+    private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
     private Time time;
 
@@ -123,7 +121,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     private boolean startupMode = true;
 
     public VirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        final String virtualMapLabel = "VirtualMap"; // TODO: discuss how it should be renamed
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         final var tableConfig = new MerkleDbTableConfig(
@@ -134,7 +131,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                 merkleDbConfig.hashesRamToDiskThreshold());
         dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
 
-        this.virtualMap = new VirtualMap(virtualMapLabel, dsBuilder, configuration);
+        this.virtualMap = new VirtualMap(LABEL, dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
     }
 
@@ -143,7 +140,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      *
      * @param virtualMap the virtual map with pre-registered metrics
      */
-    public VirtualMapState(VirtualMap virtualMap) {
+    public VirtualMapState(@NonNull final VirtualMap virtualMap) {
         this.virtualMap = virtualMap;
     }
 
@@ -174,7 +171,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         this.time = time;
         this.configuration = configuration;
         this.metrics = metrics;
-        this.merkleCryptography = merkleCryptography;
         this.snapshotMetrics = new MerkleRootSnapshotMetrics(metrics);
         this.roundSupplier = roundSupplier;
     }
@@ -244,22 +240,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public void computeHash() {
-        requireNonNull(
-                merkleCryptography,
-                "VirtualMapState has to be initialized before hashing. merkleCryptography is not set.");
         virtualMap.throwIfMutable("Hashing should only be done on immutable states");
         virtualMap.throwIfDestroyed("Hashing should not be done on destroyed states");
-        if (getHash() != null) {
-            return;
-        }
-        try {
-            merkleCryptography.digestTreeAsync(virtualMap).get();
-        } catch (final ExecutionException e) {
-            logger.error(EXCEPTION.getMarker(), "Exception occurred during hashing", e);
-        } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "Interrupted while hashing state. Expect buggy behavior.");
-            Thread.currentThread().interrupt();
-        }
+
+        // this call will result in synchronous hash computation
+        virtualMap.getHash();
     }
 
     /**

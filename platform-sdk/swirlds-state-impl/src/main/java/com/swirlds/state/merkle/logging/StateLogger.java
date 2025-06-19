@@ -17,9 +17,11 @@ import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
@@ -303,37 +305,38 @@ public class StateLogger {
     /**
      * Log the iteration of values of a map.
      *
-     * @param label The label of the map
      * @param virtualMap The map that was iterated
      * @param <K> The type of the key
-     * @param <V> The type of the value
      */
-    public static <K, V> void logMapIterate(
+    public static <K> void logMapIterate(
             @NonNull final String label, @NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec) {
         if (logger.isDebugEnabled()) {
             final var spliterator = Spliterators.spliterator(
                     virtualMap.treeIterator(), virtualMap.size(), Spliterator.SIZED & Spliterator.ORDERED);
             final long size = virtualMap.size();
             if (size == 0) {
-                logger.debug("      ITERATE map {} size 0 keys:EMPTY", label);
+                logger.debug("      ITERATE keys of {} state size 0 keys:EMPTY", label);
             } else {
-                logger.debug(
-                        "      ITERATE map {} size {} keys:\n{}",
-                        label,
-                        size,
-                        StreamSupport.stream(spliterator, false)
-                                .map(merkleNode -> {
-                                    if (merkleNode instanceof VirtualLeafNode leaf) {
-                                        final var k = leaf.getKey();
-                                        try {
-                                            return keyCodec.parse(k).toString();
-                                        } catch (final ParseException e) {
-                                            // ignore, return the unknown type below
-                                        }
-                                    }
-                                    return "Unknown_Type";
-                                })
-                                .collect(Collectors.joining(",\n")));
+                AtomicInteger count = new AtomicInteger(0);
+                String keys = StreamSupport.stream(spliterator, false)
+                        .map(merkleNode -> {
+                            if (merkleNode instanceof VirtualLeafNode leaf) {
+                                final var k = leaf.getKey();
+                                String result = null;
+                                try {
+                                    result = keyCodec.parse(k).toString();
+                                    count.incrementAndGet();
+                                } catch (final ParseException e) {
+                                    // ignore, return null
+                                }
+                                return result;
+                            } else {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.joining(",\n"));
+                logger.debug("      ITERATE keys of {} state (size {}) keys:\n{}", label, count.get(), keys);
             }
         }
     }
