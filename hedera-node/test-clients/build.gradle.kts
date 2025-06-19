@@ -190,6 +190,7 @@ tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
+    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testSubprocess") {
@@ -455,6 +456,7 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
