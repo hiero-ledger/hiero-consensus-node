@@ -1,28 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
-import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
-import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
-import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
-import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
-import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
-import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
-import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
-import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
-import static com.hedera.node.config.types.StreamMode.BLOCKS;
-import static com.hedera.node.config.types.StreamMode.BOTH;
-import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.consensus.ConsensusUtils.coin;
-import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
-import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
@@ -37,7 +15,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
@@ -91,15 +68,6 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -108,6 +76,38 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
+import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
+import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
+import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
+import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
+import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
+import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.BOTH;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.consensus.ConsensusUtils.coin;
+import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
+import static com.swirlds.state.lifecycle.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -142,7 +142,6 @@ public class HandleWorkflow {
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
     private final ImmediateStateChangeListener immediateStateChangeListener;
-    private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
     private final CurrentPlatformStatus currentPlatformStatus;
@@ -179,7 +178,6 @@ public class HandleWorkflow {
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
-            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
@@ -208,7 +206,6 @@ public class HandleWorkflow {
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
-        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
         this.streamMode = configProvider
@@ -253,7 +250,6 @@ public class HandleWorkflow {
         }
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
-        boolean transactionsDispatched = false;
 
         configureTssCallbacks(state);
         try {
@@ -262,13 +258,12 @@ public class HandleWorkflow {
             logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
         try {
-            transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
+            boolean transactionsDispatched = handleEvents(state, round, stateSignatureTxnCallback);
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
                 // Dispatch rewards for active nodes after at least one user transaction is handled
-                // FIXME: IT IS ALWAYS TRUE
-                if (blockStreamManager.lastExecutionTime() != null) {
-                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                if (transactionsDispatched) {
+                    nodeRewardManager.maybeRewardActiveNodes(
                             state, blockStreamManager.lastExecutionTime().plusNanos(1), systemTransactions);
                 }
             } catch (Exception e) {
@@ -444,8 +439,33 @@ public class HandleWorkflow {
                 default -> ORDINARY_TRANSACTION;
             };
         }
+        if (type == POST_UPGRADE_TRANSACTION) {
+            logger.info("Doing post-upgrade setup @ {}", consensusNow);
+            systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            if (streamMode != RECORDS) {
+                blockStreamManager.confirmPendingWorkFinished();
+            }
+            // Since we track node stake metadata separately from the future address book (FAB),
+            // we need to update that stake metadata from any node additions or deletions that
+            // just took effect; it would be nice to unify the FAB and stake metadata in the future.
+            final var writableTokenStates = state.getWritableStates(TokenService.NAME);
+            final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
+            doStreamingKVChanges(
+                    writableTokenStates,
+                    writableEntityIdStates,
+                    () -> stakeInfoHelper.adjustPostUpgradeStakes(
+                            networkInfo,
+                            configProvider.getConfiguration(),
+                            new WritableStakingInfoStore(
+                                    writableTokenStates, new WritableEntityIdStore(writableEntityIdStates)),
+                            new WritableNetworkStakingRewardsStore(writableTokenStates)));
+            if (streamMode == RECORDS) {
+                // Only update this if we are relying on RecordManager state for post-upgrade processing
+                blockRecordManager.markMigrationRecordsStreamed();
+            }
+        }
         final var userTxn =
-                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, type, stateSignatureTxnCallback);
+                parentTxnFactory.createUserTxn(state, creator, txn, consensusNow, stateSignatureTxnCallback);
         if (userTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
@@ -453,7 +473,7 @@ public class HandleWorkflow {
         }
 
         var lastRecordManagerTime = streamMode == RECORDS ? blockRecordManager.consTimeOfLastHandledTxn() : null;
-        final var handleOutput = executeSubmittedParent(userTxn, txnVersion, state);
+        final var handleOutput = executeSubmittedParent(userTxn, txnVersion);
         if (streamMode != BLOCKS) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
@@ -632,11 +652,10 @@ public class HandleWorkflow {
      *
      * @param parentTxn the user transaction to execute
      * @param txnVersion the software version for the event containing the transaction
-     * @param state the state to commit any direct changes against
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSubmittedParent(
-            @NonNull final ParentTxn parentTxn, @NonNull final SemanticVersion txnVersion, @NonNull final State state) {
+            @NonNull final ParentTxn parentTxn, @NonNull final SemanticVersion txnVersion) {
         try {
             if (isOlderSoftwareEvent(txnVersion)) {
                 if (streamMode != BLOCKS) {
@@ -652,40 +671,6 @@ public class HandleWorkflow {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
                 advanceTimeFor(parentTxn, dispatch);
                 logPreDispatch(parentTxn);
-                if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
-                    logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
-                    systemTransactions.doPostUpgradeSetup(dispatch);
-                    if (streamMode != RECORDS) {
-                        blockStreamManager.confirmPendingWorkFinished();
-                    }
-                    // Since we track node stake metadata separately from the future address book (FAB),
-                    // we need to update that stake metadata from any node additions or deletions that
-                    // just took effect; it would be nice to unify the FAB and stake metadata in the future.
-                    // IMPORTANT:
-                    //   (1) These K/V changes must be committed directly to the state instead of
-                    //   being accumulated in the user stack in case it is rolled back.
-                    //   (2) The K/V changes must also be written immediately in their own block item,
-                    //   instead of being added to the base builder state changes, because if there is
-                    //   a preceding NodeStakeUpdate added later in executeTopLevel(), *its* state changes
-                    //   will come before the base builder's changes in the block stream
-                    final var writableTokenStates = state.getWritableStates(TokenService.NAME);
-                    final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-                    final var schedulingConfig = parentTxn.config().getConfigData(SchedulingConfig.class);
-                    doStreamingKVChanges(
-                            writableTokenStates,
-                            writableEntityIdStates,
-                            () -> stakeInfoHelper.adjustPostUpgradeStakes(
-                                    networkInfo,
-                                    parentTxn.config(),
-                                    new WritableStakingInfoStore(
-                                            writableTokenStates, new WritableEntityIdStore(writableEntityIdStates)),
-                                    new WritableNetworkStakingRewardsStore(writableTokenStates)));
-                    if (streamMode == RECORDS) {
-                        // Only update this if we are relying on RecordManager state for post-upgrade processing
-                        blockRecordManager.markMigrationRecordsStreamed();
-                        parentTxn.stack().commitFullStack();
-                    }
-                }
                 hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 dispatchProcessor.processDispatch(dispatch);
                 updateWorkflowMetrics(parentTxn);
@@ -788,8 +773,8 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             final var changes = immediateStateChangeListener.getKvStateChanges();
             if (!changes.isEmpty()) {
-                blockStreamManager.writeItem((lastExecutionTime) -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(lastExecutionTime), new ArrayList<>(changes)))
+                blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
                         .build());
             }
         }
@@ -955,7 +940,7 @@ public class HandleWorkflow {
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
-                                workTime,
+                                roundTimestamp,
                                 tssConfig,
                                 isActive));
             }

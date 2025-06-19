@@ -2,17 +2,19 @@
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.Round;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.function.Function;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * Maintains the state and process objects needed to produce the block stream.
@@ -154,7 +156,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      */
     void writeItem(@NonNull BlockItem item);
 
-    void writeItem(@NonNull Function<Instant, BlockItem> itemSpec);
+    void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
 
     /**
      * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should
