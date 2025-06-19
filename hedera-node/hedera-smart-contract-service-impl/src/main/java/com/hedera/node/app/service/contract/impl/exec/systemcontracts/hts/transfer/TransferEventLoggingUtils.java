@@ -9,18 +9,24 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiConstants;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
  * Helper for logging ERC transfer events for fungible and non-fungible transfers.
  */
 public class TransferEventLoggingUtils {
+
+    // Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
+    // Transfer(address indexed from, address indexed to, uint256 value)
+    private static final Bytes TRANSFER_EVENT =
+            Bytes.fromHexString("ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
+
     private TransferEventLoggingUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
@@ -91,7 +97,7 @@ public class TransferEventLoggingUtils {
         final var receiverAddress = priorityAddressOf(requireNonNull(accountStore.getAliasedAccountById(receiverId)));
         return LogBuilder.logBuilder()
                 .forLogger(tokenAddress)
-                .forEventSignature(AbiConstants.TRANSFER_EVENT)
+                .forEventSignature(TRANSFER_EVENT)
                 .forIndexedArgument(senderAddress)
                 .forIndexedArgument(receiverAddress);
     }
