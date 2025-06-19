@@ -327,16 +327,16 @@ jobs:
 
           echo "folder=${BUILD_BASE_DIR}" >>"${GITHUB_OUTPUT}"
 
+      - name: Write Artifact Version Descriptor
+        working-directory: ${{ steps.artifact-staging.outputs.folder }}
+        run: |
+          printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "${{ needs.validate.outputs.version }}" "${{ needs.validate.outputs.commit-id-short }}" "$(date -u)" | tee VERSION
+          
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           path: ~/artifact-build
           name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
-
-      - name: Write Artifact Version Descriptor
-        working-directory: ${{ steps.artifact-staging.outputs.folder }}
-        run: |
-          printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "${{ needs.validate.outputs.version }}" "${{ needs.validate.outputs.commit-id-short }}" "$(date -u)" | tee VERSION
 
       - name: Create Artifact Archive
         id: artifact-release
