@@ -988,4 +988,18 @@ public class AtomicBatchNegativeTest {
                 cryptoCreate(batchOperator),
                 atomicBatch(innerCryptoTxn).payingWith(batchOperator).hasPrecheck(INVALID_NODE_ACCOUNT_ID));
     }
+
+    @HapiTest
+    @DisplayName("schedule transactions are blacklisted in atomic batch")
+    public Stream<DynamicTest> scheduleBlackList() {
+        return hapiTest(
+                cryptoCreate("batchOperator"),
+                atomicBatch(scheduleCreate("schedule", cryptoCreate("foo")).batchKey("batchOperator"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST),
+                scheduleCreate("schedule", cryptoCreate("foo")),
+                atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+    }
 }
