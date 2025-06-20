@@ -33,10 +33,8 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-
-import java.util.Objects;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -122,16 +120,16 @@ public class NodeUpdateHandler implements TransactionHandler {
             addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
         }
 
-		boolean proxyIsSentinelValue = false;
+        boolean proxyIsSentinelValue = false;
         if (op.hasGrpcProxyEndpoint()) {
             validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
 
-			// Check for a sentinel value, which indicates that the gRPC proxy endpoint should be unset
-			if (Objects.equals(op.grpcProxyEndpointOrThrow(), ServiceEndpoint.DEFAULT)) {
-				proxyIsSentinelValue = true;
-			} else {
-				addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);
-			}
+            // Check for a sentinel value, which indicates that the gRPC proxy endpoint should be unset
+            if (Objects.equals(op.grpcProxyEndpointOrThrow(), ServiceEndpoint.DEFAULT)) {
+                proxyIsSentinelValue = true;
+            } else {
+                addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            }
         }
 
         final var nodeBuilder = updateNode(op, existingNode, proxyIsSentinelValue);
@@ -151,8 +149,8 @@ public class NodeUpdateHandler implements TransactionHandler {
         return calculator.calculate();
     }
 
-    private Node.Builder updateNode(@NonNull final NodeUpdateTransactionBody op, @NonNull final Node node,
-			final boolean unsetWebProxy) {
+    private Node.Builder updateNode(
+            @NonNull final NodeUpdateTransactionBody op, @NonNull final Node node, final boolean unsetWebProxy) {
         requireNonNull(op);
         requireNonNull(node);
 
@@ -182,7 +180,7 @@ public class NodeUpdateHandler implements TransactionHandler {
             nodeBuilder.declineReward(op.declineReward());
         }
         if (op.hasGrpcProxyEndpoint()) {
-			nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
+            nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
         }
         return nodeBuilder;
     }
