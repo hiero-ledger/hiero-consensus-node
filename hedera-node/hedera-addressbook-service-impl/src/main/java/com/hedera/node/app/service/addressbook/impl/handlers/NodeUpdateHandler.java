@@ -130,7 +130,7 @@ public class NodeUpdateHandler implements TransactionHandler {
 			if (Objects.equals(op.grpcProxyEndpointOrThrow(), ServiceEndpoint.DEFAULT)) {
 				proxyIsSentinelValue = true;
 			} else {
-				addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpointOrThrow(), nodeConfig);
+				addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);
 			}
         }
 
