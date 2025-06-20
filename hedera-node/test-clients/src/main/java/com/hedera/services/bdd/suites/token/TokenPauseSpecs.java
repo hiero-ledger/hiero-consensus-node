@@ -99,6 +99,16 @@ public class TokenPauseSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> cannotUnpauseWithInvalidPauseKey() {
+        return defaultHapiSpec("cannotUnpauseWithInvalidPauseKey")
+                .given(newKeyNamed(PAUSE_KEY), newKeyNamed(OTHER_KEY))
+                .when(
+                        tokenCreate(PRIMARY).pauseKey(PAUSE_KEY),
+                        tokenPause(PRIMARY).signedBy(DEFAULT_PAYER, PAUSE_KEY))
+                .then(tokenUnpause(PRIMARY).signedBy(DEFAULT_PAYER, OTHER_KEY).hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> pausedTokenInCustomFeeCaseStudy() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
