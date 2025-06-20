@@ -174,9 +174,12 @@ public class NodeUpdateTest {
                         .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.webProxyEndpointsEnabled"})
     final Stream<DynamicTest> cantUpdateGrpcProxyEndpointIfDisabled() throws CertificateEncodingException {
         return hapiTest(
+                overriding("nodes.webProxyEndpointsEnabled", "false"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")
