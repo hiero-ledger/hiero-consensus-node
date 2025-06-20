@@ -14,7 +14,7 @@ module com.swirlds.demo.stats.signing {
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
-    requires lazysodium.java;
+    requires com.goterl.lazysodium;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
     requires static com.github.spotbugs.annotations;
