@@ -23,7 +23,7 @@ public record MultipleNodeLogResultsImpl(@NonNull List<SingleNodeLogResult> resu
     public MultipleNodeLogResults ignoring(@NonNull final Node node) {
         Objects.requireNonNull(node, "node cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
-                .filter(res -> Objects.equals(res.nodeId(), node.getSelfId()))
+                .filter(res -> Objects.equals(res.nodeId(), node.selfId()))
                 .toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);

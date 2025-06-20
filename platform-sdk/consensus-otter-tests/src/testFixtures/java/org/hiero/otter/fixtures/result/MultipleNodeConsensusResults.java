@@ -39,7 +39,7 @@ public interface MultipleNodeConsensusResults extends OtterResult {
      * @return a new instance of {@link MultipleNodeConsensusResults} with the specified node's results excluded
      */
     @NonNull
-    MultipleNodeConsensusResults suppressingNode(@NonNull NodeId nodeId);
+    MultipleNodeConsensusResults suppressingNode(long nodeId);
 
     /**
      * Excludes the consensus results of a specific node from the results.
@@ -49,6 +49,6 @@ public interface MultipleNodeConsensusResults extends OtterResult {
      */
     @NonNull
     default MultipleNodeConsensusResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 }

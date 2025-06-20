@@ -4,6 +4,7 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
 
@@ -351,6 +352,14 @@ public class SwirldsPlatform implements Platform {
 
         replayPreconsensusEvents();
         platformWiring.startGossip();
+    }
+
+    @Override
+    public void destroy() throws InterruptedException {
+        notificationEngine.shutdown();
+        platformContext.getRecycleBin().stop();
+        platformWiring.stop();
+        getMetricsProvider().removePlatformMetrics(selfId);
     }
 
     /**

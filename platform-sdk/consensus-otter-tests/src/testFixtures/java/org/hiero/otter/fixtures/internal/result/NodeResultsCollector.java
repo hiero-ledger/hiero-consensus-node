@@ -22,7 +22,7 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
  */
 public class NodeResultsCollector {
 
-    private final NodeId nodeId;
+    private final long nodeId;
     private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
@@ -33,8 +33,8 @@ public class NodeResultsCollector {
      *
      * @param nodeId the node ID of the node
      */
-    public NodeResultsCollector(@NonNull final NodeId nodeId) {
-        this.nodeId = requireNonNull(nodeId);
+    public NodeResultsCollector(final long nodeId) {
+        this.nodeId = nodeId;
     }
 
     /**
@@ -42,8 +42,7 @@ public class NodeResultsCollector {
      *
      * @return the node ID
      */
-    @NonNull
-    public NodeId nodeId() {
+    public long nodeId() {
         return nodeId;
     }
 
@@ -56,8 +55,8 @@ public class NodeResultsCollector {
         requireNonNull(rounds);
         if (!destroyed) {
             consensusRounds.addAll(rounds);
-            consensusRoundSubscribers.removeIf(
-                    subscriber -> subscriber.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
+            consensusRoundSubscribers.removeIf(subscriber ->
+                    subscriber.onConsensusRounds(NodeId.of(nodeId), rounds) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 

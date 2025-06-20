@@ -4,8 +4,8 @@ package org.hiero.otter.fixtures;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.time.Duration;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -60,9 +60,10 @@ public interface Node {
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
      * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
      *
+     * @throws IOException if an I/O error occurs while starting the node
      * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start() throws IOException, InterruptedException;
 
     /**
      * Allows to override the default timeout for node operations.
@@ -86,15 +87,14 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration getConfiguration();
+    NodeConfiguration<?> configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
      *
      * @return the self id
      */
-    @NonNull
-    NodeId getSelfId();
+    long selfId();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -119,23 +119,19 @@ public interface Node {
      * @return the software version of the node
      */
     @NonNull
-    SemanticVersion getVersion();
+    SemanticVersion version();
 
     /**
      * Sets the software version of the node.
      *
-     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used.
-     *
-     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is not running.
      *
      * @param version the software version to set for the node
      */
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * This method updates the version to trigger a "config only upgrade" on the next restart.
-     *
-     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be called while the node is not running.
      */
     void bumpConfigVersion();
 

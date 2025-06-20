@@ -107,6 +107,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
+    exports com.swirlds.platform.swirldapp;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

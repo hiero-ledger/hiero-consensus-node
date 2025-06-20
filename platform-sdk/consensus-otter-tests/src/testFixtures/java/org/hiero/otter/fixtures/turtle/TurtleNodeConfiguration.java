@@ -15,16 +15,14 @@ import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 
 /**
  * {@link NodeConfiguration} implementation for a Turtle node.
  */
-public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConfiguration> {
+public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
-    private final Map<String, String> overriddenProperties = new HashMap<>();
     private final String outputDirectory;
 
     /**
@@ -34,6 +32,14 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
      */
     public TurtleNodeConfiguration(@NonNull final Path outputDirectory) {
         this.outputDirectory = outputDirectory.toString();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public TurtleNodeConfiguration self() {
+        return this;
     }
 
     /**
@@ -55,26 +61,6 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
         return createBasicConfigBuilder()
                 .withSource(new SimpleConfigSource(overriddenProperties))
                 .getOrCreateConfig();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public TurtleNodeConfiguration set(@NonNull final String key, final boolean value) {
-        overriddenProperties.put(key, Boolean.toString(value));
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public TurtleNodeConfiguration set(@NonNull final String key, @NonNull final String value) {
-        overriddenProperties.put(key, value);
-        return this;
     }
 
     private TestConfigBuilder createBasicConfigBuilder() {

@@ -139,7 +139,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         return new TurtleNode(
-                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
+                randotron, timeManager.time(), nodeId.id(), roster, privateKeys, simulatedNetwork, logging, outputDir);
     }
 
     /**

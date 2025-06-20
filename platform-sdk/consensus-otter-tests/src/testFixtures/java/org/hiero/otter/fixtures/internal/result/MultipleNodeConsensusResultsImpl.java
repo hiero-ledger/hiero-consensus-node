@@ -8,7 +8,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -71,7 +70,7 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      */
     @Override
     @NonNull
-    public MultipleNodeConsensusResults suppressingNode(@NonNull final NodeId nodeId) {
+    public MultipleNodeConsensusResults suppressingNode(long nodeId) {
         final List<SingleNodeConsensusResult> newResults = results.stream()
                 .filter(result -> !Objects.equals(nodeId, result.nodeId()))
                 .toList();

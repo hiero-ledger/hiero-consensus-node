@@ -11,7 +11,6 @@ import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -137,7 +136,7 @@ public class MultipleNodeConsensusResultsAssert
         return this;
     }
 
-    private record RoundListResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+    private record RoundListResult(@NonNull Long nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {
             return rounds.size();
         }

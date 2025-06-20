@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.result;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Interface that provides access to the consensus results of a single node that are created during a test.
@@ -16,8 +15,7 @@ public interface SingleNodeConsensusResult extends OtterResult {
      *
      * @return the node ID
      */
-    @NonNull
-    NodeId nodeId();
+    long nodeId();
 
     /**
      * Returns the number of the last round created so far.
