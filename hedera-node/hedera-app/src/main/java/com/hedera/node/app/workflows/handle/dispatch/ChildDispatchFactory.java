@@ -285,6 +285,7 @@ public class ChildDispatchFactory {
                 childFeeAccumulator,
                 dispatchMetadata,
                 transactionChecker,
+                null,
                 NOOP_BATCH_INNER_TXN_PREHANDLER,
                 category);
         final var childFees = dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);

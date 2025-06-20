@@ -13,7 +13,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 @FunctionalInterface
 public interface BatchInnerTxnPreHandle {
 
-    BatchInnerTxnPreHandle NOOP_BATCH_INNER_TXN_PREHANDLER = (txn) ->
+    BatchInnerTxnPreHandle NOOP_BATCH_INNER_TXN_PREHANDLER = (txn, preHandleResult) ->
             new PreHandleResult(null, null, SO_FAR_SO_GOOD, OK, null, emptySet(), null, emptySet(), null, null, 0);
 
     /**
@@ -21,5 +21,5 @@ public interface BatchInnerTxnPreHandle {
      *
      * @param innerTransaction the inner transaction bytes
      */
-    PreHandleResult preHandle(Bytes innerTransaction);
+    PreHandleResult preHandle(Bytes innerTransaction, PreHandleResult previousResult);
 }

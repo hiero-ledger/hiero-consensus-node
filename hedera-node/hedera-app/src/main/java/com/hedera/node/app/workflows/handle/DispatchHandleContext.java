@@ -66,6 +66,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -101,6 +102,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final TransactionChecker transactionChecker;
     private final TransactionCategory transactionCategory;
 
+    // This is used to store the pre-handle results for the inner transactions
+    // in an atomic batch, null otherwise
+    @Nullable
+    private final List<PreHandleResult> preHandleResults;
+
     @NonNull
     private final BatchInnerTxnPreHandle innerTxnPreHandler;
 
@@ -129,6 +135,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final FeeAccumulator feeAccumulator,
             @NonNull final DispatchMetadata handleMetaData,
             @NonNull final TransactionChecker transactionChecker,
+            @Nullable final List<PreHandleResult> preHandleResults,
             @Nullable final BatchInnerTxnPreHandle innerTxnPreHandler,
             @NonNull final TransactionCategory transactionCategory) {
         this.consensusNow = requireNonNull(consensusNow);
@@ -158,6 +165,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.dispatchMetaData = requireNonNull(handleMetaData);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.transactionCategory = requireNonNull(transactionCategory);
+        this.preHandleResults = preHandleResults;
         this.innerTxnPreHandler = innerTxnPreHandler;
     }
 
@@ -388,11 +396,16 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public <T extends StreamBuilder> T dispatch(@NonNull final DispatchOptions<T> options) {
         requireNonNull(options);
         PreHandleResult childPreHandleResult = null;
+        PreHandleResult previousPreHandleResult = null;
 
         // Compute pre-handle results for the inner transactions and pass them to the child dispatch.
         final var batchInnerTxnBytes = options.dispatchMetadata().getMetadata(INNER_TRANSACTION_BYTES, Bytes.class);
-        if (options.category() == BATCH_INNER && batchInnerTxnBytes.isPresent()) {
-            childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get());
+        if (options.category() == BATCH_INNER
+                && preHandleResults != null
+                && !preHandleResults.isEmpty()
+                && batchInnerTxnBytes.isPresent()) {
+            previousPreHandleResult = preHandleResults.removeFirst();
+            childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get(), previousPreHandleResult);
         }
         final var childDispatch = childDispatchFactory.createChildDispatch(
                 config,

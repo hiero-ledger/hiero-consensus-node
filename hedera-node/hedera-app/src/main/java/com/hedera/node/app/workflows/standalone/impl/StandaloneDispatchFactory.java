@@ -162,14 +162,14 @@ public class StandaloneDispatchFactory {
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
         final var blockRecordInfo = BlockRecordInfoImpl.from(state);
 
-        BatchInnerTxnPreHandle innerTxnPreHandler = (txn) -> {
+        BatchInnerTxnPreHandle innerTxnPreHandler = (txn, previousPreHandleResult) -> {
             final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
             return preHandleWorkflow.preHandleTransaction(
                     creatorInfo,
                     readableStoreFactory,
                     accountStore,
                     txn,
-                    null,
+                    previousPreHandleResult,
                     null,
                     PreHandleWorkflow.InnerTransaction.YES);
         };
@@ -199,6 +199,7 @@ public class StandaloneDispatchFactory {
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
+                preHandleResult.innerResults(),
                 innerTxnPreHandler,
                 HandleContext.TransactionCategory.USER);
         final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext);

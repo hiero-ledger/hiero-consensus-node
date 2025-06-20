@@ -332,14 +332,14 @@ public class ParentTxnFactory {
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
 
-        BatchInnerTxnPreHandle innerTxnPreHandler = (txn) -> {
+        BatchInnerTxnPreHandle innerTxnPreHandler = (txn, previousPreHandleResult) -> {
             final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
             return preHandleWorkflow.preHandleTransaction(
                     creatorInfo,
                     readableStoreFactory,
                     accountStore,
                     txn,
-                    null,
+                    previousPreHandleResult,
                     null,
                     PreHandleWorkflow.InnerTransaction.YES);
         };
@@ -369,6 +369,7 @@ public class ParentTxnFactory {
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
+                preHandleResult.innerResults(),
                 innerTxnPreHandler,
                 transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);

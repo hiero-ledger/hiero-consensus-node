@@ -822,6 +822,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
+                results,
                 NOOP_BATCH_INNER_TXN_PREHANDLER,
                 category);
     }
