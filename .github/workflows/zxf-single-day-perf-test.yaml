@@ -37,8 +37,8 @@ jobs:
             # Triggered by workflow_dispatch
             tag_name="${{ github.event.inputs.tag-to-run }}"
           fi
-          echo "Using tag: $tag_name"
-          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "Using tag: ${tag_name}"
+          echo "tag_name=${tag_name}" >> "${GITHUB_OUTPUT}"
 
       # Call the performance workflow with appropriate input version
       - name: Call CITR Performance Workflow
