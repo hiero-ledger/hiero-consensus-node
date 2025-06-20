@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test;
 
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_KEY;
-import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.UPGRADE_FILE_HASH_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema.FREEZE_INFO_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema.FREEZE_TIME_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema.UPGRADE_FILE_HASH_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -58,11 +59,12 @@ class FreezeServiceImplTest {
         final var schema = schemaCaptor.getValue();
 
         final var statesToCreate = schema.statesToCreate();
-        assertEquals(2, statesToCreate.size());
+        assertEquals(3, statesToCreate.size(), "There should be 3 states created by the FreezeServiceImpl");
         final var iter =
                 statesToCreate.stream().map(StateDefinition::stateKey).sorted().iterator();
-        assertEquals(FREEZE_TIME_KEY, iter.next());
-        assertEquals(UPGRADE_FILE_HASH_KEY, iter.next());
+        assertEquals(FREEZE_INFO_KEY, iter.next(), "The first state should be the freeze info key");
+        assertEquals(FREEZE_TIME_KEY, iter.next(), "The second state should be the freeze time key");
+        assertEquals(UPGRADE_FILE_HASH_KEY, iter.next(), "The third state should be the upgrade file hash key");
     }
 
     @Test

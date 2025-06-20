@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.networkadmin.impl;
 
 import com.hedera.node.app.service.networkadmin.FreezeService;
-import com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema;
+import com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema;
 import com.hedera.node.app.spi.RpcService;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,6 +13,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public final class FreezeServiceImpl implements FreezeService {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
-        registry.register(new V0490FreezeSchema());
+        registry.register(new V0640FreezeSchema());
     }
 }

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema.FREEZE_INFO_KEY;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartRound;
@@ -32,6 +33,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockstream.FreezeInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -52,6 +54,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.WritableScheduleStoreImpl;
@@ -83,11 +86,13 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -156,6 +161,7 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
+    private final PlatformStateFacade platformStateFacade;
 
     @Inject
     public HandleWorkflow(
@@ -187,7 +193,8 @@ public class HandleWorkflow {
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
-            @NonNull final NodeRewardManager nodeRewardManager) {
+            @NonNull final NodeRewardManager nodeRewardManager,
+            @NonNull final PlatformStateFacade platformStateFacade) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -221,6 +228,7 @@ public class HandleWorkflow {
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
         this.nodeRewardManager = requireNonNull(nodeRewardManager);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.platformStateFacade = requireNonNull(platformStateFacade);
     }
 
     /**
@@ -254,6 +262,20 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
+
+        if (platformStateFacade.isFreezeRound(state, round)) {
+            // If this is a freeze round, we need to update the freeze info state
+            final var writableFreezeService = state.getWritableStates(FreezeServiceImpl.NAME);
+            final WritableSingletonState<Object> writableFreezeServiceSingleton =
+                    writableFreezeService.getSingleton(FREEZE_INFO_KEY);
+            final FreezeInfo freezeInfoState = (FreezeInfo) writableFreezeServiceSingleton.get();
+            final FreezeInfo newFreezeInfo = requireNonNull(freezeInfoState)
+                    .copyBuilder()
+                    .lastFreezeRound(round.getRoundNum())
+                    .build();
+            writableFreezeServiceSingleton.put(newFreezeInfo);
+            ((CommittableWritableStates) writableFreezeService).commit();
+        }
 
         configureTssCallbacks(state);
         try {
@@ -342,7 +364,7 @@ public class HandleWorkflow {
                             state,
                             creator,
                             platformTxn,
-                            event.getSoftwareVersion(),
+                            event.getEventCore().birthRound(),
                             simplifiedStateSignatureTxnCallback);
                 } catch (final Exception e) {
                     logger.fatal(
@@ -418,14 +440,14 @@ public class HandleWorkflow {
      * @param state the writable {@link State} that this transaction will work on
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
-     * @param txnVersion the software version for the event containing the transaction
+     * @param eventBirthRound the birth round of the event that this transaction belongs to
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
             @NonNull final State state,
             @NonNull final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
-            @NonNull final SemanticVersion txnVersion,
+            final long eventBirthRound,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
         final var handleStart = System.nanoTime();
 
@@ -455,7 +477,7 @@ public class HandleWorkflow {
         }
 
         var lastRecordManagerTime = streamMode == RECORDS ? blockRecordManager.consTimeOfLastHandledTxn() : null;
-        final var handleOutput = executeSubmittedParent(userTxn, txnVersion, state);
+        final var handleOutput = executeSubmittedParent(userTxn, eventBirthRound, state);
         if (streamMode != BLOCKS) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
@@ -642,14 +664,18 @@ public class HandleWorkflow {
      * and no other side effects.
      *
      * @param parentTxn the user transaction to execute
-     * @param txnVersion the software version for the event containing the transaction
      * @param state the state to commit any direct changes against
+     * @param eventBirthRound the round in which the event was born
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSubmittedParent(
-            @NonNull final ParentTxn parentTxn, @NonNull final SemanticVersion txnVersion, @NonNull final State state) {
+            @NonNull final ParentTxn parentTxn, final long eventBirthRound, @NonNull final State state) {
         try {
-            if (isOlderSoftwareEvent(txnVersion)) {
+            final var writableFreezeService = state.getWritableStates(FreezeServiceImpl.NAME);
+            final FreezeInfo freezeInfoState = writableFreezeService
+                    .<FreezeInfo>getSingleton(FREEZE_INFO_KEY)
+                    .get();
+            if (eventBirthRound <= requireNonNull(freezeInfoState).lastFreezeRound()) {
                 if (streamMode != BLOCKS) {
                     // This updates consTimeOfLastHandledTxn as a side effect
                     blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());

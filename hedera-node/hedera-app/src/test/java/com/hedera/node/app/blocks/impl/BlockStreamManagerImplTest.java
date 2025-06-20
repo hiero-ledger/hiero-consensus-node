@@ -11,6 +11,7 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema.FREEZE_INFO_KEY;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
 import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -40,6 +41,7 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.blockstream.FreezeInfo;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
@@ -47,6 +49,7 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -61,6 +64,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -160,6 +164,9 @@ class BlockStreamManagerImplTest {
 
     @Mock
     private Counter indirectProofsCounter;
+
+    @Mock
+    private WritableSingletonState<FreezeInfo> freezeInfoState;
 
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
@@ -508,6 +515,8 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(CONSENSUS_NOW),
                 aWriter);
         givenEndOfRoundSetup();
+        given(freezeInfoState.get())
+                .willReturn(FreezeInfo.newBuilder().lastFreezeRound(ROUND_NO).build());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -779,6 +788,8 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(N_MINUS_2_BLOCK_HASH);
         subject.startRound(round, state);
 
+        given(freezeInfoState.get())
+                .willReturn(FreezeInfo.newBuilder().lastFreezeRound(ROUND_NO).build());
         // And another round at t=1 with freeze
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(1001));
         subject.startRound(round, state);
@@ -949,9 +960,12 @@ class BlockStreamManagerImplTest {
                 metrics);
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
+        lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
         blockStreamInfoState = new WritableSingletonStateBase<>(BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);
+        lenient().when(readableStates.<FreezeInfo>getSingleton(FREEZE_INFO_KEY)).thenReturn(freezeInfoState);
+        lenient().when(freezeInfoState.get()).thenReturn(FreezeInfo.DEFAULT);
     }
 
     private void givenEndOfRoundSetup() {

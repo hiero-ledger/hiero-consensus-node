@@ -95,7 +95,6 @@ class InternalEventValidatorTests {
         final GossipEvent noTimeCreated = GossipEvent.newBuilder()
                 .eventCore(EventCore.newBuilder()
                         .timeCreated((Timestamp) null)
-                        .version(wholeEvent.eventCore().version())
                         .build())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
@@ -104,19 +103,6 @@ class InternalEventValidatorTests {
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
         assertEquals(4, exitedIntakePipelineCount.get());
-
-        final GossipEvent noVersion = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(wholeEvent.eventCore().timeCreated())
-                        .version((SemanticVersion) null)
-                        .build())
-                .signature(wholeEvent.signature())
-                .transactions(wholeEvent.transactions())
-                .build();
-        when(platformEvent.getGossipEvent()).thenReturn(noVersion);
-        assertNull(multinodeValidator.validateEvent(platformEvent));
-        assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(6, exitedIntakePipelineCount.get());
 
         final GossipEvent nullTransaction = GossipEvent.newBuilder()
                 .eventCore(wholeEvent.eventCore())
@@ -127,7 +113,7 @@ class InternalEventValidatorTests {
 
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(8, exitedIntakePipelineCount.get());
+        assertEquals(6, exitedIntakePipelineCount.get());
 
         final ArrayList<EventDescriptor> parents = new ArrayList<>();
         parents.add(null);
@@ -140,7 +126,7 @@ class InternalEventValidatorTests {
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(10, exitedIntakePipelineCount.get());
+        assertEquals(8, exitedIntakePipelineCount.get());
     }
 
     @Test

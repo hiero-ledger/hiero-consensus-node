@@ -16,6 +16,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.service.networkadmin.impl.schemas.V0640FreezeSchema.FREEZE_INFO_KEY;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -26,6 +27,7 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.blockstream.FreezeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -37,6 +39,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -122,9 +125,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long blockNumber;
     private int eventIndex = 0;
     private final Map<Hash, Integer> eventIndexInBlock = new HashMap<>();
-
-    // Set to the round number of the last round handled before entering a freeze period
-    private long freezeRoundNumber = -1;
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private long lastRoundOfPrevBlock;
     private Bytes lastBlockHash;
@@ -271,11 +271,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
-        if (platformStateFacade.isFreezeRound(state, round)) {
-            // Track freeze round numbers because they always end a block
-            freezeRoundNumber = round.getRoundNum();
-        }
-
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
@@ -393,7 +388,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
-        final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
+        final var lastFreezeRoundKeyState =
+                state.getReadableStates(FreezeServiceImpl.NAME).<FreezeInfo>getSingleton(FREEZE_INFO_KEY);
+        final FreezeInfo freezeInfo = lastFreezeRoundKeyState.get();
+        final long freezeRoundNumber = requireNonNull(freezeInfo).lastFreezeRound();
+        final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
@@ -479,6 +478,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
+
             // Special case when signing with hinTS and this is the freeze round; we have to wait
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
@@ -640,7 +640,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return requireNonNull(blockStreamInfoState.get());
     }
 
-    private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
+    private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock, final long freezeRoundNumber) {
         if (fatalShutdownFuture != null) {
             return true;
         }

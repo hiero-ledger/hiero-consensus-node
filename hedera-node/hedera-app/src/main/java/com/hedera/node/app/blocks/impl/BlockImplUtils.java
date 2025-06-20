@@ -15,6 +15,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_S
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_COUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_ID;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FREEZE_INFO;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FREEZE_TIME;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HINTS_KEY_SETS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HISTORY_SIGNATURES;
@@ -171,6 +172,7 @@ public class BlockImplUtils {
                         switch (stateKey) {
                             case "FREEZE_TIME" -> STATE_ID_FREEZE_TIME.protoOrdinal();
                             case "UPGRADE_FILE_HASH" -> STATE_ID_UPGRADE_FILE_HASH.protoOrdinal();
+                            case "FREEZE_INFO" -> STATE_ID_FREEZE_INFO.protoOrdinal();
                             default -> UNKNOWN_STATE_ID;
                         };
                     case "PlatformStateService" ->

@@ -11,7 +11,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -66,11 +65,7 @@ public class TipsetEventCreatorTestUtils {
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        final SemanticVersion softwareVersion =
-                SemanticVersion.newBuilder().major(1).build();
-
-        return new TipsetEventCreator(
-                platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);
+        return new TipsetEventCreator(platformContext, random, signer, roster, nodeId, transactionSupplier);
     }
 
     /**

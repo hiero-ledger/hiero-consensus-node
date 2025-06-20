@@ -49,6 +49,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
@@ -162,6 +163,9 @@ class HandleWorkflowTest {
 
     @Mock
     private NodeRewardManager nodeRewardManager;
+
+    @Mock
+    private PlatformStateFacade platformStateFacade;
 
     private HandleWorkflow subject;
 
@@ -475,6 +479,7 @@ class HandleWorkflowTest {
                 () -> PlatformStatus.ACTIVE,
                 blockHashSigner,
                 null,
-                nodeRewardManager);
+                nodeRewardManager,
+                platformStateFacade);
     }
 }

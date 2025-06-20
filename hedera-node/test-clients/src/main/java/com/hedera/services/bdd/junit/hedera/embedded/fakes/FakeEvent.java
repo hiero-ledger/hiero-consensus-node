@@ -47,6 +47,7 @@ public class FakeEvent implements Event {
         this.eventCore = EventCore.newBuilder()
                 .creatorNodeId(creatorId.id())
                 .timeCreated(HapiUtils.asTimestamp(timeCreated))
+                .birthRound(1L)
                 .version(version)
                 .build();
     }
