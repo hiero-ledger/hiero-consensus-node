@@ -18,7 +18,7 @@ permissions:
 jobs:
   run-citr-performance-test:
     name: Run Single Day Performance Test
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -49,14 +49,14 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
           inputs: '{
-            "namespace": "Latitude3",
-            "hederaversion": "${{ steps.tag.outputs.tag_name }}",
-            "soloversion": "latest_tested_solo-charts0.59",
-            "NLG_Accounts": "100000000",
-            "NLG_Time": "330m",
-            "NLG_Time3": "2h",
-            "AddAppProps": "",
-            "AddSettings": "",
-            "CryptoBenchMerkleDb_javaargs": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
-            "CryptoBenchMerkleDb_testparams": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+            "namespace": "Latitude4",
+            "hcn-version": "${{ steps.tag.outputs.tag_name }}",
+            "solo-version": "latest_tested_solo-charts0.59",
+            "nlg-accounts": "100000000",
+            "nlg-time": "330m",
+            "nlg-time3": "2h",
+            "add-app-props": "",
+            "add-settings": "",
+            "crypto-bench-merkle-db-java-args": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
+            "crypto-bench-merkle-db-test-params": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
           }'
