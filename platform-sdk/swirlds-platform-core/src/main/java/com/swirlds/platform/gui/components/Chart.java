@@ -3,7 +3,7 @@ package com.swirlds.platform.gui.components;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.metrics.PlatformMetric;
+import com.swirlds.common.metrics.platform.AbstractStatsMetric;
 import com.swirlds.common.metrics.statistics.internal.StatsBuffer;
 import com.swirlds.metrics.api.Metric;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -204,11 +204,11 @@ public class Chart extends JPanel {
         super.paintComponent(g);
         try {
             StatsBuffer buffer;
-            if (metric instanceof PlatformMetric platformMetric) {
+            if (metric instanceof AbstractStatsMetric statsMetric) {
                 if (allHistory) {
-                    buffer = platformMetric.getStatsBuffered().getAllHistory();
+                    buffer = statsMetric.getStatsBuffered().getAllHistory();
                 } else {
-                    buffer = platformMetric.getStatsBuffered().getRecentHistory();
+                    buffer = statsMetric.getStatsBuffered().getRecentHistory();
                 }
             } else {
                 buffer = new StatsBuffer(0, 0, 0);

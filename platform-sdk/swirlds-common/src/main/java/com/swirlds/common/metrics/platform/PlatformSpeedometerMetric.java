@@ -11,7 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Platform-implementation of {@link SpeedometerMetric}
  */
-public class PlatformSpeedometerMetric extends AbstractDistributionMetric implements SpeedometerMetric {
+public class PlatformSpeedometerMetric extends AbstractStatsMetric implements SpeedometerMetric {
 
     @SuppressWarnings("removal")
     private final StatsSpeedometer speedometer;

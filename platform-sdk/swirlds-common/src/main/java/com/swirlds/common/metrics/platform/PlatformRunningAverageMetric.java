@@ -12,7 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * Platform-implementation of {@link RunningAverageMetric}
  */
 @SuppressWarnings("unused")
-public class PlatformRunningAverageMetric extends AbstractDistributionMetric implements RunningAverageMetric {
+public class PlatformRunningAverageMetric extends AbstractStatsMetric implements RunningAverageMetric {
 
     @SuppressWarnings("removal")
     private final @NonNull StatsRunningAverage runningAverage;

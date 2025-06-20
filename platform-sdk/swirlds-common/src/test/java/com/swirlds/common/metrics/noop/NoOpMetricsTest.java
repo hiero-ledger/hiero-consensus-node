@@ -12,11 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.metrics.DurationGauge;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
-import com.swirlds.common.metrics.PlatformMetric;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.common.metrics.StatEntry;
-import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleAccumulator;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -46,17 +44,6 @@ class NoOpMetricsTest {
         assertNotNull(metric.getFormat());
         assertNotNull(metric.getValueTypes());
         metric.reset();
-        if (metric instanceof PlatformMetric legacyMetric) {
-            final StatsBuffered statsBuffered = legacyMetric.getStatsBuffered();
-            assertNotNull(statsBuffered);
-            assertNotNull(statsBuffered.getAllHistory());
-            assertNotNull(statsBuffered.getRecentHistory());
-            statsBuffered.reset(0);
-            statsBuffered.getMean();
-            statsBuffered.getMax();
-            statsBuffered.getMin();
-            statsBuffered.getStdDev();
-        }
     }
 
     @Test
@@ -239,9 +226,6 @@ class NoOpMetricsTest {
                     metrics.getOrCreate(new StatEntry.Config<>("asdf", "asdf", Integer.class, () -> 0));
 
             assertNotNull(metric.getDataType());
-            if (metric instanceof PlatformMetric platformMetric) {
-                assertNotNull(platformMetric.getStatsBuffered());
-            }
             assertNotNull(metric.getReset());
             metric.getReset().accept(0.0);
             assertNotNull(metric.getStatsStringSupplier());
