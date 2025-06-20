@@ -1045,10 +1045,12 @@ platform-sdk/sdk/metricsDoc.tsv
 
 # Temporary Test Folders (Poorly Behaved Tests)
 **/swirlds-tmp
+hedera-node/hedera-app/test/**
 
 # Preconsensus event stream files
 *.pces
 *.pcesD
+!**/src/test/resources/**/*.pces
 
 # Do not ignore the files required by the Platform Core tests
 !platform-sdk/**/src/test/resources/**/*.jar
@@ -1073,3 +1075,8 @@ hedera-node/test-clients/rcdiff/diff.txt
 
 ### Ignore binary files in Test-Clients root
 hedera-node/test-clients/*.bin
+
+### Ignore validator files
+hedera-state-validator/report.json
+hedera-state-validator/slack_report.json
+hedera-state-validator/validator.log

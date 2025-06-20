@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -33,6 +18,7 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -45,6 +31,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUnfreezeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -53,11 +40,11 @@ import com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -72,12 +59,16 @@ class TokenUnfreezeAccountHandlerTest {
             AccountID.newBuilder().accountNum(13257L).build();
     private TokenUnfreezeAccountHandler subject;
 
+    @Mock(strictness = LENIENT)
+    private PureChecksContext pureChecksContext;
+
     @BeforeEach
     void setUp() {
         subject = new TokenUnfreezeAccountHandler();
     }
 
     @Nested
+    @ExtendWith(MockitoExtension.class)
     class PreHandleTests {
         private ReadableAccountStore accountStore;
         private ReadableTokenStore tokenStore;
@@ -102,16 +93,15 @@ class TokenUnfreezeAccountHandlerTest {
         }
 
         @Test
-        void tokenUnfreezeWithNoAccount() throws PreCheckException {
+        void tokenUnfreezeWithNoAccount() {
             final var theTxn = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_13257))
                     .tokenUnfreeze(TokenUnfreezeAccountTransactionBody.newBuilder()
                             .token(TokenID.newBuilder().tokenNum(123L)))
                     .build();
+            given(pureChecksContext.body()).willReturn(theTxn);
 
-            final var context = new FakePreHandleContext(accountStore, theTxn);
-            context.registerStore(ReadableTokenStore.class, tokenStore);
-            Assertions.assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ACCOUNT_ID);
+            Assertions.assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_ACCOUNT_ID);
         }
     }
 
@@ -234,7 +224,7 @@ class TokenUnfreezeAccountHandlerTest {
             given(tokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
             given(accountStore.getAccountById(ACCOUNT_13257))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_13257).build());
-            given(tokenRelStore.getForModify(ACCOUNT_13257, token)).willReturn(null);
+            given(tokenRelStore.get(ACCOUNT_13257, token)).willReturn(null);
             given(expiryValidator.expirationStatus(EntityType.ACCOUNT, false, 0))
                     .willReturn(OK);
             final var txn = newUnfreezeTxn(token);
@@ -297,7 +287,7 @@ class TokenUnfreezeAccountHandlerTest {
             given(tokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey());
             given(accountStore.getAccountById(ACCOUNT_13257))
                     .willReturn(Account.newBuilder().accountId(ACCOUNT_13257).build());
-            given(tokenRelStore.getForModify(ACCOUNT_13257, token))
+            given(tokenRelStore.get(ACCOUNT_13257, token))
                     .willReturn(TokenRelation.newBuilder()
                             .tokenId(token)
                             .accountId(ACCOUNT_13257)
@@ -328,7 +318,7 @@ class TokenUnfreezeAccountHandlerTest {
 
         private ReadableTokenStore.TokenMetadata tokenMetaWithFreezeKey(Key freezeKey) {
             return new ReadableTokenStore.TokenMetadata(
-                    null, null, null, freezeKey, null, null, null, null, false, asAccount(25L), 2);
+                    null, null, null, freezeKey, null, null, null, null, false, asAccount(0L, 0L, 25L), 2);
         }
 
         private TransactionBody newUnfreezeTxn(TokenID token) {

@@ -1,24 +1,12 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
+
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.createAndLinkEcdsaKey;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -26,6 +14,9 @@ import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
+import java.io.File;
+import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
 import java.util.Optional;
 import java.util.function.Supplier;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
@@ -91,12 +82,30 @@ public class SpecKeyFromPem extends UtilOp {
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         pemLoc = pemLocFn.map(Supplier::get).orElse(pemLoc);
 
-        incorporatePem(spec, control, pemLoc, passphrase, actualName(), linkedId, linkSupplier);
+        incorporateEd25519Pem(spec, control, pemLoc, passphrase, actualName(), linkedId, linkSupplier);
 
         return false;
     }
 
-    static void incorporatePem(
+    static SigControl incorporateUnknownTypePem(
+            final HapiSpec spec,
+            final String pemLoc,
+            final String passphrase,
+            final String name,
+            final Optional<String> linkedId,
+            final Optional<Supplier<String>> linkSupplier) {
+        final PrivateKey pk = KeyUtils.readUnknownTypeKeyFrom(new File(pemLoc), passphrase);
+        final var control = TypedKey.from(pk).type();
+        if (control == SigControl.SECP256K1_ON) {
+            createAndLinkEcdsaKey(spec, (ECPrivateKey) pk, name, linkedId, linkSupplier, null);
+        } else {
+            incorporateEd25519Pem(spec, control, pemLoc, passphrase, name, linkedId, linkSupplier);
+        }
+
+        return control;
+    }
+
+    static void incorporateEd25519Pem(
             final HapiSpec spec,
             final SigControl control,
             final String pemLoc,
@@ -120,7 +129,7 @@ public class SpecKeyFromPem extends UtilOp {
     }
 
     private static Key populatedFromSeed(final SigControl control, final EdDSAPrivateKey key) {
-        if (control == SIMPLE) {
+        if (control == SIMPLE || control.getChildControls().length == 0) {
             return Key.newBuilder()
                     .setEd25519(ByteString.copyFrom(key.getAbyte()))
                     .build();

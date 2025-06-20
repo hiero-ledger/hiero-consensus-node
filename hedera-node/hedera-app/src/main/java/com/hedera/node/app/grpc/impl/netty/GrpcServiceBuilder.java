@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
 import static java.util.Objects.requireNonNull;
@@ -25,6 +10,9 @@ import com.hedera.node.app.grpc.impl.QueryMethod;
 import com.hedera.node.app.grpc.impl.TransactionMethod;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -64,10 +52,11 @@ final class GrpcServiceBuilder {
     private static final Logger logger = LogManager.getLogger(GrpcServiceBuilder.class);
 
     /**
-     * Create a single JVM-wide Marshaller instance that simply reads/writes byte arrays to/from
-     * {@link InputStream}s. This class is thread safe.
+     * The marshaller to use to read/write byte arrays to/from {@link InputStream}s. This class is thread safe.
      */
-    private static final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller();
+    private final DataBufferMarshaller marshaller;
+
+    private final DataBufferMarshaller jumboMarshaller;
 
     /** The name of the service we are building. For example, the TokenService. */
     private final String serviceName;
@@ -92,7 +81,7 @@ final class GrpcServiceBuilder {
      * The set of transaction method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #transaction(String)}. Then,
-     * when {@link #build(Metrics)} is called, the set is used to create the transaction service method definitions.
+     * when {@link #build(Metrics, int)} is called, the set is used to create the transaction service method definitions.
      */
     private final Set<String> txMethodNames = new HashSet<>();
 
@@ -100,7 +89,7 @@ final class GrpcServiceBuilder {
      * The set of query method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #query(String)}. Then,
-     * when {@link #build(Metrics)} is called, the set is used to create the query service method definitions.
+     * when {@link #build(Metrics, int)} is called, the set is used to create the query service method definitions.
      */
     private final Set<String> queryMethodNames = new HashSet<>();
 
@@ -110,19 +99,25 @@ final class GrpcServiceBuilder {
      * @param serviceName The name of the service. Cannot be null or blank.
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
      * @param queryWorkflow The workflow to use for handling all queries
+     * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
+     * @param jumboMarshaller The marshaller to use for handling jumbo transactions
      * @throws NullPointerException if any of the parameters are null
      * @throws IllegalArgumentException if the serviceName is blank
      */
     public GrpcServiceBuilder(
             @NonNull final String serviceName,
             @NonNull final IngestWorkflow ingestWorkflow,
-            @NonNull final QueryWorkflow queryWorkflow) {
+            @NonNull final QueryWorkflow queryWorkflow,
+            @NonNull final DataBufferMarshaller marshaller,
+            @NonNull final DataBufferMarshaller jumboMarshaller) {
         this.ingestWorkflow = requireNonNull(ingestWorkflow);
         this.queryWorkflow = requireNonNull(queryWorkflow);
         this.serviceName = requireNonNull(serviceName);
         if (serviceName.isBlank()) {
             throw new IllegalArgumentException("serviceName cannot be blank");
         }
+        this.marshaller = requireNonNull(marshaller);
+        this.jumboMarshaller = requireNonNull(jumboMarshaller);
     }
 
     /**
@@ -165,20 +160,38 @@ final class GrpcServiceBuilder {
      * Build a grpc {@link ServerServiceDefinition} for each transaction and query method registered with this builder.
      *
      * @param metrics Used for recording metrics for the transaction or query methods
+     * @param configProvider Used for obtaining the maximum message size allowed for the gRPC server
      * @return A {@link ServerServiceDefinition} that can be registered with a gRPC server
      */
     @NonNull
-    public ServerServiceDefinition build(@NonNull final Metrics metrics) {
+    public ServerServiceDefinition build(@NonNull final Metrics metrics, ConfigProvider configProvider) {
+        final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+        final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
+        final var jumboTxnMaxSize = jumboTxnConfig.maxTxnSize();
+        final var messageMaxSize = configProvider
+                .getConfiguration()
+                .getConfigData(HederaConfig.class)
+                .transactionMaxBytes();
+
         final var builder = ServerServiceDefinition.builder(serviceName);
         txMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC transaction method {}.{}", serviceName, methodName);
-            final var method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics);
-            addMethod(builder, serviceName, methodName, method);
+            TransactionMethod method;
+
+            if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
+                // add jumbo transaction methods
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, jumboTxnMaxSize);
+                addMethod(builder, serviceName, methodName, method, jumboMarshaller);
+            } else {
+                // add regular transaction methods
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, messageMaxSize);
+                addMethod(builder, serviceName, methodName, method, marshaller);
+            }
         });
         queryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
-            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics);
-            addMethod(builder, serviceName, methodName, method);
+            final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, messageMaxSize);
+            addMethod(builder, serviceName, methodName, method, marshaller);
         });
         return builder.build();
     }
@@ -188,7 +201,8 @@ final class GrpcServiceBuilder {
             @NonNull final ServerServiceDefinition.Builder builder,
             @NonNull final String serviceName,
             @NonNull final String methodName,
-            @NonNull final MethodBase method) {
+            @NonNull final MethodBase method,
+            @NonNull final DataBufferMarshaller marshallerToUse) {
 
         requireNonNull(builder);
         requireNonNull(serviceName);
@@ -198,8 +212,8 @@ final class GrpcServiceBuilder {
         final var methodDescriptor = MethodDescriptor.<BufferedData, BufferedData>newBuilder()
                 .setType(MethodType.UNARY)
                 .setFullMethodName(serviceName + "/" + methodName)
-                .setRequestMarshaller(MARSHALLER)
-                .setResponseMarshaller(MARSHALLER)
+                .setRequestMarshaller(marshallerToUse)
+                .setResponseMarshaller(marshallerToUse)
                 .build();
 
         builder.addMethod(

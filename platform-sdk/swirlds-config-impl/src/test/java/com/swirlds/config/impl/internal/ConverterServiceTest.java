@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl.internal;
 
 import com.swirlds.config.api.Configuration;
@@ -30,6 +15,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -116,6 +103,19 @@ class ConverterServiceTest {
         Assertions.assertEquals((short) 567, cs.convert("567", Short.class));
         Assertions.assertEquals((byte) 8, cs.convert("8", Byte.class));
         Assertions.assertTrue(cs.convert("true", Boolean.class));
+    }
+
+    @Test
+    void itSuccessfullyOverwriteDefaultConverter() {
+        // given
+        ConverterService cs = new ConverterService();
+
+        // when
+        cs.addConverter(Duration.class, value -> Duration.of(1, ChronoUnit.SECONDS));
+        cs.init();
+
+        // then
+        Assertions.assertEquals(Duration.of(1, ChronoUnit.SECONDS), cs.convert("TEST", Duration.class));
     }
 
     @Test

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.logging;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -25,16 +10,14 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.state.spi.info.NodeInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * A logger for state changes. This records a separate log file for all input state read and output state changes from
@@ -54,19 +37,11 @@ public final class TransactionStateLogger {
      */
     public static void logStartRound(final Round round) {
         if (logger.isDebugEnabled()) {
-            AtomicBoolean isAllSystem = new AtomicBoolean(true);
-            round.forEachEventTransaction((event, tx) -> {
-                if (!tx.isSystem()) {
-                    isAllSystem.set(false);
-                }
-            });
-            if (!isAllSystem.get()) {
-                logger.debug(
-                        "Starting round {} of {} events at {}",
-                        round.getRoundNum(),
-                        round.getEventCount(),
-                        round.getConsensusTimestamp());
-            }
+            logger.debug(
+                    "Starting round {} of {} events at {}",
+                    round.getRoundNum(),
+                    round.getEventCount(),
+                    round.getConsensusTimestamp());
         }
     }
 
@@ -77,38 +52,30 @@ public final class TransactionStateLogger {
      */
     public static void logStartEvent(final ConsensusEvent event, final NodeInfo creator) {
         if (logger.isDebugEnabled()) {
-            AtomicBoolean isAllSystem = new AtomicBoolean(true);
-            event.forEachTransaction(tx -> {
-                if (!tx.isSystem()) {
-                    isAllSystem.set(false);
-                }
-            });
-            if (!isAllSystem.get()) {
-                logger.debug(
-                        "  Starting event {} at {} from node {}",
-                        event.getConsensusOrder(),
-                        event.getConsensusTimestamp(),
-                        creator.nodeId());
-            }
+            logger.debug(
+                    "  Starting event {} at {} from node {}",
+                    event.getConsensusOrder(),
+                    event.getConsensusTimestamp(),
+                    creator.nodeId());
         }
     }
 
     /**
      * Log the start of a transaction.
      *
-     * @param transaction The transaction to log
+     * @param consensusTimestamp The transaction consensus timestamp
      * @param txBody The transaction body
      * @param payer The payer
      */
     public static void logStartUserTransaction(
-            @NonNull final ConsensusTransaction transaction,
+            @NonNull final Instant consensusTimestamp,
             @Nullable final TransactionBody txBody,
             @NonNull final AccountID payer) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                     "    Starting user transaction {} at platform time {} from payer 0.0.{}",
                     txBody == null ? "null" : formatTransactionId(txBody.transactionID()),
-                    transaction.getConsensusTimestamp(),
+                    consensusTimestamp,
                     payer.accountNum());
         }
     }

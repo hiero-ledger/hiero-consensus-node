@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,7 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
-import com.hedera.node.app.hapi.utils.throttles.GasLimitDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
 import com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -116,7 +101,7 @@ class ThrottleMetricsTest {
     }
 
     @Test
-    void setupGasMetricShouldCreateMetric(@Mock GasLimitDeterministicThrottle throttle) {
+    void setupGasMetricShouldCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
         // given
         final var configuration = HederaTestConfigBuilder.create()
                 .withValue("stats.hapiThrottlesToSample", "<GAS>")
@@ -131,7 +116,7 @@ class ThrottleMetricsTest {
     }
 
     @Test
-    void setupNonTrackedGasMetricShouldNotCreateMetric(@Mock GasLimitDeterministicThrottle throttle) {
+    void setupNonTrackedGasMetricShouldNotCreateMetric(@Mock LeakyBucketDeterministicThrottle throttle) {
         // given
         final var configuration = HederaTestConfigBuilder.create()
                 .withValue("stats.hapiThrottlesToSample", "")
@@ -200,7 +185,7 @@ class ThrottleMetricsTest {
     }
 
     @Test
-    void updateGasMetricSucceeds(@Mock GasLimitDeterministicThrottle gasThrottle, @Mock DoubleGauge gauge) {
+    void updateGasMetricSucceeds(@Mock LeakyBucketDeterministicThrottle gasThrottle, @Mock DoubleGauge gauge) {
         // given
         when(gasThrottle.instantaneousPercentUsed()).thenReturn(-Math.PI);
         when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gauge);
@@ -215,5 +200,25 @@ class ThrottleMetricsTest {
 
         // then
         verify(gauge).set(-Math.PI);
+    }
+
+    @Test
+    void setupAndUpdateOpsDurationMetricSucceeds(
+            @Mock LeakyBucketDeterministicThrottle opsDurationThrottle, @Mock DoubleGauge gauge) {
+        when(opsDurationThrottle.name()).thenReturn("OPS_DURATION");
+        when(opsDurationThrottle.instantaneousPercentUsed()).thenReturn(42.0);
+        // Configure such that OPS_DURATION is tracked
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "<OPS_DURATION>")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(gauge);
+
+        throttleMetrics.setupOpsDurationMetric(opsDurationThrottle, configuration);
+        throttleMetrics.updateAllMetrics();
+
+        verify(metrics).getOrCreate(any(DoubleGauge.Config.class));
+        verify(gauge).set(42.0);
     }
 }

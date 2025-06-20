@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -35,6 +21,7 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -66,42 +53,43 @@ public class HollowAccountCompletions {
      * expansion, by looking up the ECDSA key for the alias.
      * The hollow accounts that need to be finalized are determined by the set of hollow accounts that are returned
      * by the pre-handle result.
-     * @param userTxn the user transaction component
+     * @param parentTxn the user transaction component
      * @param dispatch the dispatch
      */
-    public void completeHollowAccounts(@NonNull final UserTxn userTxn, @NonNull final Dispatch dispatch) {
-        requireNonNull(userTxn);
+    public void completeHollowAccounts(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
+        requireNonNull(parentTxn);
         requireNonNull(dispatch);
         // Any hollow accounts that must sign to have all needed signatures, need to be finalized
         // as a result of transaction being handled.
-        Set<Account> hollowAccounts = userTxn.preHandleResult().getHollowAccounts();
+        Set<Account> hollowAccounts = parentTxn.preHandleResult().getHollowAccounts();
         SignatureVerification maybeEthTxVerification = null;
-        if (userTxn.functionality() == ETHEREUM_TRANSACTION) {
-            final var ethFinalization = findEthHollowAccount(userTxn);
+        if (parentTxn.functionality() == ETHEREUM_TRANSACTION) {
+            final var ethFinalization = findEthHollowAccount(parentTxn);
             if (ethFinalization != null) {
-                hollowAccounts = new LinkedHashSet<>(userTxn.preHandleResult().getHollowAccounts());
+                hollowAccounts = new LinkedHashSet<>(parentTxn.preHandleResult().getHollowAccounts());
                 hollowAccounts.add(ethFinalization.hollowAccount());
                 maybeEthTxVerification = ethFinalization.ethVerification();
             }
         }
         finalizeHollowAccounts(
-                dispatch.handleContext(), hollowAccounts, dispatch.keyVerifier(), maybeEthTxVerification, userTxn);
+                dispatch.handleContext(), hollowAccounts, dispatch.keyVerifier(), maybeEthTxVerification, parentTxn);
     }
 
     /**
      * Finds the hollow account that needs to be finalized for the Ethereum transaction.
-     * @param userTxn the user transaction component
+     * @param parentTxn the user transaction component
      * @return the hollow account that needs to be finalized for the Ethereum transaction
      */
     @Nullable
-    private EthFinalization findEthHollowAccount(@NonNull final UserTxn userTxn) {
-        final var fileStore = userTxn.readableStoreFactory().getStore(ReadableFileStore.class);
+    private EthFinalization findEthHollowAccount(@NonNull final ParentTxn parentTxn) {
+        final var fileStore = parentTxn.readableStoreFactory().getStore(ReadableFileStore.class);
         final var maybeEthTxSigs = ethereumTransactionHandler.maybeEthTxSigsFor(
-                userTxn.txnInfo().txBody().ethereumTransactionOrThrow(), fileStore, userTxn.config());
+                parentTxn.txnInfo().txBody().ethereumTransactionOrThrow(), fileStore, parentTxn.config());
         if (maybeEthTxSigs != null) {
             final var alias = Bytes.wrap(maybeEthTxSigs.address());
-            final var accountStore = userTxn.readableStoreFactory().getStore(ReadableAccountStore.class);
-            final var maybeHollowAccountId = accountStore.getAccountIDByAlias(alias);
+            final var accountStore = parentTxn.readableStoreFactory().getStore(ReadableAccountStore.class);
+            final var config = parentTxn.config().getConfigData(HederaConfig.class);
+            final var maybeHollowAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
             if (maybeHollowAccountId != null) {
                 final var maybeHollowAccount = requireNonNull(accountStore.getAccountById(maybeHollowAccountId));
                 if (isHollow(maybeHollowAccount)) {
@@ -134,9 +122,9 @@ public class HollowAccountCompletions {
             @NonNull final Set<Account> accounts,
             @NonNull final AppKeyVerifier verifier,
             @Nullable SignatureVerification ethTxVerification,
-            @NonNull final UserTxn userTxn) {
+            @NonNull final ParentTxn parentTxn) {
         for (final var hollowAccount : accounts) {
-            if (!userTxn.stack().hasMoreSystemRecords()) {
+            if (!parentTxn.stack().hasMoreSystemRecords()) {
                 break;
             }
 
@@ -166,11 +154,9 @@ public class HollowAccountCompletions {
                                 .key(verification.key())
                                 .build())
                         .build();
-                // Note the null key verification callback below; we bypass signature
-                // verifications when doing hollow account finalization
-                final var recordBuilder = context.dispatchPrecedingTransaction(
-                        syntheticUpdateTxn, CryptoUpdateStreamBuilder.class, null, context.payer());
-                recordBuilder.accountID(hollowAccount.accountIdOrThrow());
+                final var streamBuilder = context.dispatch(
+                        independentDispatch(context.payer(), syntheticUpdateTxn, CryptoUpdateStreamBuilder.class));
+                streamBuilder.accountID(hollowAccount.accountIdOrThrow());
             }
         }
     }

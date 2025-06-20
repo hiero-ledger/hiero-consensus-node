@@ -1,32 +1,14 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import static com.swirlds.common.utility.ByteUtils.intToByteArray;
-import static com.swirlds.common.utility.ByteUtils.longToByteArray;
+import static org.hiero.base.utility.ByteUtils.intToByteArray;
+import static org.hiero.base.utility.ByteUtils.longToByteArray;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterationOrder;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
 import com.swirlds.platform.proof.tree.StateProofOpaqueNode;
@@ -41,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Logic for building a state proof tree.
@@ -216,7 +201,7 @@ public final class StateProofTreeBuilder {
 
             if (child == null) {
                 // If the child is null, append the null hash.
-                byteSegments.add(cryptography.getNullHash().copyToByteArray());
+                byteSegments.add(Cryptography.NULL_HASH.copyToByteArray());
             } else if (nodeRoutes.contains(child.getRoute())) {
                 // If the child is in the node list, then we add its state proof node.
 

@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +13,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase;
@@ -41,7 +26,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-// FUTURE: Once we have protobuf generated object need to replace all JKeys.
 @ExtendWith(MockitoExtension.class)
 class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
     private ReadableAccountStoreImpl subject;
@@ -56,7 +40,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = readableAliasState();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
-        subject = new ReadableAccountStoreImpl(readableStates);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
     @SuppressWarnings("unchecked")
@@ -81,10 +65,18 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         given(account.stakePeriodStart()).willReturn(37L);
         given(account.stakeAtStartOfLastRewardedPeriod()).willReturn(37L);
         given(account.stakedAccountId())
-                .willReturn(AccountID.newBuilder().accountNum(41L).build());
+                .willReturn(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(41L)
+                        .build());
         given(account.declineReward()).willReturn(true);
         given(account.autoRenewAccountId())
-                .willReturn(AccountID.newBuilder().accountNum(53L).build());
+                .willReturn(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(53L)
+                        .build());
         given(account.autoRenewSeconds()).willReturn(59L);
         given(account.alias()).willReturn(Bytes.wrap(new byte[] {1, 2, 3}));
         given(account.smartContract()).willReturn(true);
@@ -109,7 +101,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         assertThat(mappedAccount.stakedToMe()).isEqualTo(31L);
         assertThat(mappedAccount.stakePeriodStart()).isEqualTo(37L);
         assertThat(mappedAccount.stakedAccountId())
-                .isEqualTo(AccountID.newBuilder().accountNum(41L).build());
+                .isEqualTo(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(41L)
+                        .build());
         assertThat(mappedAccount.declineReward()).isTrue();
         assertThat(mappedAccount.stakeAtStartOfLastRewardedPeriod()).isEqualTo(37L);
         assertThat(mappedAccount.autoRenewAccountId().accountNum()).isEqualTo(53L);
@@ -162,7 +158,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
     void getsNullIfMissingAccount() {
         readableAccounts = emptyReadableAccountStateBuilder().build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        subject = new ReadableAccountStoreImpl(readableStates);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         readableStore = subject;
 
         final var result = subject.getAccountById(id);
@@ -180,11 +176,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
-        subject = new ReadableAccountStoreImpl(readableStates);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var protoKeyId = AccountID.newBuilder()
                 .alias(Key.PROTOBUF.toBytes(aSecp256K1Key))
@@ -204,15 +200,13 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
         readableAliases = emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(Bytes.wrap(evmAddress)), asAccount(accountNum))
+                .value(new ProtoBytes(Bytes.wrap(evmAddress)), idFactory.newAccountId(accountNum))
                 .build();
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
 
-        subject = new ReadableAccountStoreImpl(readableStates);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
-        final var protoKeyId = AccountID.newBuilder()
-                .alias(Key.PROTOBUF.toBytes(aSecp256K1Key))
-                .build();
+        final var protoKeyId = idFactory.newAccountIdWithAlias(Key.PROTOBUF.toBytes(aSecp256K1Key));
         final var result = subject.getAliasedAccountById(protoKeyId);
         assertThat(result).isNotNull();
     }
@@ -243,7 +237,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
 
     @Test
     void ignoresNonsenseAlias() {
-        subject = new ReadableAccountStoreImpl(readableStates);
+        subject = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var nonsenseId = AccountID.newBuilder()
                 .alias(Bytes.wrap("Not an alias of any sort"))
                 .build();
@@ -253,16 +247,16 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
 
     @Test
     void getAccountIDByAlias() {
-        final var accountId = subject.getAccountIDByAlias(alias.alias());
+        final var accountId = subject.getAccountIDByAlias(0, 0, alias.alias());
         assertThat(accountId).isEqualTo(id);
-        final var accountId2 = subject.getAccountIDByAlias(Bytes.wrap("test"));
+        final var accountId2 = subject.getAccountIDByAlias(0, 0, Bytes.wrap("test"));
         assertThat(accountId2).isNull();
     }
 
     @Test
     void getSizeOfState() {
-        final var store = new ReadableAccountStoreImpl(readableStates);
-        assertEquals(readableStates.get(ACCOUNTS).size(), store.sizeOfAccountState());
+        final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
+        assertEquals(readableEntityCounters.getCounterFor(EntityType.ACCOUNT), store.sizeOfAccountState());
     }
 
     @Test
@@ -271,8 +265,11 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
         assertThat(subject.contains(id)).isTrue();
 
         // Pass any account ID that isn't in the store
-        assertThat(subject.contains(
-                        AccountID.newBuilder().accountNum(Long.MAX_VALUE).build()))
+        assertThat(subject.contains(AccountID.newBuilder()
+                        .shardNum(1)
+                        .realmNum(2)
+                        .accountNum(Long.MAX_VALUE)
+                        .build()))
                 .isFalse();
 
         //noinspection DataFlowIssue
@@ -282,7 +279,7 @@ class ReadableAccountStoreImplTest extends CryptoHandlerTestBase {
     @Test
     void warmWarmsUnderlyingState(@Mock ReadableKVState<AccountID, Account> accounts) {
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(accounts);
-        final var accountStore = new ReadableAccountStoreImpl(readableStates);
+        final var accountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         accountStore.warm(id);
         verify(accounts).warm(id);
     }

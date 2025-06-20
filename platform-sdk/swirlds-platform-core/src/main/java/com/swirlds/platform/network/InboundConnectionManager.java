@@ -1,30 +1,16 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.swirlds.common.threading.locks.AutoClosableResourceLock;
-import com.swirlds.common.threading.locks.Locks;
-import com.swirlds.common.threading.locks.locked.LockedResource;
+import com.google.common.annotations.VisibleForTesting;
 import com.swirlds.platform.network.connection.NotConnectedConnection;
 import java.util.concurrent.locks.Condition;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
+import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.base.concurrent.locks.locked.LockedResource;
 
 /**
  * Manages a connection that is initiated by the peer. If a new connection is established by the peer, the previous one
@@ -41,7 +27,7 @@ public class InboundConnectionManager implements ConnectionManager {
     /** locks the connection managed by this instance */
     private final AutoClosableResourceLock<Connection> lock = Locks.createResourceLock(currentConn);
     /** condition to wait on for a new connection */
-    private final Condition newConnection = lock.newCondition();
+    private final Condition newConnectionSignal = lock.newCondition();
 
     /**
      * {@inheritDoc}
@@ -61,6 +47,7 @@ public class InboundConnectionManager implements ConnectionManager {
      *
      * @return the current connection
      */
+    @VisibleForTesting
     @Override
     public Connection getConnection() {
         return currentConn;
@@ -76,7 +63,7 @@ public class InboundConnectionManager implements ConnectionManager {
     private Connection waitForNewConnection() throws InterruptedException {
         try (final LockedResource<Connection> lockedConn = lock.lock()) {
             while (!lockedConn.getResource().connected()) {
-                newConnection.await();
+                newConnectionSignal.await();
             }
             return lockedConn.getResource();
         }
@@ -107,7 +94,15 @@ public class InboundConnectionManager implements ConnectionManager {
             }
             old.disconnect();
             lockedConn.setResource(connection);
-            newConnection.signalAll();
+            newConnectionSignal.signalAll();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isOutbound() {
+        return false;
     }
 }

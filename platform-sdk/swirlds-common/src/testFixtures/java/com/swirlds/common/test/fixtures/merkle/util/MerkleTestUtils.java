@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.merkle.util;
 
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfterCopy;
@@ -26,11 +11,9 @@ import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
@@ -40,6 +23,7 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyCustomReconnectRoot;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleExternalLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
@@ -53,6 +37,9 @@ import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.VirtualKey;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -66,6 +53,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Utility methods for testing merkle trees.
@@ -910,6 +898,36 @@ public final class MerkleTestUtils {
     }
 
     /**
+     * For every virtual map in the trees and for every virtual key in the given key set, make
+     * sure either the map in both trees contains the key, or the map in both trees doesn't
+     * contain the key.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static boolean checkVirtualMapKeys(
+            final MerkleNode rootA, final MerkleNode rootB, final Set<VirtualKey> virtualKeys) {
+        final Iterator<MerkleNode> iteratorA = new MerkleIterator<>(rootA);
+        final Iterator<MerkleNode> iteratorB = new MerkleIterator<>(rootB);
+        while (iteratorA.hasNext()) {
+            if (!iteratorB.hasNext()) {
+                return false;
+            }
+            final MerkleNode a = iteratorA.next();
+            final MerkleNode b = iteratorB.next();
+            if (a instanceof VirtualMap vmA) {
+                if (!(b instanceof VirtualMap vmB)) {
+                    return false;
+                }
+                for (final VirtualKey key : virtualKeys) {
+                    if (vmA.containsKey(key) != vmB.containsKey(key)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Check if a tree has had initialize() called on each internal node.
      */
     public static boolean isFullyInitialized(final DummyMerkleNode root) {
@@ -1021,6 +1039,7 @@ public final class MerkleTestUtils {
                                 streams.getLearnerOutput(),
                                 startingTree,
                                 streams::disconnect,
+                                TestMerkleCryptoFactory.getInstance(),
                                 reconnectConfig,
                                 metrics) {
 
@@ -1148,6 +1167,18 @@ public final class MerkleTestUtils {
         return node != null && (node.getClassId() == 0xaf2482557cfdb6bfL || node.getClassId() == 0x499677a326fb04caL);
     }
 
+    private static Set<VirtualKey> getVirtualKeys(final MerkleNode node) {
+        final Set<VirtualKey> keys = new HashSet<>();
+        final Iterator<MerkleNode> it = new MerkleIterator<>(node);
+        while (it.hasNext()) {
+            final MerkleNode n = it.next();
+            if (n instanceof VirtualLeafNode<?, ?> leaf) {
+                keys.add(leaf.getKey());
+            }
+        }
+        return keys;
+    }
+
     /**
      * Make sure the reconnect was valid.
      *
@@ -1161,7 +1192,14 @@ public final class MerkleTestUtils {
     private static void assertReconnectValidity(
             final MerkleNode startingTree, final MerkleNode desiredTree, final MerkleNode generatedTree) {
 
+        // Checks that the trees are equal as merkle structures
         assertTrue(areTreesEqual(generatedTree, desiredTree), "reconnect should produce identical tree");
+
+        final Set<VirtualKey> allKeys = new HashSet<>();
+        allKeys.addAll(getVirtualKeys(startingTree));
+        allKeys.addAll(getVirtualKeys(desiredTree));
+        // A deeper check at VirtualMap level
+        assertTrue(checkVirtualMapKeys(generatedTree, desiredTree, allKeys));
 
         if (desiredTree != null) {
             assertNotSame(startingTree, desiredTree, "trees should be distinct objects");
@@ -1246,10 +1284,10 @@ public final class MerkleTestUtils {
         System.out.println("desired: " + desiredTree);
 
         if (startingTree != null && startingTree.getHash() == null) {
-            MerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(startingTree);
         }
         if (desiredTree != null && desiredTree.getHash() == null) {
-            MerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(desiredTree);
         }
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }

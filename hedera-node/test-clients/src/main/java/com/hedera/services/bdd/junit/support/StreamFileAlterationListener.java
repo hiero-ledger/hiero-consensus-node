@@ -1,28 +1,14 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isRecordFile;
-import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarFile;
-import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockFile;
+import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarMarkerFile;
+import static com.hedera.services.bdd.junit.support.BlockStreamAccess.isBlockMarkerFile;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -37,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 public class StreamFileAlterationListener extends FileAlterationListenerAdaptor {
     private static final Logger log = LogManager.getLogger(StreamFileAlterationListener.class);
 
-    private static final int NUM_RETRIES = 32;
+    private static final int NUM_RETRIES = 512;
     private static final long RETRY_BACKOFF_MS = 500L;
 
     private final List<StreamDataListener> listeners = new CopyOnWriteArrayList<>();
@@ -98,21 +84,51 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
                         return;
                     }
                 } else {
-                    log.error("Could not expose contents of {} file {}", fileType, f.getAbsolutePath(), e);
-                    throw new IllegalStateException();
+                    // Don't fail hard on an empty file; if a test really depends on the contents of a
+                    // pending stream file, it will fail anyways---and if this is just a timing condition,
+                    // no reason to destabilize the PR check
+                    if (f.length() > 0) {
+                        log.error("Could not expose contents of {} file {}", fileType, f.getAbsolutePath(), e);
+                        throw new IllegalStateException();
+                    }
                 }
             }
         }
     }
 
     private void exposeBlock(@NonNull final File file) {
+        // Get Block file path using marker file path
+        final var markerFilePath = file.toPath();
+        final var blockFileName = file.getName().replace(".mf", "");
+
+        // Check for compressed file first (.blk.gz)
+        final var compressedBlockFilePath = markerFilePath.resolveSibling(blockFileName + ".blk.gz");
+        final var uncompressedBlockFilePath = markerFilePath.resolveSibling(blockFileName + ".blk");
+
+        // Determine which block file exists - compressed or uncompressed
+        final var blockFilePath =
+                Files.exists(compressedBlockFilePath) ? compressedBlockFilePath : uncompressedBlockFilePath;
+
         final var block =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(file.toPath()).getFirst();
-        listeners.forEach(l -> l.onNewBlock(block));
+                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockFilePath).getFirst();
+        listeners.forEach(l -> {
+            try {
+                l.onNewBlock(block);
+            } catch (Exception e) {
+                log.error("{} failed to process block file {}", l, file.getAbsolutePath(), e);
+            }
+        });
     }
 
     private void exposeSidecars(final File file) {
-        final var contents = StreamFileAccess.ensurePresentSidecarFile(file.getAbsolutePath());
+        // Get Sidecar file path using marker file path
+        final var markerPath = file.toPath();
+        final var baseName = file.getName().replace(".mf", "");
+        final var gzPath = markerPath.resolveSibling(baseName + ".rcd.gz");
+        final var plainPath = markerPath.resolveSibling(baseName + ".rcd");
+        final var sidecarPath = Files.exists(gzPath) ? gzPath : plainPath;
+
+        final var contents = StreamFileAccess.ensurePresentSidecarFile(sidecarPath.toString());
         contents.getSidecarRecordsList().forEach(sidecar -> listeners.forEach(l -> l.onNewSidecar(sidecar)));
     }
 
@@ -126,12 +142,15 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
     }
 
     private FileType typeOf(final File file) {
-        if (isRecordFile(file.getName())) {
-            return FileType.RECORD_STREAM_FILE;
-        } else if (isSidecarFile(file.getName())) {
-            return FileType.SIDE_CAR_FILE;
-        } else if (isBlockFile(file)) {
+        // Ignore empty files, which are likely to be in the process of being written
+        if (isBlockMarkerFile(file)) {
             return FileType.BLOCK_FILE;
+        } else if (isSidecarMarkerFile(file.getName())) {
+            return FileType.SIDE_CAR_FILE;
+        } else if (file.length() == 0L) {
+            return FileType.OTHER;
+        } else if (isRecordFile(file.getName())) {
+            return FileType.RECORD_STREAM_FILE;
         } else {
             return FileType.OTHER;
         }

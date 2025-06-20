@@ -24,10 +24,10 @@ hedera-foo-service/
 ```
 
 The api modules should depend on the `com.hedera.node.app.spi` module and provide it as a transitive dependency. To do
-so `api(project(":hedera-node:hedera-app-spi"))` must be a dependency in the gradle file. The module should only contain
-the public api of services. The complete content of the module should be exported. Since the service interface that are
-defined in the api modules will be loaded by the Java SPI the interfaces must be defined in the module info by using
-the `uses` keyword.
+so `requires transitive com.hedera.node.app.spi` must be a dependency in the `module-info.java` file. The module should
+only contain the public api of services. The complete content of the module should be exported. Since the service
+interface that are defined in the api modules will be loaded by the Java SPI the interfaces must be defined in the
+module info by using the `uses` keyword.
 
 Based on this given constraints the `module-info.java` of an api module looks like this:
 
@@ -49,14 +49,10 @@ plugins {
 }
 
 description = "Hedera Foo Service API"
-
-dependencies {
-    api(project(":hedera-node:hedera-app-spi"))
-}
 ```
 
 The public service api can depend on additional libraries. Such libraries will be defined as **public api** and must be
-added as `api(...)` dependencies to gradle and defined as `requires transitive` in the `module-info.java`. No api module
+added as `requires transitive` in the `module-info.java`. No api module
 must ever depend on any service implementation or the `hedera-mono-service` module. The `@NonNull`/`@Nullable`
 annotations can be used in the service definitions. Since the annotations are already defined as transitive dependencies
 at compile time by the `hedera-app-spi` module no extra dependency needs to be added. Unit tests and integration tests

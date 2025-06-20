@@ -1,73 +1,23 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
-import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_NANOSECONDS;
-import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MICROSECONDS;
-import static com.swirlds.common.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
-import static com.swirlds.common.utility.CommonUtils.hex;
-import static com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction.BodyCase.FCMTRANSACTION;
-import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
-import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.STORAGE_DIRECTORY;
-import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
-import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
+import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.crypto.VerificationStatus;
-import com.swirlds.common.merkle.MerkleInternal;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
-import com.swirlds.demo.merkle.map.FCMTransactionHandler;
-import com.swirlds.demo.merkle.map.FCMTransactionUtils;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamily;
 import com.swirlds.demo.merkle.map.internal.ExpectedFCMFamilyImpl;
-import com.swirlds.demo.platform.actions.Action;
 import com.swirlds.demo.platform.actions.QuorumResult;
-import com.swirlds.demo.platform.actions.QuorumTriggeredAction;
 import com.swirlds.demo.platform.expiration.ExpirationRecordEntry;
 import com.swirlds.demo.platform.expiration.ExpirationUtils;
-import com.swirlds.demo.platform.freeze.FreezeTransactionHandler;
-import com.swirlds.demo.platform.fs.stresstest.proto.Activity;
-import com.swirlds.demo.platform.fs.stresstest.proto.AppTransactionSignatureType;
-import com.swirlds.demo.platform.fs.stresstest.proto.ControlTransaction;
-import com.swirlds.demo.platform.fs.stresstest.proto.ControlType;
-import com.swirlds.demo.platform.fs.stresstest.proto.FCMTransaction;
-import com.swirlds.demo.platform.fs.stresstest.proto.FreezeTransaction;
-import com.swirlds.demo.platform.fs.stresstest.proto.RandomBytesTransaction;
-import com.swirlds.demo.platform.fs.stresstest.proto.SimpleAction;
-import com.swirlds.demo.platform.fs.stresstest.proto.TestTransaction;
-import com.swirlds.demo.platform.fs.stresstest.proto.TestTransactionWrapper;
-import com.swirlds.demo.platform.fs.stresstest.proto.VirtualMerkleTransaction;
 import com.swirlds.demo.platform.iss.IssLeaf;
 import com.swirlds.demo.platform.nft.NftId;
 import com.swirlds.demo.platform.nft.NftLedger;
-import com.swirlds.demo.platform.nft.NftLedgerStatistics;
 import com.swirlds.demo.platform.nft.ReferenceNftLedger;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
@@ -75,44 +25,16 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractB
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
-import com.swirlds.demo.virtualmerkle.transaction.handler.VirtualMerkleTransactionHandler;
-import com.swirlds.logging.legacy.payload.SoftwareVersionPayload;
-import com.swirlds.merkle.test.fixtures.map.lifecycle.EntityType;
-import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionState;
-import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionType;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
-import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.Utilities;
-import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.SwirldState;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.events.Event;
-import com.swirlds.platform.system.transaction.ConsensusTransaction;
-import com.swirlds.platform.system.transaction.Transaction;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.merkle.MerkleStateRoot;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.File;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -120,98 +42,37 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This demo tests platform features and collects statistics on the running of the network and consensus systems. It
  * writes them to the screen, and also saves them to disk in a comma separated value (.csv) file. Each transaction
  * consists of an optional sequence number and random bytes.
  */
-public class PlatformTestingToolState extends PartialNaryMerkleInternal implements MerkleInternal, SwirldState {
+@ConstructableIgnored
+public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToolState> implements MerkleNodeState {
 
-    private static final long CLASS_ID = 0xc0900cfa7a24db76L;
+    static final long CLASS_ID = 0xc0900cfa7a24db76L;
     private static final Logger logger = LogManager.getLogger(PlatformTestingToolState.class);
     private static final Marker LOGM_DEMO_INFO = MarkerManager.getMarker("DEMO_INFO");
-    private static final Marker LOGM_EXCEPTION = MarkerManager.getMarker("EXCEPTION");
-    private static final Marker LOGM_EXPIRATION = MarkerManager.getMarker("EXPIRATION");
-    private static final Marker LOGM_STARTUP = MarkerManager.getMarker("STARTUP");
     private static final long EXCEPTION_RATE_THRESHOLD = 10;
-
-    static final String STAT_TIMER_THREAD_NAME = "stat timer PTTState";
 
     /**
      * The fraction (out of 1.0) of NFT tokens to track in the reference data structure.
      */
     private static final double NFT_TRACKING_FRACTION = 0.001;
     /**
-     * Defined in settings. the consensus timestamp of a transaction is guaranteed to be at least this many nanoseconds
-     * later than that of the transaction immediately before it in consensus order, and to be a multiple of this
-     */
-    private static final long minTransTimestampIncrNanos = 1_000;
-
-    /**
-     * statistics for handleTransaction
-     */
-    private static final String HANDLE_TRANSACTION_CATEGORY = "HandleTransaction";
-
-    private static long htCountFCM;
-    private static long htFCMSumNano;
-    private static final RunningAverageMetric.Config HT_FCM_MICRO_SEC_CONFIG = new RunningAverageMetric.Config(
-                    HANDLE_TRANSACTION_CATEGORY, "htFCMTimeMicroSec")
-            .withDescription("average handleTransaction (FCM) Time, microseconds");
-    private static RunningAverageMetric htFCMMicroSec;
-    private static long htCountFCQ;
-    private static long htFCQSumNano;
-
-    private static final RunningAverageMetric.Config HT_FCQ_MICRO_SEC_CONFIG = new RunningAverageMetric.Config(
-                    HANDLE_TRANSACTION_CATEGORY, "htFCQTimeMicroSec")
-            .withDescription("average handleTransaction (FCQ) Time, microseconds");
-    private static RunningAverageMetric htFCQMicroSec;
-
-    /**
      * Has init() been called on this copy or an ancestor copy of this object?
      */
     private final AtomicBoolean initialized = new AtomicBoolean(false);
 
-    private static long htCountExpiration;
-    private static long htFCQExpirationSumMicro;
-
-    private static final RunningAverageMetric.Config HT_FCQ_EXPIRATION_MICRO_SEC_CONFIG =
-            new RunningAverageMetric.Config(HANDLE_TRANSACTION_CATEGORY, "htFCQExpirationMicroSec")
-                    .withDescription("FCQ Expiration Time per call, microseconds");
-    private static RunningAverageMetric htFCQExpirationMicroSec;
-
-    private static final RunningAverageMetric.Config HT_FCM_SIZE_CONFIG = new RunningAverageMetric.Config(
-                    HANDLE_TRANSACTION_CATEGORY, "htFCMSize")
-            .withDescription("FCM Tree Size (accounts)")
-            .withFormat(FORMAT_11_0);
-    private static RunningAverageMetric htFCMSize;
-
-    ///////////////////////////////////////////
-    // Transaction Handlers
-    private static long htFCMAccounts;
-
-    private static final RunningAverageMetric.Config HT_FCQ_SIZE_CONFIG = new RunningAverageMetric.Config(
-                    HANDLE_TRANSACTION_CATEGORY, "htFCQSize")
-            .withDescription("FCQ Tree Size (accounts)")
-            .withFormat(FORMAT_11_0);
-    private static RunningAverageMetric htFCQSize;
-
-    private static long htFCQAccounts;
-
-    private static final RunningAverageMetric.Config HT_FCQ_RECORDS_CONFIG = new RunningAverageMetric.Config(
-                    HANDLE_TRANSACTION_CATEGORY, "htFCQRecords")
-            .withDescription("FCQ Transaction Records")
-            .withFormat(FORMAT_11_0);
-    private static RunningAverageMetric htFCQRecords;
-
-    private static long htFCQRecordsCount;
     /**
      * Used for validation of part (or all) of the data in the NFT ledger.
      */
     private final ReferenceNftLedger referenceNftLedger;
-    ///////////////////////////////////////////
-    // Non copyable shared variables
-    private Platform platform;
     ///////////////////////////////////////////
     // Copyable variables
     private long lastTranTimeStamp = 0;
@@ -229,62 +90,20 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
     private BlockingQueue<ExpirationRecordEntry> expirationQueue;
     // contains MapKeys which has an entry in ExpirationQueue
     private Set<MapKey> accountsWithExpiringRecords;
-    // last timestamp purging records
-    private long lastPurgeTimestamp = 0;
-    /**
-     * The instant of the previously handled transaction. Null if no transactions have yet been handled by this state
-     * instance. Used to verify that each transaction happens at a later instant than its predecessor.
-     */
-    private Instant previousTimestamp;
-    /**
-     * Handles quorum determinations for all {@link ControlTransaction} processed by the handle method.
-     */
-    private QuorumTriggeredAction<ControlAction> controlQuorum;
 
-    private long transactionsIgnoredByExpectedMap = 0;
+    /**
+     * NodeId of the node that this state belongs to.
+     */
+    private NodeId selfId;
 
     public PlatformTestingToolState() {
-        super(ChildIndices.CHILD_COUNT);
-
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
-
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
 
     protected PlatformTestingToolState(final PlatformTestingToolState sourceState) {
         super(sourceState);
-
         this.initialized.set(sourceState.initialized.get());
-        this.platform = sourceState.platform;
-
-        if (sourceState.getConfig() != null) {
-            setConfig(sourceState.getConfig().copy());
-        }
-
-        if (sourceState.getNextSeqCons() != null) {
-            setNextSeqCons(new NextSeqConsList(sourceState.getNextSeqCons()));
-        }
-
-        if (sourceState.getFcmFamily() != null) {
-            setFcmFamily(sourceState.getFcmFamily().copy());
-        } else {
-            setFcmFamily(new FCMFamily(true));
-        }
-
-        if (sourceState.getVirtualMap() != null) {
-            setVirtualMap(sourceState.getVirtualMap().copy());
-        }
-
-        if (sourceState.getVirtualMapForSmartContracts() != null) {
-            setVirtualMapForSmartContracts(
-                    sourceState.getVirtualMapForSmartContracts().copy());
-        }
-
-        if (sourceState.getVirtualMapForSmartContractsByteCode() != null) {
-            setVirtualMapForSmartContractsByteCode(
-                    sourceState.getVirtualMapForSmartContractsByteCode().copy());
-        }
-
         this.lastFileTranFinishTimeStamp = sourceState.lastFileTranFinishTimeStamp;
         this.lastTranTimeStamp = sourceState.lastTranTimeStamp;
 
@@ -295,14 +114,13 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
         this.expectedFCMFamily = sourceState.expectedFCMFamily;
         this.expirationQueue = sourceState.expirationQueue;
         this.accountsWithExpiringRecords = sourceState.accountsWithExpiringRecords;
-
-        // begin enhanced control structures - not part of state but required to be passed by reference
-        this.controlQuorum = sourceState.controlQuorum;
         this.exceptionRateLimiter = sourceState.exceptionRateLimiter;
         // end enhanced control structures
 
         this.progressCfg = sourceState.progressCfg;
         this.roundCounter = sourceState.roundCounter;
+
+        this.selfId = sourceState.selfId;
 
         if (sourceState.getTransactionCounter() != null) {
             final int size = sourceState.getTransactionCounter().size();
@@ -314,108 +132,13 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
                                 sourceState.getTransactionCounter().get(index).copy());
             }
         }
-
-        if (sourceState.getIssLeaf() != null) {
-            setIssLeaf(sourceState.getIssLeaf().copy());
-        }
-
-        if (sourceState.getNftLedger() != null) {
-            setNftLedger(sourceState.getNftLedger().copy());
-        }
-
-        // set the current value of QuorumResult from source state
-        if (sourceState.getQuorumResult() != null) {
-            setQuorumResult(sourceState.getQuorumResult().copy());
-        }
-        if (controlQuorum != null) {
-            controlQuorum.setQuorumResult(getQuorumResult().copy());
-        }
-
         setImmutable(false);
         sourceState.setImmutable(true);
-    }
-
-    /**
-     * startup any statistics
-     *
-     * @param platform Platform
-     */
-    public static void initStatistics(final Platform platform) {
-        if (htFCMMicroSec != null) {
-            return;
-        }
-
-        /* Add handleTransaction statistics */
-        htFCMMicroSec = platform.getContext().getMetrics().getOrCreate(HT_FCM_MICRO_SEC_CONFIG);
-        htFCQMicroSec = platform.getContext().getMetrics().getOrCreate(HT_FCQ_MICRO_SEC_CONFIG);
-        htFCQExpirationMicroSec = platform.getContext().getMetrics().getOrCreate(HT_FCQ_EXPIRATION_MICRO_SEC_CONFIG);
-        htFCMSize = platform.getContext().getMetrics().getOrCreate(HT_FCM_SIZE_CONFIG);
-        htFCQSize = platform.getContext().getMetrics().getOrCreate(HT_FCQ_SIZE_CONFIG);
-        htFCQRecords = platform.getContext().getMetrics().getOrCreate(HT_FCQ_RECORDS_CONFIG);
-
-        NftLedgerStatistics.register(platform);
-
-        // timer to update output stats
-        final int SAMPLING_PERIOD = 5000; // millisecond
-        final Timer statTimer = new Timer(STAT_TIMER_THREAD_NAME, true);
-        statTimer.schedule(
-                new TimerTask() {
-                    @Override
-                    public void run() {
-                        getCurrentTransactionStat();
-                    }
-                },
-                0,
-                SAMPLING_PERIOD);
-    }
-
-    private static void getCurrentTransactionStat() {
-        if (htFCMMicroSec == null) {
-            return;
-        }
-
-        // fcm, nsec
-        if (htCountFCM > 0) {
-            htFCMMicroSec.update((double) htFCMSumNano / (double) htCountFCM * NANOSECONDS_TO_MICROSECONDS);
-        } else {
-            htFCMMicroSec.update(0);
-        }
-        htFCMSumNano = 0;
-        htCountFCM = 0;
-        // fcq, nsec
-        if (htCountFCQ > 0) {
-            htFCQMicroSec.update((double) htFCQSumNano / (double) htCountFCQ * NANOSECONDS_TO_MICROSECONDS);
-        } else {
-            htFCQMicroSec.update(0);
-        }
-        htFCQSumNano = 0;
-        htCountFCQ = 0;
-        // expiration, in microseconds
-        if (htCountExpiration > 0) {
-            htFCQExpirationMicroSec.update((double) htFCQExpirationSumMicro / (double) htCountExpiration);
-        } else {
-            htFCQExpirationMicroSec.update(0);
-        }
-        htFCQExpirationSumMicro = 0;
-        htCountExpiration = 0;
-
-        // datastructure sizes
-        htFCMSize.update(htFCMAccounts);
-        htFCQSize.update(htFCQAccounts);
-        htFCQRecords.update(htFCQRecordsCount);
     }
 
     // count invalid signature ratio
     static AtomicLong totalTransactionSignatureCount = new AtomicLong(0);
     static AtomicLong expectedInvalidSignatureCount = new AtomicLong(0);
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getNumberOfChildren() {
-        return ChildIndices.CHILD_COUNT;
-    }
 
     /**
      * {@inheritDoc}
@@ -439,9 +162,12 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
     @Override
     public boolean childHasExpectedType(final int index, final long childClassId) {
         switch (index) {
-            case ChildIndices.UNUSED:
+            case ChildIndices.UNUSED_PLATFORM_STATE:
+            case ChildIndices.UNUSED_ROSTERS:
+            case ChildIndices.UNUSED_ROSTER_STATE:
                 // We used to use this for an address book, but now we don't use this index.
                 // Ignore whatever is found at this index.
+                // platform should be here, so check for singleton if all will be ok
                 return true;
             case ChildIndices.CONFIG:
                 return childClassId == PayloadCfgSimple.CLASS_ID;
@@ -481,23 +207,19 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
         super.addDeserializedChildren(children, version);
     }
 
-    private PayloadCfgSimple getConfig() {
+    PayloadCfgSimple getConfig() {
         return getChild(ChildIndices.CONFIG);
     }
 
-    private void setConfig(final PayloadCfgSimple config) {
+    void setConfig(final PayloadCfgSimple config) {
         setChild(ChildIndices.CONFIG, config);
-    }
-
-    QuorumTriggeredAction<ControlAction> getControlQuorum() {
-        return controlQuorum;
     }
 
     public NextSeqConsList getNextSeqCons() {
         return getChild(ChildIndices.NEXT_SEQUENCE_CONSENSUS);
     }
 
-    private void setNextSeqCons(final NextSeqConsList nextSeqCons) {
+    void setNextSeqCons(final NextSeqConsList nextSeqCons) {
         setChild(ChildIndices.NEXT_SEQUENCE_CONSENSUS, nextSeqCons);
     }
 
@@ -544,15 +266,15 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
         return getChild(ChildIndices.TRANSACTION_COUNTER);
     }
 
-    private void setTransactionCounter(final TransactionCounterList transactionCounter) {
+    void setTransactionCounter(final TransactionCounterList transactionCounter) {
         setChild(ChildIndices.TRANSACTION_COUNTER, transactionCounter);
     }
 
-    private IssLeaf getIssLeaf() {
+    IssLeaf getIssLeaf() {
         return getChild(ChildIndices.ISS_LEAF);
     }
 
-    private void setIssLeaf(final IssLeaf leaf) {
+    void setIssLeaf(final IssLeaf leaf) {
         setChild(ChildIndices.ISS_LEAF, leaf);
     }
 
@@ -590,20 +312,20 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
         return accountsWithExpiringRecords;
     }
 
-    public long getLastPurgeTimestamp() {
-        return lastPurgeTimestamp;
-    }
-
-    public synchronized void setPayloadConfig(final FCMConfig fcmConfig) {
-        expectedFCMFamily.setNodeId(platform.getSelfId().id());
+    public synchronized void setPayloadConfig(final FCMConfig fcmConfig, final Roster roster) {
+        expectedFCMFamily.setNodeId(selfId.id());
         expectedFCMFamily.setFcmConfig(fcmConfig);
-        expectedFCMFamily.setWeightedNodeNum(platform.getAddressBook().getNumberWithWeight());
+        expectedFCMFamily.setWeightedNodeNum(RosterUtils.getNumberWithWeight(roster));
 
         referenceNftLedger.setFractionToTrack(this.getNftLedger(), fcmConfig.getNftTrackingFraction());
     }
 
     public void setProgressCfg(final ProgressCfg progressCfg) {
         this.progressCfg = progressCfg;
+    }
+
+    void setSelfId(NodeId selfId) {
+        this.selfId = selfId;
     }
 
     public void initChildren() {
@@ -614,17 +336,6 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
         if (getNftLedger() == null) {
             setNftLedger(new NftLedger());
         }
-    }
-
-    void initControlStructures(final Action<Long, ControlAction> action) {
-        final int nodeIndex = platform.getAddressBook().getIndexOfNodeId(platform.getSelfId());
-        this.controlQuorum = new QuorumTriggeredAction<>(
-                () -> nodeIndex,
-                platform.getAddressBook()::getSize,
-                platform.getAddressBook()::getNumberWithWeight,
-                action);
-
-        this.exceptionRateLimiter = new ThresholdLimitingHandler<>(EXCEPTION_RATE_THRESHOLD);
     }
 
     public void initializeExpirationQueueAndAccountsSet() {
@@ -648,837 +359,20 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public synchronized PlatformTestingToolState copy() {
         throwIfImmutable();
+        setImmutable(true);
         roundCounter++;
-
-        if (transactionsIgnoredByExpectedMap > 0) {
-            logger.info(
-                    DEMO_INFO.getMarker(),
-                    "Copying round {}, transactions ignored by expected map: {}."
-                            + " This log is added to debug #11254",
-                    roundCounter,
-                    transactionsIgnoredByExpectedMap);
-        }
 
         final PlatformTestingToolState mutableCopy = new PlatformTestingToolState(this);
 
-        if (platform != null) {
-            UnsafeMutablePTTStateAccessor.getInstance().setMutableState(platform.getSelfId(), mutableCopy);
+        if (selfId != null) {
+            UnsafeMutablePTTStateAccessor.getInstance().setMutableState(selfId, mutableCopy);
         }
 
         return mutableCopy;
-    }
-
-    /**
-     * Make sure that the timestamp for the submitted transaction is not earlier than (the timestamp for the previous
-     * transaction + minTransTimestampIncrNanos).
-     */
-    private void validateTimestamp(final Instant timestamp) {
-        if (previousTimestamp != null) {
-            final Instant previousTransTimestampPlusIncr = previousTimestamp.plusNanos(minTransTimestampIncrNanos);
-            if (timestamp.isBefore(previousTransTimestampPlusIncr)) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "Transaction has timestamp {} which is earlier than previous timestamp {} plus {} nanos: "
-                                + "{}",
-                        timestamp,
-                        previousTimestamp,
-                        minTransTimestampIncrNanos,
-                        previousTransTimestampPlusIncr);
-            }
-        }
-        previousTimestamp = timestamp;
-    }
-
-    /**
-     * Check if the signatures on the transaction are invalid.
-     *
-     * @return true if the signature is invalid
-     */
-    private boolean checkIfSignatureIsInvalid(final Transaction trans) {
-        if (getConfig().isAppendSig()) {
-            return validateSignatures(trans);
-        }
-        return false;
-    }
-
-    /**
-     * If configured, delay this transaction.
-     */
-    private void delay() {
-        if (getConfig().getDelayCfg() != null) {
-            final int delay = getConfig().getDelayCfg().getRandomDelay();
-            try {
-                Thread.sleep(delay);
-            } catch (final InterruptedException e) {
-                logger.info(LOGM_DEMO_INFO, "", e);
-            }
-        }
-        SyntheticBottleneckConfig.getActiveConfig()
-                .throttleIfNeeded(platform.getSelfId().id());
-    }
-
-    /**
-     * Instantiate TestTransaction object from transaction byte array.
-     *
-     * @return the instantiated transaction if no errors, otherwise null
-     */
-    private Optional<TestTransaction> unpackTransaction(final Transaction trans) {
-        try {
-            final byte[] payloadBytes = trans.getApplicationTransaction().toByteArray();
-            if (getConfig().isAppendSig()) {
-                final byte[] testTransactionRawBytes = TestTransactionWrapper.parseFrom(payloadBytes)
-                        .getTestTransactionRawBytes()
-                        .toByteArray();
-                return Optional.of(TestTransaction.parseFrom(testTransactionRawBytes));
-            } else {
-                return Optional.of(TestTransaction.parseFrom(payloadBytes));
-            }
-        } catch (final InvalidProtocolBufferException ex) {
-            exceptionRateLimiter.handle(
-                    ex, (error) -> logger.error(EXCEPTION.getMarker(), "InvalidProtocolBufferException", error));
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * If configured to do so, purge expired records as needed.
-     */
-    private void purgeExpiredRecordsIfNeeded(final TestTransaction testTransaction, final Instant timestamp) {
-        if (!testTransaction.hasControlTransaction()
-                || testTransaction.getControlTransaction().getType() != ControlType.EXIT_VALIDATION) {
-
-            if (getFcmFamily().getAccountFCQMap().size() > 0) {
-                // remove expired records from FCQs before handling transaction if accountFCQMap has any entities
-                try {
-                    purgeExpiredRecords(timestamp.getEpochSecond());
-                } catch (final Throwable ex) {
-                    exceptionRateLimiter.handle(
-                            ex,
-                            (error) -> logger.error(EXCEPTION.getMarker(), "Failed to purge expired records", error));
-                }
-            }
-        }
-    }
-
-    /**
-     * Write a special log message if this is the first transaction and total fcm and any file statistics are all
-     * zeroes.
-     */
-    private void logIfFirstTransaction(final NodeId id) {
-        final int nodeIndex = platform.getAddressBook().getIndexOfNodeId(id);
-        if (progressCfg != null
-                && progressCfg.getProgressMarker() > 0
-                && getTransactionCounter().get(nodeIndex).getAllTransactionAmount() == 0) {
-            logger.info(LOGM_DEMO_INFO, "PlatformTestingDemo HANDLE ALL START");
-        }
-    }
-
-    /**
-     * Handle the random bytes transaction type.
-     */
-    private void handleBytesTransaction(@NonNull final TestTransaction testTransaction, @NonNull final NodeId id) {
-        Objects.requireNonNull(testTransaction, "testTransaction must not be null");
-        Objects.requireNonNull(id, "id must not be null");
-        final int nodeIndex = platform.getAddressBook().getIndexOfNodeId(id);
-        final RandomBytesTransaction bytesTransaction = testTransaction.getBytesTransaction();
-        if (bytesTransaction.getIsInserSeq()) {
-            final long seq = Utilities.toLong(bytesTransaction.getData().toByteArray());
-            if (getNextSeqCons().get(nodeIndex).getValue() != seq) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        platform.getSelfId() + " error, new (id=" + id
-                                + ") seq should be " + getNextSeqCons().get(nodeIndex)
-                                + " but is " + seq);
-            }
-            getNextSeqCons().get(nodeIndex).getAndIncrement();
-        }
-    }
-
-    /**
-     * Handle the Virtual Merkle transaction type.
-     */
-    private void handleVirtualMerkleTransaction(
-            @NonNull final VirtualMerkleTransaction virtualMerkleTransaction,
-            @NonNull final NodeId id,
-            @NonNull final Instant consensusTimestamp) {
-        Objects.requireNonNull(virtualMerkleTransaction, "virtualMerkleTransaction must not be null");
-        Objects.requireNonNull(id, "id must not be null");
-        Objects.requireNonNull(consensusTimestamp, "consensusTimestamp must not be null");
-        final int nodeIndex = platform.getAddressBook().getIndexOfNodeId(id);
-        VirtualMerkleTransactionHandler.handle(
-                consensusTimestamp,
-                virtualMerkleTransaction,
-                expectedFCMFamily,
-                getVirtualMap(),
-                getVirtualMapForSmartContracts(),
-                getVirtualMapForSmartContractsByteCode());
-
-        if (virtualMerkleTransaction.hasCreateAccount()) {
-            getTransactionCounter().get(nodeIndex).vmCreateAmount++;
-        } else if (virtualMerkleTransaction.hasUpdateAccount()) {
-            getTransactionCounter().get(nodeIndex).vmUpdateAmount++;
-        } else if (virtualMerkleTransaction.hasDeleteAccount()) {
-            getTransactionCounter().get(nodeIndex).vmDeleteAmount++;
-        } else if (virtualMerkleTransaction.hasSmartContract()) {
-            getTransactionCounter().get(nodeIndex).vmContractCreateAmount++;
-        } else if (virtualMerkleTransaction.hasMethodExecution()) {
-            getTransactionCounter().get(nodeIndex).vmContractExecutionAmount++;
-        }
-    }
-
-    /**
-     * Handle the FCM transaction type.
-     */
-    private void handleFCMTransaction(
-            @NonNull final TestTransaction testTransaction,
-            @NonNull final NodeId id,
-            @NonNull final Instant timestamp,
-            final boolean invalidSig) {
-        Objects.requireNonNull(testTransaction, "testTransaction must not be null");
-        Objects.requireNonNull(id, "id must not be null");
-        Objects.requireNonNull(timestamp, "timestamp must not be null");
-
-        final int nodeIndex = platform.getAddressBook().getIndexOfNodeId(id);
-        final FCMTransaction fcmTransaction = testTransaction.getFcmTransaction();
-
-        // Handle Activity transaction, which doesn't effect any entity's lifecyle
-        if (fcmTransaction.hasActivity()) {
-            final Activity.ActivityType activityType =
-                    fcmTransaction.getActivity().getType();
-            if (nodeIndex == 0 && activityType == Activity.ActivityType.SAVE_EXPECTED_MAP) {
-                // Serialize ExpectedMap to disk in JSON format
-                TransactionSubmitter.setForcePauseCanSubmitMore(new AtomicBoolean(true));
-                serialize(
-                        expectedFCMFamily.getExpectedMap(),
-                        new File(STORAGE_DIRECTORY),
-                        createExpectedMapName(platform.getSelfId().id(), timestamp),
-                        false);
-                TransactionSubmitter.setForcePauseCanSubmitMore(new AtomicBoolean(false));
-                logger.info(LOGM_DEMO_INFO, "handling SAVE_EXPECTED_MAP");
-
-            } else if (activityType == Activity.ActivityType.SAVE_EXPECTED_MAP) {
-                logger.info(LOGM_DEMO_INFO, "Received SAVE_EXPECTED_MAP transaction from node {}", id);
-            } else {
-                logger.info(EXCEPTION.getMarker(), "unknown Activity type");
-            }
-            return;
-        }
-
-        if (fcmTransaction.hasDummyTransaction()) {
-            return;
-        }
-
-        // Extract MapKeys, TransactionType, and EntityType from FCMTransaction
-        // which might effect entity's lifecycle status
-        final List<MapKey> keys = FCMTransactionUtils.getMapKeys(fcmTransaction);
-        final TransactionType transactionType = FCMTransactionUtils.getTransactionType(fcmTransaction);
-        final EntityType entityType = FCMTransactionUtils.getEntityType(fcmTransaction);
-        final long epochMillis = timestamp.toEpochMilli();
-
-        final long originId = fcmTransaction.getOriginNode();
-
-        if ((keys.isEmpty() && entityType != EntityType.NFT) || transactionType == null || entityType == null) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Invalid Transaction: keys: {}, transactionType: {}, entityType: {}",
-                    keys,
-                    transactionType,
-                    entityType);
-            return;
-        }
-
-        // if there is any error, we don't handle this transaction
-        if (!expectedFCMFamily.shouldHandleForKeys(
-                        keys, transactionType, getConfig(), entityType, epochMillis, originId)
-                && entityType != EntityType.NFT) {
-            transactionsIgnoredByExpectedMap++;
-            return;
-        }
-
-        // If signature verification result doesn't match expected result
-        // which is set when generating this FCMTransaction, it denotes an error
-        if (getConfig().isAppendSig() && invalidSig != fcmTransaction.getInvalidSig()) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Unexpected signature verification result: " + "actual: {}; expected:{}",
-                    () -> (invalidSig ? "INVALID" : "VALID"),
-                    () -> (fcmTransaction.getInvalidSig() ? "INVALID" : "VALID"));
-
-            // if the entity doesn't exist, put it to expectedMap;
-            // set its ExpectedValues's isErrored to be true;
-            // set its latestHandledStatus to be INVALID_SIG
-            expectedFCMFamily.setLatestHandledStatusForKey(
-                    keys.get(0),
-                    entityType,
-                    null,
-                    TransactionState.INVALID_SIG,
-                    transactionType,
-                    epochMillis,
-                    originId,
-                    true);
-            return;
-        }
-
-        // for expected invalid sig,
-        // set expectedValue's latestHandledStatus to be EXPECTED_INVALID_SIG
-        // and handle this transaction
-        if (invalidSig) {
-            expectedFCMFamily.setLatestHandledStatusForKey(
-                    keys.get(0),
-                    entityType,
-                    null,
-                    TransactionState.EXPECTED_INVALID_SIG,
-                    transactionType,
-                    epochMillis,
-                    originId,
-                    false);
-        }
-
-        // Handle the transaction and set latestHandledStatus
-        try {
-            FCMTransactionHandler.performOperation(
-                    fcmTransaction,
-                    this,
-                    this.expectedFCMFamily,
-                    originId,
-                    epochMillis,
-                    entityType,
-                    timestamp.getEpochSecond() + getConfig().getFcqTtl(),
-                    expirationQueue,
-                    accountsWithExpiringRecords);
-        } catch (final Exception ex) {
-            exceptionRateLimiter.handle(
-                    ex,
-                    (error) -> logger.error(
-                            EXCEPTION.getMarker(),
-                            "Exceptions while handling transaction: {} {} for {}, originId:{}",
-                            transactionType,
-                            entityType,
-                            keys,
-                            originId,
-                            error));
-
-            // if the entity doesn't exist, put it to expectedMap;
-            // set its ExpectedValues's isErrored to be true;
-            // set its latestHandledStatus to be HANDLE_FAILED
-            for (final MapKey key : keys) {
-                expectedFCMFamily.setLatestHandledStatusForKey(
-                        key,
-                        entityType,
-                        null,
-                        TransactionState.HANDLE_FAILED,
-                        transactionType,
-                        timestamp.toEpochMilli(),
-                        originId,
-                        true);
-            }
-        }
-        if (fcmTransaction.hasCreateAccount()) {
-            getTransactionCounter().get(nodeIndex).fcmCreateAmount++;
-            if (progressCfg != null) {
-                logProgress(
-                        id,
-                        progressCfg.getProgressMarker(),
-                        PAYLOAD_TYPE.TYPE_FCM_CREATE,
-                        progressCfg.getExpectedFCMCreateAmount(),
-                        getTransactionCounter().get(nodeIndex).fcmCreateAmount);
-            }
-        } else if (fcmTransaction.hasTransferBalance()) {
-            getTransactionCounter().get(nodeIndex).fcmTransferAmount++;
-            if (progressCfg != null) {
-                logProgress(
-                        id,
-                        progressCfg.getProgressMarker(),
-                        PAYLOAD_TYPE.TYPE_FCM_TRANSFER,
-                        progressCfg.getExpectedFCMTransferAmount(),
-                        getTransactionCounter().get(nodeIndex).fcmTransferAmount);
-            }
-        } else if (fcmTransaction.hasDeleteAccount()) {
-            getTransactionCounter().get(nodeIndex).fcmDeleteAmount++;
-            if (progressCfg != null) {
-                logProgress(
-                        id,
-                        progressCfg.getProgressMarker(),
-                        PAYLOAD_TYPE.TYPE_FCM_DELETE,
-                        progressCfg.getExpectedFCMDeleteAmount(),
-                        getTransactionCounter().get(nodeIndex).fcmDeleteAmount);
-            }
-        } else if (fcmTransaction.hasUpdateAccount()) {
-            getTransactionCounter().get(nodeIndex).fcmUpdateAmount++;
-            if (progressCfg != null) {
-                logProgress(
-                        id,
-                        progressCfg.getProgressMarker(),
-                        PAYLOAD_TYPE.TYPE_FCM_UPDATE,
-                        progressCfg.getExpectedFCMUpdateAmount(),
-                        getTransactionCounter().get(nodeIndex).fcmUpdateAmount);
-            }
-        } else if (fcmTransaction.hasAssortedAccount()) {
-            getTransactionCounter().get(nodeIndex).fcmAssortedAmount++;
-            if (progressCfg != null) {
-                logProgress(
-                        id,
-                        progressCfg.getProgressMarker(),
-                        PAYLOAD_TYPE.TYPE_FCM_ASSORTED,
-                        progressCfg.getExpectedFCMAssortedAmount(),
-                        getTransactionCounter().get(nodeIndex).fcmAssortedAmount);
-            }
-        } else if (fcmTransaction.hasAssortedFCQ()) {
-            getTransactionCounter().get(nodeIndex).fcmFCQAssortedAmount++;
-        } else if (fcmTransaction.hasCreateAccountFCQ()) {
-            getTransactionCounter().get(nodeIndex).fcmFCQCreateAmount++;
-        } else if (fcmTransaction.hasUpdateAccountFCQ()) {
-            getTransactionCounter().get(nodeIndex).fcmFCQUpdateAmount++;
-        } else if (fcmTransaction.hasTransferBalanceFCQ()) {
-            getTransactionCounter().get(nodeIndex).fcmFCQTransferAmount++;
-        } else if (fcmTransaction.hasDeleteFCQNode()) {
-            getTransactionCounter().get(nodeIndex).fcmFCQDeleteAmount++;
-        }
-    }
-
-    /**
-     * Handle the control transaction type.
-     */
-    private void handleControlTransaction(
-            @NonNull final TestTransaction testTransaction,
-            @NonNull final NodeId id,
-            @NonNull final Instant timestamp) {
-        Objects.requireNonNull(testTransaction, "testTransaction must not be null");
-        Objects.requireNonNull(id, "id must not be null");
-        Objects.requireNonNull(timestamp, "timestamp must not be null");
-
-        final long nodeIndex = platform.getAddressBook().getIndexOfNodeId(id);
-        final ControlTransaction msg = testTransaction.getControlTransaction();
-        logger.info(
-                DEMO_INFO.getMarker(),
-                "Handling Control Transaction [ originatingNodeId = {}, type = {}, consensusTimestamp = {} ]",
-                () -> id,
-                msg::getType,
-                () -> timestamp);
-
-        // Must use auto reset here, otherwise if reached quorum EXIT_VALIDATION then PTT restart, QuorumResult would be
-        // reloaded from saved state with reaching quorum state EXIT_VALIDATION as true,
-        // then TransactionSubmitter won't be able to submit transaction due to some check mechanism.
-        controlQuorum.withAutoReset().check(nodeIndex, new ControlAction(timestamp, msg.getType()));
-        // updating quorum result after handling control transactions
-        setQuorumResult(controlQuorum.getQuorumResult().copy());
-    }
-
-    /**
-     * Handle the freeze transaction type.
-     */
-    private void handleFreezeTransaction(
-            final TestTransaction testTransaction, final PlatformStateModifier platformState) {
-        final FreezeTransaction freezeTx = testTransaction.getFreezeTransaction();
-        FreezeTransactionHandler.freeze(freezeTx, platformState);
-    }
-
-    /**
-     * Handle a simple action transaction type
-     */
-    private void handleSimpleAction(final SimpleAction simpleAction) {
-        if (simpleAction == SimpleAction.CAUSE_ISS) {
-            getIssLeaf().setWriteRandom(true);
-        }
-    }
-
-    protected void preHandleTransaction(final Transaction transaction) {
-        if (transaction.isSystem()) {
-            return;
-        }
-        expandSignatures(transaction);
-    }
-
-    @Override
-    public synchronized void handleConsensusRound(final Round round, final PlatformStateModifier platformState) {
-        throwIfImmutable();
-        if (!initialized.get()) {
-            throw new IllegalStateException("handleConsensusRound() called before init()");
-        }
-        delay();
-        updateTransactionCounters();
-        round.forEachEventTransaction((event, transaction) ->
-                handleConsensusTransaction(event, transaction, platformState, round.getRoundNum()));
-    }
-
-    /**
-     * If the size of the address book has changed, zero out the transaction counters and resize, as needed.
-     */
-    private void updateTransactionCounters() {
-        if (getTransactionCounter() == null
-                || getTransactionCounter().size() != platform.getAddressBook().getSize()) {
-            setNextSeqCons(new NextSeqConsList(platform.getAddressBook().getSize()));
-
-            logger.info(DEMO_INFO.getMarker(), "resetting transaction counters");
-
-            setTransactionCounter(
-                    new TransactionCounterList(platform.getAddressBook().getSize()));
-            for (int id = 0; id < platform.getAddressBook().getSize(); id++) {
-                getTransactionCounter().add(new TransactionCounter(id));
-            }
-        }
-    }
-
-    private void handleConsensusTransaction(
-            final ConsensusEvent event,
-            final ConsensusTransaction trans,
-            final PlatformStateModifier platformState,
-            final long roundNum) {
-        if (trans.isSystem()) {
-            return;
-        }
-        try {
-            waitForSignatureValidation(trans);
-            handleTransaction(
-                    event.getCreatorId(), event.getTimeCreated(), trans.getConsensusTimestamp(), trans, platformState);
-        } catch (final InterruptedException e) {
-            logger.info(
-                    TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT.getMarker(),
-                    "handleConsensusRound Interrupted [ nodeId = {}, round = {} ]. "
-                            + "This should happen only during a reconnect",
-                    platform.getSelfId().id(),
-                    roundNum);
-            Thread.currentThread().interrupt();
-        } catch (final ExecutionException e) {
-            logger.error(EXCEPTION.getMarker(), "Exception while handling transaction", e);
-        }
-    }
-
-    private static void waitForSignatureValidation(final ConsensusTransaction transaction)
-            throws InterruptedException, ExecutionException {
-        final TransactionSignature sig = transaction.getMetadata();
-        if (sig == null) {
-            return;
-        }
-        final Future<Void> future = sig.waitForFuture();
-
-        // Block & Ignore the Void return
-        future.get();
-    }
-
-    private void handleTransaction(
-            @NonNull final NodeId id,
-            @NonNull final Instant timeCreated,
-            @NonNull final Instant timestamp,
-            @NonNull final ConsensusTransaction trans,
-            @NonNull final PlatformStateModifier platformState) {
-        if (getConfig().isAppendSig()) {
-            try {
-                final TestTransactionWrapper testTransactionWrapper = TestTransactionWrapper.parseFrom(
-                        trans.getApplicationTransaction().toByteArray());
-                final byte[] testTransactionRawBytes =
-                        testTransactionWrapper.getTestTransactionRawBytes().toByteArray();
-                final byte[] publicKey =
-                        testTransactionWrapper.getPublicKeyRawBytes().toByteArray();
-                final byte[] signature =
-                        testTransactionWrapper.getSignaturesRawBytes().toByteArray();
-
-                // if this is expected manually inject invalid signature
-                boolean expectingInvalidSignature = false;
-                final TestTransaction testTransaction = TestTransaction.parseFrom(testTransactionRawBytes);
-                if (testTransaction.getBodyCase() == FCMTRANSACTION) {
-                    final FCMTransaction fcmTransaction = testTransaction.getFcmTransaction();
-                    if (fcmTransaction.getInvalidSig()) {
-                        expectingInvalidSignature = true;
-                    }
-                }
-                totalTransactionSignatureCount.incrementAndGet();
-                final TransactionSignature s = trans.getMetadata();
-                if (s != null && s.getSignatureStatus() != VerificationStatus.VALID && (!expectingInvalidSignature)) {
-                    logger.error(
-                            EXCEPTION.getMarker(),
-                            "Invalid Transaction Signature [status = {}, signatureType = {}, "
-                                    + "publicKey = {}, signature = {}, data = {}, "
-                                    + "actualPublicKey = {}, actualSignature = {}, actualData = {} ]",
-                            s.getSignatureStatus(),
-                            s.getSignatureType(),
-                            hex(publicKey),
-                            hex(signature),
-                            hex(testTransactionRawBytes),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getPublicKeyOffset(),
-                                    s.getPublicKeyOffset() + s.getPublicKeyLength())),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getSignatureOffset(),
-                                    s.getSignatureOffset() + s.getSignatureLength())),
-                            hex(Arrays.copyOfRange(
-                                    s.getContentsDirect(),
-                                    s.getMessageOffset(),
-                                    s.getMessageOffset() + s.getMessageLength())));
-                } else if (s != null
-                        && s.getSignatureStatus() != VerificationStatus.VALID
-                        && expectingInvalidSignature) {
-                    expectedInvalidSignatureCount.incrementAndGet();
-                }
-
-            } catch (final InvalidProtocolBufferException ex) {
-                exceptionRateLimiter.handle(
-                        ex,
-                        (error) -> logger.error(
-                                EXCEPTION.getMarker(),
-                                "" + "InvalidProtocolBufferException while chekcing signature",
-                                error));
-            }
-        }
-
-        //////////// start timing/////////////
-        final long startTime = System.nanoTime();
-        validateTimestamp(timestamp);
-        lastTranTimeStamp = System.currentTimeMillis();
-
-        final Optional<TestTransaction> testTransaction = unpackTransaction(trans);
-        if (testTransaction.isEmpty()) {
-            return;
-        }
-        final long splitTime1 = System.nanoTime();
-        // omit entityExpiration from handleTransaction timing
-        purgeExpiredRecordsIfNeeded(testTransaction.get(), timestamp);
-        final long splitTime2 = System.nanoTime();
-
-        logIfFirstTransaction(id);
-
-        // Handle based on transaction type
-        switch (testTransaction.get().getBodyCase()) {
-            case BYTESTRANSACTION:
-                handleBytesTransaction(testTransaction.get(), id);
-                break;
-            case FCMTRANSACTION:
-                handleFCMTransaction(testTransaction.get(), id, timestamp, checkIfSignatureIsInvalid(trans));
-                break;
-            case CONTROLTRANSACTION:
-                handleControlTransaction(testTransaction.get(), id, timestamp);
-                break;
-            case FREEZETRANSACTION:
-                handleFreezeTransaction(testTransaction.get(), platformState);
-                break;
-            case SIMPLEACTION:
-                handleSimpleAction(testTransaction.get().getSimpleAction());
-                break;
-            case VIRTUALMERKLETRANSACTION:
-                handleVirtualMerkleTransaction(testTransaction.get().getVirtualMerkleTransaction(), id, timeCreated);
-                break;
-            default:
-                logger.error(EXCEPTION.getMarker(), "Unrecognized transaction!");
-        }
-
-        //////////// end timing/////////////
-        final long htNetTime = System.nanoTime() - splitTime2 + (splitTime1 - startTime);
-        if (testTransaction.get().hasFcmTransaction()) {
-            final FCMTransaction fcmTransaction = testTransaction.get().getFcmTransaction();
-            if (!fcmTransaction.hasActivity() && !fcmTransaction.hasDummyTransaction()) {
-                switch (Objects.requireNonNull(FCMTransactionUtils.getEntityType(fcmTransaction))) {
-                    case Crypto:
-                        htFCMSumNano += htNetTime;
-                        htCountFCM++;
-                        htFCMAccounts = getFcmFamily().getMap().size();
-                        break;
-                    case FCQ:
-                        htFCQSumNano += htNetTime;
-                        htCountFCQ++;
-                        htFCQAccounts = getFcmFamily().getAccountFCQMap().size();
-                        break;
-                }
-            }
-        }
-    }
-
-    /**
-     * Do initial genesis setup.
-     */
-    private void genesisInit() {
-        logger.info(LOGM_STARTUP, "Set QuorumResult from genesisInit()");
-        setQuorumResult(new QuorumResult<>(platform.getAddressBook().getSize()));
-
-        setIssLeaf(new IssLeaf());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void init(
-            @NonNull final Platform platform,
-            @NonNull final InitTrigger trigger,
-            @Nullable final SoftwareVersion previousSoftwareVersion) {
-
-        if (trigger == InitTrigger.RESTART) {
-            rebuildExpectedMapFromState(Instant.EPOCH, true);
-            rebuildExpirationQueue();
-        }
-
-        this.platform = platform;
-        UnsafeMutablePTTStateAccessor.getInstance().setMutableState(platform.getSelfId(), this);
-
-        initialized.set(true);
-
-        TransactionSubmitter.setForcePauseCanSubmitMore(new AtomicBoolean(false));
-
-        // If parameter exists, load PayloadCfgSimple from top level json configuration file
-        // Otherwise, load the default setting
-        final String[] parameters = ParameterProvider.getInstance().getParameters();
-        if (parameters != null && parameters.length > 0) {
-            final String jsonFileName = parameters[0];
-            final PayloadCfgSimple payloadCfgSimple = PlatformTestingToolMain.getPayloadCfgSimple(jsonFileName);
-            setConfig(payloadCfgSimple);
-        } else {
-            setConfig(new PayloadCfgSimple());
-        }
-
-        expectedFCMFamily.setNodeId(platform.getSelfId().id());
-        expectedFCMFamily.setWeightedNodeNum(platform.getAddressBook().getNumberWithWeight());
-
-        // initialize data structures used for FCQueue transaction records expiration
-        initializeExpirationQueueAndAccountsSet();
-        logger.info(LOGM_STARTUP, () -> new SoftwareVersionPayload(
-                        "Trigger and PreviousSoftwareVersion state received in init function",
-                        trigger.toString(),
-                        Objects.toString(previousSoftwareVersion))
-                .toString());
-
-        if (trigger == InitTrigger.GENESIS) {
-            genesisInit();
-        }
-        this.invalidateHash();
-    }
-
-    private MessageDigest createKeccakDigest() {
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("KECCAK-256");
-        } catch (NoSuchAlgorithmException ignored) {
-            try {
-                digest = MessageDigest.getInstance("SHA3-256");
-            } catch (NoSuchAlgorithmException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        return digest;
-    }
-
-    private byte[] keccak256(final byte[] bytes) {
-        final MessageDigest keccakDigest = createKeccakDigest();
-        keccakDigest.update(bytes);
-        return keccakDigest.digest();
-    }
-
-    private void expandSignatures(final Transaction trans) {
-        if (getConfig().isAppendSig()) {
-            try {
-                final byte[] payloadBytes = trans.getApplicationTransaction().toByteArray();
-                final TestTransactionWrapper testTransactionWrapper = TestTransactionWrapper.parseFrom(payloadBytes);
-                final byte[] testTransactionRawBytes =
-                        testTransactionWrapper.getTestTransactionRawBytes().toByteArray();
-                final byte[] publicKey =
-                        testTransactionWrapper.getPublicKeyRawBytes().toByteArray();
-                final byte[] signature =
-                        testTransactionWrapper.getSignaturesRawBytes().toByteArray();
-                final AppTransactionSignatureType AppSignatureType = testTransactionWrapper.getSignatureType();
-
-                final SignatureType signatureType;
-                byte[] signaturePayload = testTransactionRawBytes;
-
-                if (AppSignatureType == AppTransactionSignatureType.ED25519) {
-                    signatureType = SignatureType.ED25519;
-                } else if (AppSignatureType == AppTransactionSignatureType.ECDSA_SECP256K1) {
-                    signatureType = SignatureType.ECDSA_SECP256K1;
-                    signaturePayload = keccak256(testTransactionRawBytes);
-                } else if (AppSignatureType == AppTransactionSignatureType.RSA) {
-                    signatureType = SignatureType.RSA;
-                } else {
-                    throw new UnsupportedOperationException("Unknown application signature type " + AppSignatureType);
-                }
-
-                final int msgLen = signaturePayload.length;
-                final int sigOffset = msgLen + publicKey.length;
-
-                // concatenate payload with public key and signature
-                final byte[] contents = ByteBuffer.allocate(
-                                signaturePayload.length + publicKey.length + signature.length)
-                        .put(signaturePayload)
-                        .put(publicKey)
-                        .put(signature)
-                        .array();
-
-                final TransactionSignature transactionSignature = new TransactionSignature(
-                        contents, sigOffset, signature.length, msgLen, publicKey.length, 0, msgLen, signatureType);
-                trans.setMetadata(transactionSignature);
-
-                CryptographyHolder.get().verifySync(List.of(transactionSignature));
-
-            } catch (final InvalidProtocolBufferException ex) {
-                exceptionRateLimiter.handle(
-                        ex, (error) -> logger.error(EXCEPTION.getMarker(), "InvalidProtocolBufferException", error));
-            }
-        }
-    }
-
-    /**
-     * Report current progress, if currentAmount equals multiple times of markerPercentage of expectedAmount For example
-     * if expectedAmount = 88, markerPercentage = 20, the progress will be reported if current progress percentage is
-     * 20%, 40%, 60%, 80%, 100%. Accordingly, currentAmount equals to 17, 35, 52, 70, and 88
-     * <p>
-     * If markerPercentage is 15, then should report progress at 15%, 30%, 45%, 60%, 75%, 90% and 100%
-     */
-    private void logProgress(
-            @NonNull final NodeId id,
-            final int markerPercentage,
-            @NonNull final PAYLOAD_TYPE type,
-            final long expectedAmount,
-            final long currentAmount) {
-        if (markerPercentage != 0 && currentAmount != 0 && expectedAmount != 0) {
-            if (currentAmount == 1) {
-                logger.info(LOGM_DEMO_INFO, "PlatformTestingDemo id {} HANDLE {} START", id, type);
-            } else if (currentAmount == expectedAmount) {
-                logger.info(LOGM_DEMO_INFO, "PlatformTestingDemo id {} HANDLE {} END", id, type);
-            } else {
-                final int reportTimes = (int) Math.ceil(((double) 100) / markerPercentage);
-                for (int i = 1; i <= reportTimes; i++) { // check currentAmount match which marker value
-                    final int percentage = Math.min(100, i * markerPercentage);
-                    final long reportNumber = expectedAmount * percentage / 100;
-                    if (currentAmount == reportNumber) {
-                        logger.info(
-                                LOGM_DEMO_INFO,
-                                "PlatformTestingDemo id {} HANDLE {} {}% currentAmount {} ",
-                                id,
-                                type,
-                                percentage,
-                                currentAmount);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Validate signatures when appendSig is true, if signature status is INVALID set invalidSig flag
-     *
-     * @param trans Transaction whose signatures needs to be validated
-     * @return boolean that shows if the signature status is INVALID
-     */
-    private static boolean validateSignatures(final Transaction trans) {
-        // Verify signatures if appendSig is true
-        boolean invalidSig = false;
-        final TransactionSignature signature = trans.getMetadata();
-        if (signature != null) {
-            if (VerificationStatus.UNKNOWN.equals(signature.getSignatureStatus())) {
-                try {
-                    final Future<Void> future = signature.waitForFuture();
-                    future.get();
-                } catch (final ExecutionException | InterruptedException ex) {
-                    logger.info(EXCEPTION.getMarker(), "Error when verifying signature", ex);
-                }
-            }
-            if (VerificationStatus.INVALID.equals(signature.getSignatureStatus())) {
-                invalidSig = true;
-            }
-        }
-        return invalidSig;
     }
 
     /**
@@ -1547,33 +441,7 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
         getReferenceNftLedger().reload(getNftLedger());
     }
 
-    /**
-     * Remove expired records from FCQs
-     *
-     * @param consensusCurrentTimestamp transaction records whose expiration time is below or equal to this consensus
-     *                                  time will be removed
-     * @return number of removed records
-     */
-    public long purgeExpiredRecords(final long consensusCurrentTimestamp) {
-        lastPurgeTimestamp = consensusCurrentTimestamp;
-
-        final long startTime = System.nanoTime();
-        final long removedNum = removeExpiredRecordsInExpirationQueue(consensusCurrentTimestamp);
-
-        if (removedNum > 0) {
-            final long timeTakenMicro = (System.nanoTime() - startTime) / MICROSECONDS_TO_NANOSECONDS;
-            logger.info(
-                    LOGM_EXPIRATION,
-                    "Finish removing expired records from FCQs. Has removed: {} in {} ms",
-                    removedNum,
-                    timeTakenMicro);
-            htCountExpiration += removedNum;
-            htFCQExpirationSumMicro += timeTakenMicro;
-        }
-        return removedNum;
-    }
-
-    private long removeExpiredRecordsInExpirationQueue(final long consensusCurrentTimestamp) {
+    long removeExpiredRecordsInExpirationQueue(final long consensusCurrentTimestamp) {
         long removedNumOfRecords = 0;
         while (!expirationQueue.isEmpty()
                 && (expirationQueue.peek().getEarliestExpiry() <= consensusCurrentTimestamp)) {
@@ -1588,7 +456,6 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
                     fcmFamily,
                     expectedFCMFamily);
         }
-        htFCQRecordsCount = expirationQueue.size();
         return removedNumOfRecords;
     }
 
@@ -1601,7 +468,7 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
             logger.error(EXCEPTION.getMarker(), "FCMFamily is null, so could not rebuild Expiration Queue");
             return;
         }
-        if (fcmFamily.getAccountFCQMap().size() == 0) {
+        if (fcmFamily.getAccountFCQMap().isEmpty()) {
             return;
         }
         expirationQueue = new PriorityBlockingQueue<>();
@@ -1614,6 +481,11 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
      */
     public void setExpectedFCMFamily(final ExpectedFCMFamily expectedFCMFamily) {
         this.expectedFCMFamily = expectedFCMFamily;
+    }
+
+    @Override
+    protected PlatformTestingToolState copyingConstructor() {
+        return new PlatformTestingToolState(this);
     }
 
     /**
@@ -1646,16 +518,19 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
     }
 
     private static class ChildIndices {
-        public static final int UNUSED = 0;
-        public static final int CONFIG = 1;
+        public static final int UNUSED_PLATFORM_STATE = 0;
+        public static final int UNUSED_ROSTERS = 1;
+        public static final int UNUSED_ROSTER_STATE = 2;
+
+        public static final int CONFIG = 3;
         /**
          * last sequence by each member for consensus events
          */
-        public static final int NEXT_SEQUENCE_CONSENSUS = 2;
+        public static final int NEXT_SEQUENCE_CONSENSUS = 4;
 
-        public static final int FCM_FAMILY = 3;
-        public static final int TRANSACTION_COUNTER = 4;
-        public static final int ISS_LEAF = 5;
+        public static final int FCM_FAMILY = 5;
+        public static final int TRANSACTION_COUNTER = 6;
+        public static final int ISS_LEAF = 7;
         /**
          * Migration test need this value to be able to load state file generated by v21 sdk
          */
@@ -1666,21 +541,16 @@ public class PlatformTestingToolState extends PartialNaryMerkleInternal implemen
          * compression). But this is what Hedera is currently doing, so it is better to mimic their pattern and have
          * similar inefficiencies.
          */
-        public static final int NFT_LEDGER = 6;
+        public static final int NFT_LEDGER = 8;
 
-        public static final int VIRTUAL_MERKLE = 7;
+        public static final int VIRTUAL_MERKLE = 9;
 
-        public static final int VIRTUAL_MERKLE_SMART_CONTRACTS = 8;
+        public static final int VIRTUAL_MERKLE_SMART_CONTRACTS = 10;
 
-        public static final int VIRTUAL_MERKLE_SMART_CONTRACTS_BYTE_CODE = 9;
+        public static final int VIRTUAL_MERKLE_SMART_CONTRACTS_BYTE_CODE = 11;
 
-        public static final int QUORUM_RESULT = 10;
+        public static final int QUORUM_RESULT = 12;
 
-        public static final int CHILD_COUNT = 11;
-    }
-
-    @Override
-    public void preHandle(final Event event) {
-        event.forEachTransaction(this::preHandleTransaction);
+        public static final int CHILD_COUNT = 13;
     }
 }

@@ -1,27 +1,15 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.verify;
@@ -30,13 +18,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ThresholdKey;
-import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -44,25 +28,27 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
+import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
-import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.info.NetworkInfo;
-import com.swirlds.state.spi.info.NodeInfo;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.time.Instant;
+import java.util.Set;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -132,30 +118,21 @@ class ChildDispatchFactoryTest {
     private ServiceScopeLookup serviceScopeLookup;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private ExchangeRateManager exchangeRateManager;
 
     @Mock
-    private ExchangeRateManager exchangeRateManager;
+    private TransactionChecker transactionChecker;
+
+    @Mock
+    private DeduplicationCache deduplicationCache;
 
     private ChildDispatchFactory subject;
 
     private static final AccountID payerId =
             AccountID.newBuilder().accountNum(1_234L).build();
-    private static final CryptoTransferTransactionBody transferBody = CryptoTransferTransactionBody.newBuilder()
-            .tokenTransfers(TokenTransferList.newBuilder()
-                    .token(TokenID.DEFAULT)
-                    .nftTransfers(NftTransfer.newBuilder()
-                            .receiverAccountID(AccountID.DEFAULT)
-                            .senderAccountID(AccountID.DEFAULT)
-                            .serialNumber(1)
-                            .build())
-                    .build())
-            .build();
     private final Configuration configuration = HederaTestConfigBuilder.createConfig();
 
     private final Predicate<Key> callback = key -> true;
-    private final ExternalizedRecordCustomizer customizer = recordBuilder -> recordBuilder;
-    private final RecordStreamBuilder.ReversingBehavior reversingBehavior = StreamBuilder.ReversingBehavior.REMOVABLE;
 
     @BeforeEach
     public void setUp() {
@@ -166,8 +143,8 @@ class ChildDispatchFactoryTest {
                 feeManager,
                 dispatchProcessor,
                 serviceScopeLookup,
-                storeMetricsService,
-                exchangeRateManager);
+                exchangeRateManager,
+                transactionChecker);
     }
 
     @Test
@@ -177,34 +154,61 @@ class ChildDispatchFactoryTest {
         assertThat(noOpKeyVerifier.verificationFor(Key.DEFAULT, assistant).passed())
                 .isTrue();
         assertThat(noOpKeyVerifier.verificationFor(Bytes.EMPTY).passed()).isTrue();
-        assertThat(noOpKeyVerifier.numSignaturesVerified()).isEqualTo(0L);
+        assertThat(noOpKeyVerifier.numSignaturesVerified()).isZero();
     }
 
     @Test
     void keyVerifierWithNullCallbackIsNoOp() {
-        assertThat(ChildDispatchFactory.getKeyVerifier(null)).isInstanceOf(ChildDispatchFactory.NoOpKeyVerifier.class);
+        assertThat(ChildDispatchFactory.getKeyVerifier(null, DEFAULT_CONFIG, emptySet()))
+                .isInstanceOf(ChildDispatchFactory.NoOpKeyVerifier.class);
     }
 
     @Test
-    void keyVerifierOnlySupportsKeyVerification() {
-        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback);
-        assertThatThrownBy(() -> derivedVerifier.verificationFor(Key.DEFAULT, assistant))
-                .isInstanceOf(UnsupportedOperationException.class);
+    void keyVerifierWithNullCallbackAndAuthorizingKeysAsExpected() {
+        final var derivedVerifier =
+                ChildDispatchFactory.getKeyVerifier(null, DEFAULT_CONFIG, Set.of(A_CONTRACT_ID_KEY));
+        assertThat(derivedVerifier.verificationFor(Key.DEFAULT).passed()).isTrue();
+        assertThat(derivedVerifier.verificationFor(Key.DEFAULT, (k, v) -> false).passed())
+                .isTrue();
+        assertThat(derivedVerifier.verificationFor(Bytes.EMPTY).passed()).isTrue();
+        assertThat(derivedVerifier.numSignaturesVerified()).isZero();
+        assertThat(derivedVerifier.authorizingSimpleKeys()).containsExactly(A_CONTRACT_ID_KEY);
+    }
+
+    @Test
+    void keyVerifierWithCallbackAndAuthorizingKeysAsExpected() {
+        final var derivedVerifier =
+                ChildDispatchFactory.getKeyVerifier(a -> true, DEFAULT_CONFIG, Set.of(A_CONTRACT_ID_KEY));
+        assertThat(derivedVerifier.verificationFor(Key.DEFAULT).passed()).isTrue();
+        assertThat(derivedVerifier.verificationFor(Key.DEFAULT, (k, v) -> true).passed())
+                .isTrue();
         assertThatThrownBy(() -> derivedVerifier.verificationFor(Bytes.EMPTY))
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThat(derivedVerifier.numSignaturesVerified()).isEqualTo(0L);
+        assertThat(derivedVerifier.numSignaturesVerified()).isZero();
+        assertThat(derivedVerifier.authorizingSimpleKeys()).containsExactly(A_CONTRACT_ID_KEY);
+        assertThat(derivedVerifier.authorizingSimpleKeys()).isNotEmpty();
+    }
+
+    @Test
+    void noOpVerifierFailsVerification() {
+        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback, DEFAULT_CONFIG, emptySet());
+        assertThat(derivedVerifier.verificationFor(Key.DEFAULT, assistant).passed())
+                .isFalse();
+        assertThatThrownBy(() -> derivedVerifier.verificationFor(Bytes.EMPTY))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThat(derivedVerifier.numSignaturesVerified()).isZero();
     }
 
     @Test
     void keyVerifierPassesImmediatelyGivenTrueCallback() {
-        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback);
+        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback, DEFAULT_CONFIG, emptySet());
         given(verifierCallback.test(AN_ED25519_KEY)).willReturn(true);
         assertThat(derivedVerifier.verificationFor(AN_ED25519_KEY).passed()).isTrue();
     }
 
     @Test
     void keyVerifierUsesDelegateIfNotImmediatePass() {
-        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback);
+        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback, DEFAULT_CONFIG, emptySet());
         given(verifierCallback.test(A_THRESHOLD_KEY)).willReturn(false);
         given(verifierCallback.test(AN_ED25519_KEY)).willReturn(true);
         assertThat(derivedVerifier.verificationFor(A_THRESHOLD_KEY).passed()).isTrue();
@@ -212,9 +216,10 @@ class ChildDispatchFactoryTest {
 
     @Test
     void keyVerifierDetectsNoPass() {
-        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback);
+        final var derivedVerifier = ChildDispatchFactory.getKeyVerifier(verifierCallback, DEFAULT_CONFIG, emptySet());
         assertThat(derivedVerifier.verificationFor(A_THRESHOLD_KEY).passed()).isFalse();
-        verify(verifierCallback).test(A_THRESHOLD_KEY);
+        verify(verifierCallback).test(AN_ED25519_KEY);
+        verify(verifierCallback).test(A_CONTRACT_ID_KEY);
     }
 
     @Test
@@ -227,12 +232,6 @@ class ChildDispatchFactoryTest {
         Exception exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> subject.createChildDispatch(
-                        txBody,
-                        callback,
-                        payerId,
-                        HandleContext.TransactionCategory.SCHEDULED,
-                        customizer,
-                        reversingBehavior,
                         configuration,
                         savepointStack,
                         readableStoreFactory,
@@ -241,8 +240,18 @@ class ChildDispatchFactoryTest {
                         throttleAdviser,
                         Instant.ofEpochSecond(12345L),
                         blockRecordInfo,
-                        HandleContext.ConsensusThrottling.ON));
-        assertTrue(exception.getCause() instanceof UnknownHederaFunctionality);
+                        DispatchOptions.subDispatch(
+                                payerId,
+                                txBody,
+                                callback,
+                                emptySet(),
+                                StreamBuilder.class,
+                                DispatchOptions.StakingRewards.ON,
+                                DispatchOptions.UsePresetTxnId.NO,
+                                NOOP_FEE_CHARGING,
+                                PropagateFeeChargingStrategy.YES),
+                        null));
+        assertInstanceOf(UnknownHederaFunctionality.class, exception.getCause());
         assertEquals("Unknown Hedera Functionality", exception.getMessage());
     }
 

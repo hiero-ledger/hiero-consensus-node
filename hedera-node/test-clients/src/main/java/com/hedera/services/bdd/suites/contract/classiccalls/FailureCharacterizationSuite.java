@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.classiccalls;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
@@ -187,77 +172,70 @@ public class FailureCharacterizationSuite extends HapiSuite {
         } else {
             CALL_RESULTS_SNAPSHOT.load();
         }
-        return defaultHapiSpec("CharacterizeClassicFailureModes")
-                .given(uploadInitCode(FAILABLE_CALLS_CONTRACT), contractCreate(FAILABLE_CALLS_CONTRACT))
-                .when(classicInventoryIsAvailable())
-                .then(
-                        inParallel(Arrays.stream(ClassicFailureMode.values())
-                                .flatMap(mode -> calls.stream()
-                                        .filter(call -> call.hasFailureMode(mode))
-                                        .map(call -> sourcingContextual(spec -> {
-                                            final var params = call.encodedCall(mode, spec);
-                                            final var nonStaticTxnId = "CALL-" + call.name() + "-" + mode.name();
-                                            final var nonStaticCall = blockingOrder(
-                                                    contractCall(FAILABLE_CALLS_CONTRACT, "makeClassicCall", params)
-                                                            .via(nonStaticTxnId)
-                                                            .gas(1_000_000L)
-                                                            .hasKnownStatusFrom(SUCCESS, CONTRACT_REVERT_EXECUTED),
-                                                    getTxnRecord(nonStaticTxnId).exposingAllTo(records -> {
-                                                        final var actualResult = call.asCallResult(records);
-                                                        if (characterizationMode
-                                                                == CharacterizationMode.RECORD_SNAPSHOT) {
-                                                            CALL_RESULTS_SNAPSHOT.recordResult(
-                                                                    call.name(), mode, actualResult);
-                                                        } else {
-                                                            final var expectedResult =
-                                                                    CALL_RESULTS_SNAPSHOT.expectedResultOf(
-                                                                            call.name(), mode);
-                                                            assertEquals(
-                                                                    expectedResult,
-                                                                    actualResult,
-                                                                    "Wrong result for " + call.name()
-                                                                            + " for failure mode " + mode.name());
-                                                        }
-                                                    }));
-                                            return !call.staticCallOk()
-                                                    ? nonStaticCall
-                                                    : blockingOrder(
-                                                            nonStaticCall,
-                                                            contractCallLocal(
-                                                                            FAILABLE_CALLS_CONTRACT,
-                                                                            "makeClassicCall",
-                                                                            params)
-                                                                    .hasAnswerOnlyPrecheckFrom(
-                                                                            OK, CONTRACT_REVERT_EXECUTED)
-                                                                    .exposingFullResultTo((status, result) -> {
-                                                                        final var actualResult =
-                                                                                call.asStaticCallResult(status, result);
-                                                                        if (characterizationMode
-                                                                                == CharacterizationMode
-                                                                                        .RECORD_SNAPSHOT) {
-                                                                            CALL_RESULTS_SNAPSHOT.recordStaticResult(
-                                                                                    call.name(), mode, actualResult);
-                                                                        } else {
-                                                                            final var expectedResult =
-                                                                                    CALL_RESULTS_SNAPSHOT
-                                                                                            .expectedStaticCallResultOf(
-                                                                                                    call.name(), mode);
-                                                                            assertEquals(
-                                                                                    expectedResult,
-                                                                                    actualResult,
-                                                                                    "Wrong static call result for "
-                                                                                            + call.name()
-                                                                                            + " for failure mode "
-                                                                                            + mode.name());
-                                                                        }
-                                                                    }));
-                                        })))
-                                .toArray(HapiSpecOperation[]::new)),
-                        withOpContext((spec, opLog) -> {
-                            if (characterizationMode == CharacterizationMode.RECORD_SNAPSHOT) {
-                                CALL_RESULTS_SNAPSHOT.commit();
-                            }
-                        }));
+        return hapiTest(
+                uploadInitCode(FAILABLE_CALLS_CONTRACT),
+                contractCreate(FAILABLE_CALLS_CONTRACT),
+                classicInventoryIsAvailable(),
+                inParallel(Arrays.stream(ClassicFailureMode.values())
+                        .flatMap(mode -> calls.stream()
+                                .filter(call -> call.hasFailureMode(mode))
+                                .map(call -> sourcingContextual(spec -> {
+                                    final var params = call.encodedCall(mode, spec);
+                                    final var nonStaticTxnId = "CALL-" + call.name() + "-" + mode.name();
+                                    final var nonStaticCall = blockingOrder(
+                                            contractCall(FAILABLE_CALLS_CONTRACT, "makeClassicCall", params)
+                                                    .via(nonStaticTxnId)
+                                                    .gas(1_000_000L)
+                                                    .hasKnownStatusFrom(SUCCESS, CONTRACT_REVERT_EXECUTED),
+                                            getTxnRecord(nonStaticTxnId).exposingAllTo(records -> {
+                                                final var actualResult = call.asCallResult(records);
+                                                if (characterizationMode == CharacterizationMode.RECORD_SNAPSHOT) {
+                                                    CALL_RESULTS_SNAPSHOT.recordResult(call.name(), mode, actualResult);
+                                                } else {
+                                                    final var expectedResult =
+                                                            CALL_RESULTS_SNAPSHOT.expectedResultOf(call.name(), mode);
+                                                    assertEquals(
+                                                            expectedResult,
+                                                            actualResult,
+                                                            "Wrong result for " + call.name() + " for failure mode "
+                                                                    + mode.name());
+                                                }
+                                            }));
+                                    return !call.staticCallOk()
+                                            ? nonStaticCall
+                                            : blockingOrder(
+                                                    nonStaticCall,
+                                                    contractCallLocal(
+                                                                    FAILABLE_CALLS_CONTRACT, "makeClassicCall", params)
+                                                            .hasAnswerOnlyPrecheckFrom(OK, CONTRACT_REVERT_EXECUTED)
+                                                            .exposingFullResultTo((status, result) -> {
+                                                                final var actualResult =
+                                                                        call.asStaticCallResult(status, result);
+                                                                if (characterizationMode
+                                                                        == CharacterizationMode.RECORD_SNAPSHOT) {
+                                                                    CALL_RESULTS_SNAPSHOT.recordStaticResult(
+                                                                            call.name(), mode, actualResult);
+                                                                } else {
+                                                                    final var expectedResult =
+                                                                            CALL_RESULTS_SNAPSHOT
+                                                                                    .expectedStaticCallResultOf(
+                                                                                            call.name(), mode);
+                                                                    assertEquals(
+                                                                            expectedResult,
+                                                                            actualResult,
+                                                                            "Wrong static call result for "
+                                                                                    + call.name()
+                                                                                    + " for failure mode "
+                                                                                    + mode.name());
+                                                                }
+                                                            }));
+                                })))
+                        .toArray(HapiSpecOperation[]::new)),
+                withOpContext((spec, opLog) -> {
+                    if (characterizationMode == CharacterizationMode.RECORD_SNAPSHOT) {
+                        CALL_RESULTS_SNAPSHOT.commit();
+                    }
+                }));
     }
 
     private HapiSpecOperation classicInventoryIsAvailable() {

@@ -1,34 +1,17 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.state.MinimumJudgeInfo;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import org.hiero.base.crypto.Hash;
 
 /**
  * As the name suggest, the sole purpose of this class is to accumulate changes, so that they could be applied to the
@@ -37,20 +20,6 @@ import java.util.function.Consumer;
  * platform state fields to null if they are not updated.
  */
 public class PlatformStateValueAccumulator implements PlatformStateModifier {
-
-    /**
-     * The address book for this round.
-     */
-    private AddressBook addressBook;
-
-    private boolean addressBookUpdated;
-
-    /**
-     * The previous address book. A temporary workaround until dynamic address books are supported.
-     */
-    private AddressBook previousAddressBook;
-
-    private boolean previousAddressBookUpdated;
 
     /**
      * The round of this state. This state represents the handling of all transactions that have reached consensus in
@@ -78,7 +47,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     /**
      * The version of the application software that was responsible for creating this state.
      */
-    private SoftwareVersion creationSoftwareVersion;
+    private SemanticVersion creationSoftwareVersion;
 
     private boolean creationSoftwareVersionUpdated;
 
@@ -114,7 +83,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * Null if birth round migration has not yet happened, otherwise the software version that was first used when the
      * birth round migration was performed.
      */
-    private SoftwareVersion firstVersionInBirthRoundMode;
+    private SemanticVersion firstVersionInBirthRoundMode;
 
     private boolean firstVersionInBirthRoundModeUpdated;
 
@@ -135,46 +104,14 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     @NonNull
     @Override
-    public SoftwareVersion getCreationSoftwareVersion() {
+    public SemanticVersion getCreationSoftwareVersion() {
         return creationSoftwareVersion;
     }
 
     @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
+    public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         this.creationSoftwareVersion = Objects.requireNonNull(creationVersion);
         creationSoftwareVersionUpdated = true;
-    }
-
-    @Override
-    @Nullable
-    public AddressBook getAddressBook() {
-        return addressBook;
-    }
-
-    @Override
-    public void setAddressBook(@Nullable final AddressBook addressBook) {
-        this.addressBook = addressBook;
-        addressBookUpdated = true;
-    }
-
-    /**
-     * Get the previous address book.
-     */
-    @Override
-    @Nullable
-    public AddressBook getPreviousAddressBook() {
-        return previousAddressBook;
-    }
-
-    /**
-     * Set the previous address book.
-     *
-     * @param addressBook an address book
-     */
-    @Override
-    public void setPreviousAddressBook(@Nullable final AddressBook addressBook) {
-        this.previousAddressBook = addressBook;
-        previousAddressBookUpdated = true;
     }
 
     /**
@@ -251,8 +188,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * than this value are ancient.
      *
      * <p>
-     * When running in {@link AncientMode#GENERATION_THRESHOLD}, this value is the minimum generation non-ancient. When
-     * running in {@link AncientMode#BIRTH_ROUND_THRESHOLD}, this value is the minimum birth round non-ancient.
+     * This value is the minimum birth round non-ancient.
      * </p>
      *
      * @return the ancient threshold after this round has reached consensus
@@ -264,7 +200,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
                     "No minimum judge info found in state for round " + round + ", snapshot is null");
         }
 
-        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.getMinimumJudgeInfoList();
+        final List<MinimumJudgeInfo> minimumJudgeInfo = snapshot.minimumJudgeInfoList();
         if (minimumJudgeInfo.isEmpty()) {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + round + ", list is empty");
@@ -366,7 +302,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      */
     @Override
     @Nullable
-    public SoftwareVersion getFirstVersionInBirthRoundMode() {
+    public SemanticVersion getFirstVersionInBirthRoundMode() {
         return firstVersionInBirthRoundMode;
     }
 
@@ -376,7 +312,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
      */
     @Override
-    public void setFirstVersionInBirthRoundMode(final SoftwareVersion firstVersionInBirthRoundMode) {
+    public void setFirstVersionInBirthRoundMode(final SemanticVersion firstVersionInBirthRoundMode) {
         this.firstVersionInBirthRoundMode = firstVersionInBirthRoundMode;
         firstVersionInBirthRoundModeUpdated = true;
     }
@@ -423,14 +359,6 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     public void setLowestJudgeGenerationBeforeBirthRoundMode(final long lowestJudgeGenerationBeforeBirthRoundMode) {
         this.lowestJudgeGenerationBeforeBirthRoundMode = lowestJudgeGenerationBeforeBirthRoundMode;
         lowestJudgeGenerationBeforeBirthRoundModeUpdated = true;
-    }
-
-    public boolean isAddressBookUpdated() {
-        return addressBookUpdated;
-    }
-
-    public boolean isPreviousAddressBookUpdated() {
-        return previousAddressBookUpdated;
     }
 
     public boolean isRoundUpdated() {

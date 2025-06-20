@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
@@ -30,22 +15,14 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.exceptions.InvalidVersionException;
 import com.swirlds.common.io.streams.DebuggableMerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.route.MerkleRouteFactory;
 import com.swirlds.common.merkle.utility.MerkleLong;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
@@ -63,6 +40,13 @@ import java.nio.file.Path;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.exceptions.InvalidVersionException;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -82,7 +66,9 @@ class MerkleSerializationTests {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
     }
 
     private void resetDirectory() throws IOException {
@@ -182,7 +168,7 @@ class MerkleSerializationTests {
         final Path dir = getFile("merkle/serialized-tree-v3");
 
         final MerkleDataInputStream dataStream = new MerkleDataInputStream(
-                ResourceLoader.loadFileAsStream("merkle/serialized-tree-v3/serialized-tree-v3.dat"));
+                getClass().getResourceAsStream("/merkle/serialized-tree-v3/serialized-tree-v3.dat"));
         dataStream.readProtocolVersion();
         final DummyMerkleNode tree = dataStream.readMerkleTree(dir, Integer.MAX_VALUE);
         assertTrue(
@@ -253,14 +239,14 @@ class MerkleSerializationTests {
     void testHashFromFile() throws IOException {
         //		writeTreeToFile(MerkleTestUtils.buildLessSimpleTree(), "hashed-tree-merkle-v1.dat");
         final DataInputStream dataStream =
-                new DataInputStream(ResourceLoader.loadFileAsStream("merkle/hashed-tree-merkle-v1.dat"));
+                new DataInputStream(getClass().getResourceAsStream("/merkle/hashed-tree-merkle-v1.dat"));
 
         final Hash oldHash = new Hash(dataStream.readAllBytes(), DigestType.SHA_384);
         final MerkleNode tree = buildLessSimpleTree();
 
         assertEquals(
                 oldHash,
-                MerkleCryptoFactory.getInstance().digestTreeSync(tree),
+                TestMerkleCryptoFactory.getInstance().digestTreeSync(tree),
                 "deserialized hash should match computed hash");
     }
 

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.gas;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -146,7 +131,7 @@ class CustomGasChargingTest {
                 null,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(SENDER_ID, unusedGas * NETWORK_GAS_PRICE);
+        verify(worldUpdater).refundGasFee(SENDER_ID, unusedGas * NETWORK_GAS_PRICE);
     }
 
     @Test
@@ -163,8 +148,8 @@ class CustomGasChargingTest {
                 relayer,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(RELAYER_ID, allowanceUsed);
-        verify(worldUpdater).refundFee(SENDER_ID, refund - allowanceUsed);
+        verify(worldUpdater).refundGasFee(RELAYER_ID, allowanceUsed);
+        verify(worldUpdater).refundGasFee(SENDER_ID, refund - allowanceUsed);
     }
 
     @Test
@@ -180,7 +165,7 @@ class CustomGasChargingTest {
                 relayer,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(RELAYER_ID, refund);
+        verify(worldUpdater).refundGasFee(RELAYER_ID, refund);
         verifyNoMoreInteractions(worldUpdater);
     }
 
@@ -225,7 +210,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(0, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, transaction.gasCostGiven(NETWORK_GAS_PRICE));
+        verify(worldUpdater).collectGasFee(SENDER_ID, transaction.gasCostGiven(NETWORK_GAS_PRICE), false);
     }
 
     @Test
@@ -274,7 +259,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(gasCost, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(RELAYER_ID, gasCost);
+        verify(worldUpdater).collectGasFee(RELAYER_ID, gasCost, false);
     }
 
     @Test
@@ -293,7 +278,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(0, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, gasCost);
+        verify(worldUpdater).collectGasFee(SENDER_ID, gasCost, true);
     }
 
     @Test
@@ -378,8 +363,8 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(relayerGasCost, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, transaction.offeredGasCost());
-        verify(worldUpdater).collectFee(RELAYER_ID, relayerGasCost);
+        verify(worldUpdater).collectGasFee(SENDER_ID, transaction.offeredGasCost(), true);
+        verify(worldUpdater).collectGasFee(RELAYER_ID, relayerGasCost, false);
     }
 
     @Test
@@ -392,7 +377,8 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS));
+        verify(worldUpdater)
+                .collectGasFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
     }
 
     @Test
@@ -405,7 +391,7 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectFee(SENDER_ID, ONE_HBAR_IN_TINYBARS);
+        verify(worldUpdater).collectGasFee(SENDER_ID, ONE_HBAR_IN_TINYBARS, false);
     }
 
     private void givenWellKnownIntrinsicGasCost() {

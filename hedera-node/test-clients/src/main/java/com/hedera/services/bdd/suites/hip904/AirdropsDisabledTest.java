@@ -1,25 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairsInAnyOrder;
@@ -55,9 +37,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CONTRACT_REPORTED_LOG_MESSAGE;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATE_2_TXN;
@@ -92,12 +76,12 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -120,9 +104,9 @@ import org.junit.jupiter.api.DynamicTest;
 public class AirdropsDisabledTest {
     private static final Logger LOG = LogManager.getLogger(AirdropsDisabledTest.class);
 
-    private static String owner = "owner";
-    private static String receiver = "receiver";
-    private static String fungibleToken = "fungibleToken";
+    private static final String owner = "owner";
+    private static final String receiver = "receiver";
+    private static final String fungibleToken = "fungibleToken";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -170,7 +154,7 @@ public class AirdropsDisabledTest {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -182,7 +166,7 @@ public class AirdropsDisabledTest {
                         .entityMemo(ENTITY_MEMO)
                         .gas(10_000_000L)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -238,13 +222,14 @@ public class AirdropsDisabledTest {
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
                                             .contractWithNonce(
-                                                    contractIdFromHexedMirrorAddress(mergedMirrorAddr.get()), 3L)));
+                                                    contractIdFromHexedMirrorAddress(spec, mergedMirrorAddr.get()),
+                                                    3L)));
                     allRunFor(spec, opExpectedMergedNonce);
                 }),
                 sourcing(() -> getContractInfo(mergedAliasAddr.get())
                         .has(contractWith()
                                 .numKvPairs(4)
-                                .hasStandinContractKey()
+                                .defaultAdminKey()
                                 .maxAutoAssociations(2)
                                 .hasAlreadyUsedAutomaticAssociations(2)
                                 .memo(LAZY_MEMO)
@@ -281,7 +266,7 @@ public class AirdropsDisabledTest {
         }
 
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         final int givenOpsSize = 6;
         HapiSpecOperation[] givenOps = new HapiSpecOperation[givenOpsSize + (fungibleTransfersSize * 2)];
@@ -293,7 +278,7 @@ public class AirdropsDisabledTest {
                 .adminKey(adminKey)
                 .entityMemo(ENTITY_MEMO)
                 .via(CREATE_2_TXN)
-                .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num)));
+                .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id)));
         givenOps[4] = cryptoCreate(PARTY).maxAutomaticTokenAssociations(2);
         givenOps[5] = setIdentifiers(Optional.empty(), Optional.empty(), Optional.of(partyId), Optional.of(partyAlias));
 
@@ -315,67 +300,59 @@ public class AirdropsDisabledTest {
             j1++;
         }
 
-        return defaultHapiSpec("canMergeCreate2ChildWithHollowAccountFungibleTransfersUnlimitedAssociations")
-                .given(givenOps)
-                .when(
-                        // GET BYTECODE OF THE CREATE2 CONTRACT
-                        sourcing(() -> contractCallLocal(
-                                        contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
-                                .exposingTypedResultsTo(results -> {
-                                    final var tcInitcode = (byte[]) results[0];
-                                    testContractInitcode.set(tcInitcode);
-                                    LOG.info(CONTRACT_REPORTED_LOG_MESSAGE, tcInitcode.length);
-                                })
-                                .payingWith(GENESIS)
-                                .nodePayment(ONE_HBAR)),
-                        // GET THE ADDRESS WHERE THE CONTRACT WILL BE DEPLOYED
-                        sourcing(() -> setExpectedCreate2Address(
-                                contract, salt, expectedCreate2Address, testContractInitcode)),
+        return hapiTest(flattened(
+                givenOps,
+                // GET BYTECODE OF THE CREATE2 CONTRACT
+                sourcing(() -> contractCallLocal(
+                                contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
+                        .exposingTypedResultsTo(results -> {
+                            final var tcInitcode = (byte[]) results[0];
+                            testContractInitcode.set(tcInitcode);
+                            LOG.info(CONTRACT_REPORTED_LOG_MESSAGE, tcInitcode.length);
+                        })
+                        .payingWith(GENESIS)
+                        .nodePayment(ONE_HBAR)),
+                // GET THE ADDRESS WHERE THE CONTRACT WILL BE DEPLOYED
+                sourcing(() -> setExpectedCreate2Address(contract, salt, expectedCreate2Address, testContractInitcode)),
 
-                        // Now create a hollow account at the desired address
-                        lazyCreateAccountWithFungibleTransfers(creation, expectedCreate2Address, ftIds, partyAlias),
-                        getTxnRecord(creation)
-                                .andAllChildRecords()
-                                .logged()
-                                .exposingCreationsTo(l -> hollowCreationAddress.set(l.get(0))),
-                        sourcing(() -> getAccountInfo(hollowCreationAddress.get())
+                // Now create a hollow account at the desired address
+                lazyCreateAccountWithFungibleTransfers(creation, expectedCreate2Address, ftIds, partyAlias),
+                getTxnRecord(creation)
+                        .andAllChildRecords()
+                        .logged()
+                        .exposingCreationsTo(l -> hollowCreationAddress.set(l.get(0))),
+                sourcing(() -> getAccountInfo(hollowCreationAddress.get())
+                        .hasAlreadyUsedAutomaticAssociations(fungibleTransfersSize)
+                        .logged()),
+                // deploy create2
+                sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
+                        .payingWith(GENESIS)
+                        .gas(4_000_000L)
+                        .sending(tcValue)
+                        .via("TEST2")),
+                getTxnRecord("TEST2").andAllChildRecords().logged(),
+                captureOneChildCreate2MetaFor(
+                        "Merged deployed contract with hollow account", "TEST2", mergedMirrorAddr, mergedAliasAddr),
+
+                // check failure when trying to deploy again
+                sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
+                        .payingWith(GENESIS)
+                        .gas(4_000_000L)
+                        /* Cannot repeat CREATE2
+                        with same args without destroying the existing contract */
+                        .hasKnownStatusFrom(INVALID_SOLIDITY_ADDRESS, CONTRACT_REVERT_EXECUTED)),
+
+                // check created contract
+                sourcing(() -> getContractInfo(mergedAliasAddr.get())
+                        .has(contractWith()
+                                .defaultAdminKey()
+                                .maxAutoAssociations(fungibleTransfersSize)
                                 .hasAlreadyUsedAutomaticAssociations(fungibleTransfersSize)
-                                .logged()))
-                .then(
-                        // deploy create2
-                        sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
-                                .payingWith(GENESIS)
-                                .gas(4_000_000L)
-                                .sending(tcValue)
-                                .via("TEST2")),
-                        getTxnRecord("TEST2").andAllChildRecords().logged(),
-                        captureOneChildCreate2MetaFor(
-                                "Merged deployed contract with hollow account",
-                                "TEST2",
-                                mergedMirrorAddr,
-                                mergedAliasAddr),
-
-                        // check failure when trying to deploy again
-                        sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
-                                .payingWith(GENESIS)
-                                .gas(4_000_000L)
-                                /* Cannot repeat CREATE2
-                                with same args without destroying the existing contract */
-                                .hasKnownStatusFrom(INVALID_SOLIDITY_ADDRESS, CONTRACT_REVERT_EXECUTED)),
-
-                        // check created contract
-                        sourcing(() -> getContractInfo(mergedAliasAddr.get())
-                                .has(contractWith()
-                                        .hasStandinContractKey()
-                                        .maxAutoAssociations(fungibleTransfersSize)
-                                        .hasAlreadyUsedAutomaticAssociations(fungibleTransfersSize)
-                                        .memo(LAZY_MEMO)
-                                        .balance(tcValue))
-                                .logged()),
-                        sourcing(
-                                () -> getContractBytecode(mergedAliasAddr.get()).isNonEmpty()),
-                        sourcing(() ->
-                                assertCreate2Address(contract, salt, expectedCreate2Address, testContractInitcode)));
+                                .memo(LAZY_MEMO)
+                                .balance(tcValue))
+                        .logged()),
+                sourcing(() -> getContractBytecode(mergedAliasAddr.get()).isNonEmpty()),
+                sourcing(() -> assertCreate2Address(contract, salt, expectedCreate2Address, testContractInitcode))));
     }
 
     @HapiTest
@@ -494,7 +471,7 @@ public class AirdropsDisabledTest {
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<TokenID> nftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(adminKey),
@@ -505,7 +482,7 @@ public class AirdropsDisabledTest {
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(num -> factoryEvmAddress.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 tokenCreate(A_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -565,7 +542,7 @@ public class AirdropsDisabledTest {
                 sourcing(() -> getContractInfo(mergedAliasAddr.get())
                         .has(contractWith()
                                 .numKvPairs(2)
-                                .hasStandinContractKey()
+                                .defaultAdminKey()
                                 .maxAutoAssociations(2)
                                 .hasAlreadyUsedAutomaticAssociations(2)
                                 .memo(LAZY_MEMO)
@@ -581,14 +558,13 @@ public class AirdropsDisabledTest {
             String creation,
             AtomicReference<String> expectedCreate2Address,
             AtomicReference<TokenID> ftIds[],
-            AtomicReference<ByteString> partyAlias) {
+            AtomicReference<byte[]> partyAlias) {
         return cryptoTransfer((spec, b) -> {
                     for (AtomicReference<TokenID> ftId : ftIds) {
                         b.addTokenTransfers(TokenTransferList.newBuilder()
                                 .setToken(ftId.get())
-                                .addTransfers(aaWith(partyAlias.get(), -500))
-                                .addTransfers(aaWith(
-                                        ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())), +500)));
+                                .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                                .addTransfers(Utils.aaWith(spec, expectedCreate2Address.get(), +500)));
                     }
                 })
                 .signedBy(DEFAULT_PAYER, PARTY)

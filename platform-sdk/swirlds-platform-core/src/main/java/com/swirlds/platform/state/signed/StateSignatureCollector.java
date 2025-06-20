@@ -1,27 +1,13 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.wiring.component.InputWireLabel;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
+import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Queue;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed
@@ -53,7 +39,7 @@ public interface StateSignatureCollector {
     @InputWireLabel("preconsensus state signatures")
     @Nullable
     List<ReservedSignedState> handlePreconsensusSignatures(
-            @NonNull List<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
+            @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
 
     /**
      * Handle postconsensus state signatures.
@@ -64,7 +50,7 @@ public interface StateSignatureCollector {
     @InputWireLabel("post consensus state signatures")
     @Nullable
     List<ReservedSignedState> handlePostconsensusSignatures(
-            @NonNull List<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
+            @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions);
 
     /**
      * Clear the internal state of this collector.

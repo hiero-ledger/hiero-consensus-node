@@ -1,25 +1,14 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import com.swirlds.platform.consensus.ConsensusSnapshot;
-import com.swirlds.platform.event.PlatformEvent;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A collection of callbacks that the application can provide to the platform to be notified of certain events.
@@ -32,4 +21,5 @@ import java.util.function.Consumer;
 public record ApplicationCallbacks(
         @Nullable Consumer<PlatformEvent> preconsensusEventConsumer,
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
-        @Nullable Consumer<PlatformEvent> staleEventConsumer) {}
+        @Nullable Consumer<PlatformEvent> staleEventConsumer,
+        @NonNull Function<StateSignatureTransaction, Bytes> systemTransactionEncoder) {}

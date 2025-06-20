@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
 import static java.util.Objects.requireNonNull;
@@ -28,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -59,11 +45,18 @@ public class SynchronizedThrottleAccumulator {
      *
      * @param txnInfo the transaction to update the throttle requirements for
      * @param state the current state of the node
+     * @param throttleUsages a list to accumulate throttle usages during the decision
      * @return whether the transaction should be throttled
      */
-    public synchronized boolean shouldThrottle(@NonNull TransactionInfo txnInfo, State state) {
+    public synchronized boolean shouldThrottle(
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final State state,
+            @NonNull final List<ThrottleUsage> throttleUsages) {
+        requireNonNull(txnInfo);
+        requireNonNull(state);
+        requireNonNull(throttleUsages);
         setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state);
+        return frontendThrottle.checkAndEnforceThrottle(txnInfo, lastDecisionTime, state, throttleUsages);
     }
 
     /**
@@ -72,17 +65,19 @@ public class SynchronizedThrottleAccumulator {
      *
      * @param queryFunction the functionality of the query
      * @param query the query to update the throttle requirements for
+     * @param state the current state of the node
      * @param queryPayerId the payer id of the query
      * @return whether the query should be throttled
      */
     public synchronized boolean shouldThrottle(
             @NonNull final HederaFunctionality queryFunction,
             @NonNull final Query query,
+            @NonNull final State state,
             @Nullable AccountID queryPayerId) {
         requireNonNull(query);
         requireNonNull(queryFunction);
         setDecisionTime(instantSource.instant());
-        return frontendThrottle.checkAndEnforceThrottle(queryFunction, lastDecisionTime, query, queryPayerId);
+        return frontendThrottle.checkAndEnforceThrottle(queryFunction, lastDecisionTime, query, state, queryPayerId);
     }
 
     private void setDecisionTime(@NonNull final Instant time) {

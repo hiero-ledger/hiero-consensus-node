@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -51,12 +36,12 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.AbstractMap;
 import java.util.List;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -118,7 +103,7 @@ public class StreamBuilderTest {
         final List<Long> serialNumbers = List.of(1L, 2L, 3L);
 
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
 
         singleTransactionRecordBuilder
                 .parentConsensus(PARENT_CONSENSUS_TIME)
@@ -134,7 +119,6 @@ public class StreamBuilderTest {
                 .scheduleRef(scheduleRef)
                 .assessedCustomFees(assessedCustomFees)
                 .automaticTokenAssociations(automaticTokenAssociations)
-                .alias(alias)
                 .ethereumHash(ethereumHash)
                 .paidStakingRewards(paidStakingRewards)
                 .evmAddress(evmAddress)
@@ -207,7 +191,6 @@ public class StreamBuilderTest {
         assertEquals(
                 HapiUtils.asTimestamp(PARENT_CONSENSUS_TIME),
                 singleTransactionRecord.transactionRecord().parentConsensusTimestamp());
-        assertEquals(alias, singleTransactionRecord.transactionRecord().alias());
         assertEquals(ethereumHash, singleTransactionRecord.transactionRecord().ethereumHash());
         assertEquals(
                 paidStakingRewards, singleTransactionRecord.transactionRecord().paidStakingRewards());
@@ -252,7 +235,7 @@ public class StreamBuilderTest {
     @Test
     void testTopLevelRecordBuilder() {
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
 
         singleTransactionRecordBuilder.transaction(transaction);
 
@@ -274,7 +257,7 @@ public class StreamBuilderTest {
     @Test
     void testBuilderWithAddMethods() {
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder
                 .transaction(transaction)

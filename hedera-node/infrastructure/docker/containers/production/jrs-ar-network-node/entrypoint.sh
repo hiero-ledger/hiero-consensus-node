@@ -51,6 +51,10 @@ if [[ "${JCP_OVERRIDDEN}" != true && "${JAVA_MAIN_CLASS}" != "com.swirlds.platfo
   JAVA_CLASS_PATH="${JAVA_CLASS_PATH}:data/apps/*"
 fi
 
+# Setup Consensus Node Arguments
+CONSENSUS_NODE_ARGS=""
+[[ -n "${CONSENSUS_NODE_ID}" && "${CONSENSUS_NODE_ID}" -ge 0 ]] && CONSENSUS_NODE_ARGS="-local ${CONSENSUS_NODE_ID}"
+
 # Ensure the log directory exists
 if [[ ! -d "${SCRIPT_PATH}/logs" ]]; then
   mkdir -p "${SCRIPT_PATH}/logs"
@@ -61,5 +65,10 @@ id
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END USER IDENT   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo
 
-/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "data/lib/*" com.swirlds.platform.Browser 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)
+echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN JAVA COMMAND >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp \"${JAVA_CLASS_PATH}\" \"${JAVA_MAIN_CLASS}\" ${CONSENSUS_NODE_ARGS} 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)"
+echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< END JAVA COMMAND   <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+echo
+
+/usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" ${CONSENSUS_NODE_ARGS} 1> >(tee logs/stdout.log) 2> >(tee logs/stderr.log >&2)
 printf "java exit code %s" "${?}\n" >>"logs/stdout.log"

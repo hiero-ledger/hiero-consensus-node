@@ -1,39 +1,27 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
 import static com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader.loadConfigFile;
-import static com.swirlds.platform.state.address.AddressBookNetworkUtils.isLocal;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
 import com.swirlds.platform.util.BootstrapUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -103,18 +91,28 @@ class EnhancedKeyStoreLoaderTest {
      */
     @ParameterizedTest
     @DisplayName("KeyStore Loader Positive Test")
-    @ValueSource(strings = {"legacy-valid", "hybrid-valid", "enhanced-valid", "enhanced-valid-no-agreement-key"})
+    @ValueSource(
+            strings = {
+                "legacy-valid",
+                "hybrid-valid",
+                "enhanced-valid",
+                "enhanced-valid-no-agreement-key",
+            })
     void keyStoreLoaderPositiveTest(final String directoryName)
             throws IOException, KeyLoadingException, KeyStoreException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final AddressBook addressBook = addressBook();
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory));
+        final Set<NodeId> nodesToStart = addressBook.getNodeIdSet();
+
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), nodesToStart);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
         assertThat(loader).isNotNull();
+        assertThatCode(loader::migrate).doesNotThrowAnyException();
         assertThatCode(loader::scan).doesNotThrowAnyException();
-        assertThatCode(loader::generateIfNecessary).doesNotThrowAnyException();
+        assertThatCode(loader::generate).doesNotThrowAnyException();
         assertThatCode(loader::verify).doesNotThrowAnyException();
         assertThatCode(loader::injectInAddressBook).doesNotThrowAnyException();
 
@@ -123,7 +121,7 @@ class EnhancedKeyStoreLoaderTest {
             final NodeId nodeId = addressBook.getNodeId(i);
             final Address addr = addressBook.getAddress(nodeId);
 
-            if (!isLocal(addr)) {
+            if (!nodesToStart.contains(addr.getNodeId())) {
                 assertThat(kc).doesNotContainKey(nodeId);
             } else {
                 assertThat(kc).containsKey(nodeId);
@@ -154,11 +152,13 @@ class EnhancedKeyStoreLoaderTest {
     void keyStoreLoaderNegativeCase1Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final AddressBook addressBook = addressBook();
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory));
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), addressBook.getNodeIdSet());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
         assertThat(loader).isNotNull();
+        assertThatCode(loader::migrate).doesNotThrowAnyException();
         assertThatCode(loader::scan).doesNotThrowAnyException();
         assertThatCode(loader::verify).isInstanceOf(KeyLoadingException.class);
         assertThatCode(loader::injectInAddressBook).isInstanceOf(KeyLoadingException.class);
@@ -178,14 +178,17 @@ class EnhancedKeyStoreLoaderTest {
     void keyStoreLoaderNegativeCase2Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final AddressBook addressBook = addressBook();
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory));
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), addressBook.getNodeIdSet());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
         assertThat(loader).isNotNull();
+        assertThatCode(loader::migrate).doesNotThrowAnyException();
         assertThatCode(loader::scan).doesNotThrowAnyException();
+        assertThatCode(loader::generate).doesNotThrowAnyException();
         assertThatCode(loader::verify).isInstanceOf(KeyLoadingException.class);
-        assertThatCode(loader::injectInAddressBook).doesNotThrowAnyException();
+        assertThatCode(loader::injectInAddressBook).isInstanceOf(KeyLoadingException.class);
         assertThatCode(loader::keysAndCerts).isInstanceOf(KeyLoadingException.class);
     }
 
@@ -213,5 +216,55 @@ class EnhancedKeyStoreLoaderTest {
      */
     private AddressBook addressBook() {
         return loadConfigFile(testDataDirectory.resolve("config.txt")).getAddressBook();
+    }
+
+    /////////////////////////////////////////////////////////////////////////////
+    //////////////////////// MIGRATION SPECIFIC UNIT TESTS //////////////////////
+    /////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * The Negative Type 2 tests are designed to test the case where the key store loader is able to scan the key
+     * directory, but one or more private keys are either corrupt or missing.
+     *
+     * @param directoryName the directory name containing the test data being used to cover a given test case.
+     * @throws IOException if an I/O error occurs during test setup.
+     */
+    @ParameterizedTest
+    @DisplayName("Migration Negative Cases Test")
+    @ValueSource(strings = {"migration-invalid-missing-private-key", "migration-invalid-missing-public-key"})
+    void migraitonNegativeCaseTest(final String directoryName) throws IOException {
+        final Path keyDirectory = testDataDirectory.resolve(directoryName);
+        final AddressBook addressBook = addressBook();
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), addressBook.getNodeIdSet());
+
+        assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
+
+        // read all files into memory for later comparison.
+        Map<String, byte[]> fileContents = new HashMap<>();
+        try (Stream<Path> paths = Files.list(keyDirectory)) {
+            paths.forEach(path -> {
+                try {
+                    fileContents.put(path.getFileName().toString(), Files.readAllBytes(path));
+                } catch (IOException e) {
+                    assert (false);
+                }
+            });
+        }
+
+        assertThat(loader).isNotNull();
+        assertThatCode(loader::migrate).doesNotThrowAnyException();
+
+        // check that the migration rolled back the changes and that the files are identical.
+        try (Stream<Path> paths = Files.list(keyDirectory)) {
+            paths.forEach(path -> {
+                try {
+                    assertThat(Files.readAllBytes(path))
+                            .isEqualTo(fileContents.get(path.getFileName().toString()));
+                } catch (IOException e) {
+                    assert (false);
+                }
+            });
+        }
     }
 }

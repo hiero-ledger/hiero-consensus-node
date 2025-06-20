@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.infra;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
@@ -48,7 +33,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ENTITIES_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_STAKING_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEV_CHAIN_ID_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
@@ -62,6 +46,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_MEMO;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -103,10 +88,10 @@ import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.state.spi.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
+import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -158,7 +143,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 null,
@@ -168,7 +152,8 @@ class HevmTransactionFactoryTest {
                 attributeValidator,
                 tokenServiceApi,
                 ethereumSignatures,
-                context);
+                context,
+                entityIdFactory);
     }
 
     @Test
@@ -337,14 +322,7 @@ class HevmTransactionFactoryTest {
     void fromHapiCreationValidatesStaking() {
         doThrow(new HandleException(INVALID_STAKING_ID))
                 .when(tokenServiceApi)
-                .assertValidStakingElectionForCreation(
-                        DEFAULT_STAKING_CONFIG.isEnabled(),
-                        false,
-                        "STAKED_NODE_ID",
-                        null,
-                        123L,
-                        accountStore,
-                        networkInfo);
+                .assertValidStakingElectionForCreation(false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
         assertCreateFailsWith(INVALID_STAKING_ID, b -> b.stakedNodeId(123)
                 .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec())
                 .proxyAccountID(AccountID.DEFAULT)
@@ -528,7 +506,9 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiTransactionThrowsOnNonContractOperation() {
-        assertThrows(IllegalArgumentException.class, () -> subject.fromHapiTransaction(TransactionBody.DEFAULT));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.fromHapiTransaction(TransactionBody.DEFAULT, AccountID.DEFAULT));
     }
 
     @Test
@@ -592,7 +572,6 @@ class HevmTransactionFactoryTest {
         givenInsteadHydratedEthTxWithRightChainId(dataToUse);
         final var sig = EthTxSigs.extractSignatures(dataToUse);
         given(ethereumSignatures.computeIfAbsent(dataToUse)).willReturn(sig);
-        System.out.println(dataToUse);
         final var transaction = getManufacturedEthTx(b -> b.maxGasAllowance(MAX_GAS_ALLOWANCE));
         final var expectedSenderId =
                 AccountID.newBuilder().alias(Bytes.wrap(sig.address())).build();
@@ -627,53 +606,65 @@ class HevmTransactionFactoryTest {
             @NonNull final Consumer<ContractCreateTransactionBody.Builder> spec) {
         assertFailsWith(
                 status,
-                () -> subject.fromHapiTransaction(TransactionBody.newBuilder()
-                        .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
-                        .contractCreateInstance(createWith(spec))
-                        .build()));
+                () -> subject.fromHapiTransaction(
+                        TransactionBody.newBuilder()
+                                .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
+                                .contractCreateInstance(createWith(spec))
+                                .build(),
+                        SENDER_ID));
     }
 
     private void assertCallFailsWith(
             @NonNull final ResponseCodeEnum status, @NonNull final Consumer<ContractCallTransactionBody.Builder> spec) {
         assertFailsWith(
                 status,
-                () -> subject.fromHapiTransaction(TransactionBody.newBuilder()
-                        .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
-                        .contractCall(callWith(spec))
-                        .build()));
+                () -> subject.fromHapiTransaction(
+                        TransactionBody.newBuilder()
+                                .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
+                                .contractCall(callWith(spec))
+                                .build(),
+                        SENDER_ID));
     }
 
     private void assertEthTxFailsWith(
             @NonNull final ResponseCodeEnum status, @NonNull final Consumer<EthereumTransactionBody.Builder> spec) {
         assertFailsWith(
                 status,
-                () -> subject.fromHapiTransaction(TransactionBody.newBuilder()
-                        .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
-                        .ethereumTransaction(ethTxWith(spec))
-                        .build()));
+                () -> subject.fromHapiTransaction(
+                        TransactionBody.newBuilder()
+                                .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
+                                .ethereumTransaction(ethTxWith(spec))
+                                .build(),
+                        SENDER_ID));
     }
 
     private HederaEvmTransaction getManufacturedEthTx(@NonNull final Consumer<EthereumTransactionBody.Builder> spec) {
-        return subject.fromHapiTransaction(TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
-                .ethereumTransaction(ethTxWith(spec))
-                .build());
+        return subject.fromHapiTransaction(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                        .ethereumTransaction(ethTxWith(spec))
+                        .build(),
+                RELAYER_ID);
     }
 
     private HederaEvmTransaction getManufacturedCreation(
             @NonNull final Consumer<ContractCreateTransactionBody.Builder> spec) {
-        return subject.fromHapiTransaction(TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
-                .contractCreateInstance(createWith(spec))
-                .build());
+        return subject.fromHapiTransaction(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
+                        .contractCreateInstance(createWith(spec))
+                        .build(),
+                SENDER_ID);
     }
 
     private HederaEvmTransaction getManufacturedCall(
             @NonNull final Consumer<ContractCallTransactionBody.Builder> spec) {
-        return subject.fromHapiTransaction(TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
-                .contractCall(callWith(spec))
-                .build());
+        return subject.fromHapiTransaction(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
+                        .contractCall(callWith(spec))
+                        .build(),
+                SENDER_ID);
     }
 
     private HederaEvmTransaction getManufacturedCallException(
@@ -711,7 +702,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 null,
@@ -721,7 +711,8 @@ class HevmTransactionFactoryTest {
                 attributeValidator,
                 tokenServiceApi,
                 ethereumSignatures,
-                context);
+                context,
+                entityIdFactory);
     }
 
     private void givenInsteadFailedHydrationSubject() {
@@ -731,7 +722,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 HydratedEthTxData.failureFrom(CONTRACT_FILE_EMPTY),
@@ -741,7 +731,8 @@ class HevmTransactionFactoryTest {
                 attributeValidator,
                 tokenServiceApi,
                 ethereumSignatures,
-                context);
+                context,
+                entityIdFactory);
     }
 
     private void givenInsteadHydratedEthTxWithWrongChainId(@NonNull final EthTxData ethTxData) {
@@ -751,7 +742,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 HydratedEthTxData.successFrom(ethTxData),
@@ -761,7 +751,8 @@ class HevmTransactionFactoryTest {
                 attributeValidator,
                 tokenServiceApi,
                 ethereumSignatures,
-                context);
+                context,
+                entityIdFactory);
     }
 
     private void givenInsteadHydratedEthTxWithRightChainId(@NonNull final EthTxData ethTxData) {
@@ -771,7 +762,6 @@ class HevmTransactionFactoryTest {
                 DEFAULT_HEDERA_CONFIG,
                 featureFlags,
                 gasCalculator,
-                DEFAULT_STAKING_CONFIG,
                 DEV_CHAIN_ID_CONTRACTS_CONFIG,
                 DEFAULT_ENTITIES_CONFIG,
                 HydratedEthTxData.successFrom(ethTxData),
@@ -781,6 +771,7 @@ class HevmTransactionFactoryTest {
                 attributeValidator,
                 tokenServiceApi,
                 ethereumSignatures,
-                context);
+                context,
+                entityIdFactory);
     }
 }

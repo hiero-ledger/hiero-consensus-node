@@ -1,26 +1,13 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityNumber;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFile;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asSchedule;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
@@ -31,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
@@ -39,6 +27,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -47,6 +36,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
+import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.pbj.runtime.JsonCodec;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -60,6 +50,7 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.streams.InterruptibleRunnable;
 import com.hedera.services.bdd.suites.contract.Utils;
+import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -81,7 +72,6 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -103,13 +93,16 @@ import java.util.OptionalLong;
 import java.util.SplittableRandom;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.base.utility.CommonUtils;
 
 public class TxnUtils {
     private static final Logger log = LogManager.getLogger(TxnUtils.class);
@@ -147,7 +140,7 @@ public class TxnUtils {
      * @param records the records to dump
      * @param <T> the type of the records
      */
-    public static <T extends Record> void dumpJsonList(
+    public static <T> void dumpJsonList(
             @NonNull final Path path, @NonNull final JsonCodec<T> codec, @NonNull final List<T> records) {
         try (final var fout = Files.newBufferedWriter(path)) {
             fout.write("[");
@@ -247,18 +240,32 @@ public class TxnUtils {
     }
 
     public static AccountID asId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asAccount(s) : lookupSpec.registry().getAccountID(s);
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getAccountID(s);
     }
 
     public static AccountID asIdForKeyLookUp(final String s, final HapiSpec lookupSpec) {
         if (isLiteralEvmAddress(s)) {
-            return AccountID.newBuilder().setAlias(asLiteralEvmAddress(s)).build();
+            return AccountID.newBuilder()
+                    .setShardNum(lookupSpec.shard())
+                    .setRealmNum(lookupSpec.realm())
+                    .setAlias(asLiteralEvmAddress(s))
+                    .build();
         }
-        return isIdLiteral(s)
-                ? asAccount(s)
-                : (lookupSpec.registry().hasAccountId(s)
-                        ? lookupSpec.registry().getAccountID(s)
-                        : lookUpAccount(lookupSpec, s));
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().hasAccountId(s)
+                ? lookupSpec.registry().getAccountID(s)
+                : lookUpAccount(lookupSpec, s);
     }
 
     private static AccountID lookUpAccount(final HapiSpec spec, final String alias) {
@@ -274,23 +281,47 @@ public class TxnUtils {
     }
 
     public static TokenID asTokenId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asToken(s) : lookupSpec.registry().getTokenID(s);
+        if (isIdLiteral(s)) {
+            return asToken(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asToken(String.valueOf(lookupSpec.shard()), String.valueOf(lookupSpec.realm()), s);
+        }
+        return lookupSpec.registry().getTokenID(s);
     }
 
     public static ScheduleID asScheduleId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asSchedule(s) : lookupSpec.registry().getScheduleId(s);
+        if (isIdLiteral(s)) {
+            return asSchedule(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asSchedule(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getScheduleId(s);
     }
 
     public static TopicID asTopicId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asTopic(s) : lookupSpec.registry().getTopicID(s);
+        if (isIdLiteral(s)) {
+            return asTopic(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asTopic(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getTopicID(s);
     }
 
     public static FileID asFileId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asFile(s) : lookupSpec.registry().getFileId(s);
+        if (isIdLiteral(s)) {
+            return asFile(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asFile(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getFileId(s);
     }
 
     public static EntityNumber asNodeId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asEntityNumber(s) : lookupSpec.registry().getNodeId(s);
+        return isNumericLiteral(s) ? asEntityNumber(s) : lookupSpec.registry().getNodeId(s);
     }
 
     public static long asNodeIdLong(final String s, final HapiSpec lookupSpec) {
@@ -309,10 +340,18 @@ public class TxnUtils {
         final var effS = s.startsWith("0x") ? s.substring(2) : s;
         if (effS.length() == HapiContractCall.HEXED_EVM_ADDRESS_LEN) {
             return ContractID.newBuilder()
+                    .setShardNum(lookupSpec.shard())
+                    .setRealmNum(lookupSpec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }
-        return isIdLiteral(s) ? asContract(s) : lookupSpec.registry().getContractId(s);
+        if (isIdLiteral(s)) {
+            return asContract(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asContract(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getContractId(s);
     }
 
     public static String txnToString(final Transaction txn) {
@@ -335,13 +374,14 @@ public class TxnUtils {
     }
 
     public static ContractID asContractId(final byte[] bytes) {
+        final int shard = Ints.fromByteArray(Arrays.copyOfRange(bytes, 0, 4));
         final long realm = Longs.fromByteArray(Arrays.copyOfRange(bytes, 4, 12));
         final long accountNum = Longs.fromByteArray(Arrays.copyOfRange(bytes, 12, 20));
 
         return ContractID.newBuilder()
                 .setContractNum(accountNum)
                 .setRealmNum(realm)
-                .setShardNum(0L)
+                .setShardNum(shard)
                 .build();
     }
 
@@ -436,8 +476,8 @@ public class TxnUtils {
         final Optional<Throwable> error = subOp.execFor(spec);
         if (error.isPresent()) {
             String message = String.format(
-                    "Unable to look up current expiration timestamp of file 0.0.%d",
-                    spec.registry().getFileId(file).getFileNum());
+                    "Unable to look up current expiration timestamp of file %s",
+                    asFileString(spec.registry().getFileId(file)));
             log.error(message);
             throw error.get();
         }
@@ -453,8 +493,8 @@ public class TxnUtils {
         final Optional<Throwable> error = subOp.execFor(spec);
         if (error.isPresent()) {
             String message = String.format(
-                    "Unable to look up current expiration timestamp of contract 0.0.%d",
-                    spec.registry().getContractId(contract).getContractNum());
+                    "Unable to look up current expiration timestamp of contract %s",
+                    asContractString(spec.registry().getContractId(contract)));
             log.error(message);
             throw error.get();
         }
@@ -655,6 +695,10 @@ public class TxnUtils {
         }
     }
 
+    public static List<TransactionRecord> nonStakingRecordsFrom(@NonNull final List<TransactionRecord> records) {
+        return records.stream().filter(TxnUtils::isNotEndOfStakingPeriodRecord).toList();
+    }
+
     public static boolean isEndOfStakingPeriodRecord(final TransactionRecord record) {
         return record.getMemo().startsWith("End of staking period calculation record");
     }
@@ -781,6 +825,48 @@ public class TxnUtils {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Predicate that checks if a given {@link RecordStreamItem} is a system file update relative to the given spec.
+     * @param spec the spec to use for the check
+     * @param item the item to check
+     * @return {@code true} if the item is a system file update, {@code false} otherwise
+     */
+    public static boolean isSysFileUpdate(@NonNull final HapiSpec spec, @NonNull final RecordStreamItem item) {
+        final var firstUserNum = spec.startupProperties().getLong("hedera.firstUserEntity");
+        return filterForSysFileUpdate(spec, item, id -> id.getFileNum() < firstUserNum);
+    }
+
+    /**
+     * Returns a predicate that checks if a given {@link RecordStreamItem} is a system file update targeting a
+     * particular system file relative to the given spec.
+     * @param sysFileProperties the name(s) of the system file properties to screen for
+     * @return a predicate testing if the item is a system file update to a given file
+     */
+    public static BiPredicate<HapiSpec, RecordStreamItem> sysFileUpdateTo(@NonNull final String... sysFileProperties) {
+        requireNonNull(sysFileProperties);
+        return (spec, item) -> {
+            final var sysFileNums = Arrays.stream(sysFileProperties)
+                    .map(spec.startupProperties()::getLong)
+                    .collect(toSet());
+            return filterForSysFileUpdate(spec, item, id -> sysFileNums.contains(id.getFileNum()));
+        };
+    }
+
+    private static boolean filterForSysFileUpdate(
+            @NonNull final HapiSpec spec,
+            @NonNull final RecordStreamItem item,
+            @NonNull final Predicate<FileID> idFilter) {
+        final var txnId = item.getRecord().getTransactionID();
+        final var sysAdminNum = spec.startupProperties().getLong("accounts.systemAdmin");
+        if (txnId.getAccountID().getAccountNum() != sysAdminNum) {
+            return false;
+        } else {
+            final var entry = RecordStreamEntry.from(item);
+            return entry.function() == FileUpdate
+                    && idFilter.test(entry.body().getFileUpdate().getFileID());
         }
     }
 }

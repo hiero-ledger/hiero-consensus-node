@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.updatetokencustomfees;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
@@ -22,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -36,6 +22,7 @@ import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesDecoder;
@@ -64,6 +51,9 @@ class UpdateTokenCustomFeesDecoderTest {
 
     @Mock
     private TokensConfig tokensConfig;
+
+    @Mock
+    protected HederaNativeOperations nativeOperations;
 
     private UpdateTokenCustomFeesDecoder subject;
 
@@ -147,6 +137,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -170,6 +162,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -198,6 +192,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -233,6 +229,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -285,6 +283,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -308,6 +308,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -331,6 +333,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 new Tuple[] {FRACTIONAL_FEE_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -355,6 +359,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                         new Tuple[] {ROYALTY_FEE_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -438,6 +444,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                         new Tuple[] {ROYALTY_FEE_WITH_FALLBACK_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -462,6 +470,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                         new Tuple[] {ROYALTY_FEE_WITH_HBAR_FALLBACK_TUPLE}))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(addressIdConverter.convert(OWNER_HEADLONG_ADDRESS)).willReturn(OWNER_ID);
         setConfiguration();
 
@@ -485,6 +495,8 @@ class UpdateTokenCustomFeesDecoderTest {
                                 EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         setConfiguration();
 
         // When decoding the request
@@ -507,6 +519,9 @@ class UpdateTokenCustomFeesDecoderTest {
                                         EMPTY_TOKEN_FEES_TUPLE_ARR))
                 .toArray();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+
         setConfiguration();
 
         // When decoding the request

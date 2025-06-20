@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.getevmaddressalias;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -24,15 +9,17 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
+import com.hedera.node.app.service.token.AliasUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -55,30 +42,32 @@ public class EvmAddressAliasCall extends AbstractCall {
         final var explicitAddress = explicitFromHeadlong(address);
 
         // If the address is not a long zero then return fail
-        if (!isLongZeroAddress(explicitAddress)) {
+        if (!isLongZero(address)) {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
         }
 
-        final var accountNum = numberOfLongZero(explicitAddress);
-        final var account = enhancement.nativeOperations().getAccount(accountNum);
+        final var accountID =
+                enhancement.nativeOperations().entityIdFactory().newAccountId(numberOfLongZero(explicitAddress));
+        final var account = enhancement.nativeOperations().getAccount(accountID);
         // If the account is null or does not have an account id then return bail
         if (account == null) {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
         }
 
         // If the account does not have an evm address as an alias
-        if (account.alias().length() != 20) {
+        final var evmAlias = AliasUtils.extractEvmAddress(account.alias());
+        if (evmAlias == null) {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
         }
 
-        final var aliasAddress = asHeadlongAddress(account.alias().toByteArray());
+        final var aliasAddress = asHeadlongAddress(evmAlias.toByteArray());
         return gasOnly(fullResultsFor(SUCCESS, aliasAddress), SUCCESS, true);
     }
 
     private @NonNull FullResult fullResultsFor(
             @NonNull final ResponseCodeEnum responseCode, @NonNull final Address address) {
         return successResult(
-                EVM_ADDRESS_ALIAS.getOutputs().encodeElements((long) responseCode.protoOrdinal(), address),
+                EVM_ADDRESS_ALIAS.getOutputs().encode(Tuple.of((long) responseCode.protoOrdinal(), address)),
                 gasCalculator.viewGasRequirement());
     }
 }

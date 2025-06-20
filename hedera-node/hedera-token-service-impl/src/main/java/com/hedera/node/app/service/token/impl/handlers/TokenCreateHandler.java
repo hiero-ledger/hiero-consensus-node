@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -37,7 +22,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -53,10 +37,12 @@ import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import javax.inject.Inject;
@@ -68,6 +54,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class TokenCreateHandler extends BaseTokenHandler implements TransactionHandler {
+    private final EntityIdFactory idFactory;
     private final CustomFeesValidator customFeesValidator;
     private final TokenCreateValidator tokenCreateValidator;
 
@@ -78,20 +65,18 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      */
     @Inject
     public TokenCreateHandler(
+            @NonNull final EntityIdFactory idFactory,
             @NonNull final CustomFeesValidator customFeesValidator,
             @NonNull final TokenCreateValidator tokenCreateValidator) {
-        requireNonNull(customFeesValidator);
-        requireNonNull(tokenCreateValidator);
-
-        this.customFeesValidator = customFeesValidator;
-        this.tokenCreateValidator = tokenCreateValidator;
+        this.idFactory = requireNonNull(idFactory);
+        this.customFeesValidator = requireNonNull(customFeesValidator);
+        this.tokenCreateValidator = requireNonNull(tokenCreateValidator);
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var txn = context.body();
-        pureChecks(txn);
 
         final var tokenCreateTxnBody = txn.tokenCreationOrThrow();
         if (tokenCreateTxnBody.hasTreasury()) {
@@ -111,7 +96,9 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         tokenCreateValidator.pureChecks(txn.tokenCreationOrThrow());
     }
 
@@ -140,14 +127,14 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
 
         // build a new token
         final var newTokenNum = context.entityNumGenerator().newEntityNum();
-        final var newTokenId = TokenID.newBuilder().tokenNum(newTokenNum).build();
-        final var newToken = buildToken(newTokenNum, op, resolvedExpiryMeta);
+        final var newTokenId = idFactory.newTokenId(newTokenNum);
+        final var newToken = buildToken(newTokenId, op, resolvedExpiryMeta);
 
         // validate custom fees and get back list of fees with created token denomination
         final var feesSetNeedingCollectorAutoAssociation = customFeesValidator.validateForCreation(
                 newToken, accountStore, tokenRelationStore, tokenStore, op.customFees(), context.expiryValidator());
         // Put token into modifications map
-        tokenStore.put(newToken);
+        tokenStore.putAndIncrementCount(newToken);
         // associate token with treasury and collector ids of custom fees whose token denomination
         // is set to sentinel value
         associateAccounts(
@@ -236,15 +223,15 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
     /**
      * Create a new token with the given parameters.
      *
-     * @param newTokenNum new token number
+     * @param newTokenId new token id
      * @param op token creation transaction body
      * @param resolvedExpiryMeta resolved expiry meta
      * @return newly created token
      */
     private Token buildToken(
-            final long newTokenNum, final TokenCreateTransactionBody op, final ExpiryMeta resolvedExpiryMeta) {
+            final TokenID newTokenId, final TokenCreateTransactionBody op, final ExpiryMeta resolvedExpiryMeta) {
         return new Token(
-                asToken(newTokenNum),
+                newTokenId,
                 op.name(),
                 op.symbol(),
                 op.decimals(),
@@ -270,7 +257,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
                 false,
                 op.freezeDefault(),
                 false,
-                modifyCustomFeesWithSentinelValues(op.customFees(), newTokenNum),
+                modifyCustomFeesWithSentinelValues(op.customFees(), newTokenId),
                 op.metadata(),
                 op.metadataKey());
     }
@@ -281,11 +268,11 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
      * to the newly created token number before setting it to the token.
      *
      * @param customFees list of custom fees
-     * @param newTokenNum newly created token number
+     * @param newTokenId newly created token id
      * @return modified custom fees
      */
     private List<CustomFee> modifyCustomFeesWithSentinelValues(
-            final List<CustomFee> customFees, final long newTokenNum) {
+            final List<CustomFee> customFees, final TokenID newTokenId) {
         return customFees.stream()
                 .map(fee -> {
                     if (fee.hasFixedFee()
@@ -293,8 +280,6 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
                             && fee.fixedFeeOrThrow()
                                     .denominatingTokenIdOrThrow()
                                     .equals(SENTINEL_TOKEN_ID)) {
-                        final var newTokenId =
-                                TokenID.newBuilder().tokenNum(newTokenNum).build();
                         final var modifiedFixedFee = fee.fixedFeeOrThrow()
                                 .copyBuilder()
                                 .denominatingTokenId(newTokenId)

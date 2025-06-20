@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
@@ -27,13 +12,14 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
-import com.hedera.hapi.node.file.FileContents;
 import com.hedera.hapi.node.file.FileGetContentsQuery;
 import com.hedera.hapi.node.file.FileGetContentsResponse;
+import com.hedera.hapi.node.file.FileGetContentsResponse.FileContents;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.base.FileQueryBase;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
@@ -45,7 +31,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
@@ -60,7 +45,6 @@ import javax.inject.Singleton;
 public class FileGetContentsHandler extends FileQueryBase {
     private final FileFeeBuilder usageEstimator;
     private final V0490FileSchema genesisSchema;
-    private final NetworkInfo networkInfo;
 
     /**
      * Constructs a {@link FileGetContentsHandler} with the given {@link FileFeeBuilder}.
@@ -68,12 +52,9 @@ public class FileGetContentsHandler extends FileQueryBase {
      */
     @Inject
     public FileGetContentsHandler(
-            @NonNull final FileFeeBuilder usageEstimator,
-            @NonNull final V0490FileSchema genesisSchema,
-            @NonNull final NetworkInfo networkInfo) {
+            @NonNull final FileFeeBuilder usageEstimator, @NonNull final V0490FileSchema genesisSchema) {
         this.usageEstimator = requireNonNull(usageEstimator);
         this.genesisSchema = requireNonNull(genesisSchema);
-        this.networkInfo = networkInfo;
     }
 
     @Override
@@ -102,10 +83,11 @@ public class FileGetContentsHandler extends FileQueryBase {
     public @NonNull Fees computeFees(@NonNull QueryContext queryContext) {
         final var query = queryContext.query();
         final var fileStore = queryContext.createStore(ReadableFileStore.class);
+        final var nodeStore = queryContext.createStore(ReadableNodeStore.class);
         final var op = query.fileGetContentsOrThrow();
         final var fileId = op.fileIDOrElse(FileID.DEFAULT);
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
-        final FileContents fileContents = contentFile(fileId, fileStore, queryContext.configuration());
+        final FileContents fileContents = contentFile(fileId, fileStore, queryContext.configuration(), nodeStore);
         return queryContext
                 .feeCalculator()
                 .legacyCalculate(sigValueObj ->
@@ -117,6 +99,7 @@ public class FileGetContentsHandler extends FileQueryBase {
         requireNonNull(header);
         final var query = context.query();
         final var fileStore = context.createStore(ReadableFileStore.class);
+        final var nodeStore = context.createStore(ReadableNodeStore.class);
         final var op = query.fileGetContentsOrThrow();
         final var responseBuilder = FileGetContentsResponse.newBuilder();
         final var fileId = op.fileIDOrThrow();
@@ -124,7 +107,7 @@ public class FileGetContentsHandler extends FileQueryBase {
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         responseBuilder.header(header);
         if (header.nodeTransactionPrecheckCode() == OK && responseType != COST_ANSWER) {
-            final var content = contentFile(fileId, fileStore, context.configuration());
+            final var content = contentFile(fileId, fileStore, context.configuration(), nodeStore);
             if (content == null) {
                 responseBuilder.header(header.copyBuilder()
                         .nodeTransactionPrecheckCode(INVALID_FILE_ID)
@@ -143,18 +126,20 @@ public class FileGetContentsHandler extends FileQueryBase {
      * @param fileID the file to get information about
      * @param fileStore the file store
      * @param config the configuration
+     * @param nodeStore the ReadableNodeStore
      * @return the content about the file
      */
     private @Nullable FileContents contentFile(
             @NonNull final FileID fileID,
             @NonNull final ReadableFileStore fileStore,
-            @NonNull final Configuration config) {
+            @NonNull final Configuration config,
+            @NonNull final ReadableNodeStore nodeStore) {
         final var meta = fileStore.getFileMetadata(fileID);
         if (meta == null) {
             if (notGenesisCreation(fileID, config)) {
                 return null;
             } else {
-                final var genesisContent = genesisContentProviders(config)
+                final var genesisContent = genesisContentProviders(config, nodeStore)
                         .getOrDefault(fileID.fileNum(), ignore -> EMPTY)
                         .apply(config);
                 return new FileContents(fileID, genesisContent);
@@ -167,11 +152,12 @@ public class FileGetContentsHandler extends FileQueryBase {
         }
     }
 
-    private Map<Long, Function<Configuration, Bytes>> genesisContentProviders(@NonNull final Configuration config) {
+    private Map<Long, Function<Configuration, Bytes>> genesisContentProviders(
+            @NonNull final Configuration config, @NonNull final ReadableNodeStore nodeStore) {
         final var filesConfig = config.getConfigData(FilesConfig.class);
         return Map.of(
-                filesConfig.addressBook(), ignore -> genesisSchema.genesisAddressBook(networkInfo),
-                filesConfig.nodeDetails(), ignore -> genesisSchema.genesisNodeDetails(networkInfo),
+                filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
+                filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
                 filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.exchangeRates(), genesisSchema::genesisExchangeRates,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,

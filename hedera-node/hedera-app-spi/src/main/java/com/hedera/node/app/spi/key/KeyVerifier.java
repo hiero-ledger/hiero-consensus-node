@@ -1,30 +1,21 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.key;
 
+import static java.util.Collections.unmodifiableSortedSet;
+
 import com.hedera.hapi.node.base.Key;
+import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Helper class that contains all functionality for verifying signatures during handle.
  */
 public interface KeyVerifier {
+    SortedSet<Key> NO_AUTHORIZING_KEYS = unmodifiableSortedSet(new TreeSet<>(new KeyComparator()));
 
     /**
      * Gets the {@link SignatureVerification} for the given key. If this key was not provided during pre-handle, then
@@ -60,4 +51,16 @@ public interface KeyVerifier {
      */
     @NonNull
     SignatureVerification verificationFor(@NonNull Key key, @NonNull VerificationAssistant callback);
+
+    /**
+     * If this verifier was authorized by one or more simple keys---for example, via cryptographic signature on a
+     * transaction submitted via HAPI; or via the action of a contract inside the EVM---returns the set of these
+     * authorizing keys, ordered by the {@link KeyComparator}.
+     * <p>
+     * Default is an empty set, for verifiers whose authorization is not derived from a legible set of simple keys.
+     * @return any simple keys that authorized this verifier
+     */
+    default SortedSet<Key> authorizingSimpleKeys() {
+        return NO_AUTHORIZING_KEYS;
+    }
 }

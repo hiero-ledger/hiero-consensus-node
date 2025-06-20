@@ -1,23 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.app.Hedera;
 import com.hedera.node.app.fixtures.state.FakeState;
-import com.hedera.services.bdd.junit.hedera.embedded.fakes.FakeTssBaseService;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.Response;
@@ -25,16 +13,24 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
-import com.swirlds.platform.system.SoftwareVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.function.Consumer;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 public interface EmbeddedHedera {
     /**
      * Starts the embedded Hedera node.
      */
     void start();
+
+    /**
+     * Starts the embedded Hedera node from a saved state customized by the given specs.
+     *
+     * @param state the state to customize
+     */
+    void restart(@NonNull FakeState state);
 
     /**
      * Stops the embedded Hedera node.
@@ -48,16 +44,10 @@ public interface EmbeddedHedera {
     FakeState state();
 
     /**
-     * Returns the fake TSS base service of the embedded Hedera node.
-     * @return the fake TSS base service of the embedded Hedera node
-     */
-    FakeTssBaseService tssBaseService();
-
-    /**
      * Returns the software version of the embedded Hedera node.
      * @return the software version of the embedded Hedera node
      */
-    SoftwareVersion version();
+    SemanticVersion version();
 
     /**
      * Returns the next in a repeatable sequence of valid start times that the embedded Hedera's
@@ -76,6 +66,18 @@ public interface EmbeddedHedera {
      * @return the current synthetic time
      */
     Instant now();
+
+    /**
+     * Returns the embedded Hedera.
+     * @return the embedded Hedera
+     */
+    Hedera hedera();
+
+    /**
+     * Returns the roster of the embedded Hedera node.
+     * @return the roster of the embedded Hedera node
+     */
+    Roster roster();
 
     /**
      * Advances the synthetic time in the embedded Hedera node by a given duration.
@@ -105,11 +107,26 @@ public interface EmbeddedHedera {
             @NonNull Transaction transaction, @NonNull AccountID nodeAccountId, @NonNull SyntheticVersion version);
 
     /**
+     * Submits a transaction to the embedded node.
+     *
+     * @param transaction the transaction to submit
+     * @param nodeAccountId the account ID of the node to submit the transaction to
+     * @param preHandleCallback the callback to call during preHandle when a {@link StateSignatureTransaction} is encountered
+     * @param handleCallback the callback to call during preHandle when a {@link StateSignatureTransaction} is encountered
+     * @return the response to the transaction
+     */
+    TransactionResponse submit(
+            @NonNull Transaction transaction,
+            @NonNull AccountID nodeAccountId,
+            @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> preHandleCallback,
+            @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> handleCallback);
+
+    /**
      * Sends a query to the embedded node.
      *
      * @param query the query to send
      * @param nodeAccountId the account ID of the node to send the query to
      * @return the response to the query
      */
-    Response send(@NonNull Query query, @NonNull AccountID nodeAccountId);
+    Response send(@NonNull Query query, @NonNull AccountID nodeAccountId, final boolean asNodeOperator);
 }

@@ -1,24 +1,11 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.NODES_KEY;
+import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_KEY;
-import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.repeatableModeRequested;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
@@ -30,33 +17,28 @@ import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PASSED_UNEXPECTEDLY;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.PENDING;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.RUNNING;
+import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultPropertySource;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.setupFrom;
-import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.infrastructure.HapiClients.clientsFor;
 import static com.hedera.services.bdd.spec.keys.DefaultKeyGen.DEFAULT_KEY_GEN;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
-import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.*;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.FEES;
+import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountForSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.isEthereumAccountCreatedForSpec;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.convertHapiCallsToEthereumCalls;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.remembering;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ETH_SUFFIX;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.allOf;
@@ -65,10 +47,19 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.joining;
 
 import com.google.common.base.MoreObjects;
+import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.roster.RosterService;
+import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -76,6 +67,7 @@ import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
+import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
@@ -85,16 +77,19 @@ import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.KeyGenerator;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
-import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.spec.props.NodeConnectInfo;
+import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.spec.transactions.TxnFactory;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
-import com.hederahashgraph.api.proto.java.Key;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -110,9 +105,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.SplittableRandom;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -120,10 +117,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -139,7 +136,7 @@ import org.junit.jupiter.api.function.Executable;
  * <p>Most specs can be run against any {@link HederaNetwork} implementation, though
  * some operations do require an embedded or subprocess network.
  */
-public class HapiSpec implements Runnable, Executable {
+public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private static final int CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS = 1;
     private static final String CI_CHECK_NAME_SYSTEM_PROPERTY = "ci.check.name";
     private static final String QUIET_MODE_SYSTEM_PROPERTY = "hapi.spec.quiet.mode";
@@ -150,6 +147,34 @@ public class HapiSpec implements Runnable, Executable {
      * operations with equivalent EthereumTransactions
      */
     private static final String AS_WRITTEN_DISPLAY_NAME = "as written";
+
+    @Nullable
+    private static volatile DelayQueue<DelayedDuration> prepareUpgradeOffsets;
+
+    @Nullable
+    private static volatile Set<AccountID> stakerIds;
+
+    @Nullable
+    private static volatile DelayQueue<DelayedDuration> stakeRebalanceOffsets;
+
+    /**
+     * Requests all executing specs to issue a prepare upgrade transaction if they are
+     * the first to pass an offset from now in the given list.
+     * @param offsets the durations to wait before issuing prepare upgrade transactions
+     */
+    public static void doDelayedPrepareUpgrades(@NonNull final List<Duration> offsets) {
+        prepareUpgradeOffsets =
+                new DelayQueue<>(offsets.stream().map(DelayedDuration::new).toList());
+    }
+
+    /**
+     * If set, a set of stakers to randomly transfer balance between every so often to ensure
+     * stake weights change each stake period boundary.
+     * @param stakerIds the set of staker IDs to use
+     */
+    public static void setStakerIds(@NonNull final Set<AccountID> stakerIds) {
+        HapiSpec.stakerIds = stakerIds;
+    }
 
     public static final ThreadLocal<HederaNetwork> TARGET_NETWORK = new ThreadLocal<>();
     /**
@@ -174,8 +199,6 @@ public class HapiSpec implements Runnable, Executable {
     public static final ThreadLocal<TestLifecycle> TEST_LIFECYCLE = new ThreadLocal<>();
     public static final ThreadLocal<String> SPEC_NAME = new ThreadLocal<>();
 
-    private static final AtomicLong NEXT_AUTO_SCHEDULE_NUM = new AtomicLong(1);
-    private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final String CI_PROPS_FLAG_FOR_NO_UNRECOVERABLE_NETWORK_FAILURES = "suppressNetworkFailures";
     private static final ThreadPoolExecutor THREAD_POOL =
             new ThreadPoolExecutor(0, 10_000, 250, MILLISECONDS, new SynchronousQueue<>());
@@ -232,6 +255,9 @@ public class HapiSpec implements Runnable, Executable {
     private FeesAndRatesProvider ratesProvider;
     private ThreadPoolExecutor finalizingExecutor;
     private CompletableFuture<Void> finalizingFuture;
+
+    @Nullable
+    private Map<String, String> setupOverrides;
 
     /**
      * If non-null, the non-remote network to target with this spec.
@@ -314,6 +340,14 @@ public class HapiSpec implements Runnable, Executable {
 
     public static ThreadPoolExecutor getCommonThreadPool() {
         return THREAD_POOL;
+    }
+
+    public long shard() {
+        return requireNonNull(targetNetwork).shard();
+    }
+
+    public long realm() {
+        return requireNonNull(targetNetwork).realm();
     }
 
     public void adhocIncrement() {
@@ -452,11 +486,27 @@ public class HapiSpec implements Runnable, Executable {
 
     /**
      * Returns the {@link EmbeddedHedera} for a spec in embedded mode, or throws if the spec is not in embedded mode.
+     *
      * @return the embedded Hedera
      * @throws IllegalStateException if the spec is not in embedded mode
      */
     public EmbeddedHedera embeddedHederaOrThrow() {
         return embeddedNetworkOrThrow().embeddedHederaOrThrow();
+    }
+
+    /**
+     * Returns the {@link EmbeddedHedera} for a spec in embedded mode, or throws if the spec is not in embedded mode.
+     *
+     * @return the embedded Hedera
+     * @throws IllegalStateException if the spec is not in embedded mode
+     */
+    public RepeatableEmbeddedHedera repeatableEmbeddedHederaOrThrow() {
+        final var embeddedHedera = embeddedNetworkOrThrow().embeddedHederaOrThrow();
+        if (embeddedHedera instanceof RepeatableEmbeddedHedera repeatableEmbeddedHedera) {
+            return repeatableEmbeddedHedera;
+        } else {
+            throw new IllegalStateException(embeddedHedera.getClass().getSimpleName() + " is not repeatable");
+        }
     }
 
     /**
@@ -495,8 +545,53 @@ public class HapiSpec implements Runnable, Executable {
      */
     public @NonNull WritableKVState<com.hedera.hapi.node.base.AccountID, Account> embeddedAccountsOrThrow() {
         final var state = embeddedStateOrThrow();
-        return state.getWritableStates(com.hedera.node.app.service.token.TokenService.NAME)
-                .get(ACCOUNTS_KEY);
+        return state.getWritableStates(TokenService.NAME).get(ACCOUNTS_KEY);
+    }
+
+    /**
+     * Get the {@link WritableKVState} for the embedded network's tokens, if this spec is targeting an embedded network.
+     *
+     * @return the embedded tokens state
+     * @throws IllegalStateException if this spec is not targeting an embedded network
+     */
+    public @NonNull WritableKVState<com.hedera.hapi.node.base.TokenID, Token> embeddedTokensOrThrow() {
+        final var state = embeddedStateOrThrow();
+        return state.getWritableStates(TokenService.NAME).get(TOKENS_KEY);
+    }
+
+    /**
+     * Get the {@link WritableKVState} for the embedded network's tokens, if this spec is targeting an embedded network.
+     *
+     * @return the embedded tokens state
+     * @throws IllegalStateException if this spec is not targeting an embedded network
+     */
+    public @NonNull WritableKVState<EntityNumber, StakingNodeInfo> embeddedStakingInfosOrThrow() {
+        final var state = embeddedStateOrThrow();
+        return state.getWritableStates(TokenService.NAME).get(STAKING_INFO_KEY);
+    }
+
+    /**
+     * Get the {@link WritableKVState} for the embedded network's schedule counts, if this spec is
+     * targeting an embedded network.
+     *
+     * @return the embedded schedule counts state
+     * @throws IllegalStateException if this spec is not targeting an embedded network
+     */
+    public @NonNull WritableKVState<TimestampSeconds, ScheduledCounts> embeddedScheduleCountsOrThrow() {
+        final var state = embeddedStateOrThrow();
+        return state.getWritableStates(ScheduleService.NAME).get(V0570ScheduleSchema.SCHEDULED_COUNTS_KEY);
+    }
+
+    /**
+     * Get the {@link WritableKVState} for the embedded network's rosters, if this spec is targeting an
+     * embedded network.
+     *
+     * @return the embedded roster state
+     * @throws IllegalStateException if this spec is not targeting an embedded network
+     */
+    public @NonNull WritableSingletonState<RosterState> embeddedRosterStateOrThrow() {
+        final var state = embeddedStateOrThrow();
+        return state.getWritableStates(RosterService.NAME).getSingleton(ROSTER_STATES_KEY);
     }
 
     /**
@@ -533,8 +628,10 @@ public class HapiSpec implements Runnable, Executable {
 
     @Override
     public void execute() throws Throwable {
-        // Only JUnit will use execute(), and in that case the target network must be set
-        requireNonNull(targetNetwork).awaitReady(NETWORK_ACTIVE_TIMEOUT);
+        if (targetNetwork == null) {
+            buildRemoteNetwork();
+        }
+        targetNetwork.awaitReady(NETWORK_ACTIVE_TIMEOUT);
         run();
         if (failure != null) {
             throw failure.cause;
@@ -548,7 +645,27 @@ public class HapiSpec implements Runnable, Executable {
         }
 
         List<SpecOperation> ops = new ArrayList<>();
-
+        final var offsets = prepareUpgradeOffsets;
+        DelayedDuration dd;
+        if (offsets != null && (dd = offsets.poll()) != null) {
+            log.info("Executing PREPARE_UPGRADE requested to run circa {}", dd.end);
+            ops.add(prepareFakeUpgrade());
+        }
+        if (stakerIds != null) {
+            if (stakeRebalanceOffsets == null) {
+                stakeRebalanceOffsets = new DelayQueue<>();
+                requireNonNull(stakeRebalanceOffsets)
+                        .add(new DelayedDuration(
+                                Duration.ofSeconds(startupProperties().getLong("staking.periodMins") * 60 / 2)));
+            }
+            dd = requireNonNull(stakeRebalanceOffsets).poll();
+            if (dd != null) {
+                ops.add(rebalanceStakes());
+                requireNonNull(stakeRebalanceOffsets)
+                        .add(new DelayedDuration(
+                                Duration.ofSeconds(startupProperties().getLong("staking.periodMins") * 60 / 2)));
+            }
+        }
         if (!suitePrefix.endsWith(ETH_SUFFIX)) {
             ops.addAll(Stream.of(given, when, then).flatMap(Arrays::stream).toList());
         } else {
@@ -638,9 +755,31 @@ public class HapiSpec implements Runnable, Executable {
         return false;
     }
 
+    /**
+     * Add properties that will be given priority in the spec's {@link HapiSpecSetup}.
+     *
+     * @param props the properties to add
+     * @return this
+     */
+    private HapiSpec withPrioritySetup(@Nullable final Map<String, String> props) {
+        if (props != null) {
+            setupOverrides = props;
+        }
+        return this;
+    }
+
+    /**
+     * Finalizes the setup properties for this spec.
+     */
+    private void finalizeSetupProperties() {
+        if (setupOverrides != null) {
+            hapiSetup.addOverrides(setupOverrides);
+        }
+    }
+
     private boolean init() {
         if (targetNetwork == null) {
-            targetNetwork = RemoteNetwork.newRemoteNetwork(hapiSetup.nodes(), clientsFor(hapiSetup));
+            buildRemoteNetwork();
         }
         if (!propertiesToPreserve.isEmpty()) {
             final var missingProperties = propertiesToPreserve.stream()
@@ -682,6 +821,21 @@ public class HapiSpec implements Runnable, Executable {
         return true;
     }
 
+    private void buildRemoteNetwork() {
+        try {
+            targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
+            hapiSetup.addOverrides(Map.of(
+                    "default.shard", "" + targetNetwork.shard(),
+                    "default.realm", "" + targetNetwork.realm()));
+        } catch (Exception ignore) {
+            targetNetwork = RemoteNetwork.newRemoteNetwork(
+                    hapiSetup.nodes(),
+                    clientsFor(hapiSetup),
+                    HapiPropertySource.getConfigShard(),
+                    HapiPropertySource.getConfigRealm());
+        }
+    }
+
     private void tearDown() {
         if (finalizingExecutor != null) {
             finalizingExecutor.shutdown();
@@ -721,22 +875,13 @@ public class HapiSpec implements Runnable, Executable {
             ops.addFirst(
                     new SysFileOverrideOp(FEES, () -> feeResource.isBlank() ? null : resourceAsString(feeResource)));
         }
-        final var autoScheduled = setup().txnTypesToSchedule();
-        if (!autoScheduled.isEmpty()) {
-            log.info("Auto-scheduling {}", autoScheduled);
-        }
         @Nullable List<AbstractEventualStreamAssertion> streamAssertions = null;
         for (var op : ops) {
-            if (!autoScheduled.isEmpty() && op.shouldSkipWhenAutoScheduling(autoScheduled)) {
-                continue;
-            }
             if (op instanceof AbstractEventualStreamAssertion streamAssertion) {
                 if (streamAssertions == null) {
                     streamAssertions = new ArrayList<>();
                 }
                 streamAssertions.add(streamAssertion);
-            } else if (op instanceof HapiTxnOp txn && autoScheduled.contains(txn.type())) {
-                op = autoScheduledSequenceFor(txn);
             }
             if (quietMode) {
                 turnLoggingOff(op);
@@ -801,132 +946,6 @@ public class HapiSpec implements Runnable, Executable {
         if (!quietMode) {
             log.info("{}final status: {}!", logPrefix(), status);
         }
-    }
-
-    /**
-     * Given a transaction, creates a sequence of operations that schedules the
-     * transaction and validates its execution and record. This sequence of
-     * operations looks like,
-     * <ol>
-     *     <li>A {@code ScheduleCreate} using the default payer, and including
-     *     zero or more of the required signing keys for the transaction.</li>
-     *     <li>Zero or more {@code ScheduleSign}'s targeting the created
-     *     schedule, each including one or more of the required signing keys
-     *     not used with the {@code ScheduleCreate}.</li>
-     *     <li>A {@code ScheduleInfo} query that verifies the schedule has been
-     *     executed (unless the expected pre-check or status of the transaction
-     *     was {@code INVALID_SIGNATURE}, in which case the schedule shouldn't
-     *     have been executed.)</li>
-     *     <li>A {@code GetTransactionRecord} query that verifies the triggered
-     *     transaction had the expected status (unless the expected pre-check
-     *     or status of the transaction was {@code INVALID_SIGNATURE}).</li>
-     * </ol>
-     *
-     * @param txn the transaction to auto-schedule
-     * @return the sequence of operations that auto-schedules the transaction
-     */
-    private SpecOperation autoScheduledSequenceFor(final HapiTxnOp<?> txn) {
-        // For the signatures to have the expected semantics, we must
-        // incorporate any signature control overrides into this spec
-        final var sigControlOverrides = txn.setKeyControlOverrides(this);
-        if (!sigControlOverrides.isEmpty()) {
-            sigControlOverrides.forEach((key, control) -> keys().setControl(key, control));
-        }
-
-        final var scheduleCreatePayerKey = registry().getKey(DEFAULT_PAYER);
-        final var signingKeys = txn.signersToUseFor(this).stream()
-                // Skip empty keys, which will have no required signatures, but
-                // should be rejected at consensus in most cases
-                .filter(key -> !isEmpty(key))
-                // The ScheduleCreate uses the default payer key, so we should
-                // ignore it for signing requirement purposes
-                .filter(key -> !scheduleCreatePayerKey.equals(key))
-                // Without this we would commonly repeat the payer key and run
-                // into SCHEDULE_ALREADY_EXECUTED
-                .distinct()
-                .toList();
-        final var numKeys = signingKeys.size();
-        final var numSignTxns = RANDOM.nextInt(numKeys + 1);
-        final var indices = createAndSignIndicesGiven(numKeys, numSignTxns);
-        // One slot for the ScheduleCreate, one for each ScheduleSign,
-        // one for the GetScheduleInfo, and one for the GetTxnRecord
-        final var orderedOps = new SpecOperation[1 + numSignTxns + 2];
-        final var num = NEXT_AUTO_SCHEDULE_NUM.getAndIncrement();
-        final var schedule = "autoScheduled" + num;
-        final var creation = "autoScheduleCreation" + num;
-        orderedOps[0] = scheduleCreate(schedule, txn)
-                .alsoSigningWithExplicit(signingKeys.subList(indices.get(0), indices.get(1)))
-                .savingExpectedScheduledTxnId()
-                .via(creation);
-        for (int i = 1, n = indices.size(); i < n - 1; i++) {
-            orderedOps[i] = scheduleSign(schedule)
-                    .alsoSigningWithExplicit(signingKeys.subList(indices.get(i), indices.get(i + 1)))
-                    // It's likely that some of the top-level transaction's signing keys will already
-                    // be present (e.g. the default payer's signature), so we accommodate that here
-                    // by adding NO_NEW_VALID_SIGNATURES to the list of acceptable statuses
-                    .hasKnownStatusFrom(SUCCESS, NO_NEW_VALID_SIGNATURES);
-        }
-
-        final var expectedStatus =
-                (txn.getExpectedPrecheck() == OK) ? txn.getExpectedStatus() : txn.getExpectedPrecheck();
-        final var scheduleStateAssertion = getScheduleInfo(schedule);
-        // If the original transaction was supposed to fail with INVALID_SIGNATURE,
-        // then the schedule should not have been executed
-        if (expectedStatus != INVALID_SIGNATURE) {
-            scheduleStateAssertion.isExecuted();
-        } else {
-            scheduleStateAssertion.isNotExecuted();
-        }
-        orderedOps[orderedOps.length - 2] = scheduleStateAssertion;
-
-        if (expectedStatus != INVALID_SIGNATURE) {
-            final var recordAssertion = getTxnRecord(creation)
-                    .scheduledBy(schedule)
-                    .hasPriority(recordWith().status(expectedStatus));
-            orderedOps[orderedOps.length - 1] = recordAssertion;
-        } else {
-            // If the original transaction was supposed to fail with INVALID_SIGNATURE, there
-            // will be no scheduled transaction record to retrieve, so just use noOp()
-            orderedOps[orderedOps.length - 1] = noOp();
-        }
-        return blockingOrder(orderedOps);
-    }
-
-    private boolean isEmpty(final Key key) {
-        if (key.hasKeyList()) {
-            return key.getKeyList().getKeysCount() == 0
-                    || key.getKeyList().getKeysList().stream().allMatch(this::isEmpty);
-        } else if (key.hasThresholdKey()) {
-            return key.getThresholdKey().getKeys().getKeysCount() == 0
-                    || key.getThresholdKey().getKeys().getKeysList().stream().allMatch(this::isEmpty);
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Given the number of keys that will be used to sign the transaction, and the number of
-     * {@code ScheduleSign} transactions that will be executed, create a list of indices that
-     * can be used to choose which keys to sign with in both the initial {@code ScheduleCreate},
-     * and any {@code ScheduleSign} transactions.
-     *
-     * @param numKeys the number of keys that will be used to sign the transaction
-     * @param numSignTxns the number of {@code ScheduleSign} transactions that will be executed
-     * @return a list of indices that can be used to choose signing keys
-     */
-    private static List<Integer> createAndSignIndicesGiven(final int numKeys, final int numSignTxns) {
-        final List<Integer> endIndices = new ArrayList<>();
-        endIndices.add(numKeys);
-        int remainingSkipsAllowed = numKeys - numSignTxns;
-        for (int i = 0; i < numSignTxns; i++) {
-            final var skips = remainingSkipsAllowed > 0 ? RANDOM.nextInt(remainingSkipsAllowed) : 0;
-            remainingSkipsAllowed -= skips;
-            final var curIndex = endIndices.get(0);
-            final var nextEndIndex = curIndex - skips - 1;
-            endIndices.add(0, nextEndIndex);
-        }
-        endIndices.add(0, 0);
-        return endIndices;
     }
 
     private Optional<Failure> checkStream(@Nullable final List<AbstractEventualStreamAssertion> streamAssertions) {
@@ -1080,7 +1099,7 @@ public class HapiSpec implements Runnable, Executable {
         txnFromCi = envTxn;
         dynamicNodes = nodes;
         defaultPayer = payer;
-        defaultNodeAccount = String.format("0.0.%s", suggestedNode);
+        defaultNodeAccount = suggestedNode;
         nodeSelectorFromCi = envNodeSelector;
         otherOverrides = overrides;
         ciPropsSource = null;
@@ -1108,6 +1127,17 @@ public class HapiSpec implements Runnable, Executable {
             log.info("CI_PROPERTIES_MAP: {}", ciPropertiesMap);
             ciPropsSource = new HashMap<>();
             ciPropsSource.put("node.selector", nodeSelectorFromCi);
+
+            dynamicNodes = Arrays.stream(dynamicNodes.split(","))
+                    .map(NodeConnectInfo::new)
+                    .map(info -> {
+                        final var acct = info.getAccount();
+                        return info.uri() + ":"
+                                + String.format(
+                                        "%d.%d.%d", acct.getShardNum(), acct.getRealmNum(), acct.getAccountNum());
+                    })
+                    .collect(Collectors.joining(","));
+
             ciPropsSource.put("nodes", dynamicNodes);
             ciPropsSource.put("default.payer", defaultPayer);
             ciPropsSource.put("default.node", defaultNodeAccount);
@@ -1161,7 +1191,22 @@ public class HapiSpec implements Runnable, Executable {
      */
     public static Stream<DynamicTest> hapiTest(@NonNull final SpecOperation... ops) {
         return propertyPreservingHapiTest(
-                Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), ops);
+                Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), null, ops);
+    }
+
+    /**
+     * Creates dynamic tests derived from with the given operations and {@link HapiSpecSetup} overrides, preserving
+     * any network properties bound to the thread by a {@link LeakyHapiTest} test factory.
+     *
+     * @param setupOverrides the setup overrides
+     * @param ops            the operations
+     * @return a {@link Stream} of {@link DynamicTest}s
+     */
+    public static Stream<DynamicTest> customizedHapiTest(
+            @NonNull final Map<String, String> setupOverrides, @NonNull final SpecOperation... ops) {
+        requireNonNull(setupOverrides);
+        return propertyPreservingHapiTest(
+                Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), setupOverrides, ops);
     }
 
     /**
@@ -1169,21 +1214,25 @@ public class HapiSpec implements Runnable, Executable {
      * restored to their original values after running the tests.
      *
      * @param propertiesToPreserve the properties to preserve
-     * @param ops the operations
+     * @param setupOverrides       the setup overrides, if any
+     * @param ops                  the operations
      * @return a {@link Stream} of {@link DynamicTest}s
      */
-    public static Stream<DynamicTest> propertyPreservingHapiTest(
-            @NonNull final List<String> propertiesToPreserve, @NonNull final SpecOperation... ops) {
+    private static Stream<DynamicTest> propertyPreservingHapiTest(
+            @NonNull final List<String> propertiesToPreserve,
+            @Nullable final Map<String, String> setupOverrides,
+            @NonNull final SpecOperation... ops) {
         requireNonNull(propertiesToPreserve);
         return Stream.of(DynamicTest.dynamicTest(
                 AS_WRITTEN_DISPLAY_NAME,
                 targeted(new HapiSpec(
-                        SPEC_NAME.get(),
-                        HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
-                        new SpecOperation[0],
-                        new SpecOperation[0],
-                        ops,
-                        propertiesToPreserve))));
+                                SPEC_NAME.get(),
+                                HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                                new SpecOperation[0],
+                                new SpecOperation[0],
+                                ops,
+                                propertiesToPreserve)
+                        .withPrioritySetup(setupOverrides))));
     }
 
     public static DynamicTest namedHapiTest(String name, @NonNull final SpecOperation... ops) {
@@ -1191,6 +1240,8 @@ public class HapiSpec implements Runnable, Executable {
                 name,
                 targeted(new HapiSpec(
                         name,
+                        // Defined with only the default property source initially, but subsequent methods may add
+                        // overrides
                         HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
                         new SpecOperation[0],
                         new SpecOperation[0],
@@ -1215,7 +1266,7 @@ public class HapiSpec implements Runnable, Executable {
     /**
      * Customizes the {@link HapiSpec} to target the given network.
      *
-     * @param spec the {@link HapiSpec} to customize
+     * @param spec          the {@link HapiSpec} to customize
      * @param targetNetwork the target network
      */
     public static void doTargetSpec(@NonNull final HapiSpec spec, @NonNull final HederaNetwork targetNetwork) {
@@ -1223,32 +1274,60 @@ public class HapiSpec implements Runnable, Executable {
 
         // (FUTURE) Remove this override by initializing the HapiClients for a remote network
         // directly from the network's HederaNode instances instead of this "nodes" property
-        final var specNodes =
-                targetNetwork.nodes().stream().map(HederaNode::hapiSpecInfo).collect(joining(","));
-        spec.addOverrideProperties(Map.of("nodes", specNodes));
+        final var specNodes = targetNetwork.nodes().stream()
+                .map(n -> n.hapiSpecInfo(targetNetwork.shard(), targetNetwork.realm()))
+                .collect(joining(","));
+        final var overrides = new HashMap<String, String>() {
+            {
+                put("nodes", specNodes);
+                put("memo.useSpecName", "true");
+            }
+        };
+
+        // We only need to set shard/realm if they aren't the default values (zero)
+        final var shardRealm = determineShardRealm(targetNetwork);
+        if (shardRealm.shard() > 0) {
+            overrides.put("hapi.spec.default.shard", Long.toString(shardRealm.shard()));
+        }
+        if (shardRealm.realm() > 0) {
+            overrides.put("hapi.spec.default.realm", Long.toString(shardRealm.realm()));
+        }
+        spec.addOverrideProperties(overrides);
 
         if (targetNetwork instanceof EmbeddedNetwork embeddedNetwork) {
-            final Map<String, String> overrides;
-            if (repeatableModeRequested()) {
+            final Map<String, String> embeddedOverrides;
+            if (embeddedNetwork.inRepeatableMode()) {
                 // Statuses are immediately available in repeatable mode because ingest is synchronous;
                 // ECDSA signatures are inherently random, so use only ED25519 in repeatable mode
-                overrides = Map.of("status.wait.sleep.ms", "0", "default.keyAlgorithm", "ED25519");
+                embeddedOverrides = Map.of("status.wait.sleep.ms", "0", "default.keyAlgorithm", "ED25519");
             } else {
-                overrides = Map.of("status.wait.sleep.ms", "" + CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS);
+                embeddedOverrides = Map.of("status.wait.sleep.ms", "" + CONCURRENT_EMBEDDED_STATUS_WAIT_SLEEP_MS);
             }
-            spec.addOverrideProperties(overrides);
+            spec.addOverrideProperties(embeddedOverrides);
             final var embeddedHedera = embeddedNetwork.embeddedHederaOrThrow();
             spec.setNextValidStart(embeddedHedera::nextValidStart);
-            if (repeatableModeRequested()) {
+            if (embeddedNetwork.inRepeatableMode()) {
                 spec.setKeyGenerator(requireNonNull(REPEATABLE_KEY_GENERATOR.get()));
             }
         }
+
+        spec.finalizeSetupProperties();
     }
 
     public HapiSpec(String name, SpecOperation[] ops) {
         this(
                 name,
                 setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                new SpecOperation[0],
+                new SpecOperation[0],
+                ops,
+                List.of());
+    }
+
+    public HapiSpec(String name, HapiPropertySource source, SpecOperation[] ops) {
+        this(
+                name,
+                setupFrom(source, getDefaultPropertySource()),
                 new SpecOperation[0],
                 new SpecOperation[0],
                 ops,
@@ -1331,5 +1410,59 @@ public class HapiSpec implements Runnable, Executable {
             throw new IllegalStateException("Target network is not embedded");
         }
         return network;
+    }
+
+    private SpecOperation rebalanceStakes() {
+        final var ids = new ArrayList<>(requireNonNull(stakerIds).stream()
+                .map(HapiPropertySource::asAccountString)
+                .toList());
+        Collections.shuffle(ids);
+        final List<SpecOperation> transfers = new ArrayList<>();
+        for (int i = 0, n = ids.size() / 2; i < n; i++) {
+            final var from = ids.get(i * 2);
+            final var to = ids.get(i * 2 + 1);
+            transfers.add(cryptoTransfer(tinyBarsFromTo(from, to, ONE_HBAR))
+                    .payingWith(GENESIS)
+                    .signedBy(GENESIS));
+        }
+        return inParallel(transfers.toArray(SpecOperation[]::new));
+    }
+
+    private static class DelayedDuration implements Delayed {
+        private final Instant end;
+
+        DelayedDuration(@NonNull final Duration duration) {
+            requireNonNull(duration);
+            end = Instant.now().plus(duration);
+        }
+
+        @Override
+        public long getDelay(TimeUnit unit) {
+            return unit.convert(Duration.between(Instant.now(), end).toNanos(), TimeUnit.NANOSECONDS);
+        }
+
+        @Override
+        public int compareTo(@NonNull final Delayed d) {
+            if (d instanceof DelayedDuration that) {
+                return end.compareTo(that.end);
+            } else {
+                throw new IllegalArgumentException();
+            }
+        }
+    }
+
+    private record ShardRealm(long shard, long realm) {}
+
+    // (FUTURE) Refactor to a more intuitive location
+    private static ShardRealm determineShardRealm(@NonNull final HederaNetwork targetNetwork) {
+        final var shard = targetNetwork.shard();
+        if (shard < 0) {
+            throw new IllegalArgumentException("Shard must be >= 0");
+        }
+        final var realm = targetNetwork.realm();
+        if (realm < 0) {
+            throw new IllegalArgumentException("Realm must be >= 0");
+        }
+        return new ShardRealm(shard, realm);
     }
 }

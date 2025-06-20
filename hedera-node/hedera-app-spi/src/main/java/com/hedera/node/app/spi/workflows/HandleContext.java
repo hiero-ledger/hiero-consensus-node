@@ -1,26 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
@@ -33,15 +17,15 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
+import java.util.Optional;
 
 /**
  * Represents the context of a single {@code handle()}-call.
@@ -63,16 +47,30 @@ public interface HandleContext {
      * Category of the current transaction.
      */
     enum TransactionCategory {
-        /** The original transaction submitted by a user. */
+        /**
+         * A transaction submitted by a user via HAPI or by a node via {@link com.hedera.node.app.spi.AppContext.Gossip}.
+         * */
         USER,
-
-        /** An independent, top-level transaction that is executed before the user transaction. */
+        /**
+         * An independent, top-level transaction that is executed before the user transaction.
+         * */
         PRECEDING,
-
-        /** A child transaction that is executed as part of a user transaction. */
+        /**
+         * A child transaction that is executed as part of a user transaction.
+         * */
         CHILD,
-        /** A transaction executed via the schedule service. */
-        SCHEDULED
+        /**
+         * A transaction executed via the schedule service.
+         * */
+        SCHEDULED,
+        /**
+         * A transaction submitted by Node for TSS service
+         */
+        NODE,
+        /**
+         * A child transaction submitted via atomic batch user transaction.
+         */
+        BATCH_INNER
     }
 
     /**
@@ -91,6 +89,77 @@ public interface HandleContext {
          * backward compatibility.)
          */
         LIMITED_CHILD_RECORDS
+    }
+
+    /**
+     * Metadata that can be attached to a dispatch.
+     * This metadata is passed when dispatching a child transaction and can
+     * be used to pass additional information to the targeted handlers.
+     */
+    class DispatchMetadata {
+        public static final DispatchMetadata EMPTY_METADATA = new DispatchMetadata(Map.of());
+
+        private final Map<Type, Object> metadata;
+
+        /**
+         * Constructs a new DispatchMetadata instance with the given metadata map.
+         *
+         * @param metadata the metadata map
+         */
+        public DispatchMetadata(@NonNull final Map<Type, Object> metadata) {
+            this.metadata = requireNonNull(metadata);
+        }
+
+        /**
+         * Constructs a new DispatchMetadata instance with a single metadata entry.
+         *
+         * @param type the metadata key
+         * @param value the metadata value
+         */
+        public DispatchMetadata(@NonNull final Type type, @NonNull Object value) {
+            this.metadata = new HashMap<>(Map.of(type, value));
+        }
+
+        /**
+         * Adds or updates a metadata entry.
+         *
+         * @param type the metadata key
+         * @param value the metadata value
+         */
+        public void putMetadata(@NonNull final Type type, @NonNull final Object value) {
+            metadata.put(type, value);
+        }
+
+        /**
+         * Retrieves the metadata value associated with the given key.
+         *
+         * @param type the metadata key
+         * @param javaType the Java type of the metadata value
+         * @return the metadata value, if present
+         */
+        public <T> Optional<T> getMetadata(@NonNull final Type type, @NonNull final Class<T> javaType) {
+            requireNonNull(type);
+            requireNonNull(javaType);
+            return Optional.ofNullable(metadata.get(type)).map(javaType::cast);
+        }
+
+        /**
+         * Enumerates the possible types of dispatch metadata.
+         */
+        public enum Type {
+            /**
+             * The fixed fee of a transaction.
+             */
+            TRANSACTION_FIXED_FEE,
+            /**
+             * A fee charging strategy that should be used to customize further dispatches.
+             */
+            CUSTOM_FEE_CHARGING,
+            /**
+             * Whether a contract dispatch should externalize explicit writes with its slot usage traces.
+             */
+            EXPLICIT_WRITE_TRACING,
+        }
     }
 
     /**
@@ -122,7 +191,27 @@ public interface HandleContext {
      * @param amount the amount to charge
      * @return true if the entire amount was successfully charged, false otherwise
      */
-    boolean tryToChargePayer(long amount);
+    default boolean tryToChargePayer(final long amount) {
+        return tryToCharge(payer(), amount);
+    }
+
+    /**
+     * Tries to charge the requested account in this context the given amount of tinybar,
+     * distributing the fees proportionally to the active collection accounts.
+     * @param amount the amount to charge
+     * @return true if the entire amount was successfully charged, false otherwise
+     */
+    boolean tryToCharge(AccountID accountId, long amount);
+
+    /**
+     * Tries to refund the requested account in this context the given amount of tinybar,
+     * reclaiming the fees proportionally from the active collection accounts. This is
+     * a best effort operation, and in some extremely unusual edge cases (like the fee
+     * collection accounts themselves being debited in the transaction), may not refund
+     * the full amount.
+     * @param amount the amount to refund.
+     */
+    void refundBestEffort(AccountID accountId, long amount);
 
     /**
      * Returns the current {@link Configuration} for the node.
@@ -241,192 +330,12 @@ public interface HandleContext {
             @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel);
 
     /**
-     * Dispatches an independent (top-level) transaction, that precedes the current transaction.
-     *
-     * <p>A top-level transaction is independent of any other transaction. If it is successful, the state changes are
-     * automatically committed. If it fails, any eventual state changes are automatically rolled back.
-     *
-     * <p>This method can only be called my a {@link TransactionCategory#USER}-transaction and only as long as no state
-     * changes have been introduced by the user transaction (either by storing state or by calling a child
-     * transaction).
-     *
-     * <p>If non-null, the provided {@link Predicate} callback will be called to enforce signing requirements; or to
-     * verify simple keys when the child transaction calls any of the {@code verificationFor} methods. If the callback
-     * is null, no signing requirements will be enforced.
-     *
-     * @param txBody             the {@link TransactionBody} of the transaction to dispatch
-     * @param recordBuilderClass the record builder class of the transaction
-     * @param verifier           if signing requirements should be enforced, a {@link Predicate} that will be used to validate primitive keys
-     * @param syntheticPayer    the payer of the transaction
-     * @return the record builder of the transaction
-     * @throws NullPointerException     if {@code txBody} is {@code null}
-     * @throws IllegalArgumentException if the transaction is not a {@link TransactionCategory#USER}-transaction or if
-     *                                  the record builder type is unknown to the app
-     * @throws IllegalStateException    if the current transaction has already introduced state changes
-     * @throws HandleException if the base builder for the dispatch cannot be created
+     * Dispatches a child transaction with the given options.
+     * @param options the options to use
+     * @return the stream builder of the child transaction
+     * @param <T> the type of the stream builder
      */
-    @NonNull
-    <T> T dispatchPrecedingTransaction(
-            @NonNull TransactionBody txBody,
-            @NonNull Class<T> recordBuilderClass,
-            @Nullable Predicate<Key> verifier,
-            @NonNull AccountID syntheticPayer);
-
-    /**
-     * Dispatches a preceding transaction that already has an ID.
-     *
-     * @param txBody            the {@link TransactionBody} of the transaction to dispatch
-     * @param recordBuilderClass the record builder class of the transaction
-     * @param verifier         a {@link Predicate} that will be used to validate primitive keys
-     * @return the record builder of the transaction
-     * @param <T> the record type
-     * @throws IllegalArgumentException if the transaction body did not have an id
-     */
-    // Only used in tests
-    default <T> T dispatchPrecedingTransaction(
-            @NonNull final TransactionBody txBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @NonNull final Predicate<Key> verifier) {
-        throwIfMissingPayerId(txBody);
-        return dispatchPrecedingTransaction(
-                txBody,
-                recordBuilderClass,
-                verifier,
-                txBody.transactionIDOrThrow().accountIDOrThrow());
-    }
-
-    /**
-     * Dispatches preceding transaction that can be removed.
-     *
-     * <p>A removable preceding transaction depends on the current transaction. That means if the user transaction
-     * fails, a removable preceding transaction is automatically removed and not exported. The state changes introduced by a
-     * removable preceding transaction are automatically committed together with the parent transaction.
-     *
-     * <p>This method can only be called by a {@link TransactionCategory#USER}-transaction and only as long as no state
-     * changes have been introduced by the user transaction (either by storing state or by calling a child
-     * transaction).
-     *
-     * <p>The provided {@link Predicate} callback will be called to verify simple keys when the child transaction calls
-     * any of the {@code verificationFor} methods.
-     *
-     * @param txBody             the {@link TransactionBody} of the transaction to dispatch
-     * @param recordBuilderClass the record builder class of the transaction
-     * @param verifier           if non-null, a {@link Predicate} that will be used to validate primitive keys
-     * @param syntheticPayer     the payer of the transaction
-     * @param consensusThrottling whether to throttle the child transaction at consensus
-     * @return the record builder of the transaction
-     * @throws NullPointerException     if {@code txBody} is {@code null}
-     * @throws IllegalArgumentException if the transaction is not a {@link TransactionCategory#USER}-transaction or if
-     *                                  the record builder type is unknown to the app
-     * @throws IllegalStateException    if the current transaction has already introduced state changes
-     * @throws HandleException          if the base builder for the dispatch cannot be created
-     */
-    @NonNull
-    <T> T dispatchRemovablePrecedingTransaction(
-            @NonNull TransactionBody txBody,
-            @NonNull Class<T> recordBuilderClass,
-            @Nullable Predicate<Key> verifier,
-            AccountID syntheticPayer,
-            @NonNull ConsensusThrottling consensusThrottling);
-
-    /**
-     * Dispatches a child transaction.
-     *
-     * <p>A child transaction depends on the current transaction. That means if the current transaction fails,
-     * a child transaction is automatically rolled back. The state changes introduced by a child transaction are
-     * automatically committed together with the parent transaction.
-     *
-     * <p>A child transaction will run with the current state. It will see all state changes introduced by the current
-     * transaction or preceding child transactions. If successful, a new entry will be added to the
-     * {@link SavepointStack}. This enables the current transaction to commit or roll back the state changes. Please be
-     * aware that any state changes introduced by storing data in one of the stores after calling a child transaction
-     * will also be rolled back if the child transaction is rolled back.
-     *
-     * <p>The provided {@link Predicate} callback will be called to verify simple keys when the child transaction calls
-     * any of the {@code verificationFor} methods.
-     *
-     * <p>A {@link TransactionCategory#PRECEDING}-transaction must not dispatch a child transaction.
-     *
-     * @param txBody             the {@link TransactionBody} of the child transaction to dispatch
-     * @param recordBuilderClass the record builder class of the child transaction
-     * @param callback           a {@link Predicate} callback function that will observe each primitive key
-     * @param syntheticPayerId   the payer of the child transaction
-     * @param childCategory      the category of the child transaction
-     * @param consensusThrottling whether to throttle the child transaction at consensus
-     * @return the record builder of the child transaction
-     * @throws NullPointerException     if any of the arguments is {@code null}
-     * @throws IllegalArgumentException if the current transaction is a
-     * @throws HandleException          if the base builder for the dispatch cannot be created
-     *                                  {@link TransactionCategory#PRECEDING}-transaction or if the record builder type is unknown to the app
-     */
-    @NonNull
-    <T> T dispatchChildTransaction(
-            @NonNull TransactionBody txBody,
-            @NonNull Class<T> recordBuilderClass,
-            @Nullable Predicate<Key> callback,
-            @NonNull AccountID syntheticPayerId,
-            @NonNull TransactionCategory childCategory,
-            @NonNull ConsensusThrottling consensusThrottling);
-
-    /**
-     * Dispatches a child transaction that already has a transaction ID due to
-     * its construction in the schedule service.
-     *
-     * @param txBody the {@link TransactionBody} of the child transaction to dispatch
-     * @param recordBuilderClass the record builder class of the child transaction
-     * @param callback a {@link Predicate} callback function that will observe each primitive key
-     * @return the record builder of the child transaction
-     * @param <T> the record type
-     * @throws IllegalArgumentException if the transaction body did not have an id
-     * @throws HandleException if the base builder for the dispatch cannot be created
-     */
-    @NonNull
-    default <T> T dispatchScheduledChildTransaction(
-            @NonNull final TransactionBody txBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @NonNull final Predicate<Key> callback) {
-        throwIfMissingPayerId(txBody);
-        return dispatchChildTransaction(
-                txBody,
-                recordBuilderClass,
-                callback,
-                txBody.transactionIDOrThrow().accountIDOrThrow(),
-                SCHEDULED,
-                ConsensusThrottling.ON);
-    }
-
-    /**
-     * Dispatches a removable child transaction.
-     *
-     * <p>A removable child transaction depends on the current transaction. It behaves in almost all aspects like a
-     * regular child transaction (see {@link #dispatchChildTransaction(TransactionBody, Class, Predicate, AccountID, TransactionCategory, ConsensusThrottling)}.
-     * But unlike regular child transactions, the records of removable child transactions are removed and not reverted.
-     *
-     * <p>The provided {@link Predicate} callback will be called to verify simple keys when the child transaction calls
-     * any of the {@code verificationFor} methods.
-     *
-     * <p>A {@link TransactionCategory#PRECEDING}-transaction must not dispatch a child transaction.
-     *
-     * @param txBody             the {@link TransactionBody} of the child transaction to dispatch
-     * @param recordBuilderClass the record builder class of the child transaction
-     * @param callback           a {@link Predicate} callback function that will observe each primitive key
-     * @param syntheticPayerId   the payer of the child transaction
-     * @param customizer         a final transformation to apply before externalizing if the returned value is non-null
-     * @param consensusThrottling whether to throttle the child transaction at consensus
-     * @return the record builder of the child transaction
-     * @throws NullPointerException     if any of the arguments is {@code null}
-     * @throws IllegalArgumentException if the current transaction is a
-     * @throws HandleException          if the base builder for the dispatch cannot be created
-     *                                  {@link TransactionCategory#PRECEDING}-transaction or if the record builder type is unknown to the app
-     */
-    @NonNull
-    <T> T dispatchRemovableChildTransaction(
-            @NonNull TransactionBody txBody,
-            @NonNull Class<T> recordBuilderClass,
-            @Nullable Predicate<Key> callback,
-            @NonNull AccountID syntheticPayerId,
-            @NonNull ExternalizedRecordCustomizer customizer,
-            @NonNull ConsensusThrottling consensusThrottling);
+    <T extends StreamBuilder> T dispatch(@NonNull DispatchOptions<T> options);
 
     /**
      * Returns the current {@link SavepointStack}.
@@ -498,34 +407,31 @@ public interface HandleContext {
          * Adds a child record builder to the list of record builders. If the current {@link HandleContext} (or any parent
          * context) is rolled back, all child record builders will be reverted.
          *
-         * @param recordBuilderClass the record type
-         * @return the new child record builder
          * @param <T> the record type
+         * @param recordBuilderClass the record type
+         * @param functionality the functionality of the record
+         * @return the new child record builder
          * @throws NullPointerException if {@code recordBuilderClass} is {@code null}
          * @throws IllegalArgumentException if the record builder type is unknown to the app
          */
         @NonNull
-        <T> T addChildRecordBuilder(@NonNull Class<T> recordBuilderClass);
+        <T> T addChildRecordBuilder(@NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
 
         /**
          * Adds a removable child record builder to the list of record builders. Unlike a regular child record builder,
          * a removable child record builder is removed, if the current {@link HandleContext} (or any parent context) is
          * rolled back.
          *
-         * @param recordBuilderClass the record type
-         * @return the new child record builder
          * @param <T> the record type
+         * @param recordBuilderClass the record type
+         * @param functionality the functionality of the record
+         * @return the new child record builder
          * @throws NullPointerException if {@code recordBuilderClass} is {@code null}
          * @throws IllegalArgumentException if the record builder type is unknown to the app
          */
         @NonNull
-        <T> T addRemovableChildRecordBuilder(@NonNull Class<T> recordBuilderClass);
-    }
-
-    static void throwIfMissingPayerId(@NonNull final TransactionBody body) {
-        if (!body.hasTransactionID() || !body.transactionIDOrThrow().hasAccountID()) {
-            throw new IllegalArgumentException("Transaction id must be set if dispatching without an explicit payer");
-        }
+        <T> T addRemovableChildRecordBuilder(
+                @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
     }
 
     /**
@@ -538,6 +444,12 @@ public interface HandleContext {
     Map<AccountID, Long> dispatchPaidRewards();
 
     /**
+     * Returns the {@link NodeInfo} for the node this transaction is created from.
+     * @return the node info
+     */
+    NodeInfo creatorInfo();
+
+    /**
      * Whether a dispatch should be throttled at consensus. True for everything except certain dispatches
      * internal to the EVM which are only constrained by gas.
      */
@@ -545,4 +457,11 @@ public interface HandleContext {
         ON,
         OFF
     }
+
+    /**
+     * Metadata that can be attached to a dispatch.
+     * This metadata is passed when dispatching a child transaction and can
+     * be used to pass additional information to the targeted handlers.
+     */
+    DispatchMetadata dispatchMetadata();
 }

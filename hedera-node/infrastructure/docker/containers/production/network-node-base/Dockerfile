@@ -3,10 +3,10 @@
 # Define Global Build Arguments
 #
 ########################################################################################################################
-ARG UBUNTU_SHA="sha256:ceed028aae0eac7db9dd33bd89c14d5a9991d73443b0de24ba0db250f47491d2"
+ARG UBUNTU_SHA="sha256:80dd3c3b9c6cecb9f1667e9290b3bc61b78c2678c02cbdae5f0fea92cc6734ab"
 
-ARG OPENJDK_VERSION=17
-ARG OPENJDK_DL_KEY="0d483333a00540d886896bac774ff48b/35"
+ARG OPENJDK_VERSION=21.0.1
+ARG OPENJDK_DL_KEY="415e3f918a1f4062a0074a2794853d0d/12"
 
 ########################################################################################################################
 #
@@ -29,8 +29,6 @@ ADD checksums/* /tmp/checksums/
 # Install basic OS utilities for building
 RUN apt-get update && \
 	apt-get install -y tar gzip wget dos2unix gnupg2 hashdeep && \
-    apt-get install -y build-essential flex bison zlib1g-dev libssl-dev libpam0g-dev && \
-    apt-get install -y libreadline-dev libxml2-dev libxslt-dev libxml2-utils xsltproc && \
     apt-get autoclean && \
     apt-get clean all && \
     rm -rf /var/cache/apt
@@ -77,7 +75,7 @@ COPY --from=openjdk-builder /usr/local/java/ /usr/local/java/
 
 # Install Basic OS Requirements
 RUN apt-get update && \
-	apt-get install -y tar gzip openssl zlib1g libsodium23 libreadline7 sudo netcat && \
+	apt-get install -y tar gzip openssl zlib1g libsodium23 libreadline8t64 sudo netcat-traditional && \
 	apt-get autoremove && \
 	apt-get autoclean && \
 	apt-get clean all && \
@@ -93,6 +91,7 @@ RUN mkdir -p "/opt/hgcapp" && \
     mkdir -p "/opt/hgcapp/accountBalances" && \
     mkdir -p "/opt/hgcapp/eventsStreams" && \
     mkdir -p "/opt/hgcapp/recordStreams" && \
+    mkdir -p "/opt/hgcapp/blockStreams" && \
     mkdir -p "/opt/hgcapp/services-hedera" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0" && \
     mkdir -p "/opt/hgcapp/services-hedera/HapiApp2.0/data" && \
@@ -122,6 +121,7 @@ RUN chmod +rx /usr/local/bin/wait-for
 VOLUME "/opt/hgcapp/accountBalances"
 VOLUME "/opt/hgcapp/eventsStreams"
 VOLUME "/opt/hgcapp/recordStreams"
+VOLUME "/opt/hgcapp/blockStreams"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/config"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/diskFs"
 VOLUME "/opt/hgcapp/services-hedera/HapiApp2.0/data/keys"

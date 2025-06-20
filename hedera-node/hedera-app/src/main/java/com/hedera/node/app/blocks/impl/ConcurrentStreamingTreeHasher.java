@@ -1,27 +1,15 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.StreamingTreeHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -32,69 +20,76 @@ import java.util.concurrent.ExecutorService;
  * using a concurrent algorithm that hashes leaves in parallel and combines the resulting hashes in parallel.
  * <p>
  * <b>Important:</b> This class is not thread-safe, and client code must not make concurrent calls to
- * {@link #addLeaf(Bytes)} or {@link #rootHash()}.
+ * {@link StreamingTreeHasher#addLeaf(ByteBuffer)} or {@link #rootHash()}.
  */
 public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
     /**
-     * The number of leaves to hash in parallel before combining the resulting hashes.
+     * The default number of leaves to batch before combining the resulting hashes.
      */
-    private static final int HASHING_CHUNK_SIZE = 16;
+    private static final int DEFAULT_HASH_COMBINE_BATCH_SIZE = 8;
 
     /**
-     * The base {@link HashCombiner} that combines the hashes of the leaves of the tree, at depth zero.
+     * The base {@link HashCombiner} that combines the hashes of the leaves of the tree, at height zero.
      */
     private final HashCombiner combiner = new HashCombiner(0);
     /**
      * The {@link ExecutorService} used to parallelize the hashing and combining of the leaves of the tree.
      */
     private final ExecutorService executorService;
+    /**
+     * The size of the batches of hashes to schedule for combination.
+     * <p><b>Important:</b> This must be an even number so we can safely assume that any odd number
+     * of scheduled hashes to combine can be padded with appropriately nested combination of hashes
+     * whose descendants are all empty leaves.
+     */
+    private final int hashCombineBatchSize;
 
     /**
      * The number of leaves added to the tree.
      */
     private int numLeaves;
     /**
-     * Set once before the root hash is requested, to the depth of the tree implied by the number of leaves.
+     * Set once before the root hash is requested, to the height of the tree implied by the number of leaves.
      */
-    private int maxDepth;
+    private int rootHeight;
     /**
      * Whether the tree has been finalized by requesting the root hash.
      */
     private boolean rootHashRequested = false;
-    /**
-     * Leaves added but not yet scheduled to be hashed.
-     */
-    private List<Bytes> pendingLeaves = new ArrayList<>();
-    /**
-     * A future that completes after all leaves not in the pending list have been hashed and combined.
-     */
-    private CompletableFuture<Void> hashed = CompletableFuture.completedFuture(null);
 
     public ConcurrentStreamingTreeHasher(@NonNull final ExecutorService executorService) {
+        this(executorService, DEFAULT_HASH_COMBINE_BATCH_SIZE);
+    }
+
+    public ConcurrentStreamingTreeHasher(
+            @NonNull final ExecutorService executorService, final int hashCombineBatchSize) {
         this.executorService = requireNonNull(executorService);
+        if (hashCombineBatchSize % 2 == 1) {
+            throw new IllegalArgumentException("Hash combine batch size must be an even number");
+        }
+        this.hashCombineBatchSize = hashCombineBatchSize;
     }
 
     @Override
-    public void addLeaf(@NonNull final Bytes leaf) {
-        requireNonNull(leaf);
+    public void addLeaf(@NonNull final ByteBuffer hash) {
+        requireNonNull(hash);
         if (rootHashRequested) {
             throw new IllegalStateException("Cannot add leaves after requesting the root hash");
         }
-        numLeaves++;
-        pendingLeaves.add(leaf);
-        if (pendingLeaves.size() == HASHING_CHUNK_SIZE) {
-            schedulePendingWork();
+        if (hash.remaining() < HASH_LENGTH) {
+            throw new IllegalArgumentException("Buffer has less than " + HASH_LENGTH + " bytes remaining");
         }
+        numLeaves++;
+        final var bytes = new byte[HASH_LENGTH];
+        hash.get(bytes);
+        combiner.combine(bytes);
     }
 
     @Override
     public CompletableFuture<Bytes> rootHash() {
         rootHashRequested = true;
-        if (!pendingLeaves.isEmpty()) {
-            schedulePendingWork();
-        }
-        maxDepth = maxDepthFor(numLeaves);
-        return hashed.thenCompose(ignore -> combiner.finalCombination());
+        rootHeight = rootHeightFor(numLeaves);
+        return combiner.finalCombination();
     }
 
     @Override
@@ -102,30 +97,26 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
         if (numLeaves == 0) {
             return Status.EMPTY;
         } else {
-            schedulePendingWork();
-            final var n = numLeaves;
-            return hashed.thenApply(ignore -> {
-                        final var rightmostHashes = new ArrayList<Bytes>();
-                        combiner.flushAvailable(rightmostHashes, maxDepthFor(n + 1));
-                        return new Status(n, rightmostHashes);
-                    })
-                    .join();
+            final var rightmostHashes = new ArrayList<Bytes>();
+            combiner.flushAvailable(rightmostHashes, rootHeightFor(numLeaves + 1));
+            return new Status(numLeaves, rightmostHashes);
         }
     }
 
     /**
      * Computes the root hash of a perfect binary Merkle tree of {@link Bytes} leaves (padded on the right with
-     * empty leaves to reach a power of two), given the penultimate status of the tree and the last leaf added to
-     * the tree.
+     * empty leaves to reach a power of two), given the penultimate status of the tree and the hash of the last
+     * leaf added to the tree.
+     *
      * @param penultimateStatus the penultimate status of the tree
-     * @param lastLeaf the last leaf added to the tree
+     * @param lastLeafHash the last leaf hash added to the tree
      * @return the root hash of the tree
      */
-    public static Bytes rootHashFrom(@NonNull final Status penultimateStatus, @NonNull final Bytes lastLeaf) {
-        requireNonNull(lastLeaf);
-        var hash = noThrowSha384HashOf(lastLeaf.toByteArray());
-        final var maxDepth = maxDepthFor(penultimateStatus.numLeaves() + 1);
-        for (int i = 0; i < maxDepth; i++) {
+    public static Bytes rootHashFrom(@NonNull final Status penultimateStatus, @NonNull final Bytes lastLeafHash) {
+        requireNonNull(lastLeafHash);
+        var hash = lastLeafHash.toByteArray();
+        final var rootHeight = rootHeightFor(penultimateStatus.numLeaves() + 1);
+        for (int i = 0; i < rootHeight; i++) {
             final var rightmostHash = penultimateStatus.rightmostHashes().get(i);
             if (rightmostHash.length() == 0) {
                 hash = BlockImplUtils.combine(hash, HashCombiner.EMPTY_HASHES[i]);
@@ -136,32 +127,11 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
         return Bytes.wrap(hash);
     }
 
-    private void schedulePendingWork() {
-        final var scheduledWork = pendingLeaves;
-        final var pendingHashes = CompletableFuture.supplyAsync(
-                () -> {
-                    final List<byte[]> result = new ArrayList<>();
-                    for (final var leaf : scheduledWork) {
-                        result.add(noThrowSha384HashOf(leaf.toByteArray()));
-                    }
-                    return result;
-                },
-                executorService);
-        hashed = hashed.thenCombine(pendingHashes, (ignore, hashes) -> {
-            hashes.forEach(combiner::combine);
-            return null;
-        });
-        pendingLeaves = new ArrayList<>();
-    }
-
     private class HashCombiner {
+        private static final ThreadLocal<MessageDigest> DIGESTS =
+                ThreadLocal.withInitial(CommonUtils::sha384DigestOrThrow);
         private static final int MAX_DEPTH = 24;
-        /**
-         * <b>IMPORTANT</b> - This must be an even number so we can safely assume that any odd number
-         * of scheduled hashes to combine can be padded with appropriately nested combination of hashes
-         * whose descendants are all empty leaves.
-         */
-        private static final int COMBINATION_CHUNK_SIZE = 32;
+        private static final int MIN_TO_SCHEDULE = 16;
 
         private static final byte[][] EMPTY_HASHES = new byte[MAX_DEPTH][];
 
@@ -172,28 +142,28 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
             }
         }
 
-        private final int depth;
+        private final int height;
 
         private HashCombiner delegate;
         private List<byte[]> pendingHashes = new ArrayList<>();
         private CompletableFuture<Void> combination = CompletableFuture.completedFuture(null);
 
-        private HashCombiner(final int depth) {
-            if (depth >= MAX_DEPTH) {
-                throw new IllegalArgumentException("Cannot combine hashes at depth " + depth);
+        private HashCombiner(final int height) {
+            if (height >= MAX_DEPTH) {
+                throw new IllegalArgumentException("Cannot combine hashes at height " + height);
             }
-            this.depth = depth;
+            this.height = height;
         }
 
         public void combine(@NonNull final byte[] hash) {
             pendingHashes.add(hash);
-            if (pendingHashes.size() == COMBINATION_CHUNK_SIZE) {
+            if (pendingHashes.size() == hashCombineBatchSize) {
                 schedulePendingWork();
             }
         }
 
         public CompletableFuture<Bytes> finalCombination() {
-            if (depth == maxDepth) {
+            if (height == rootHeight) {
                 final var rootHash = pendingHashes.isEmpty() ? EMPTY_HASHES[0] : pendingHashes.getFirst();
                 return CompletableFuture.completedFuture(Bytes.wrap(rootHash));
             } else {
@@ -204,8 +174,8 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
             }
         }
 
-        public void flushAvailable(@NonNull final List<Bytes> rightmostHashes, final int stopDepth) {
-            if (depth < stopDepth) {
+        public void flushAvailable(@NonNull final List<Bytes> rightmostHashes, final int stopHeight) {
+            if (height < stopHeight) {
                 final var newPendingHash = pendingHashes.size() % 2 == 0 ? null : pendingHashes.removeLast();
                 schedulePendingWork();
                 combination.join();
@@ -215,35 +185,43 @@ public class ConcurrentStreamingTreeHasher implements StreamingTreeHasher {
                 } else {
                     rightmostHashes.add(Bytes.EMPTY);
                 }
-                delegate.flushAvailable(rightmostHashes, stopDepth);
+                delegate.flushAvailable(rightmostHashes, stopHeight);
             }
         }
 
         private void schedulePendingWork() {
             if (delegate == null) {
-                delegate = new HashCombiner(depth + 1);
+                delegate = new HashCombiner(height + 1);
             }
-            final var scheduledWork = pendingHashes;
-            final var pendingCombination = CompletableFuture.supplyAsync(
-                    () -> {
-                        final List<byte[]> result = new ArrayList<>();
-                        for (int i = 0, m = scheduledWork.size(); i < m; i += 2) {
-                            final var left = scheduledWork.get(i);
-                            final var right = i + 1 < m ? scheduledWork.get(i + 1) : EMPTY_HASHES[depth];
-                            result.add(BlockImplUtils.combine(left, right));
-                        }
-                        return result;
-                    },
-                    executorService);
+            final CompletableFuture<List<byte[]>> pendingCombination;
+            if (pendingHashes.size() < MIN_TO_SCHEDULE) {
+                pendingCombination = CompletableFuture.completedFuture(combine(pendingHashes));
+            } else {
+                final var hashes = pendingHashes;
+                pendingCombination = CompletableFuture.supplyAsync(() -> combine(hashes), executorService);
+            }
             combination = combination.thenCombine(pendingCombination, (ignore, combined) -> {
                 combined.forEach(delegate::combine);
                 return null;
             });
             pendingHashes = new ArrayList<>();
         }
+
+        private List<byte[]> combine(@NonNull final List<byte[]> hashes) {
+            final List<byte[]> result = new ArrayList<>();
+            final var digest = DIGESTS.get();
+            for (int i = 0, m = hashes.size(); i < m; i += 2) {
+                final var left = hashes.get(i);
+                final var right = i + 1 < m ? hashes.get(i + 1) : EMPTY_HASHES[height];
+                digest.update(left);
+                digest.update(right);
+                result.add(digest.digest());
+            }
+            return result;
+        }
     }
 
-    private static int maxDepthFor(final int numLeaves) {
+    private static int rootHeightFor(final int numLeaves) {
         final var numPerfectLeaves = containingPowerOfTwo(numLeaves);
         return numPerfectLeaves == 0 ? 0 : Integer.numberOfTrailingZeros(numPerfectLeaves);
     }

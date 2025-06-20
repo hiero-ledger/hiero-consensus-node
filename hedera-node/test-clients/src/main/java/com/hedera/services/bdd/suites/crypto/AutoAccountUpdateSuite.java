@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
@@ -62,45 +46,44 @@ public class AutoAccountUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> modifySigRequiredAfterAutoAccountCreation() {
-        return defaultHapiSpec("modifySigRequiredAfterAutoAccountCreation")
-                .given(newKeyNamed(ALIAS), cryptoCreate(PAYER).balance(INITIAL_BALANCE * ONE_HBAR))
-                .when(
-                        cryptoTransfer(tinyBarsFromToWithAlias(PAYER, ALIAS, ONE_HUNDRED_HBARS))
-                                .via(TRANSFER_TXN),
-                        withOpContext((spec, opLog) -> updateSpecFor(spec, ALIAS)),
-                        /* validate child record has no alias set and has fields as expected */
-                        getTxnRecord(TRANSFER_TXN)
-                                .andAllChildRecords()
-                                .hasNonStakingChildRecordCount(1)
-                                .hasNoAliasInChildRecord(0)
-                                .logged(),
-                        getAliasedAccountInfo(ALIAS)
-                                .has(accountWith()
-                                        .autoRenew(THREE_MONTHS_IN_SECONDS)
-                                        .receiverSigReq(false)
-                                        .expectedBalanceWithChargedUsd((ONE_HUNDRED_HBARS), 0, 0)))
-                .then(
-                        /* change receiverSigRequired to false and validate */
-                        cryptoUpdateAliased(ALIAS).receiverSigRequired(true).signedBy(ALIAS, PAYER, DEFAULT_PAYER),
-                        getAliasedAccountInfo(ALIAS)
-                                .has(accountWith()
-                                        .autoRenew(THREE_MONTHS_IN_SECONDS)
-                                        .receiverSigReq(true)
-                                        .expectedBalanceWithChargedUsd((ONE_HUNDRED_HBARS), 0, 0)),
+        return hapiTest(
+                newKeyNamed(ALIAS),
+                cryptoCreate(PAYER).balance(INITIAL_BALANCE * ONE_HBAR),
+                cryptoTransfer(tinyBarsFromToWithAlias(PAYER, ALIAS, ONE_HUNDRED_HBARS))
+                        .via(TRANSFER_TXN),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, ALIAS)),
+                /* validate child record has no alias set and has fields as expected */
+                getTxnRecord(TRANSFER_TXN)
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .hasNoAliasInChildRecord(0)
+                        .logged(),
+                getAliasedAccountInfo(ALIAS)
+                        .has(accountWith()
+                                .autoRenew(THREE_MONTHS_IN_SECONDS)
+                                .receiverSigReq(false)
+                                .expectedBalanceWithChargedUsd((ONE_HUNDRED_HBARS), 0, 0)),
+                /* change receiverSigRequired to false and validate */
+                cryptoUpdateAliased(ALIAS).receiverSigRequired(true).signedBy(ALIAS, PAYER, DEFAULT_PAYER),
+                getAliasedAccountInfo(ALIAS)
+                        .has(accountWith()
+                                .autoRenew(THREE_MONTHS_IN_SECONDS)
+                                .receiverSigReq(true)
+                                .expectedBalanceWithChargedUsd((ONE_HUNDRED_HBARS), 0, 0)),
 
-                        /* transfer without receiver sig fails */
-                        cryptoTransfer(tinyBarsFromToWithAlias(PAYER, ALIAS, ONE_HUNDRED_HBARS))
-                                .via(TRANSFER_TXN_2)
-                                .signedBy(PAYER, DEFAULT_PAYER)
-                                .hasKnownStatus(INVALID_SIGNATURE),
+                /* transfer without receiver sig fails */
+                cryptoTransfer(tinyBarsFromToWithAlias(PAYER, ALIAS, ONE_HUNDRED_HBARS))
+                        .via(TRANSFER_TXN_2)
+                        .signedBy(PAYER, DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE),
 
-                        /* transfer with receiver sig passes */
-                        cryptoTransfer(tinyBarsFromToWithAlias(PAYER, ALIAS, ONE_HUNDRED_HBARS))
-                                .via(TRANSFER_TXN_3)
-                                .signedBy(ALIAS, PAYER, DEFAULT_PAYER),
-                        getTxnRecord(TRANSFER_TXN_3).andAllChildRecords().hasNonStakingChildRecordCount(0),
-                        getAliasedAccountInfo(ALIAS)
-                                .has(accountWith().expectedBalanceWithChargedUsd((2 * ONE_HUNDRED_HBARS), 0, 0)));
+                /* transfer with receiver sig passes */
+                cryptoTransfer(tinyBarsFromToWithAlias(PAYER, ALIAS, ONE_HUNDRED_HBARS))
+                        .via(TRANSFER_TXN_3)
+                        .signedBy(ALIAS, PAYER, DEFAULT_PAYER),
+                getTxnRecord(TRANSFER_TXN_3).andAllChildRecords().hasNonStakingChildRecordCount(0),
+                getAliasedAccountInfo(ALIAS)
+                        .has(accountWith().expectedBalanceWithChargedUsd((2 * ONE_HUNDRED_HBARS), 0, 0)));
     }
 
     @HapiTest

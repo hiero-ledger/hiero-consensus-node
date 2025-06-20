@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -73,7 +58,7 @@ public record FullResult(
                 null);
     }
 
-    public static FullResult revertResult(@NonNull Bytes reason, final long gasRequirement) {
+    public static FullResult revertResult(@NonNull final Bytes reason, final long gasRequirement) {
         requireNonNull(reason);
         return new FullResult(PrecompiledContract.PrecompileContractResult.revert(reason), gasRequirement, null);
     }
@@ -126,6 +111,11 @@ public record FullResult(
                 PrecompiledContract.PrecompileContractResult.success(Bytes.wrap(encoded.array())),
                 gasRequirement,
                 null);
+    }
+
+    public static FullResult successResult(@NonNull final Bytes encoded, final long gasRequirement) {
+        requireNonNull(encoded);
+        return new FullResult(PrecompiledContract.PrecompileContractResult.success(encoded), gasRequirement, null);
     }
 
     public static FullResult haltResult(final long gasRequirement) {

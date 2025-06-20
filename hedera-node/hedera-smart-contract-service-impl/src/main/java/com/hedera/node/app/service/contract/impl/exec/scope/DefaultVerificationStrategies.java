@@ -1,26 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 
-import com.hedera.hapi.node.base.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -50,7 +34,7 @@ public class DefaultVerificationStrategies implements VerificationStrategies {
             throw new IllegalArgumentException("Cannot verify against missing contract " + sender);
         }
         return new ActiveContractVerificationStrategy(
-                ContractID.newBuilder().contractNum(contractNum).build(),
+                nativeOperations.entityIdFactory().newContractId(contractNum),
                 tuweniToPbjBytes(sender),
                 requiresDelegatePermission,
                 ActiveContractVerificationStrategy.UseTopLevelSigs.NO);

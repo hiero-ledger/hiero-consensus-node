@@ -21,7 +21,7 @@ cd "$(dirname "$0")"
 # check if the names were supplied as arguments
 if [[ -z "$*" ]]; then
   # if not, use a default set of names
-  names=("alice" "bob" "carol" "dave")
+  names=("node1" "node2" "node3" "node4")
 else
   names=("$@")
 fi

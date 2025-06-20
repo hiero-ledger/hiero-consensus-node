@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asTokenId;
@@ -46,7 +31,11 @@ public class SetApprovalForAllDecoder {
     public TransactionBody decodeSetApprovalForAll(@NonNull final HtsCallAttempt attempt) {
         final var call = SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL.decodeCall(attempt.inputBytes());
         final var operatorId = attempt.addressIdConverter().convert(call.get(1));
-        return bodyOf(approveAllAllowanceNFTBody(attempt.senderId(), asTokenId(call.get(0)), operatorId, call.get(2)));
+        return bodyOf(approveAllAllowanceNFTBody(
+                attempt.senderId(),
+                asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(0)),
+                operatorId,
+                call.get(2)));
     }
 
     /**

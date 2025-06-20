@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.classiccalls.mutations;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.classiccalls.ClassicFailureMode.INVALID_ACCOUNT_ID_FAILURE;
 import static com.hedera.services.bdd.suites.contract.classiccalls.ClassicFailureMode.INVALID_TOKEN_ID_FAILURE;
 import static com.hedera.services.bdd.suites.contract.classiccalls.ClassicInventory.ALICE;
@@ -54,7 +39,7 @@ public class UpdateTokenInfoFailableCall extends AbstractFailableNonStaticCall {
             return SIGNATURE
                     .encodeCallWithArgs(
                             INVALID_TOKEN_ADDRESS,
-                            Tuple.of(
+                            Tuple.from(
                                     "Name",
                                     "SYM",
                                     validAccountAddress,
@@ -70,7 +55,7 @@ public class UpdateTokenInfoFailableCall extends AbstractFailableNonStaticCall {
             return SIGNATURE
                     .encodeCallWithArgs(
                             idAsHeadlongAddress(spec.registry().getTokenID(VALID_FUNGIBLE_TOKEN_IDS[0])),
-                            Tuple.of(
+                            Tuple.from(
                                     "Name",
                                     "SYM",
                                     INVALID_ACCOUNT_ADDRESS,

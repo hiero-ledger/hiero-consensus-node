@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
@@ -43,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -53,6 +40,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
@@ -142,6 +130,7 @@ class FrameBuilderTest {
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
+        assertEquals(Wei.ONE, frame.getBlobGasPrice());
         assertEquals(Wei.of(VALUE), frame.getValue());
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
@@ -159,6 +148,7 @@ class FrameBuilderTest {
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
+        assertEquals(0L, getHederaOpsDuration(frame));
     }
 
     @Test
@@ -190,6 +180,7 @@ class FrameBuilderTest {
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
+        assertEquals(Wei.ONE, frame.getBlobGasPrice());
         assertEquals(Wei.of(VALUE), frame.getValue());
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
@@ -257,12 +248,12 @@ class FrameBuilderTest {
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
+        assertEquals(Wei.ONE, frame.getBlobGasPrice());
         assertEquals(Wei.of(VALUE), frame.getValue());
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
         assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
-        final var hashLookup = frame.getBlockHashLookup();
         assertSame(config, configOf(frame));
         assertDoesNotThrow(frame::notifyCompletion);
         assertEquals(MessageFrame.Type.MESSAGE_CALL, frame.getType());
@@ -297,12 +288,12 @@ class FrameBuilderTest {
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
+        assertEquals(Wei.ONE, frame.getBlobGasPrice());
         assertEquals(Wei.of(VALUE), frame.getValue());
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
         assertFalse(frame.isStatic());
         assertEquals(asLongZeroAddress(DEFAULT_COINBASE), frame.getMiningBeneficiary());
-        final var hashLookup = frame.getBlockHashLookup();
         assertSame(config, configOf(frame));
         assertDoesNotThrow(frame::notifyCompletion);
         assertEquals(MessageFrame.Type.MESSAGE_CALL, frame.getType());
@@ -322,6 +313,7 @@ class FrameBuilderTest {
         given(blocks.blockHashOf(SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                .withValue("contracts.sidecarValidationEnabled", true)
                 .getOrCreateConfig();
 
         final var frame = subject.buildInitialFrameWith(
@@ -334,11 +326,13 @@ class FrameBuilderTest {
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS);
 
+        assertTrue(FrameUtils.hasActionValidationEnabled(frame));
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
+        assertEquals(Wei.ONE, frame.getBlobGasPrice());
         assertEquals(Wei.of(VALUE), frame.getValue());
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());
@@ -382,6 +376,7 @@ class FrameBuilderTest {
         assertEquals(transaction.gasAvailable(INTRINSIC_GAS), frame.getRemainingGas());
         assertSame(EIP_1014_ADDRESS, frame.getOriginatorAddress());
         assertEquals(Wei.of(NETWORK_GAS_PRICE), frame.getGasPrice());
+        assertEquals(Wei.ONE, frame.getBlobGasPrice());
         assertEquals(Wei.of(VALUE), frame.getValue());
         assertEquals(Wei.of(VALUE), frame.getApparentValue());
         assertSame(blockValues, frame.getBlockValues());

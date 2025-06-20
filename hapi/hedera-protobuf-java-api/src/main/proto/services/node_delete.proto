@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.addressbook;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A transaction body to delete a node from the network address book.
+ *
+ * - A `NodeDeleteTransactionBody` MUST be signed by one of those keys:
+ *   adminKey, treasure account (2) key, systemAdmin(50) key, or
+ *   addressBookAdmin(55) key.
+ * - Upon success, the address book entry SHALL enter a "pending delete"
+ *   state.
+ * - All address book entries pending deletion SHALL be removed from the
+ *   active network configuration during the next `freeze` transaction with
+ *   the field `freeze_type` set to `PREPARE_UPGRADE`.<br/>
+ * - A deleted address book node SHALL be removed entirely from network state.
+ * - A deleted address book node identifier SHALL NOT be reused.
+ *
+ * ### Block Stream Effects
+ * None.
+ */
+message NodeDeleteTransactionBody {
+    /**
+     * A consensus node identifier in the network state.
+     * <p>
+     * The node identified MUST exist in the network address book.<br/>
+     * The node identified MUST NOT be deleted.<br/>
+     * This value is REQUIRED.
+     */
+    uint64 node_id = 1;
+}

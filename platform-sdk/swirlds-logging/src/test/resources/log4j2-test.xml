@@ -25,7 +25,7 @@
 	-->
 	<Filters>
 		<!-- Filter out levels above INFO (ex: DEBUG & TRACE) -->
-		<!-- Intentially left disabled by default -->
+		<!-- Intentionally left disabled by default -->
 		<!-- <ThresholdFilter level="INFO"                 onMatch="NEUTRAL" onMismatch="DENY" />-->
 
 		<!-- In the following, enable a marker with onMatch="ACCEPT" and disable with onMatch="DENY". -->

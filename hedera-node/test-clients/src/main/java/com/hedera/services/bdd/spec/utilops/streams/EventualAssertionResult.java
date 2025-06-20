@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
 import static java.util.Objects.requireNonNull;
@@ -24,40 +9,72 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Represents the possibly pending result of an assertion. The result will be pending for at most the given timeout
+ * duration, after which the result will be completed as either a success or a failure based on the value of the
+ * {@code passAfterTimeout} flag.
+ */
 public class EventualAssertionResult {
-    private final boolean hasPassedIfNothingFailed;
+    /**
+     * The maximum time the result can be pending before timing out.
+     */
     private final Duration timeout;
-
+    /**
+     * Whether the result on timing out should be taken as success.
+     */
+    private final boolean passAfterTimeout;
+    /**
+     * The latch that will be counted down when the result is ready.
+     */
     private final CountDownLatch ready = new CountDownLatch(1);
 
+    /**
+     * The result of the assertion.
+     */
     private AssertionResult result;
 
-    public EventualAssertionResult(@NonNull final Duration timeout) {
-        this(false, timeout);
-    }
-
-    public EventualAssertionResult(final boolean hasPassedIfNothingFailed, @NonNull final Duration timeout) {
-        this.hasPassedIfNothingFailed = hasPassedIfNothingFailed;
+    /**
+     * Creates a new {@link EventualAssertionResult} with the given timeout and the given flag.
+     * @param passAfterTimeout whether the result on timing out should be taken as success
+     * @param timeout the maximum time the result can be pending before timing out
+     */
+    public EventualAssertionResult(final boolean passAfterTimeout, @NonNull final Duration timeout) {
+        this.passAfterTimeout = passAfterTimeout;
         this.timeout = requireNonNull(timeout);
     }
 
+    /**
+     * Blocks until the result is ready, or until the timeout has elapsed. If the result is not ready by the time the
+     * timeout has elapsed, the result will be completed as either a success or a timeout based on the value of the
+     * {@code passAfterTimeout} flag.
+     * @return the result of the assertion
+     * @throws InterruptedException if the thread is interrupted while waiting
+     */
     public AssertionResult get() throws InterruptedException {
         if (!ready.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
-            if (hasPassedIfNothingFailed && result == null) {
-                return AssertionResult.success();
+            if (passAfterTimeout && result == null) {
+                return AssertionResult.newSuccess();
             } else {
-                return AssertionResult.timeout(timeout);
+                return AssertionResult.newTimeout(timeout);
             }
         }
         return result;
     }
 
+    /**
+     * Completes the result as a success.
+     */
     public void pass() {
-        this.result = AssertionResult.success();
+        this.result = AssertionResult.newSuccess();
         ready.countDown();
     }
 
-    public void fail(final String reason) {
+    /**
+     * Completes the result as a failure with the given reason.
+     * @param reason the reason for the failure
+     */
+    public void fail(@NonNull final String reason) {
+        requireNonNull(reason);
         this.result = AssertionResult.failure(reason);
         ready.countDown();
     }

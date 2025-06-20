@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.v030;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
@@ -21,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.exec.processors.Processo
 import static org.hyperledger.besu.evm.MainnetEVMs.registerLondonOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
+import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV030;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -47,6 +33,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractC
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -116,8 +103,10 @@ public interface V030Module {
             @ServicesV030 @NonNull final FeatureFlags featureFlags,
             @ServicesV030 @NonNull final AddressChecks addressChecks,
             @ServicesV030 @NonNull final PrecompileContractRegistry registry,
-            @NonNull final Map<Address, HederaSystemContract> systemContracts) {
-        return new CustomMessageCallProcessor(evm, featureFlags, registry, addressChecks, systemContracts);
+            @NonNull final Map<Address, HederaSystemContract> systemContracts,
+            @NonNull final HederaOpsDuration hederaOpsDuration) {
+        return new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration);
     }
 
     @Provides
@@ -126,11 +115,13 @@ public interface V030Module {
     static EVM provideEVM(
             @ServicesV030 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @CustomOps @NonNull final Set<Operation> customOps) {
         // Use London EVM with 0.30 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         registerLondonOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
         customOperations.forEach(operationRegistry::put);
+        customOps.forEach(operationRegistry::put);
         return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.LONDON);
     }
 

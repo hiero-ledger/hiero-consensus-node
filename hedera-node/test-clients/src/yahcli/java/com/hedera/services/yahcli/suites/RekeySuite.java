@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
 import static com.hedera.services.yahcli.suites.Utils.extractAccount;
@@ -39,14 +24,21 @@ public class RekeySuite extends HapiSuite {
     private final String replKeyLoc;
     private final String replTarget;
     private final boolean genNewKey;
+    private final SigControl sigType;
     private final Map<String, String> specConfig;
 
     public RekeySuite(
-            Map<String, String> specConfig, String account, String replKeyLoc, boolean genNewKey, String replTarget) {
+            Map<String, String> specConfig,
+            String account,
+            String replKeyLoc,
+            boolean genNewKey,
+            SigControl sigType,
+            String replTarget) {
         this.specConfig = specConfig;
         this.replKeyLoc = replKeyLoc;
         this.genNewKey = genNewKey;
         this.replTarget = replTarget;
+        this.sigType = sigType;
         this.account = extractAccount(account);
     }
 
@@ -56,25 +48,29 @@ public class RekeySuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> rekey() {
+        final var currKey = "currKey";
+        final var currKeyLoc = replTarget.endsWith(".pem") ? replTarget : replTarget.replace(".pem", ".words");
         final var replKey = "replKey";
-        final var newKeyLoc = replTarget.endsWith(".pem") ? replTarget : replTarget.replace(".pem", ".words");
         final var newKeyPass = TxnUtils.randomAlphaNumeric(12);
 
         return HapiSpec.customHapiSpec("rekey" + account)
                 .withProperties(specConfig)
                 .given(
+                        // First load the current key (before overwriting it). Its type at this point is unknown
+                        UtilVerbs.keyFromFile(currKey, currKeyLoc),
                         genNewKey
                                 ? UtilVerbs.newKeyNamed(replKey)
-                                        .shape(SigControl.ED25519_ON)
-                                        .exportingTo(newKeyLoc, newKeyPass)
+                                        .shape(sigType)
+                                        // Will overwrite the current key with the new key
+                                        .exportingTo(currKeyLoc, newKeyPass)
                                         .yahcliLogged()
                                 : UtilVerbs.keyFromFile(replKey, replKeyLoc)
-                                        .exportingTo(newKeyLoc, newKeyPass)
+                                        // Will overwrite the current key with the new key
+                                        .exportingTo(currKeyLoc, newKeyPass)
                                         .yahcliLogged())
                 .when(TxnVerbs.cryptoUpdate(account)
-                        .signedBy(HapiSuite.DEFAULT_PAYER, replKey)
+                        .signedBy(HapiSuite.DEFAULT_PAYER, currKey, replKey)
                         .key(replKey)
-                        .noLogging()
                         .yahcliLogging())
                 .then(UtilVerbs.withOpContext((spec, opLog) -> {
                     if (replTarget.endsWith(".words")) {

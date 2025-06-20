@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import com.swirlds.config.api.ConfigData;
@@ -35,6 +20,11 @@ import com.swirlds.config.api.ConfigProperty;
  * @param tcpNoDelay                 if true, then Nagel's algorithm is disabled, which helps latency, hurts bandwidth
  *                                   usage
  * @param gzipCompression            whether to use gzip compression over the network
+ * @param waitBetweenConnectionRetries      how many ms should we wait before trying to establish new connection after previous
+ *                                   one is broken, to avoid spam on broken cert; zero or negative for no-sleep
+ * @param maxSocketAcceptThreads     maximum amount of threads which will be spawned to handle incoming SSL socket
+ *                                   accepts, needed because of length SSL handshake; at same time, we don't want it to
+ *                                   be unlimited, to not run out of threads on some kind of DOS
  */
 @ConfigData("socket")
 public record SocketConfig(
@@ -45,4 +35,6 @@ public record SocketConfig(
         @ConfigProperty(defaultValue = "5000") int timeoutServerAcceptConnect,
         @ConfigProperty(defaultValue = "false") boolean useLoopbackIp,
         @ConfigProperty(defaultValue = "true") boolean tcpNoDelay,
-        @ConfigProperty(defaultValue = "false") boolean gzipCompression) {}
+        @ConfigProperty(defaultValue = "false") boolean gzipCompression,
+        @ConfigProperty(defaultValue = "10") int waitBetweenConnectionRetries,
+        @ConfigProperty(defaultValue = "30") int maxSocketAcceptThreads) {}

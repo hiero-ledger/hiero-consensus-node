@@ -1,30 +1,18 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.iss;
 
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.state.notifications.IssNotification;
 import com.swirlds.platform.system.status.actions.CatastrophicFailureAction;
 import com.swirlds.platform.system.status.actions.PlatformStatusAction;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Keeps track of the state hashes reported by all network nodes. Responsible for detecting ISS events.
@@ -42,16 +30,19 @@ public interface IssDetector {
     void signalEndOfPreconsensusReplay();
 
     /**
-     * Called when a round has been completed.
-     * <p>
-     * Expects the contained state to have been reserved by the caller for this method. This method will release the
-     * state reservation when it is done with it.
+     * Called when a round has been completed and contains state signature transactions, but no state is created.
      *
-     * @param stateAndRound the round and state to be handled
+     * @param systemTransactions the state signature transactions to be handled
      * @return a list of ISS notifications, or null if no ISS occurred
      */
+    @InputWireLabel("post consensus state signatures")
     @Nullable
-    List<IssNotification> handleStateAndRound(@NonNull StateAndRound stateAndRound);
+    List<IssNotification> handleStateSignatureTransactions(
+            @NonNull Collection<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions);
+
+    @InputWireLabel("hashed states")
+    @Nullable
+    List<IssNotification> handleState(@NonNull ReservedSignedState reservedSignedState);
 
     /**
      * Called when an overriding state is obtained, i.e. via reconnect or state loading.

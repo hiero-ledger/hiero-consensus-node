@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
@@ -27,6 +12,7 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.List;
 
@@ -46,8 +32,8 @@ public class TokenCreateWrapper {
 
     private List<FixedFeeWrapper> fixedFees;
     private List<FractionalFeeWrapper> fractionalFees;
-
     private List<RoyaltyFeeWrapper> royaltyFees;
+    private Bytes metadata;
 
     public TokenCreateWrapper(
             final boolean isFungible,
@@ -77,6 +63,7 @@ public class TokenCreateWrapper {
         this.fixedFees = List.of();
         this.fractionalFees = List.of();
         this.royaltyFees = List.of();
+        this.metadata = Bytes.EMPTY;
     }
 
     public boolean isFungible() {
@@ -127,6 +114,10 @@ public class TokenCreateWrapper {
         return expiry;
     }
 
+    public Bytes getMetadata() {
+        return metadata;
+    }
+
     public List<FixedFeeWrapper> getFixedFees() {
         return fixedFees;
     }
@@ -137,6 +128,10 @@ public class TokenCreateWrapper {
 
     public List<RoyaltyFeeWrapper> getRoyaltyFees() {
         return royaltyFees;
+    }
+
+    public void setMetadata(final Bytes metadata) {
+        this.metadata = metadata;
     }
 
     public void setFixedFees(final List<FixedFeeWrapper> fixedFees) {

@@ -1,0 +1,73 @@
+/**
+ * # Get Account NFT Infos
+ * Deprecated and permanently disabled
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/token_get_nft_info.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Deleted and unsupported.
+ *
+ * This query is not implemented and any query of this type submitted
+ * SHALL return a `NOT_SUPPORTED` response code.
+ */
+message TokenGetAccountNftInfosQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * The Account for which information is requested
+     */
+    AccountID accountID = 2;
+
+    /**
+     * Specifies the start index (inclusive) of the range of NFTs to query for.
+     * Value must be in the range [0; ownedNFTs-1]
+     */
+    int64 start = 3;
+
+    /**
+     * Specifies the end index (exclusive) of the range of NFTs to query for.
+     * Value must be in the range (start; ownedNFTs]
+     */
+    int64 end = 4;
+}
+
+/**
+ * Deleted and unsupported.
+ */
+message TokenGetAccountNftInfosResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * List of NFTs associated to the account
+     */
+    repeated TokenNftInfo nfts = 2;
+}

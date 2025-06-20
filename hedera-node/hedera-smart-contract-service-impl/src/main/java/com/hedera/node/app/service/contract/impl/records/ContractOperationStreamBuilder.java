@@ -1,32 +1,35 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.records;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Set;
 
+/**
+ * A {@code StreamBuilder} specialization for tracking the side effects of any transaction related to contracts.
+ * These include:
+ * <ol>
+ *     <li>{@link HederaFunctionality#CRYPTO_DELETE}</li>
+ *     <li>{@link HederaFunctionality#CONTRACT_DELETE}</li>
+ *     <li>{@link HederaFunctionality#CONTRACT_CREATE}</li>
+ *     <li>{@link HederaFunctionality#CONTRACT_CALL}</li>
+ *     <li>{@link HederaFunctionality#ETHEREUM_TRANSACTION}</li>
+ * </ol>
+ * transaction.
+ */
 public interface ContractOperationStreamBuilder extends DeleteCapableTransactionStreamBuilder {
     /**
      * Sets the transaction fee.
@@ -37,9 +40,8 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
     ContractOperationStreamBuilder transactionFee(long transactionFee);
 
     /**
-     * Tracks the ID of an account that should be explicitly considered
-     * as in a "reward situation"; that is, to collect any pending native
-     * staking rewards it has accrued.
+     * Tracks the ID of an account that should be explicitly considered as in a "reward situation"; that is, to collect
+     * any pending native staking rewards it has accrued.
      *
      * @param accountId the account ID
      */
@@ -59,12 +61,22 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this updated builder
      */
     default ContractOperationStreamBuilder withCommonFieldsSetFrom(@NonNull final CallOutcome outcome) {
-        transactionFee(transactionFee() + outcome.tinybarGasCost());
         if (outcome.actions() != null) {
-            addContractActions(outcome.actions(), false);
+            // (FUTURE) Remove after switching to block stream
+            addContractActions(new ContractActions(outcome.actions()), false);
+            // No-op for the RecordStreamBuilder
+            addActions(outcome.actions());
         }
+        // (FUTURE) Remove after switching to block stream
         if (outcome.hasStateChanges()) {
             addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
+        }
+        // No-ops for the RecordStreamBuilder
+        if (outcome.hasSlotUsages()) {
+            addContractSlotUsages(outcome.slotUsagesOrThrow());
+        }
+        if (outcome.hasLogs()) {
+            addLogs(outcome.logsOrThrow());
         }
         return this;
     }
@@ -73,30 +85,69 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * Updates this record builder to include contract actions.
      *
      * @param contractActions the contract actions
-     * @param isMigration whether these actions are exported as part of a system-initiated migration of some kind
+     * @param isMigration     whether these actions are exported as part of a system-initiated migration of some kind
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractActions(@NonNull ContractActions contractActions, boolean isMigration);
+
+    /**
+     * Updates this record builder to include contract actions.
+     *
+     * @param actions the contract actions
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addActions(@NonNull List<ContractAction> actions);
 
     /**
      * Updates this record builder to include contract bytecode.
      *
      * @param contractBytecode the contract bytecode
-     * @param isMigration whether this bytecode is exported as part of a system-initiated migration of some kind
+     * @param isMigration      whether this bytecode is exported as part of a system-initiated migration of some kind
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractBytecode(@NonNull ContractBytecode contractBytecode, boolean isMigration);
+
+    /**
+     * Updates this builder to include contract initcode.
+     *
+     * @param initcode the contract initcode
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addInitcode(@NonNull ContractInitcode initcode);
 
     /**
      * Updates this record builder to include contract state changes.
      *
      * @param contractStateChanges the contract state changes
-     * @param isMigration whether these state changes are exported as part of a system-initiated migration of some kind
+     * @param isMigration          whether these state changes are exported as part of a system-initiated migration of
+     *                             some kind
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractOperationStreamBuilder addContractStateChanges(
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration);
+
+    /**
+     * Updates this stream builder to include contract slot usages.
+     *
+     * @param slotUsages the contract slot usages
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages);
+
+    /**
+     * Tracks the EVM logs of a top-level contract transaction.
+     * @param logs the list of {@link EvmTransactionLog}s to track
+     * @return this builder
+     */
+    @NonNull
+    ContractCallStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs);
 }

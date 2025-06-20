@@ -1,27 +1,20 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.runner;
 
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import com.swirlds.platform.test.fixtures.turtle.runner.Turtle;
+import com.swirlds.platform.test.fixtures.turtle.runner.TurtleBuilder;
+import java.nio.file.Path;
 import java.time.Duration;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class TurtleTests {
+
+    @TempDir
+    Path outputDirectory;
 
     /**
      * Simulate a turtle network for 5 minutes.
@@ -37,8 +30,8 @@ class TurtleTests {
      *         deadlocks a real possibility, and so it would be good to make the framework handle deadlocks.</li>
      * </ul>
      */
-    @Disabled
     @Test
+    @Disabled
     void turtleTest() {
         final Randotron randotron = Randotron.create();
 
@@ -46,9 +39,11 @@ class TurtleTests {
                 .withNodeCount(4)
                 .withSimulationGranularity(Duration.ofMillis(10))
                 .withTimeReportingEnabled(true)
+                .withOutputDirectory(outputDirectory)
+                .withConsensusRoundValidator(new ConsensusRoundValidator())
                 .build();
 
         turtle.start();
-        turtle.simulateTime(Duration.ofMinutes(5));
+        turtle.simulateTimeAndValidate(Duration.ofMinutes(5L));
     }
 }

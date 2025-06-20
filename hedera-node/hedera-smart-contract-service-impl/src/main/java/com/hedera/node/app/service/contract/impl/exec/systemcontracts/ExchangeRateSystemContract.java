@@ -1,32 +1,16 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FEE_SUBMITTED;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.BigIntegerType;
 import com.esaulpaugh.headlong.abi.TypeFactory;
-import com.hedera.node.app.hapi.utils.InvalidTransactionException;
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -34,12 +18,12 @@ import java.util.Optional;
 import javax.inject.Inject;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 public class ExchangeRateSystemContract extends AbstractFullContract implements HederaSystemContract {
-
     private static final String PRECOMPILE_NAME = "ExchangeRate";
     private static final BigIntegerType WORD_DECODER = TypeFactory.create("uint256");
 
@@ -49,6 +33,12 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
     public static final int TO_TINYCENTS_SELECTOR = 0x43a88229;
 
     public static final String EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS = "0x168";
+
+    // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
+    public static final ContractID EXCHANGE_RATE_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS)))
+            .build();
+
     private long gasRequirement;
 
     @Inject
@@ -58,12 +48,12 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
 
     @Override
     @NonNull
-    public FullResult computeFully(@NonNull Bytes input, @NonNull MessageFrame messageFrame) {
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         requireNonNull(input);
         requireNonNull(messageFrame);
         try {
             validateTrue(input.size() >= 4, INVALID_TRANSACTION_BODY);
-            validateTrue(messageFrame.getValue().getAsBigInteger().equals(BigInteger.ZERO), INVALID_FEE_SUBMITTED);
             gasRequirement = contractsConfigOf(messageFrame).precompileExchangeRateGasCost();
             final var selector = input.getInt(0);
             final var amount = biValueFrom(input);
@@ -78,16 +68,6 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
                     };
             requireNonNull(result);
             return new FullResult(PrecompileContractResult.success(result), gasRequirement, null);
-        } catch (InvalidTransactionException e) {
-            ExceptionalHaltReason haltReason;
-            if (e.getResponseCode() == INVALID_FEE_SUBMITTED) {
-                haltReason = CustomExceptionalHaltReason.INVALID_FEE_SUBMITTED;
-            } else {
-                haltReason = ExceptionalHaltReason.INVALID_OPERATION;
-            }
-
-            return new FullResult(
-                    PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(haltReason)), gasRequirement, null);
         } catch (Exception e) {
             return new FullResult(
                     PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(ExceptionalHaltReason.INVALID_OPERATION)),

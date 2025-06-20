@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.test.signatures;
 
 import static java.util.Objects.requireNonNull;
@@ -87,13 +72,12 @@ class SignatureVerificationTest implements Scenarios {
 
         // Second, verify the signatures
         //noinspection removal
-        final var verifier = new SignatureVerifierImpl(com.swirlds.common.crypto.CryptographyHolder.get());
+        final var verifier = new SignatureVerifierImpl();
         final var verificationResults = verifier.verify(testCase.signedBytes, expanded);
 
         // Finally, assert that the verification results are as expected
         final var hederaConfig = CONFIGURATION.getConfigData(HederaConfig.class);
-        final var handleContextVerifier =
-                new DefaultKeyVerifier(testCase.signatureMap.size(), hederaConfig, verificationResults);
+        final var handleContextVerifier = new DefaultKeyVerifier(hederaConfig, verificationResults);
         assertThat(handleContextVerifier.verificationFor(ERIN.account().alias()))
                 .isNotNull()
                 .extracting(SignatureVerification::passed)
@@ -116,13 +100,12 @@ class SignatureVerificationTest implements Scenarios {
 
         // Second, verify the signatures
         //noinspection removal
-        final var verifier = new SignatureVerifierImpl(com.swirlds.common.crypto.CryptographyHolder.get());
+        final var verifier = new SignatureVerifierImpl();
         final var verificationResults = verifier.verify(signedBytes, expanded);
 
         // Finally, assert that the verification results are as expected
         final var hederaConfig = CONFIGURATION.getConfigData(HederaConfig.class);
-        final var handleContextVerifier =
-                new DefaultKeyVerifier(signatureMap.size(), hederaConfig, verificationResults);
+        final var handleContextVerifier = new DefaultKeyVerifier(hederaConfig, verificationResults);
         assertThat(handleContextVerifier.verificationFor(keyToVerify))
                 .isNotNull()
                 .extracting(SignatureVerification::passed)
@@ -394,8 +377,9 @@ class SignatureVerificationTest implements Scenarios {
             return switch (keyInfo.publicKey().key().kind()) {
                 case ED25519 -> signEd25519(keyInfo.privateKey(), message);
                 case ECDSA_SECP256K1 -> signEcdsaSecp256k1(keyInfo.privateKey(), message);
-                default -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + keyInfo.publicKey().key().kind());
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + keyInfo.publicKey().key().kind());
             };
         }
 
@@ -472,12 +456,9 @@ class SignatureVerificationTest implements Scenarios {
                                     .collect(Collectors.joining(", "))
                             + ")";
                 }
-                case CONTRACT_ID,
-                        DELEGATABLE_CONTRACT_ID,
-                        ECDSA_384,
-                        RSA_3072,
-                        UNSET -> throw new IllegalArgumentException(
-                        "Unsupported key type: " + key.key().kind());
+                case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+                    throw new IllegalArgumentException(
+                            "Unsupported key type: " + key.key().kind());
             };
         }
 

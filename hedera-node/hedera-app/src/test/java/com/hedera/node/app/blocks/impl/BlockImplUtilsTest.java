@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,11 +64,14 @@ class BlockImplUtilsTest {
     }
 
     public static Stream<Arguments> stateIdsByName() {
-        return Arrays.stream(StateIdentifier.values()).map(stateId -> Arguments.of(nameOf(stateId), stateId));
+        return Arrays.stream(StateIdentifier.values())
+                .filter(v -> v != StateIdentifier.UNKNOWN)
+                .map(stateId -> Arguments.of(nameOf(stateId), stateId));
     }
 
     private static String nameOf(@NonNull final StateIdentifier stateId) {
         return switch (stateId) {
+            case UNKNOWN -> throw new IllegalArgumentException("Unknown state identifier");
             case STATE_ID_NODES -> "AddressBookService.NODES";
             case STATE_ID_BLOCK_INFO -> "BlockRecordService.BLOCKS";
             case STATE_ID_RUNNING_HASHES -> "BlockRecordService.RUNNING_HASHES";
@@ -106,7 +94,6 @@ class BlockImplUtilsTest {
             case STATE_ID_UPGRADE_DATA_157 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=157]]";
             case STATE_ID_UPGRADE_DATA_158 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=158]]";
             case STATE_ID_UPGRADE_DATA_159 -> "FileService.UPGRADE_DATA[FileID[shardNum=0, realmNum=0, fileNum=159]]";
-            case STATE_ID_UPGRADE_FILE -> "FileService.UPGRADE_FILE";
             case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
             case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
             case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";
@@ -116,6 +103,10 @@ class BlockImplUtilsTest {
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
             case STATE_ID_SCHEDULES_BY_EXPIRY -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
             case STATE_ID_SCHEDULES_BY_ID -> "ScheduleService.SCHEDULES_BY_ID";
+            case STATE_ID_SCHEDULE_ID_BY_EQUALITY -> "ScheduleService.SCHEDULE_ID_BY_EQUALITY";
+            case STATE_ID_SCHEDULED_COUNTS -> "ScheduleService.SCHEDULED_COUNTS";
+            case STATE_ID_SCHEDULED_ORDERS -> "ScheduleService.SCHEDULED_ORDERS";
+            case STATE_ID_SCHEDULED_USAGES -> "ScheduleService.SCHEDULED_USAGES";
             case STATE_ID_ACCOUNTS -> "TokenService.ACCOUNTS";
             case STATE_ID_ALIASES -> "TokenService.ALIASES";
             case STATE_ID_NFTS -> "TokenService.NFTS";
@@ -124,6 +115,24 @@ class BlockImplUtilsTest {
             case STATE_ID_NETWORK_REWARDS -> "TokenService.STAKING_NETWORK_REWARDS";
             case STATE_ID_TOKEN_RELATIONS -> "TokenService.TOKEN_RELS";
             case STATE_ID_TOKENS -> "TokenService.TOKENS";
+            case STATE_ID_TSS_MESSAGES -> "TssBaseService.TSS_MESSAGES";
+            case STATE_ID_TSS_VOTES -> "TssBaseService.TSS_VOTES";
+            case STATE_ID_TSS_ENCRYPTION_KEYS -> "TssBaseService.TSS_ENCRYPTION_KEYS";
+            case STATE_ID_TSS_STATUS -> "TssBaseService.TSS_STATUS";
+            case STATE_ID_HINTS_KEY_SETS -> "HintsService.HINTS_KEY_SETS";
+            case STATE_ID_ACTIVE_HINTS_CONSTRUCTION -> "HintsService.ACTIVE_HINT_CONSTRUCTION";
+            case STATE_ID_NEXT_HINTS_CONSTRUCTION -> "HintsService.NEXT_HINT_CONSTRUCTION";
+            case STATE_ID_PREPROCESSING_VOTES -> "HintsService.PREPROCESSING_VOTES";
+            case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
+            case STATE_ID_LEDGER_ID -> "HistoryService.LEDGER_ID";
+            case STATE_ID_PROOF_KEY_SETS -> "HistoryService.PROOF_KEY_SETS";
+            case STATE_ID_ACTIVE_PROOF_CONSTRUCTION -> "HistoryService.ACTIVE_PROOF_CONSTRUCTION";
+            case STATE_ID_NEXT_PROOF_CONSTRUCTION -> "HistoryService.NEXT_PROOF_CONSTRUCTION";
+            case STATE_ID_HISTORY_SIGNATURES -> "HistoryService.HISTORY_SIGNATURES";
+            case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
+            case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
+            case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
+            case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
         };
     }
 }

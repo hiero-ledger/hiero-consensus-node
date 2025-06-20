@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.mod;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 
 import com.google.protobuf.Descriptors;
-import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.GeneratedMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -109,7 +94,7 @@ public class ModificationUtils {
     }
 
     /**
-     * Returns a copy of the given {@link GeneratedMessageV3} with the given
+     * Returns a copy of the given {@link GeneratedMessage} with the given
      * occurrence number of the field identified by the given
      * {@link Descriptors.FieldDescriptor} cleared.
      *
@@ -119,7 +104,7 @@ public class ModificationUtils {
      * @return the message with the field cleared
      * @param <T> the type of the message
      */
-    public static <T extends GeneratedMessageV3> T withClearedField(
+    public static <T extends GeneratedMessage> T withClearedField(
             @NonNull final T message, @NonNull final Descriptors.FieldDescriptor descriptor, final int targetIndex) {
         final var currentIndex = new AtomicInteger(0);
         return withClearedField(message, descriptor, targetIndex, currentIndex);
@@ -127,7 +112,7 @@ public class ModificationUtils {
 
     /**
      * Given a list of {@link ModificationStrategy} instances, returns a list of
-     * modifications for the given {@link GeneratedMessageV3} message.
+     * modifications for the given {@link GeneratedMessage} message.
      *
      * @param message the message to modify
      * @param strategies the modification strategies to apply
@@ -136,7 +121,7 @@ public class ModificationUtils {
      * @param <M> the type of the modification strategy
      */
     private static <T, M extends ModificationStrategy<T>> List<T> modificationsFor(
-            @NonNull final GeneratedMessageV3 message, @NonNull final List<M> strategies) {
+            @NonNull final GeneratedMessage message, @NonNull final List<M> strategies) {
         final List<T> modifications = new ArrayList<>();
         for (final var strategy : strategies) {
             final var targetFields = getTargetFields(message.toBuilder(), strategy::hasTarget);
@@ -155,7 +140,7 @@ public class ModificationUtils {
         return modifications;
     }
 
-    private static <T extends GeneratedMessageV3> T withClearedField(
+    private static <T extends GeneratedMessage> T withClearedField(
             @NonNull final T message,
             @NonNull final Descriptors.FieldDescriptor descriptor,
             final int targetIndex,
@@ -173,11 +158,11 @@ public class ModificationUtils {
             }
         } else {
             builder.getAllFields().forEach((field, value) -> {
-                if (value instanceof GeneratedMessageV3 subMessage) {
+                if (value instanceof GeneratedMessage subMessage) {
                     builder.setField(field, withClearedField(subMessage, descriptor, targetIndex, currentIndex));
                 } else if (value instanceof List<?> list) {
                     final var clearedList = list.stream()
-                            .map(item -> (item instanceof GeneratedMessageV3 subMessageItem)
+                            .map(item -> (item instanceof GeneratedMessage subMessageItem)
                                     ? withClearedField(subMessageItem, descriptor, targetIndex, currentIndex)
                                     : item)
                             .toList();

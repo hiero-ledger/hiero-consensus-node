@@ -1,30 +1,16 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config.legacy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -47,13 +33,11 @@ class LegacyConfigPropertiesLoaderTest {
         final Path path = Paths.get(
                 LegacyConfigPropertiesLoaderTest.class.getResource("empty.txt").getPath());
 
-        // when
-        final LegacyConfigProperties properties = LegacyConfigPropertiesLoader.loadConfigFile(path);
-
-        // then
-        assertNotNull(properties, "The properties should never be null");
-        Assertions.assertFalse(properties.appConfig().isPresent(), "Value must not be set for an empty file");
-        Assertions.assertFalse(properties.swirldName().isPresent(), "Value must not be set for an empty file");
+        // when & then
+        // NK(2024-10-10): An empty file should be considered an invalid configuration file. The fact that this was
+        // previously considered a valid configuration file is a bug.
+        // The correct expected behavior is to throw a ConfigurationException.
+        assertThrows(ConfigurationException.class, () -> LegacyConfigPropertiesLoader.loadConfigFile(path));
     }
 
     @Test

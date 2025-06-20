@@ -1,22 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -37,6 +25,8 @@ import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -67,8 +57,8 @@ import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
+import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -109,13 +99,14 @@ public class PairedStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
-                TokenAirdropStreamBuilder {
+                TokenAirdropStreamBuilder,
+                ReplayableFeeStreamBuilder {
     private final BlockStreamBuilder blockStreamBuilder;
     private final RecordStreamBuilder recordStreamBuilder;
 
     public PairedStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final ExternalizedRecordCustomizer customizer,
+            @NonNull final TransactionCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
         recordStreamBuilder = new RecordStreamBuilder(reversingBehavior, customizer, category);
         blockStreamBuilder = new BlockStreamBuilder(reversingBehavior, customizer, category);
@@ -133,6 +124,11 @@ public class PairedStreamBuilder
 
     public RecordStreamBuilder recordStreamBuilder() {
         return recordStreamBuilder;
+    }
+
+    @Override
+    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
+        blockStreamBuilder.setTransactionGroupRole(role);
     }
 
     @Override
@@ -159,6 +155,11 @@ public class PairedStreamBuilder
     @Override
     public int getNumAutoAssociations() {
         return blockStreamBuilder.getNumAutoAssociations();
+    }
+
+    @Override
+    public ScheduleID scheduleID() {
+        return blockStreamBuilder.scheduleID();
     }
 
     @Override
@@ -191,6 +192,11 @@ public class PairedStreamBuilder
     @Override
     public long getGasUsedForContractTxn() {
         return recordStreamBuilder.getGasUsedForContractTxn();
+    }
+
+    @Override
+    public long getOpsDurationForContractTxn() {
+        return recordStreamBuilder.getOpsDurationForContractTxn();
     }
 
     @NonNull
@@ -350,11 +356,33 @@ public class PairedStreamBuilder
         return this;
     }
 
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractId the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @NonNull
+    @Override
+    public PairedStreamBuilder createdContractID(@Nullable final ContractID contractId) {
+        recordStreamBuilder.createdContractID(contractId);
+        blockStreamBuilder.createdContractID(contractId);
+        return this;
+    }
+
     @NonNull
     @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
         blockStreamBuilder.contractCreateResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public PairedStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        blockStreamBuilder.addLogs(logs);
         return this;
     }
 
@@ -377,16 +405,28 @@ public class PairedStreamBuilder
     public ContractOperationStreamBuilder addContractActions(
             @NonNull ContractActions contractActions, boolean isMigration) {
         recordStreamBuilder.addContractActions(contractActions, isMigration);
-        blockStreamBuilder.addContractActions(contractActions, isMigration);
         return this;
     }
 
     @NonNull
     @Override
     public ContractOperationStreamBuilder addContractBytecode(
-            @NonNull ContractBytecode contractBytecode, boolean isMigration) {
+            @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
         recordStreamBuilder.addContractBytecode(contractBytecode, isMigration);
-        blockStreamBuilder.addContractBytecode(contractBytecode, isMigration);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        blockStreamBuilder.addActions(actions);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+        blockStreamBuilder.addInitcode(initcode);
         return this;
     }
 
@@ -395,7 +435,13 @@ public class PairedStreamBuilder
     public ContractOperationStreamBuilder addContractStateChanges(
             @NonNull ContractStateChanges contractStateChanges, boolean isMigration) {
         recordStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
-        blockStreamBuilder.addContractStateChanges(contractStateChanges, isMigration);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        blockStreamBuilder.addContractSlotUsages(slotUsages);
         return this;
     }
 
@@ -479,6 +525,12 @@ public class PairedStreamBuilder
         recordStreamBuilder.transferList(hbarTransfers);
         blockStreamBuilder.transferList(hbarTransfers);
         return this;
+    }
+
+    @Override
+    public void setReplayedFees(@NonNull final TransferList transferList) {
+        recordStreamBuilder.setReplayedFees(transferList);
+        blockStreamBuilder.setReplayedFees(transferList);
     }
 
     @NonNull
@@ -591,5 +643,10 @@ public class PairedStreamBuilder
             @NonNull AccountID deletedAccountID, @NonNull AccountID beneficiaryForDeletedAccount) {
         recordStreamBuilder.addBeneficiaryForDeletedAccount(deletedAccountID, beneficiaryForDeletedAccount);
         blockStreamBuilder.addBeneficiaryForDeletedAccount(deletedAccountID, beneficiaryForDeletedAccount);
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return blockStreamBuilder.functionality();
     }
 }

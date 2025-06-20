@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.virtualmerkle;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
@@ -21,13 +6,12 @@ import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.BREADTH_F
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapKey;
 import com.swirlds.demo.virtualmerkle.map.account.AccountVirtualMapValue;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
@@ -35,9 +19,11 @@ import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractB
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapKey;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.data.SmartContractMapValue;
 import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
@@ -47,6 +33,12 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 // Note: This class is intended to be used with a human in the loop who is watching standard in and standard err.
 
@@ -54,6 +46,14 @@ import java.util.stream.Stream;
  * Validator to read a data source and all its data and check the complete data set is valid.
  */
 public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValue> {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
+
+    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+            .withConfigDataType(MerkleDbConfig.class)
+            .withConfigDataType(VirtualMapConfig.class)
+            .withConfigDataType(TemporaryFileConfig.class)
+            .withConfigDataType(StateCommonConfig.class)
+            .build();
 
     /** The data source we are validating */
     private final VirtualMap<K, V> virtualMap;
@@ -122,14 +122,14 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
 
     /**
      * Generates the hash of the provided byte array. Uses the default hash algorithm as specified by {@link
-     * com.swirlds.common.crypto.Cryptography#digestSync(byte[])}.
+     * org.hiero.base.crypto.Cryptography#digestSync(byte[])}.
      *
      * @param content
      * 		the content for which the hash is to be computed
      * @return the hash of the content
      */
     public static Hash hashOf(final byte[] content) {
-        return new Hash(CryptographyHolder.get().digestSync(content));
+        return new Hash(CRYPTOGRAPHY.digestSync(content));
     }
 
     public static void main(final String[] args) throws IOException {
@@ -139,6 +139,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             registry.registerConstructables("com.swirlds.merkledb");
             registry.registerConstructables("com.swirlds.demo.virtualmerkle");
             registry.registerConstructables("com.swirlds.common.crypto");
+            registry.registerConstructables("org.hiero");
         } catch (final ConstructableRegistryException e) {
             e.printStackTrace();
             return;
@@ -172,7 +173,8 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             Hash byteCodeHash;
 
             try {
-                final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> accountsMap = new VirtualMap<>();
+                final VirtualMap<AccountVirtualMapKey, AccountVirtualMapValue> accountsMap =
+                        new VirtualMap<>(CONFIGURATION);
                 accountsMap.loadFromFile(roundFolder.resolve(accountsName));
                 final VirtualMerkleLeafHasher<AccountVirtualMapKey, AccountVirtualMapValue> accountsHasher =
                         new VirtualMerkleLeafHasher<>(accountsMap);
@@ -182,7 +184,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
             }
 
             try {
-                final VirtualMap<SmartContractMapKey, SmartContractMapValue> scMap = new VirtualMap<>();
+                final VirtualMap<SmartContractMapKey, SmartContractMapValue> scMap = new VirtualMap<>(CONFIGURATION);
                 scMap.loadFromFile(roundFolder.resolve(scName));
                 final VirtualMerkleLeafHasher<SmartContractMapKey, SmartContractMapValue> scHasher =
                         new VirtualMerkleLeafHasher<>(scMap);
@@ -193,7 +195,7 @@ public class VirtualMerkleLeafHasher<K extends VirtualKey, V extends VirtualValu
 
             try {
                 final VirtualMap<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue> byteCodeMap =
-                        new VirtualMap<>();
+                        new VirtualMap<>(CONFIGURATION);
                 byteCodeMap.loadFromFile(roundFolder.resolve(scByteCodeName));
                 final VirtualMerkleLeafHasher<SmartContractByteCodeMapKey, SmartContractByteCodeMapValue>
                         byteCodeHasher = new VirtualMerkleLeafHasher<>(byteCodeMap);

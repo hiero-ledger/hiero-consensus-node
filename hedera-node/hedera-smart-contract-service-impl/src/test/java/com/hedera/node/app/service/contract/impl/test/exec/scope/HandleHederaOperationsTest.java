@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.scope;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -27,24 +13,27 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CANONIC
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ACCOUNTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.SUPPRESSING_EXTERNALIZED_RECORD_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -66,21 +55,22 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.EntityNumGenerator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
@@ -96,6 +86,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HandleHederaOperationsTest {
     @Mock
     private TokenServiceApi tokenServiceApi;
+
+    @Mock
+    private StreamBuilder streamBuilder;
 
     @Mock
     private BlockRecordInfo blockRecordInfo;
@@ -122,9 +115,6 @@ class HandleHederaOperationsTest {
     private SystemContractGasCalculator gasCalculator;
 
     @Mock
-    private ReadableAccountStore readableAccountStore;
-
-    @Mock
     private PendingCreationMetadataRef pendingCreationMetadataRef;
 
     @Mock
@@ -133,12 +123,14 @@ class HandleHederaOperationsTest {
     @Mock
     private HandleContext.SavepointStack stack;
 
+    @Mock
+    private FeeCharging.Context feeChargingContext;
+
     private HandleHederaOperations subject;
 
     @BeforeEach
     void setUp() {
         subject = new HandleHederaOperations(
-                DEFAULT_LEDGER_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 context,
                 tinybarValues,
@@ -146,7 +138,8 @@ class HandleHederaOperationsTest {
                 DEFAULT_HEDERA_CONFIG,
                 HederaFunctionality.CONTRACT_CALL,
                 pendingCreationMetadataRef,
-                DEFAULT_ACCOUNTS_CONFIG);
+                DEFAULT_ACCOUNTS_CONFIG,
+                entityIdFactory);
     }
 
     @Test
@@ -176,8 +169,8 @@ class HandleHederaOperationsTest {
     @Test
     void returnsUnchangedWithMatchingShardRealm() {
         final var plausibleId = ContractID.newBuilder()
-                .shardNum(0)
-                .realmNum(0)
+                .shardNum(DEFAULT_HEDERA_CONFIG.shard())
+                .realmNum(DEFAULT_HEDERA_CONFIG.realm())
                 .contractNum(3456L)
                 .build();
         assertSame(plausibleId, subject.shardAndRealmValidated(plausibleId));
@@ -267,35 +260,33 @@ class HandleHederaOperationsTest {
     }
 
     @Test
-    void collectFeeStillTransfersAllToNetworkFunding() {
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
+    void collectHtsFeeUsesTheContextAndDoesNotReplay() {
+        subject.collectHtsFee(NON_SYSTEM_ACCOUNT_ID, 123L);
 
-        subject.collectFee(TestHelpers.NON_SYSTEM_ACCOUNT_ID, 123L);
+        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
 
-        verify(tokenServiceApi)
-                .transferFromTo(
-                        TestHelpers.NON_SYSTEM_ACCOUNT_ID,
-                        AccountID.newBuilder()
-                                .accountNum(DEFAULT_LEDGER_CONFIG.fundingAccount())
-                                .build(),
-                        123L);
+        subject.replayGasChargingIn(feeChargingContext);
+        verifyNoInteractions(feeChargingContext);
     }
 
     @Test
-    void refundFeeStillTransfersAllFromNetworkFunding() {
+    void collectAndRefundGasFeesUseTheContextAndReplay() {
+        subject.collectGasFee(RELAYER_ID, 69L, false);
+        subject.collectGasFee(NON_SYSTEM_ACCOUNT_ID, 123L, true);
+        subject.refundGasFee(RELAYER_ID, 12L);
+        subject.refundGasFee(NON_SYSTEM_ACCOUNT_ID, 42L);
+
+        verify(context).tryToCharge(RELAYER_ID, 69L);
+        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
+        verify(context).refundBestEffort(RELAYER_ID, 12L);
+        verify(context).refundBestEffort(NON_SYSTEM_ACCOUNT_ID, 42L);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
 
-        subject.refundFee(TestHelpers.NON_SYSTEM_ACCOUNT_ID, 123L);
-
-        verify(tokenServiceApi)
-                .transferFromTo(
-                        AccountID.newBuilder()
-                                .accountNum(DEFAULT_LEDGER_CONFIG.fundingAccount())
-                                .build(),
-                        TestHelpers.NON_SYSTEM_ACCOUNT_ID,
-                        123L);
+        subject.replayGasChargingIn(feeChargingContext);
+        verify(feeChargingContext).charge(RELAYER_ID, new Fees(0, 69L - 12L, 0L), null);
+        verify(feeChargingContext).charge(NON_SYSTEM_ACCOUNT_ID, new Fees(0, 123L - 42L, 0L), null);
+        verify(tokenServiceApi).incrementSenderNonce(NON_SYSTEM_ACCOUNT_ID);
     }
 
     @Test
@@ -315,6 +306,7 @@ class HandleHederaOperationsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void createContractWithNonSelfAdminParentDispatchesAsExpectedThenMarksCreated() throws ParseException {
         final var parent = Account.newBuilder()
                 .key(Key.newBuilder().contractID(ContractID.newBuilder().contractNum(124L)))
@@ -334,21 +326,15 @@ class HandleHederaOperationsTest {
         final var synthTxn = TransactionBody.newBuilder()
                 .cryptoCreateAccount(synthAccountCreation)
                 .build();
-        final var captor = ArgumentCaptor.forClass(ExternalizedRecordCustomizer.class);
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
-        given(context.dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        captor.capture(),
-                        any()))
-                .willReturn(contractCreateRecordBuilder);
+        given(context.dispatch(captor.capture())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);
@@ -356,13 +342,15 @@ class HandleHederaOperationsTest {
 
         subject.createContract(666L, NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), CANONICAL_ALIAS);
 
-        assertInternalFinisherAsExpected(captor.getValue(), synthContractCreation);
+        final var dispatchOptions = captor.getValue();
+        assertEquals(synthTxn, dispatchOptions.body());
+        assertInternalFinisherAsExpected(dispatchOptions.transactionCustomizer(), synthContractCreation);
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
 
     @Test
-    void translatesCreateContractHandleException() throws IOException {
+    void translatesCreateContractHandleException() {
         final var parent = Account.newBuilder()
                 .key(Key.newBuilder().contractID(ContractID.newBuilder().contractNum(124L)))
                 .accountId(AccountID.newBuilder().accountNum(123L).build())
@@ -373,23 +361,8 @@ class HandleHederaOperationsTest {
                 .maxAutoAssociations(321)
                 .memo("Something")
                 .build();
-        final var pendingId = ContractID.newBuilder().contractNum(666L).build();
-        final var synthContractCreation = synthContractCreationFromParent(pendingId, parent);
-        final var synthAccountCreation =
-                synthAccountCreationFromHapi(pendingId, CANONICAL_ALIAS, synthContractCreation);
-        final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthAccountCreation)
-                .build();
-        final var captor = ArgumentCaptor.forClass(ExternalizedRecordCustomizer.class);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        captor.capture(),
-                        any()))
-                .willThrow(new HandleException(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED));
+        given(context.dispatch(any())).willThrow(new HandleException(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED));
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);
@@ -402,6 +375,7 @@ class HandleHederaOperationsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void createContractWithSelfAdminParentDispatchesAsExpectedThenMarksCreated() throws ParseException {
         final var parent = Account.newBuilder()
                 .key(Key.newBuilder().contractID(ContractID.newBuilder().contractNum(123L)))
@@ -416,28 +390,24 @@ class HandleHederaOperationsTest {
         final var pendingId = ContractID.newBuilder().contractNum(666L).build();
         final var synthContractCreation = synthContractCreationFromParent(pendingId, parent)
                 .copyBuilder()
-                .adminKey((Key) null)
+                .adminKey(Key.newBuilder()
+                        .contractID(ContractID.newBuilder().contractNum(666L))
+                        .build())
                 .build();
         final var synthAccountCreation =
                 synthAccountCreationFromHapi(pendingId, CANONICAL_ALIAS, synthContractCreation);
         final var synthTxn = TransactionBody.newBuilder()
                 .cryptoCreateAccount(synthAccountCreation)
                 .build();
-        final var captor = ArgumentCaptor.forClass(ExternalizedRecordCustomizer.class);
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
-        given(context.dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        captor.capture(),
-                        any()))
-                .willReturn(contractCreateRecordBuilder);
+        given(context.dispatch(captor.capture())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);
@@ -445,7 +415,9 @@ class HandleHederaOperationsTest {
 
         subject.createContract(666L, NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), CANONICAL_ALIAS);
 
-        assertInternalFinisherAsExpected(captor.getValue(), synthContractCreation);
+        final var dispatchOptions = captor.getValue();
+        assertInternalFinisherAsExpected(dispatchOptions.transactionCustomizer(), synthContractCreation);
+        assertEquals(synthTxn, dispatchOptions.body());
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
@@ -472,7 +444,7 @@ class HandleHederaOperationsTest {
                 .toReadableSequentialData());
         assertEquals(expectedOp, finishedBody.contractCreateInstanceOrThrow());
 
-        // The finisher should reject transforming anything byt a crypto create
+        // The finisher should reject transforming anything but a crypto create
         final var nonCryptoCreateBody = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.DEFAULT)
                 .build();
@@ -504,39 +476,30 @@ class HandleHederaOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
-        given(context.dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        any(ExternalizedRecordCustomizer.class),
-                        any()))
-                .willReturn(contractCreateRecordBuilder);
+        given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.savepointStack()).willReturn(stack);
 
         subject.createContract(666L, someBody, CANONICAL_ALIAS);
 
-        verify(context)
-                .dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        any(ExternalizedRecordCustomizer.class),
-                        any());
+        verify(context).dispatch(assertArg(options -> {
+            assertEquals(A_NEW_ACCOUNT_ID, options.payerId());
+            assertEquals(synthTxn, options.body());
+            assertEquals(ContractCreateStreamBuilder.class, options.streamBuilderType());
+        }));
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void createContractInsideEthereumTransactionWithBodyDispatchesThenMarksAsContract() {
         subject = new HandleHederaOperations(
-                DEFAULT_LEDGER_CONFIG,
                 DEFAULT_CONTRACTS_CONFIG,
                 context,
                 tinybarValues,
@@ -544,45 +507,29 @@ class HandleHederaOperationsTest {
                 DEFAULT_HEDERA_CONFIG,
                 ETHEREUM_TRANSACTION,
                 pendingCreationMetadataRef,
-                DEFAULT_ACCOUNTS_CONFIG);
+                DEFAULT_ACCOUNTS_CONFIG,
+                entityIdFactory);
         final var someBody = ContractCreateTransactionBody.newBuilder()
                 .adminKey(AN_ED25519_KEY)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
                 .autoRenewPeriod(SOME_DURATION)
                 .build();
-        final var pendingId = ContractID.newBuilder().contractNum(666L).build();
-        final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthAccountCreationFromHapi(pendingId, CANONICAL_ALIAS, someBody))
-                .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
-        given(context.dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        any(ExternalizedRecordCustomizer.class),
-                        any()))
-                .willReturn(contractCreateRecordBuilder);
+        given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
         subject.createContract(666L, someBody, CANONICAL_ALIAS);
 
-        final var captor = ArgumentCaptor.forClass(ExternalizedRecordCustomizer.class);
-        verify(context)
-                .dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        captor.capture(),
-                        any());
-        assertNotSame(SUPPRESSING_EXTERNALIZED_RECORD_CUSTOMIZER, captor.getValue());
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(context).dispatch(captor.capture());
+        assertNotSame(SUPPRESSING_TRANSACTION_CUSTOMIZER, captor.getValue().transactionCustomizer());
         verify(tokenServiceApi)
                 .markAsContract(AccountID.newBuilder().accountNum(666L).build(), NON_SYSTEM_ACCOUNT_ID);
     }
@@ -594,19 +541,8 @@ class HandleHederaOperationsTest {
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)
                 .autoRenewPeriod(SOME_DURATION)
                 .build();
-        final var pendingId = ContractID.newBuilder().contractNum(666L).build();
-        final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthAccountCreationFromHapi(pendingId, CANONICAL_ALIAS, someBody))
-                .build();
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatchRemovableChildTransaction(
-                        eq(synthTxn),
-                        eq(ContractCreateStreamBuilder.class),
-                        eq(null),
-                        eq(A_NEW_ACCOUNT_ID),
-                        any(ExternalizedRecordCustomizer.class),
-                        any()))
-                .willReturn(contractCreateRecordBuilder);
+        given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         assertThrows(IllegalStateException.class, () -> subject.createContract(666L, someBody, CANONICAL_ALIAS));
@@ -648,9 +584,9 @@ class HandleHederaOperationsTest {
         // given
         var contractId = ContractID.newBuilder().contractNum(1001).build();
         given(context.savepointStack()).willReturn(stack);
-        given(stack.addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class))
+        given(stack.addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE))
                 .willReturn(contractCreateRecordBuilder);
-        given(contractCreateRecordBuilder.contractID(contractId)).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(contractId)).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.transaction(any(Transaction.class))).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
@@ -660,7 +596,7 @@ class HandleHederaOperationsTest {
         subject.externalizeHollowAccountMerge(contractId, VALID_CONTRACT_ADDRESS.evmAddress());
 
         // then
-        verify(contractCreateRecordBuilder).contractID(contractId);
+        verify(contractCreateRecordBuilder).createdContractID(contractId);
         verify(contractCreateRecordBuilder).contractCreateResult(any(ContractFunctionResult.class));
     }
 }

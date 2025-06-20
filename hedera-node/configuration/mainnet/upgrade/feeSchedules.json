@@ -889,6 +889,45 @@
                 "min": 0,
                 "max": 1000000000000000
               }
+            },
+            {
+              "subType": "TOPIC_CREATE_WITH_CUSTOM_FEES",
+              "nodedata": {
+                "constant": 184315473200,
+                "bpt": 294665200,
+                "vpt": 736663020000,
+                "rbh": 196400,
+                "sbh": 14800,
+                "gas": 1964400,
+                "bpr": 294665200,
+                "sbpr": 7366600,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "networkdata": {
+                "constant": 2949047570400,
+                "bpt": 4714643400,
+                "vpt": 11786608319000,
+                "rbh": 3143000,
+                "sbh": 235800,
+                "gas": 31431000,
+                "bpr": 4714643400,
+                "sbpr": 117866000,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "servicedata": {
+                "constant": 2949047570400,
+                "bpt": 4714643400,
+                "vpt": 11786608319000,
+                "rbh": 3143000,
+                "sbh": 235800,
+                "gas": 31431000,
+                "bpr": 4714643400,
+                "sbpr": 117866000,
+                "min": 0,
+                "max": 1000000000000000
+              }
             }
           ]
         }
@@ -1024,6 +1063,45 @@
                 "gas": 1577,
                 "bpr": 236568,
                 "sbpr": 5914,
+                "min": 0,
+                "max": 1000000000000000
+              }
+            },
+            {
+              "subType": "SUBMIT_MESSAGE_WITH_CUSTOM_FEES",
+              "nodedata": {
+                "constant": 0,
+                "bpt": 2000000000,
+                "vpt": 18283054670,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "networkdata": {
+                "constant": 0,
+                "bpt": 8000000000,
+                "vpt": 292528874720,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "servicedata": {
+                "constant": 0,
+                "bpt": 0,
+                "vpt": 0,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
                 "min": 0,
                 "max": 1000000000000000
               }
@@ -3778,6 +3856,52 @@
                 "gas": 9,
                 "bpr": 1397,
                 "sbpr": 35,
+                "min": 0,
+                "max": 1000000000000000
+              }
+            }
+          ]
+        }
+      },
+      {
+        "transactionFeeSchedule": {
+          "hederaFunctionality": "AtomicBatch",
+          "fees": [
+            {
+              "subType": "DEFAULT",
+              "nodedata": {
+                "constant": 3000000000,
+                "bpt": 0,
+                "vpt": 638162730,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "networkdata": {
+                "constant": 7000000000,
+                "bpt": 0,
+                "vpt": 31908136,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "servicedata": {
+                "constant": 0,
+                "bpt": 0,
+                "vpt": 0,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
                 "min": 0,
                 "max": 1000000000000000
               }
@@ -4680,6 +4804,45 @@
                 "min": 0,
                 "max": 1000000000000000
               }
+            },
+            {
+              "subType": "TOPIC_CREATE_WITH_CUSTOM_FEES",
+              "nodedata": {
+                "constant": 184315473200,
+                "bpt": 294665200,
+                "vpt": 736663020000,
+                "rbh": 196400,
+                "sbh": 14800,
+                "gas": 1964400,
+                "bpr": 294665200,
+                "sbpr": 7366600,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "networkdata": {
+                "constant": 2949047570400,
+                "bpt": 4714643400,
+                "vpt": 11786608319000,
+                "rbh": 3143000,
+                "sbh": 235800,
+                "gas": 31431000,
+                "bpr": 4714643400,
+                "sbpr": 117866000,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "servicedata": {
+                "constant": 2949047570400,
+                "bpt": 4714643400,
+                "vpt": 11786608319000,
+                "rbh": 3143000,
+                "sbh": 235800,
+                "gas": 31431000,
+                "bpr": 4714643400,
+                "sbpr": 117866000,
+                "min": 0,
+                "max": 1000000000000000
+              }
             }
           ]
         }
@@ -4815,6 +4978,45 @@
                 "gas": 1577,
                 "bpr": 236568,
                 "sbpr": 5914,
+                "min": 0,
+                "max": 1000000000000000
+              }
+            },
+            {
+              "subType": "SUBMIT_MESSAGE_WITH_CUSTOM_FEES",
+              "nodedata": {
+                "constant": 0,
+                "bpt": 2000000000,
+                "vpt": 18283054670,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "networkdata": {
+                "constant": 0,
+                "bpt": 8000000000,
+                "vpt": 292528874720,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "servicedata": {
+                "constant": 0,
+                "bpt": 0,
+                "vpt": 0,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
                 "min": 0,
                 "max": 1000000000000000
               }
@@ -7523,6 +7725,52 @@
                 "gas": 9,
                 "bpr": 1397,
                 "sbpr": 35,
+                "min": 0,
+                "max": 1000000000000000
+              }
+            }
+          ]
+        }
+      },
+      {
+        "transactionFeeSchedule": {
+          "hederaFunctionality": "AtomicBatch",
+          "fees": [
+            {
+              "subType": "DEFAULT",
+              "nodedata": {
+                "constant": 3000000000,
+                "bpt": 0,
+                "vpt": 638162730,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "networkdata": {
+                "constant": 7000000000,
+                "bpt": 0,
+                "vpt": 31908136,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
+                "min": 0,
+                "max": 1000000000000000
+              },
+              "servicedata": {
+                "constant": 0,
+                "bpt": 0,
+                "vpt": 0,
+                "rbh": 0,
+                "sbh": 0,
+                "gas": 0,
+                "bpr": 0,
+                "sbpr": 0,
                 "min": 0,
                 "max": 1000000000000000
               }

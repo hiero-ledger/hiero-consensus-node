@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.util.impl.test.handlers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
+import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.handlers.UtilHandlers;
 import com.hedera.node.app.service.util.impl.handlers.UtilPrngHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,17 +12,23 @@ import org.junit.jupiter.api.Test;
 
 class UtilHandlersTest {
     private UtilPrngHandler prngHandler;
+    private AtomicBatchHandler atomicBatchHandler;
 
     private UtilHandlers utilHandlers;
 
     @BeforeEach
     public void setUp() {
         prngHandler = mock(UtilPrngHandler.class);
-        utilHandlers = new UtilHandlers(prngHandler);
+        atomicBatchHandler = mock(AtomicBatchHandler.class);
+        utilHandlers = new UtilHandlers(prngHandler, atomicBatchHandler);
     }
 
     @Test
     void prngHandlerReturnsCorrectInstance() {
         assertEquals(prngHandler, utilHandlers.prngHandler(), "prngHandler does not return correct instance");
+        assertEquals(
+                atomicBatchHandler,
+                utilHandlers.atomicBatchHandler(),
+                "atomicBatchHandler does not return correct instance");
     }
 }

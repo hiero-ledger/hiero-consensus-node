@@ -1,31 +1,14 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization;
 
 import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -50,6 +33,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Performs synchronization in the role of the learner.
@@ -87,6 +72,8 @@ public class LearningSynchronizer implements ReconnectNodeCount {
     private long hashTimeMilliseconds;
     private long initializationTimeMilliseconds;
 
+    private final MerkleCryptography merkleCryptography;
+
     protected final ReconnectConfig reconnectConfig;
 
     /**
@@ -115,6 +102,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
             @NonNull final MerkleDataOutputStream out,
             @NonNull final MerkleNode root,
             @NonNull final Runnable breakConnection,
+            @NonNull final MerkleCryptography merkleCryptography,
             @NonNull final ReconnectConfig reconnectConfig,
             @NonNull final Metrics metrics) {
 
@@ -122,6 +110,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
 
         inputStream = Objects.requireNonNull(in, "inputStream is null");
         outputStream = Objects.requireNonNull(out, "outputStream is null");
+        this.merkleCryptography = Objects.requireNonNull(merkleCryptography, "merkleCryptography is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
 
         rootsToReceive = new LinkedList<>();
@@ -223,7 +212,7 @@ public class LearningSynchronizer implements ReconnectNodeCount {
         final long start = System.currentTimeMillis();
 
         try {
-            MerkleCryptoFactory.getInstance().digestTreeAsync(newRoot).get();
+            merkleCryptography.digestTreeAsync(newRoot).get();
         } catch (ExecutionException e) {
             logger.error(EXCEPTION.getMarker(), "exception while computing hash of reconstructed tree", e);
             return;

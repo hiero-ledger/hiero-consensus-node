@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -32,7 +17,6 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -45,6 +29,7 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenFreezeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
@@ -53,11 +38,11 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.ParityTestBase;
 import com.hedera.node.app.spi.fixtures.Assertions;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.validation.EntityType;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import org.assertj.core.api.AssertionsForClassTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -79,7 +64,11 @@ class TokenFreezeAccountHandlerTest {
     }
 
     @Nested
+    @ExtendWith(MockitoExtension.class)
     class PreHandleTests extends ParityTestBase {
+        @Mock
+        private PureChecksContext pureChecksContext;
+
         @Test
         void tokenFreezeWithNoToken() throws PreCheckException {
             final var theTxn = TransactionBody.newBuilder()
@@ -93,16 +82,15 @@ class TokenFreezeAccountHandlerTest {
         }
 
         @Test
-        void tokenFreezeWithNoAccount() throws PreCheckException {
+        void tokenFreezeWithNoAccount() {
             final var theTxn = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_13257))
                     .tokenFreeze(TokenFreezeAccountTransactionBody.newBuilder()
                             .token(TokenID.newBuilder().tokenNum(123L)))
                     .build();
+            given(pureChecksContext.body()).willReturn(theTxn);
 
-            final var context = new FakePreHandleContext(readableAccountStore, theTxn);
-            context.registerStore(ReadableTokenStore.class, readableTokenStore);
-            Assertions.assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ACCOUNT_ID);
+            Assertions.assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_ACCOUNT_ID);
         }
     }
 
@@ -292,16 +280,6 @@ class TokenFreezeAccountHandlerTest {
                             .build());
         }
 
-        private HandleContext mockContext() {
-            final var context = mock(HandleContext.class);
-            final var storeFactory = mock(StoreFactory.class);
-            given(context.storeFactory()).willReturn(storeFactory);
-            given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-            given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(readableTokenStore);
-
-            return context;
-        }
-
         private void verifyNoPut() {
             verify(tokenRelStore, never()).put(any());
         }
@@ -312,7 +290,7 @@ class TokenFreezeAccountHandlerTest {
 
         private ReadableTokenStore.TokenMetadata tokenMetaWithFreezeKey(Key freezeKey) {
             return new ReadableTokenStore.TokenMetadata(
-                    null, null, null, freezeKey, null, null, null, null, false, asAccount(25L), 2);
+                    null, null, null, freezeKey, null, null, null, null, false, asAccount(0L, 0L, 25L), 2);
         }
 
         private TransactionBody newFreezeTxn(TokenID token) {

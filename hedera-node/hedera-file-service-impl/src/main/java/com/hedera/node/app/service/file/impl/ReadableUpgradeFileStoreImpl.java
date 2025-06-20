@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl;
 
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_FILE_KEY;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
@@ -60,12 +44,8 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
     @Override
     @NonNull
     public String getStateKey() {
+        // Note: this doesn't look right, since UPGRADE_DATA_KEY is a pattern, not a concrete key
         return UPGRADE_DATA_KEY;
-    }
-
-    @NonNull
-    public String getFileStateKey() {
-        return UPGRADE_FILE_KEY;
     }
 
     @Override
@@ -78,8 +58,8 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
     @NonNull
     public Bytes getFull(final FileID fileID) throws IOException {
         ByteArrayOutputStream collector = new ByteArrayOutputStream();
-        final ReadableQueueState<ProtoBytes> upgradeState =
-                Objects.requireNonNull(states.getQueue(UPGRADE_DATA_KEY.formatted(fileID)));
+        final String stateKey = UPGRADE_DATA_KEY.formatted(fileID.shardNum(), fileID.realmNum(), fileID.fileNum());
+        final ReadableQueueState<ProtoBytes> upgradeState = Objects.requireNonNull(states.getQueue(stateKey));
         final Bytes fullContents;
         if (upgradeFileState.get(fileID) != null) {
             final var iterator = upgradeState.iterator();

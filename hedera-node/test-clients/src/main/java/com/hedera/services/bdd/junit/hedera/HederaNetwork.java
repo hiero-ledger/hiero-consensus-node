@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera;
 
 import static java.util.Objects.requireNonNull;
@@ -31,6 +16,7 @@ import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A network of Hedera nodes.
@@ -62,7 +48,30 @@ public interface HederaNetwork {
      * @return the network's response
      */
     @NonNull
-    Response send(@NonNull Query query, @NonNull HederaFunctionality functionality, @NonNull AccountID nodeAccountId);
+    default Response send(
+            @NonNull Query query, @NonNull HederaFunctionality functionality, @NonNull AccountID nodeAccountId) {
+        return send(query, functionality, nodeAccountId, false);
+    }
+
+    /**
+     * Sends the given query to the network node with the given account id as if it
+     * was the given functionality. Blocks until the response is available.
+     *
+     * <p>For valid queries, the functionality can be inferred; but for invalid queries,
+     * the functionality must be provided.
+     *
+     * @param query the query
+     * @param functionality the functionality to use
+     * @param nodeAccountId the account id of the node to send the query to
+     * @param asNodeOperator whether to send the query to the node operator port
+     * @return the network's response
+     */
+    @NonNull
+    Response send(
+            @NonNull Query query,
+            @NonNull HederaFunctionality functionality,
+            @NonNull AccountID nodeAccountId,
+            boolean asNodeOperator);
 
     /**
      * Submits the given transaction to the network node with the given account id as if it
@@ -132,6 +141,15 @@ public interface HederaNetwork {
     void start();
 
     /**
+     * Starts all nodes in the network with the given customizations.
+     *
+     * @param bootstrapOverrides the overrides
+     */
+    default void startWith(@NonNull final Map<String, String> bootstrapOverrides) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Forcibly stops all nodes in the network.
      */
     void terminate();
@@ -140,4 +158,22 @@ public interface HederaNetwork {
      * Waits for all nodes in the network to be ready within the given timeout.
      */
     void awaitReady(@NonNull Duration timeout);
+
+    /**
+     * Returns the shard of the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     */
+    default long shard() {
+        return 0;
+    }
+
+    /**
+     * Returns the realm of the network.
+     * <p>
+     * (FUTURE) Implement sensibly for non-{@link RemoteNetwork} implementations.
+     */
+    default long realm() {
+        return 0;
+    }
 }

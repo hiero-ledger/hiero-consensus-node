@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import static com.hedera.hapi.streams.schema.SidecarFileSchema.SIDECAR_RECORDS;
@@ -24,7 +9,6 @@ import com.hedera.hapi.streams.SidecarType;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.HashingOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -36,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
+import org.hiero.base.crypto.HashingOutputStream;
 
 /**
  * An incremental sidecar file writer that writes a single {@link TransactionSidecarRecord} at a time. It also maintains
@@ -57,7 +42,7 @@ final class SidecarWriterV6 implements AutoCloseable {
     /** The hash of the file contents, computed in close */
     private Bytes hash = null;
     /** The number of uncompressed bytes written to this file */
-    private int bytesWritten = 0;
+    private long bytesWritten;
 
     private final int id;
 
@@ -65,12 +50,10 @@ final class SidecarWriterV6 implements AutoCloseable {
      * Creates a new incremental sidecar file writer on a new file.
      *
      * @param file path to the file to write
-     * @param compressFile true if the file should be gzip compressed
      * @param maxSideCarSizeInBytes the maximum size of a sidecar file in bytes before compression
      * @throws IOException If there was a problem creating the file
      */
-    SidecarWriterV6(@NonNull final Path file, final boolean compressFile, final int maxSideCarSizeInBytes, final int id)
-            throws IOException {
+    SidecarWriterV6(@NonNull final Path file, final int maxSideCarSizeInBytes, final int id) throws IOException {
         this.id = id;
         this.maxSideCarSizeInBytes = maxSideCarSizeInBytes;
         // create parent directories if needed
@@ -84,18 +67,11 @@ final class SidecarWriterV6 implements AutoCloseable {
         }
         // create streams
         final var fout = Files.newOutputStream(file);
-        if (compressFile) {
-            GZIPOutputStream gout = new GZIPOutputStream(fout);
-            hashingDelegateStream = gout;
-            hashingOutputStream = new HashingOutputStream(wholeFileDigest, gout);
-            BufferedOutputStream bout = new BufferedOutputStream(hashingOutputStream);
-            outputStream = new WritableStreamingData(bout);
-        } else {
-            hashingDelegateStream = fout;
-            hashingOutputStream = new HashingOutputStream(wholeFileDigest, fout);
-            BufferedOutputStream bout = new BufferedOutputStream(hashingOutputStream);
-            outputStream = new WritableStreamingData(bout);
-        }
+        GZIPOutputStream gout = new GZIPOutputStream(fout);
+        hashingDelegateStream = gout;
+        hashingOutputStream = new HashingOutputStream(wholeFileDigest, gout);
+        BufferedOutputStream bout = new BufferedOutputStream(hashingOutputStream);
+        outputStream = new WritableStreamingData(bout);
     }
 
     public int id() {

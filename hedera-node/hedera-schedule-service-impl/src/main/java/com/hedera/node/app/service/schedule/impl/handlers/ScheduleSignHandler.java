@@ -1,57 +1,39 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
-import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
-import java.util.Objects;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -59,160 +41,87 @@ import javax.inject.Singleton;
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#SCHEDULE_SIGN}.
  */
 @Singleton
-@SuppressWarnings("OverlyCoupledClass")
 public class ScheduleSignHandler extends AbstractScheduleHandler implements TransactionHandler {
     private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
 
     @Inject
-    public ScheduleSignHandler() {}
-
-    @Override
-    public void pureChecks(@Nullable final TransactionBody currentTransaction) throws PreCheckException {
-        if (currentTransaction != null) {
-            checkValidTransactionId(currentTransaction.transactionID());
-            getValidScheduleSignBody(currentTransaction);
-        } else {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-        }
+    public ScheduleSignHandler(@NonNull final ScheduleFeeCharging feeCharging) {
+        super(feeCharging);
     }
 
-    /**
-     * Pre-handles a {@link HederaFunctionality#SCHEDULE_SIGN} transaction, returning the metadata
-     * required to, at minimum, validate the signatures of all required signing keys.
-     *
-     * @param context the {@link PreHandleContext} which collects all information
-     * @throws PreCheckException if the transaction cannot be handled successfully.
-     *     The response code appropriate to the failure reason will be provided via this exception.
-     */
+    @Override
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var body = context.body();
+        requireNonNull(body);
+        validateTruePreCheck(body.hasScheduleSign(), INVALID_TRANSACTION_BODY);
+        final var op = body.scheduleSignOrThrow();
+        validateTruePreCheck(op.hasScheduleID(), INVALID_SCHEDULE_ID);
+    }
+
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        Objects.requireNonNull(context, NULL_CONTEXT_MESSAGE);
-        final ReadableScheduleStore scheduleStore = context.createStore(ReadableScheduleStore.class);
-        final SchedulingConfig schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
+        requireNonNull(context);
+        final var op = context.body().scheduleSignOrThrow();
+        final var scheduleStore = context.createStore(ReadableScheduleStore.class);
+        final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
-        final TransactionBody currentTransaction = context.body();
-        final ScheduleSignTransactionBody scheduleSignTransaction = getValidScheduleSignBody(currentTransaction);
-        if (scheduleSignTransaction.scheduleID() != null) {
-            final Schedule scheduleData =
-                    preValidate(scheduleStore, isLongTermEnabled, scheduleSignTransaction.scheduleID());
-            final AccountID payerAccount = scheduleData.payerAccountId();
-            // Note, payer should never be null, but we have to check anyway, because Sonar doesn't know better.
-            if (payerAccount != null) {
-                final ReadableAccountStore accountStore = context.createStore(ReadableAccountStore.class);
-                final Account payer = accountStore.getAccountById(payerAccount);
-                if (payer != null) {
-                    final Key payerKey = payer.key();
-                    if (payerKey != null) context.optionalKey(payerKey);
-                }
-            }
-            try {
-                final Set<Key> allKeysNeeded = allKeysForTransaction(scheduleData, context);
-                context.optionalKeys(allKeysNeeded);
-            } catch (HandleException translated) {
-                throw new PreCheckException(translated.getStatus());
-            }
-        } else {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-        }
-        // context now has all of the keys required by the scheduled transaction in optional keys
+        final var schedule = getValidated(op.scheduleIDOrThrow(), scheduleStore, isLongTermEnabled);
+        final var requiredKeys = getRequiredKeys(schedule, context::allKeysForTransaction);
+        context.optionalKey(requiredKeys.payerKey());
+        context.optionalKeys(requiredKeys.requiredNonPayerKeys());
     }
 
-    /**
-     * This method is called during the handle workflow. It executes the actual transaction.
-     *
-     * @throws HandleException if the transaction is not handled successfully.
-     *     The response code appropriate to the failure reason will be provided via this exception.
-     */
-    @SuppressWarnings({"FeatureEnvy", "OverlyCoupledMethod"})
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
-        Objects.requireNonNull(context, NULL_CONTEXT_MESSAGE);
-        final Instant currentConsensusTime = context.consensusNow();
-        final WritableScheduleStore scheduleStore = context.storeFactory().writableStore(WritableScheduleStore.class);
-        final SchedulingConfig schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
-        final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
-        final TransactionBody currentTransaction = context.body();
-        if (currentTransaction.hasScheduleSign()) {
-            final ScheduleSignTransactionBody signTransaction = currentTransaction.scheduleSignOrThrow();
-            final ScheduleID idToSign = signTransaction.scheduleID();
-            final Schedule scheduleData = scheduleStore.get(idToSign);
-            final ResponseCodeEnum validationResult = validate(scheduleData, currentConsensusTime, isLongTermEnabled);
-            if (validationOk(validationResult)) {
-                final Schedule scheduleToSign = scheduleStore.getForModify(idToSign);
-                // ID to sign will never be null here, but sonar needs this check...
-                if (scheduleToSign != null && idToSign != null) {
-                    final SchedulableTransactionBody schedulableTransaction = scheduleToSign.scheduledTransaction();
-                    if (schedulableTransaction != null) {
-                        final ScheduleKeysResult requiredKeysResult = allKeysForTransaction(scheduleToSign, context);
-                        final Set<Key> allRequiredKeys = requiredKeysResult.remainingRequiredKeys();
-                        final Set<Key> updatedSignatories = requiredKeysResult.updatedSignatories();
-                        if (tryToExecuteSchedule(
-                                context,
-                                scheduleToSign,
-                                allRequiredKeys,
-                                updatedSignatories,
-                                validationResult,
-                                isLongTermEnabled)) {
-                            scheduleStore.put(HandlerUtility.replaceSignatoriesAndMarkExecuted(
-                                    scheduleToSign, updatedSignatories, currentConsensusTime));
-                        } else {
-                            verifyHasNewSignatures(scheduleToSign.signatories(), updatedSignatories);
-                            scheduleStore.put(HandlerUtility.replaceSignatories(scheduleToSign, updatedSignatories));
-                        }
-                        final ScheduleStreamBuilder scheduleRecords =
-                                context.savepointStack().getBaseBuilder(ScheduleStreamBuilder.class);
-                        scheduleRecords.scheduledTransactionID(
-                                HandlerUtility.transactionIdForScheduled(scheduleToSign));
-                        // Based on fuzzy-record matching this field may not be set in mono-service records
-                        // scheduleRecords.scheduleID(idToSign);
-                    } else {
-                        // Note, this will never happen, but Sonar static analysis can't figure that out.
-                        throw new HandleException(ResponseCodeEnum.INVALID_SCHEDULE_ID);
-                    }
-                } else {
-                    throw new HandleException(ResponseCodeEnum.INVALID_SCHEDULE_ID);
-                }
-            } else {
-                throw new HandleException(validationResult);
-            }
-        } else {
-            throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
-        }
-    }
+        requireNonNull(context);
+        final var op = context.body().scheduleSignOrThrow();
+        final var scheduleStore = context.storeFactory().writableStore(WritableScheduleStore.class);
+        // Non-final because we may update signatories and/or mark it as executed before putting it back
+        var schedule = scheduleStore.get(op.scheduleIDOrThrow());
 
-    @NonNull
-    private ScheduleSignTransactionBody getValidScheduleSignBody(@Nullable final TransactionBody currentTransaction)
-            throws PreCheckException {
-        if (currentTransaction != null) {
-            final ScheduleSignTransactionBody scheduleSignTransaction = currentTransaction.scheduleSign();
-            if (scheduleSignTransaction != null) {
-                if (scheduleSignTransaction.scheduleID() != null) {
-                    return scheduleSignTransaction;
-                } else {
-                    throw new PreCheckException(ResponseCodeEnum.INVALID_SCHEDULE_ID);
-                }
-            } else {
-                throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
-            }
+        final var consensusNow = context.consensusNow();
+        final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
+        final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
+        final var validationResult = validate(schedule, consensusNow, isLongTermEnabled);
+        validateTrue(isMaybeExecutable(validationResult), validationResult);
+
+        // With all validations done, we update the signatories on the schedule
+        final var transactionKeys = getTransactionKeysOrThrow(schedule, context::allKeysForTransaction);
+        final var requiredKeys = allRequiredKeys(transactionKeys);
+        final var signatories = schedule.signatories();
+        final var newSignatories =
+                newSignatories(context.keyVerifier().authorizingSimpleKeys(), signatories, requiredKeys);
+        schedule = schedule.copyBuilder().signatories(newSignatories).build();
+        if (isLongTermEnabled && schedule.waitForExpiry()) {
+            validateTrue(!newSignatories.equals(signatories), NO_NEW_VALID_SIGNATURES);
+            scheduleStore.put(schedule);
         } else {
-            throw new PreCheckException(ResponseCodeEnum.INVALID_TRANSACTION);
+            if (tryToExecuteSchedule(context, schedule, requiredKeys, validationResult, isLongTermEnabled)) {
+                scheduleStore.put(markedExecuted(schedule, consensusNow));
+            } else {
+                validateTrue(!newSignatories.equals(signatories), NO_NEW_VALID_SIGNATURES);
+                scheduleStore.put(schedule);
+            }
         }
+        context.savepointStack()
+                .getBaseBuilder(ScheduleStreamBuilder.class)
+                .scheduledTransactionID(transactionIdForScheduled(schedule));
     }
 
     @NonNull
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
-        final var op = feeContext.body();
-
+        final var body = feeContext.body();
         final var scheduleStore = feeContext.readableStore(ReadableScheduleStore.class);
-        final var schedule = scheduleStore.get(op.scheduleSignOrThrow().scheduleIDOrThrow());
-
+        final var schedule = scheduleStore.get(
+                body.scheduleSignOrElse(ScheduleSignTransactionBody.DEFAULT).scheduleIDOrElse(ScheduleID.DEFAULT));
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(op),
+                        fromPbj(body),
                         sigValueObj,
                         schedule,
                         feeContext
@@ -222,12 +131,11 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
     }
 
     private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            final SigValueObj svo,
-            final Schedule schedule,
+            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
+            @NonNull final SigValueObj svo,
+            @Nullable final Schedule schedule,
             final long scheduledTxExpiryTimeSecs) {
         final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-
         if (schedule != null) {
             return scheduleOpsUsage.scheduleSignUsage(txn, sigUsage, schedule.calculatedExpirationSecond());
         } else {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
@@ -30,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -54,7 +40,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -64,9 +49,9 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
     private static final Logger LOG = LogManager.getLogger(PrecompileMintThrottlingCheck.class);
     private final AtomicLong duration = new AtomicLong(10);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
-    private final AtomicInteger maxOpsPerSec = new AtomicInteger(50);
-    private static final int EXPECTED_MAX_MINTS_PER_SEC = 50;
-    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.10;
+    // Since the throttle is set to 50 ops per second, we will set the maxOpsPerSec to 55 to test the throttle
+    private final AtomicInteger maxOpsPerSec = new AtomicInteger(55);
+    private static final double ALLOWED_THROTTLE_NOISE_TOLERANCE = 0.12;
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
     public static final int GAS_TO_OFFER = 1_000_000;
 
@@ -88,27 +73,36 @@ public class PrecompileMintThrottlingCheck extends HapiSuite {
                 overriding("contracts.throttle.throttleByGas", "false"),
                 runWithProvider(precompileMintsFactory())
                         .lasting(duration::get, unit::get)
-                        .maxOpsPerSec(maxOpsPerSec::get),
-                getTokenInfo(NON_FUNGIBLE_TOKEN)
-                        .hasTotalSupplySatisfying(supply -> {
-                            final var allowedMaxSupply = (int) (unit.get().toSeconds(duration.get())
-                                    * EXPECTED_MAX_MINTS_PER_SEC
-                                    * (1.0 + ALLOWED_THROTTLE_NOISE_TOLERANCE));
-                            final var allowedMinSupply = (int) (unit.get().toSeconds(duration.get())
-                                    * EXPECTED_MAX_MINTS_PER_SEC
-                                    * (1.0 - ALLOWED_THROTTLE_NOISE_TOLERANCE));
-                            Assertions.assertTrue(
-                                    supply <= allowedMaxSupply,
-                                    String.format(
-                                            "Expected max supply to be less than %d, but was %d",
-                                            allowedMaxSupply, supply));
-                            Assertions.assertTrue(
-                                    supply >= allowedMinSupply,
-                                    String.format(
-                                            "Expected min supply to be at least %d, but was %d",
-                                            allowedMinSupply, supply));
-                        })
-                        .logged());
+                        .maxOpsPerSec(maxOpsPerSec::get)
+                        .waitForPendingOps()
+                        .assertStatusCounts((precheckStatusCountMap, statusCountMap) -> {
+                            // To avoid external factors (e.g., limited CI resources or network issues),
+                            // we will only consider statuses SUCCESS and CONTRACT_REVERT_EXECUTED.
+                            final var successCount = statusCountMap
+                                    .getOrDefault(SUCCESS, new AtomicInteger(0))
+                                    .get();
+                            final var revertCount = statusCountMap
+                                    .getOrDefault(CONTRACT_REVERT_EXECUTED, new AtomicInteger(0))
+                                    .get();
+
+                            // calculate the allowed tolerance
+                            final var throttleTolerance =
+                                    (successCount + revertCount) * ALLOWED_THROTTLE_NOISE_TOLERANCE;
+
+                            // print results
+                            LOG.info("\n------------------------------\n");
+                            LOG.info("Total ops to be considered : {} ops", successCount + revertCount);
+                            LOG.info("Throttled ops              : {} ops", revertCount);
+                            LOG.info("Allowed tolerance          : {} ops\n", throttleTolerance);
+                            // debug print
+                            LOG.info("Precheck status count map: {}", precheckStatusCountMap);
+                            LOG.info("Status count map: {}", statusCountMap);
+
+                            // assert throttling
+                            assertTrue(
+                                    throttleTolerance > revertCount && revertCount > 0,
+                                    "Throttled must be more then 0 and less than the allowed tolerance!");
+                        }));
     }
 
     private Function<HapiSpec, OpProvider> precompileMintsFactory() {

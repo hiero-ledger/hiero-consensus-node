@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions;
 
 import static com.hedera.services.bdd.spec.HapiSpec.UTF8Mode.TRUE;
@@ -22,9 +7,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Message;
+import com.hedera.hapi.platform.event.legacy.StateSignatureTransaction;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
+import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusDeleteTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
@@ -48,9 +35,11 @@ import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
+import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ScheduleCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleSignTransactionBody;
+import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Timestamp;
@@ -92,6 +81,7 @@ import java.util.function.Supplier;
  * Used by a {@link HapiSpec} to create transactions for submission to its target network.
  */
 public class TxnFactory {
+    private static final int MEMO_PREFIX_LIMIT = 100;
     private static final double TXN_ID_SAMPLE_PROBABILITY = 1.0 / 500;
 
     private final HapiSpecSetup setup;
@@ -152,7 +142,8 @@ public class TxnFactory {
             @Nullable final BodyMutation modification,
             @Nullable final HapiSpec spec) {
         requireNonNull(bodySpec);
-        final var composedBodySpec = defaultBodySpec().andThen(bodySpec);
+        final var composedBodySpec =
+                defaultBodySpec(spec == null ? null : spec.getName()).andThen(bodySpec);
         var bodyBuilder = TransactionBody.newBuilder();
         composedBodySpec.accept(bodyBuilder);
         if (modification != null) {
@@ -188,12 +179,14 @@ public class TxnFactory {
         return (T) opBuilder.build();
     }
 
-    private Consumer<TransactionBody.Builder> defaultBodySpec() {
+    private Consumer<TransactionBody.Builder> defaultBodySpec(@Nullable final String specName) {
         final var defaultTxnId = nextTxnId.get();
         if (r.nextDouble() < TXN_ID_SAMPLE_PROBABILITY) {
             sampleTxnId.set(defaultTxnId);
         }
-        final var memoToUse = (setup.isMemoUTF8() == TRUE) ? setup.defaultUTF8memo() : setup.defaultMemo();
+        final var memoToUse = (specName != null && setup.useSpecName())
+                ? specName.substring(0, Math.min(specName.length(), MEMO_PREFIX_LIMIT))
+                : (setup.isMemoUTF8() == TRUE ? setup.defaultUTF8memo() : setup.defaultMemo());
         return builder -> builder.setTransactionID(defaultTxnId)
                 .setMemo(memoToUse)
                 .setTransactionFee(setup.defaultFee())
@@ -322,13 +315,13 @@ public class TxnFactory {
                 .setGas(setup.defaultCreateGas())
                 .setInitialBalance(setup.defaultContractBalance())
                 .setMemo(setup.defaultMemo())
-                .setShardID(setup.defaultShard())
-                .setRealmID(setup.defaultRealm());
+                .setShardID(shardID())
+                .setRealmID(realmID());
     }
 
     public Consumer<FileCreateTransactionBody.Builder> defaultDefFileCreateTransactionBody() {
-        return builder -> builder.setRealmID(setup.defaultRealm())
-                .setShardID(setup.defaultShard())
+        return builder -> builder.setRealmID(realmID())
+                .setShardID(shardID())
                 .setContents(ByteString.copyFrom(setup.defaultFileContents()));
     }
 
@@ -353,6 +346,10 @@ public class TxnFactory {
     }
 
     public Consumer<FileUpdateTransactionBody.Builder> defaultDefFileUpdateTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<StateSignatureTransaction.Builder> defaultDefStateSignatureTransaction() {
         return builder -> {};
     }
 
@@ -461,5 +458,17 @@ public class TxnFactory {
 
     public Consumer<TokenAirdropTransactionBody.Builder> defaultDefTokenAirdropTransactionBody() {
         return builder -> {};
+    }
+
+    public Consumer<AtomicBatchTransactionBody.Builder> defaultDefAtomicBatchTransactionBody() {
+        return builder -> {};
+    }
+
+    private ShardID shardID() {
+        return ShardID.newBuilder().setShardNum(setup.shard()).build();
+    }
+
+    private RealmID realmID() {
+        return RealmID.newBuilder().setRealmNum(setup.realm()).build();
     }
 }

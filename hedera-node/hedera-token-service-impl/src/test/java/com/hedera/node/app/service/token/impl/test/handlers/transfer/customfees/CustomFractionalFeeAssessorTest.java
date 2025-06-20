@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_MUST_BE_POSITIVE;
@@ -64,11 +49,11 @@ public class CustomFractionalFeeAssessorTest {
     private CustomFractionalFeeAssessor subject;
     private AssessmentResult result;
 
-    private final AccountID payer = asAccount(4001);
+    private final AccountID payer = asAccount(0L, 0L, 4001);
     private final TokenID tokenWithFractionalFee = asToken(3000);
-    private final AccountID minter = asAccount(6000);
-    private final AccountID firstReclaimedAcount = asAccount(8000);
-    private final AccountID secondReclaimedAcount = asAccount(9000);
+    private final AccountID minter = asAccount(0L, 0L, 6000);
+    private final AccountID firstReclaimedAcount = asAccount(0L, 0L, 8000);
+    private final AccountID secondReclaimedAcount = asAccount(0L, 0L, 9000);
     private final long vanillaTriggerAmount = 5000L;
     private final long firstCreditAmount = 4000L;
     private final long secondCreditAmount = 1000L;
@@ -89,9 +74,9 @@ public class CustomFractionalFeeAssessorTest {
     private final long nonsenseNumerator = Long.MAX_VALUE;
     private final long nonsenseDenominator = 1L;
     private final boolean notNetOfTransfers = false;
-    private final AccountID firstFractionalFeeCollector = asAccount(6666L);
-    private final AccountID secondFractionalFeeCollector = asAccount(7777L);
-    private final AccountID netOfTransfersFeeCollector = asAccount(8888L);
+    private final AccountID firstFractionalFeeCollector = asAccount(0L, 0L, 6666L);
+    private final AccountID secondFractionalFeeCollector = asAccount(0L, 0L, 7777L);
+    private final AccountID netOfTransfersFeeCollector = asAccount(0L, 0L, 8888L);
 
     final FractionalFee netOfTransferFractionalFee = FractionalFee.newBuilder()
             .maximumAmount(netOfTransfersMaxAmountOfFractionalFee)

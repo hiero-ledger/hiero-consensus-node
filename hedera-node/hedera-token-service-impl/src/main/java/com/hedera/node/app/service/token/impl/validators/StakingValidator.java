@@ -1,30 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.STAKING_NOT_ENABLED;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.swirlds.state.spi.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -47,7 +30,6 @@ public class StakingValidator {
      * Validates staked id if present for update transactions. It will error if stakedId is set to
      * the sentinel values for creation.
      *
-     * @param isStakingEnabled       if staking is enabled
      * @param hasDeclineRewardChange if the transaction body has decline reward field to be updated
      * @param stakedIdKind           staked id kind (account or node)
      * @param stakedAccountIdInOp    staked account id
@@ -56,7 +38,6 @@ public class StakingValidator {
      * @param networkInfo            network info
      */
     public static void validateStakedIdForCreation(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -64,8 +45,6 @@ public class StakingValidator {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         final var hasStakingId = stakedAccountIdInOp != null || stakedNodeIdInOp != null;
-        // If staking is not enabled, then can't update staked id or declineReward
-        validateFalse(!isStakingEnabled && (hasDeclineRewardChange || hasStakingId), STAKING_NOT_ENABLED);
         if (!hasStakingId) {
             return;
         }
@@ -81,7 +60,6 @@ public class StakingValidator {
      * Validates staked id if present for update transactions. It is possible for stakedId to be set to
      * the sentinel values for update.
      *
-     * @param isStakingEnabled       if staking is enabled
      * @param hasDeclineRewardChange if the transaction body has decline reward field to be updated
      * @param stakedIdKind           staked id kind (account or node)
      * @param stakedAccountIdInOp    staked account id
@@ -90,7 +68,6 @@ public class StakingValidator {
      * @param networkInfo            network info
      */
     public static void validateStakedIdForUpdate(
-            final boolean isStakingEnabled,
             final boolean hasDeclineRewardChange,
             @NonNull final String stakedIdKind,
             @Nullable final AccountID stakedAccountIdInOp,
@@ -98,8 +75,6 @@ public class StakingValidator {
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final NetworkInfo networkInfo) {
         final var hasStakingId = stakedAccountIdInOp != null || stakedNodeIdInOp != null;
-        // If staking is not enabled, then can't update staked id or declineReward
-        validateFalse(!isStakingEnabled && (hasDeclineRewardChange || hasStakingId), STAKING_NOT_ENABLED);
         if (!hasStakingId) {
             return;
         }
@@ -150,9 +125,9 @@ public class StakingValidator {
             @NonNull String stakedIdKind, @Nullable AccountID stakedAccountId, @Nullable Long stakedNodeId) {
         if (stakedIdKind.equals("STAKED_ACCOUNT_ID")) {
             // current checking only account num since shard and realm are 0.0
-            return requireNonNull(stakedAccountId).accountNum() == 0;
+            return requireNonNull(stakedAccountId).accountNumOrThrow() == 0;
         } else if (stakedIdKind.equals("STAKED_NODE_ID")) {
-            return requireNonNull(stakedNodeId).longValue() == -1;
+            return requireNonNull(stakedNodeId) == -1;
         } else {
             return false;
         }
@@ -162,9 +137,9 @@ public class StakingValidator {
             final String stakedIdKind, final AccountID stakedAccountId, final Long stakedNodeId) {
         if (stakedIdKind.equals("STAKED_ACCOUNT_ID")) {
             // current checking only account num since shard and realm are 0.0
-            return requireNonNull(stakedAccountId).accountNum() > 0;
+            return requireNonNull(stakedAccountId).accountNumOrThrow() > 0;
         } else if (stakedIdKind.equals("STAKED_NODE_ID")) {
-            return requireNonNull(stakedNodeId).longValue() >= 0;
+            return requireNonNull(stakedNodeId) >= 0;
         } else {
             return false;
         }

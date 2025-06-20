@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
@@ -25,16 +10,17 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Identifies a connected peer from a list of trusted peers
+ * Identifies a connected peer from a list of trusted peers; it is used only to handle incoming connections
  */
 public class NetworkPeerIdentifier {
 
@@ -58,15 +44,14 @@ public class NetworkPeerIdentifier {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(peers);
         noPeerFoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(5));
-        this.x501PrincipalsAndPeers = HashMap.newHashMap(peers.size());
-        for (final PeerInfo peerInfo : peers) {
-            x501PrincipalsAndPeers.put(
-                    ((X509Certificate) peerInfo.signingCertificate()).getSubjectX500Principal(), peerInfo);
-        }
+
+        this.x501PrincipalsAndPeers = peers.stream()
+                .collect(Collectors.toMap(
+                        peer -> peer.signingCertificate().getSubjectX500Principal(), Function.identity()));
     }
 
     /**
-     * identifies a client on the other end of the socket using their signing certificate.
+     * Identifies a client on the other end of the socket using their signing certificate.
      *
      * @param certs a list of TLS certificates from the connected socket
      * @return info of the identified peer

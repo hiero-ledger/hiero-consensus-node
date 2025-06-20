@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
@@ -34,7 +19,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
@@ -48,7 +32,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
@@ -61,7 +44,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.HapiSuite.salted;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
@@ -71,7 +55,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
@@ -89,7 +72,6 @@ import static java.lang.Long.parseLong;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
@@ -109,8 +91,7 @@ public class TokenUpdateSpecs {
     private static final String PAYER = "payer";
     private static final String TREASURY_UPDATE_TXN = "treasuryUpdateTxn";
     private static final String INVALID_TREASURY = "invalidTreasury";
-
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
 
     @HapiTest
     final Stream<DynamicTest> canUpdateExpiryOnlyOpWithoutAdminKey() {
@@ -133,12 +114,12 @@ public class TokenUpdateSpecs {
                         newKeyNamed("pauseKey"),
                         newKeyNamed("newPauseKey"),
                         tokenCreate("primary")
+                                .autoRenewAccount(civilian)
                                 .name(saltedName)
                                 .entityMemo(originalMemo)
                                 .treasury(TOKEN_TREASURY)
                                 .initialSupply(500)
                                 .decimals(1)
-                                .adminKey("adminKey")
                                 .freezeKey("freezeKey")
                                 .kycKey("kycKey")
                                 .supplyKey("supplyKey")
@@ -204,7 +185,7 @@ public class TokenUpdateSpecs {
                 .given(tokenCreate(immutable).expiry(then))
                 .when(
                         tokenUpdate(immutable).treasury(ADDRESS_BOOK_CONTROL).hasKnownStatus(TOKEN_IS_IMMUTABLE),
-                        tokenUpdate(immutable).expiry(then - 1).hasKnownStatus(INVALID_EXPIRATION_TIME),
+                        tokenUpdate(immutable).expiry(then - 1).hasKnownStatus(EXPIRATION_REDUCTION_NOT_ALLOWED),
                         tokenUpdate(immutable).expiry(then + 1))
                 .then(getTokenInfo(immutable).logged());
     }
@@ -363,7 +344,6 @@ public class TokenUpdateSpecs {
 
     @HapiTest
     final Stream<DynamicTest> validAutoRenewWorks() {
-        final var firstPeriod = THREE_MONTHS_IN_SECONDS;
         final var secondPeriod = THREE_MONTHS_IN_SECONDS + 1234;
         return defaultHapiSpec("validAutoRenewWorks")
                 .given(
@@ -374,7 +354,7 @@ public class TokenUpdateSpecs {
                         tokenCreate("tbu")
                                 .adminKey("adminKey")
                                 .autoRenewAccount("autoRenew")
-                                .autoRenewPeriod(firstPeriod),
+                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS),
                         tokenUpdate("tbu")
                                 .signedBy(GENESIS, "adminKey")
                                 .autoRenewAccount("newAutoRenew")
@@ -505,7 +485,7 @@ public class TokenUpdateSpecs {
                         tokenUpdate("withAutoRenewAcc")
                                 .autoRenewPeriod(100000000000L)
                                 .signedByPayerAnd("adminKey")
-                                .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest
@@ -1020,28 +1000,78 @@ public class TokenUpdateSpecs {
                         getTokenInfo("tbu").hasTreasury("newTreasury"));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.nfts.useTreasuryWildcards"})
-    final Stream<DynamicTest> tokenFrozenOnTreasuryCannotBeUpdated() {
-        final var accountToFreeze = "account";
-        final var adminKey = "adminKey";
-        final var tokenToFreeze = "token";
+    @HapiTest
+    final Stream<DynamicTest> tokenUpdateReduceExpiry() {
         return hapiTest(
-                overriding("tokens.nfts.useTreasuryWildcards", "false"),
-                newKeyNamed(adminKey),
-                cryptoCreate(accountToFreeze),
-                tokenCreate(tokenToFreeze)
-                        .treasury(accountToFreeze)
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0)
-                        .supplyKey(adminKey)
-                        .freezeKey(adminKey)
-                        .adminKey(adminKey)
-                        .hasKnownStatus(SUCCESS),
-                tokenFreeze(tokenToFreeze, accountToFreeze),
-                tokenAssociate(DEFAULT_PAYER, tokenToFreeze),
-                tokenUpdate(tokenToFreeze)
-                        .treasury(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER, adminKey)
-                        .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN));
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey")
+                        .expiry(Instant.now().getEpochSecond() + 1000),
+                tokenUpdate("token")
+                        .expiry(Instant.now().getEpochSecond() + 500)
+                        .hasKnownStatus(EXPIRATION_REDUCTION_NOT_ALLOWED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withLongMinAutoRenewPeriod() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token")
+                        .autoRenewAccount("supplyKey")
+                        .autoRenewPeriod(Long.MIN_VALUE)
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeAutoRenewPeriod() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token")
+                        .autoRenewAccount("supplyKey")
+                        .autoRenewPeriod(-1)
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeExpiry() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token").expiry(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenUpdateWithAutoRenewAccountAndNoPeriod() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token").autoRenewAccount("autoRenewAccount").hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 }

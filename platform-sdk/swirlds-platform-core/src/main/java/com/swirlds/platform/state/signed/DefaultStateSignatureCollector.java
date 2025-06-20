@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2017-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static java.util.stream.Collectors.collectingAndThen;
@@ -21,15 +6,8 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusConstants;
-import com.swirlds.platform.sequence.set.SequenceSet;
-import com.swirlds.platform.sequence.set.StandardSequenceSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -41,9 +19,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.sequence.set.SequenceSet;
+import org.hiero.consensus.model.sequence.set.StandardSequenceSet;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * Collects signatures for signed states. This class ensures that all the non-ancient states that are not fully signed
@@ -104,7 +90,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         // find any signatures that have been saved
         final List<SavedSignature> signatures = savedSignatures.getEntriesWithSequenceNumber(signedState.getRound());
         savedSignatures.removeSequenceNumber(signedState.getRound());
-        signatures.forEach(ss -> addSignature(reservedSignedState, ss.memberId, ss.signature));
+        signatures.forEach(ss -> addSignature(reservedSignedState, ss.memberId(), ss.signature()));
 
         lastStateRound = Math.max(lastStateRound, signedState.getRound());
         adjustSavedSignaturesWindow(signedState.getRound());
@@ -132,7 +118,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
      */
     @Override
     public @Nullable List<ReservedSignedState> handlePreconsensusSignatures(
-            @NonNull final List<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         Objects.requireNonNull(transactions, "transactions");
         return transactions.stream()
                 .map(this::handlePreconsensusSignature)
@@ -168,7 +154,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
      */
     @Override
     public @Nullable List<ReservedSignedState> handlePostconsensusSignatures(
-            @NonNull final List<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         Objects.requireNonNull(transactions, "transactions");
         return transactions.stream()
                 .map(this::handlePostconsensusSignature)
@@ -289,7 +275,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     }
 
     /**
-     * A signature that was received when there was no state with a matching round.
+     * A signature for a state hash that was received when this node does not yet have a state with a matching round.
      */
     private record SavedSignature(long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
 }

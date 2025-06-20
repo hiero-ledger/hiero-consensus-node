@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -123,6 +109,23 @@ class ConfigApiTests {
 
         // then
         assertEquals("default", value, "The default value should be returned for a property that is not defined");
+    }
+
+    @Test
+    void checkOverwriteConverter() {
+        // given
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create();
+        configurationBuilder.withSource(new SimpleConfigSource("TEST", "123"));
+
+        // when
+        configurationBuilder.withConverter(Duration.class, value -> Duration.ofSeconds(1));
+        final Configuration configuration = configurationBuilder.build();
+
+        // then
+        assertEquals(
+                Duration.ofSeconds(1),
+                configuration.getValue("TEST", Duration.class),
+                "The defined converter should be used");
     }
 
     @Test
@@ -337,7 +340,7 @@ class ConfigApiTests {
         final IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
                 () -> configurationBuilder.build(),
-                "Config must not be initialzed if a validation fails");
+                "Config must not be initialized if a validation fails");
 
         // then
         assertEquals(
@@ -418,13 +421,12 @@ class ConfigApiTests {
     @Test
     void registerConverterForTypeMultipleTimes() {
         // given
-        final ConfigurationBuilder configurationBuilder =
-                ConfigurationBuilder.create().withConverter(Duration.class, new DurationConverter());
+        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+                .withConverter(Duration.class, new DurationConverter())
+                .withConverter(Duration.class, value -> Duration.ofSeconds(2));
+
         // then
-        assertThrows(
-                IllegalStateException.class,
-                () -> configurationBuilder.build(),
-                "One 1 converter for a specific type / class can be registered");
+        assertDoesNotThrow(configurationBuilder::build);
     }
 
     @Test
@@ -446,7 +448,7 @@ class ConfigApiTests {
     void testNullList() {
         // given
         final Configuration configuration = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("sample.list", (String) null))
+                .withSources(new SimpleConfigSource("sample.list", (List<String>) null))
                 .build();
 
         // when

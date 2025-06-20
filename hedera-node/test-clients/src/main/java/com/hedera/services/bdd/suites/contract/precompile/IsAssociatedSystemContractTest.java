@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -28,7 +13,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTIO
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -42,7 +26,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -51,10 +34,6 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(SMART_CONTRACT)
 @DisplayName("isAssociated")
-@SuppressWarnings("java:S1192")
-// For readability this test class shares a few accounts between test methods that it repeatedly associates and
-// dissociates with tokens, so we can't run concurrently to avoid race conditions; it is very fast regardless
-@OrderedInIsolation
 public class IsAssociatedSystemContractTest {
     @FungibleToken(name = "fungibleToken")
     static SpecFungibleToken fungibleToken;
@@ -74,7 +53,6 @@ public class IsAssociatedSystemContractTest {
     @Account(name = "senderAccount", tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount senderAccount;
 
-    @Order(0)
     @HapiTest
     @DisplayName("returns true for EOA msg.sender exactly when associated")
     public Stream<DynamicTest> returnsTrueIffEoaMsgSenderIsAssociated() {
@@ -86,7 +64,6 @@ public class IsAssociatedSystemContractTest {
                 assertEoaGetsResultForBothTokens(false));
     }
 
-    @Order(1)
     @HapiTest
     @DisplayName("returns true for contract msg.sender exactly when associated")
     public Stream<DynamicTest> returnsTrueIffContractMsgSenderIsAssociated() {
@@ -98,7 +75,6 @@ public class IsAssociatedSystemContractTest {
                 assertContractGetsResultForBothTokens(false));
     }
 
-    @Order(2)
     @HapiTest
     @DisplayName("returns true for contract msg.sender exactly when associated static call")
     public Stream<DynamicTest> returnsTrueIffContractMsgSenderIsAssociatedStatic() {
@@ -110,7 +86,6 @@ public class IsAssociatedSystemContractTest {
                 assertContractGetsResultForBothTokensStatic(false));
     }
 
-    @Order(3)
     @HapiTest
     @DisplayName("returns true for EOA msg.sender exactly when associated static call")
     public Stream<DynamicTest> returnsTrueIffEoaMsgSenderIsAssociatedStatic() {

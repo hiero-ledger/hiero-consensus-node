@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.editor;
 
 import static com.swirlds.common.formatting.TextEffect.BRIGHT_CYAN;
@@ -21,7 +6,6 @@ import static com.swirlds.platform.state.editor.StateEditorUtils.formatNode;
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatNodeType;
 
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.crypto.Hashable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
 import com.swirlds.logging.legacy.LogMarker;
@@ -30,6 +14,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hashable;
 import picocli.CommandLine;
 
 @CommandLine.Command(name = "exec", mixinStandardHelpOptions = true, description = "Run a function on a node.")
@@ -93,7 +78,7 @@ public class StateEditorExec extends StateEditorOperation {
                 try (final ReservedSignedState reservedSignedState =
                         getStateEditor().getState("StateEditorExec.run()")) {
                     new MerkleRouteIterator(
-                                    reservedSignedState.get().getState(),
+                                    reservedSignedState.get().getState().getRoot(),
                                     parentInfo.parent().getRoute())
                             .forEachRemaining(Hashable::invalidateHash);
                 }

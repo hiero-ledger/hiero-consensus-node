@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -269,59 +253,55 @@ public class GrantRevokeKycSuite {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<String> autoCreatedAccountId = new AtomicReference<>();
         final String accountAlias = "accountAlias";
-        final var notAnAddress = new byte[20];
 
-        return defaultHapiSpec("grantRevokeKycSpecWithAliasLocalCall")
-                .given(
-                        newKeyNamed(KYC_KEY),
-                        newKeyNamed(accountAlias).shape(SECP_256K1_SHAPE),
-                        cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, accountAlias, ONE_HUNDRED_HBARS))
-                                .via("autoAccount"),
-                        getAliasedAccountInfo(accountAlias).exposingContractAccountIdTo(autoCreatedAccountId::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .kycKey(KYC_KEY)
-                                .initialSupply(1_000)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
-                        contractCreate(GRANT_REVOKE_KYC_CONTRACT))
-                .when(
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCallLocal(
-                                        GRANT_REVOKE_KYC_CONTRACT,
-                                        IS_KYC_GRANTED,
-                                        HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
-                                        HapiParserUtil.asHeadlongAddress(autoCreatedAccountId.get()))))
-                        //                        ,contractCall(
-                        //                                GRANT_REVOKE_KYC_CONTRACT,
-                        //                                IS_KYC_GRANTED,
-                        //                                HapiParserUtil.asHeadlongAddress(notAnAddress),
-                        //                                HapiParserUtil.asHeadlongAddress(notAnAddress))
-                        //                                .payingWith(GENESIS)
-                        //                                .gas(GAS_TO_OFFER)
-                        //                                .via("fakeAddressIsKyc")
-                        //                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-
-                        )
-                .then(
-                        //                        withOpContext(((spec, assertLog) -> allRunFor(
-                        //                                spec,
-                        //                                childRecordsCheck(
-                        //                                        "fakeAddressIsKyc",
-                        //                                        CONTRACT_REVERT_EXECUTED,
-                        //                                        recordWith()
-                        //                                                .status(INVALID_TOKEN_ID)
-                        //                                                .contractCallResult(resultWith()
-                        //
-                        // .contractCallResult(htsPrecompileResult()
-                        //
-                        // .forFunction(FunctionType.HAPI_IS_KYC)
-                        //                                                                .withStatus(INVALID_TOKEN_ID)
-                        //                                                                .withIsFrozen(false)))))))
-                        );
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(accountAlias).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, accountAlias, ONE_HUNDRED_HBARS))
+                        .via("autoAccount"),
+                getAliasedAccountInfo(accountAlias).exposingContractAccountIdTo(autoCreatedAccountId::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
+                contractCreate(GRANT_REVOKE_KYC_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCallLocal(
+                                GRANT_REVOKE_KYC_CONTRACT,
+                                IS_KYC_GRANTED,
+                                HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())),
+                                HapiParserUtil.asHeadlongAddress(autoCreatedAccountId.get())))));
+        //                        ,contractCall(
+        //                                GRANT_REVOKE_KYC_CONTRACT,
+        //                                IS_KYC_GRANTED,
+        //                                HapiParserUtil.asHeadlongAddress(notAnAddress),
+        //                                HapiParserUtil.asHeadlongAddress(notAnAddress))
+        //                                .payingWith(GENESIS)
+        //                                .gas(GAS_TO_OFFER)
+        //                                .via("fakeAddressIsKyc")
+        //                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+        // ),
+        //
+        //                        withOpContext(((spec, assertLog) -> allRunFor(
+        //                                spec,
+        //                                childRecordsCheck(
+        //                                        "fakeAddressIsKyc",
+        //                                        CONTRACT_REVERT_EXECUTED,
+        //                                        recordWith()
+        //                                                .status(INVALID_TOKEN_ID)
+        //                                                .contractCallResult(resultWith()
+        //
+        // .contractCallResult(htsPrecompileResult()
+        //
+        // .forFunction(FunctionType.HAPI_IS_KYC)
+        //                                                                .withStatus(INVALID_TOKEN_ID)
+        //                                                                .withIsFrozen(false)))))))
+        // );
     }
 
     @HapiTest
@@ -330,31 +310,26 @@ public class GrantRevokeKycSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> secondAccountID = new AtomicReference<>();
 
-        return defaultHapiSpec("grantRevokeKycSpec")
-                .given(
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(ACCOUNT)
-                                .balance(100 * ONE_HBAR)
-                                .key(KYC_KEY)
-                                .exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(SECOND_ACCOUNT).exposingCreatedIdTo(secondAccountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ADMIN_KEY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(ADMIN_KEY)
-                                .kycKey(KYC_KEY)
-                                .initialSupply(1_000)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
-                        contractCreate(GRANT_REVOKE_KYC_CONTRACT),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
-                        newKeyNamed(THRESHOLD_KEY)
-                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, GRANT_REVOKE_KYC_CONTRACT))),
-                        tokenUpdate(VANILLA_TOKEN).kycKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HBAR).key(KYC_KEY).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(SECOND_ACCOUNT).exposingCreatedIdTo(secondAccountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ADMIN_KEY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(ADMIN_KEY)
+                        .kycKey(KYC_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(GRANT_REVOKE_KYC_CONTRACT),
+                contractCreate(GRANT_REVOKE_KYC_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
+                newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, GRANT_REVOKE_KYC_CONTRACT))),
+                tokenUpdate(VANILLA_TOKEN).kycKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         GRANT_REVOKE_KYC_CONTRACT,
@@ -393,33 +368,32 @@ public class GrantRevokeKycSuite {
                                 .payingWith(ACCOUNT)
                                 .alsoSigningWithFullPrefix(THRESHOLD_KEY)
                                 .via("IsKycTx")
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "GrantKycTx",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "RevokeKycTx",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "IsKycTx",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_IS_KYC)
-                                                        .withIsKyc(false)
-                                                        .withStatus(SUCCESS)))));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "GrantKycTx",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "RevokeKycTx",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "IsKycTx",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_IS_KYC)
+                                                .withIsKyc(false)
+                                                .withStatus(SUCCESS)))));
     }
 }

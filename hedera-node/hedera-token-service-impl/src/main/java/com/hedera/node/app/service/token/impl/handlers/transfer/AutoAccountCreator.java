@@ -1,29 +1,15 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.AUTO_MEMO;
-import static com.hedera.node.app.service.token.impl.TokenServiceImpl.LAZY_MEMO;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -35,9 +21,11 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -75,7 +63,6 @@ public class AutoAccountCreator {
                 ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         final TransactionBody.Builder syntheticCreation;
-        String memo;
 
         final var isAliasEVMAddress = isOfEvmAddressSize(alias);
         final var entitiesConfig = handleContext.configuration().getConfigData(EntitiesConfig.class);
@@ -83,31 +70,30 @@ public class AutoAccountCreator {
                 ? UNLIMITED_AUTOMATIC_ASSOCIATIONS
                 : requiredAutoAssociations;
         if (isAliasEVMAddress) {
-            syntheticCreation = createHollowAccount(alias, 0L, autoAssociations, LAZY_MEMO);
-            memo = LAZY_MEMO;
+            syntheticCreation = createHollowAccount(alias, 0L, autoAssociations);
         } else {
             final var key = asKeyFromAlias(alias);
             syntheticCreation = createZeroBalanceAccount(alias, key, autoAssociations);
-            memo = AUTO_MEMO;
         }
 
         // Dispatch the auto-creation record as a preceding record; note we pass null for the
         // "verification assistant" since we have no non-payer signatures to verify here
-        final var childRecord = handleContext.dispatchRemovablePrecedingTransaction(
+        final var streamBuilder = handleContext.dispatch(setupDispatch(
+                handleContext.payer(),
                 syntheticCreation.build(),
                 CryptoCreateStreamBuilder.class,
-                null,
-                handleContext.payer(),
-                HandleContext.ConsensusThrottling.ON);
-        childRecord.memo(memo);
-
+                handleContext
+                        .dispatchMetadata()
+                        .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                        .orElse(null)));
         // If the child transaction failed, we should fail the parent transaction as well and propagate the failure.
-        validateTrue(childRecord.status() == ResponseCodeEnum.SUCCESS, childRecord.status());
+        validateTrue(streamBuilder.status() == SUCCESS, streamBuilder.status());
 
+        final var config = handleContext.configuration().getConfigData(HederaConfig.class);
         // Since we succeeded, we can now look up the account ID of the created account. This really should always
         // work, since the child transaction succeeded. If it did not work for some reason, we have a bug in our
         // code (rather than a bad transaction), so we will fail with FAIL_INVALID.
-        final var createdAccountId = accountStore.getAccountIDByAlias(alias);
+        final var createdAccountId = accountStore.getAccountIDByAlias(config.shard(), config.realm(), alias);
         validateTrue(createdAccountId != null, FAIL_INVALID);
         return createdAccountId;
     }
@@ -118,16 +104,14 @@ public class AutoAccountCreator {
      * @param alias alias of the account
      * @param balance initial balance of the account
      * @param maxAutoAssociations maxAutoAssociations of the account
-     * @param memo the memo to set on the transaction body
      * @return transaction body for new hollow-account
      */
     public TransactionBody.Builder createHollowAccount(
-            @NonNull final Bytes alias, final long balance, final int maxAutoAssociations, @NonNull final String memo) {
+            @NonNull final Bytes alias, final long balance, final int maxAutoAssociations) {
         requireNonNull(alias);
-        requireNonNull(memo);
         final var baseBuilder = createAccountBase(balance, maxAutoAssociations);
-        baseBuilder.key(IMMUTABILITY_SENTINEL_KEY).alias(alias).memo(LAZY_MEMO);
-        return TransactionBody.newBuilder().memo(memo).cryptoCreateAccount(baseBuilder.build());
+        baseBuilder.key(IMMUTABILITY_SENTINEL_KEY).alias(alias);
+        return TransactionBody.newBuilder().cryptoCreateAccount(baseBuilder.build());
     }
 
     /**
@@ -154,7 +138,7 @@ public class AutoAccountCreator {
     private TransactionBody.Builder createZeroBalanceAccount(
             @NonNull final Bytes alias, @NonNull final Key key, final int maxAutoAssociations) {
         final var baseBuilder = createAccountBase(0L, maxAutoAssociations);
-        baseBuilder.key(key).alias(alias).memo(AUTO_MEMO).receiverSigRequired(false);
-        return TransactionBody.newBuilder().memo(AUTO_MEMO).cryptoCreateAccount(baseBuilder.build());
+        baseBuilder.key(key).alias(alias).receiverSigRequired(false);
+        return TransactionBody.newBuilder().cryptoCreateAccount(baseBuilder.build());
     }
 }

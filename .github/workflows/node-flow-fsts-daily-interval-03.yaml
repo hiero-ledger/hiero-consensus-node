@@ -53,6 +53,7 @@ jobs:
   crypto-update-abort-4n-2c:
     name: Crypto-Update-Abort-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -70,12 +71,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   comp-update-dispreupdate-4n-2c:
     name: Comp-Update-DisPreUpdate-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -93,12 +93,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   comp-update-reconnect-4n-2c:
     name: Comp-Update-Reconnect-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -116,12 +115,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   comp-update-reconnect-abort-4n-2c:
     name: Comp-Update-Reconnect-Abort-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -139,12 +137,11 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
-
 
   comp-update-reconnect-abort-dispreupdate-4n-2c:
     name: Comp-Update-Reconnect-Abort-DisPreUpdate-4N-2C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -162,4 +159,3 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}

@@ -1,25 +1,25 @@
-##
-# Copyright (C) 2022-2024 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXC: [Node] Compile Application Code"
 on:
   workflow_call:
     inputs:
       enable-unit-tests:
         description: "Unit Testing Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-timing-sensitive-tests:
+        description: "Unit Test (Timing Sensitive) Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-time-consuming-tests:
+        description: "Unit Test (Time Consuming) Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-hammer-tests:
+        description: "Hammer Testing Enabled"
         type: boolean
         required: false
         default: false
@@ -53,8 +53,18 @@ on:
         type: boolean
         required: false
         default: false
+      enable-hapi-tests-iss:
+        description: "HAPI Testing (ISS) Enabled"
+        type: boolean
+        required: false
+        default: false
       enable-hapi-tests-nd-reconnect:
         description: "HAPI Testing (node death reconnect) Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-otter-tests:
+        description: "Otter Testing Enabled"
         type: boolean
         required: false
         default: false
@@ -87,7 +97,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21"
+        default: "21.0.6"
       node-version:
         description: "NodeJS Version:"
         type: string
@@ -98,6 +108,10 @@ on:
         type: string
         required: false
         default: "Compiles"
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
 
     secrets:
       access-token:
@@ -134,113 +148,142 @@ permissions:
 env:
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
-  #GRADLE_EXEC: cgexec -g cpu,memory:gradle-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19 ./gradlew
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
-  #CG_EXEC: cgexec -g cpu,memory:gradle-${{ github.run_id }} --sticky ionice -c 2 -n 2 nice -n 19
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
   compile:
     name: ${{ inputs.custom-job-label || 'Compiles' }}
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Expand Shallow Clone for and Spotless
         if: ${{ (inputs.enable-unit-tests || inputs.enable-spotless-check) && !cancelled() }}
         run: git fetch --unshallow --no-recurse-submodules
 
       - name: Setup Java
-        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
         with:
           cache-read-only: false
 
       - name: Setup NodeJS
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
           node-version: ${{ inputs.node-version }}
 
-#      - name: Setup Control Groups
-#        run: |
-#          echo "::group::Get System Configuration"
-#            USR_ID="$(id -un)"
-#            GRP_ID="$(id -gn)"
-#            GRADLE_MEM_LIMIT="30064771072"
-#            AGENT_MEM_LIMIT="2147483648"
-#            GRADLE_GROUP_NAME="gradle-${{ github.run_id }}"
-#            AGENT_GROUP_NAME="agent-${{ github.run_id }}"
-#          echo "::endgroup::"
-#
-#          echo "::group::Install Control Group Tools"
-#            if ! command -v cgcreate >/dev/null 2>&1; then
-#              sudo apt-get update
-#              sudo apt-get install -y cgroup-tools
-#            fi
-#          echo "::endgroup::"
-#
-#          echo "::group::Create Control Groups"
-#            sudo cgcreate -g cpu,memory:${GRADLE_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-#            sudo cgcreate -g cpu,memory:${AGENT_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-#          echo "::endgroup::"
-#
-#          echo "::group::Set Control Group Limits"
-#            cgset -r cpu.shares=768 ${GRADLE_GROUP_NAME}
-#            cgset -r cpu.shares=500 ${AGENT_GROUP_NAME}
-#            cgset -r memory.limit_in_bytes=${GRADLE_MEM_LIMIT} ${GRADLE_GROUP_NAME}
-#            cgset -r memory.limit_in_bytes=${AGENT_MEM_LIMIT} ${AGENT_GROUP_NAME}
-#            cgset -r memory.memsw.limit_in_bytes=${GRADLE_MEM_LIMIT} ${GRADLE_GROUP_NAME}
-#            cgset -r memory.memsw.limit_in_bytes=${AGENT_MEM_LIMIT} ${AGENT_GROUP_NAME}
-#          echo "::endgroup::"
-#
-#          echo "::group::Move Runner Processes to Control Groups"
-#            sudo cgclassify --sticky -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Listener' | tr '\n' ' ')
-#            sudo cgclassify -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Worker' | tr '\n' ' ')
-#          echo "::endgroup::"
-
       - name: Compile
         id: gradle-build
-        run: ${GRADLE_EXEC} assemble :test-clients:yahCliJar --scan
+        run: ${GRADLE_EXEC} assemble :test-clients:yahCliJar
 
       - name: Spotless Check
         if: ${{ inputs.enable-spotless-check && !cancelled() }}
-        run: ${GRADLE_EXEC} spotlessCheck --scan
+        run: ${GRADLE_EXEC} spotlessCheck
 
       - name: Gradle Dependency Scopes Check
         if: ${{ inputs.enable-dependency-check && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        run: ${GRADLE_EXEC} checkAllModuleInfo --scan --continue
+        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles --continue --no-build-cache
 
       - name: Unit Testing
         id: gradle-test
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        run: ${GRADLE_EXEC} :reports:testCodeCoverageReport -x :test-clients:test --continue --scan
-
-      - name: Timing Sensitive Tests
-        id: gradle-timing-sensitive
-        if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        run: ${GRADLE_EXEC} timingSensitive --continue --scan
+        run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReport --continue
 
       - name: Publish Unit Test Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: Unit Test Results'
-          json_thousands_separator: ','
+          check_name: "Node: Unit Test Results"
+          json_thousands_separator: ","
           junit_files: "**/build/test-results/test/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Unit Test Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-unit-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: Unit Test Report
           path: "**/build/test-results/test/TEST-*.xml"
+          retention-days: 7
+
+      - name: Timing Sensitive Tests
+        id: gradle-timing-sensitive
+        if: ${{ inputs.enable-timing-sensitive-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        run: ${GRADLE_EXEC} timingSensitive --continue
+
+      - name: Publish Unit Test (Timing Sensitive) Report
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        if: ${{ inputs.enable-timing-sensitive-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: Timing Sensitive Unit Test Results"
+          json_thousands_separator: ","
+          junit_files: "**/build/test-results/timingSensitive/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Unit Test (Timing Sensitive) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-timing-sensitive-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: Unit Test Report (Timing Sensitive)
+          path: "**/build/test-results/timingSensitive/TEST-*.xml"
+          retention-days: 7
+
+      - name: Time Consuming Tests
+        id: gradle-time-consuming
+        if: ${{ inputs.enable-time-consuming-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        run: ${GRADLE_EXEC} timeConsuming --continue
+
+      - name: Publish Unit Test (Time Consuming) Report
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        if: ${{ inputs.enable-time-consuming-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: Time Consuming Unit Test Results"
+          json_thousands_separator: ","
+          junit_files: "**/build/test-results/timeConsuming/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Unit Test (Time Consuming) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-time-consuming-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: Unit Test Report (Time Consuming)
+          path: "**/build/test-results/timeConsuming/TEST-*.xml"
+          retention-days: 7
+
+      - name: Hammer Tests
+        id: gradle-hammer-tests
+        if: ${{ inputs.enable-hammer-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        run: ${GRADLE_EXEC} hammer --continue
+
+      - name: Publish Hammer Test Report
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        if: ${{ inputs.enable-hammer-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: Hammer Test Results"
+          json_thousands_separator: ","
+          junit_files: "**/build/test-results/hammer/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Hammer Test Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hammer-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: Hammer Test Report
+          path: "**/build/test-results/hammer/TEST-*.xml"
           retention-days: 7
 
       - name: HAPI Testing (Misc)
@@ -250,32 +293,34 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each tasks in isolation because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --scan --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc --scan --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc --scan --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiEmbeddedMisc --no-daemon && ${GRADLE_EXEC} hapiRepeatableMisc --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Misc) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Misc) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Misc) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Misc) Reports
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Misc) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-misc && inputs.enable-network-log-capture && steps.gradle-hapi-misc.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Crypto)
@@ -284,32 +329,34 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestCrypto --scan
+        run: ${GRADLE_EXEC} hapiTestCrypto
 
       - name: Publish HAPI Test (Crypto) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-crypto && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Crypto) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Crypto) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Crypto) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-crypto && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Crypto) Report
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (crypto) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-crypto && inputs.enable-network-log-capture && steps.gradle-hapi-crypto.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Crypto) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Token)
@@ -318,32 +365,34 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken --scan
+        run: ${GRADLE_EXEC} hapiTestToken
 
       - name: Publish HAPI Test (Token) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-token && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Token) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Token) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Token) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-token && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Token) Report
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Token) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-token && inputs.enable-network-log-capture && steps.gradle-hapi-token.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Token) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Smart Contract)
@@ -352,32 +401,34 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract --scan
+        run: ${GRADLE_EXEC} hapiTestSmartContract
 
       - name: Publish HAPI Test (Smart Contract) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-smart-contract && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Smart Contract) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Smart Contract) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Smart Contract) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-smart-contract && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Smart Contract) Report
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Smart Contract) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-smart-contract && inputs.enable-network-log-capture && steps.gradle-hapi-smart-contract.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Smart Contract) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Time Consuming)
@@ -386,32 +437,34 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestTimeConsuming --scan
+        run: ${GRADLE_EXEC} hapiTestTimeConsuming
 
       - name: Publish HAPI Test (Time Consuming) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-time-consuming && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Time Consuming) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Time Consuming) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Time Consuming) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-time-consuming && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Time Consuming) Report
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Time Consuming) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-time-consuming && inputs.enable-network-log-capture && steps.gradle-hapi-time-consuming.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Time Consuming) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Restart)
@@ -420,33 +473,34 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestRestart --scan
+        run: ${GRADLE_EXEC} hapiTestRestart
 
       - name: Publish HAPI Test (Restart) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-restart && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Restart) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Restart) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Restart) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-restart && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Restart) Report
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Restart) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-restart && inputs.enable-network-log-capture && steps.gradle-hapi-restart.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Restart) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
       - name: HAPI Testing (Node Death Reconnect)
@@ -455,74 +509,127 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestNDReconnect --scan
+        run: ${GRADLE_EXEC} hapiTestNDReconnect
 
       - name: Publish HAPI Test (Node Death Reconnect) Report
-        uses: EnricoMi/publish-unit-test-result-action@30eadd5010312f995f0d3b3cff7fe2984f69409e # v2.16.1
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
         if: ${{ inputs.enable-hapi-tests-nd-reconnect && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
-          check_name: 'Node: HAPI Test (Node Death Reconnect) Results'
-          json_thousands_separator: ','
-          junit_files: "**/test-clients/build/test-results/test/TEST-*.xml"
+          check_name: "Node: HAPI Test (Node Death Reconnect) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Node Death Reconnect) Report Artifacts
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-nd-reconnect && steps.gradle-build.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Node Death Reconnect) Report
-          path: "**/test-clients/build/test-results/test/TEST-*.xml"
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Node Death Reconnect) Network Logs
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-hapi-tests-nd-reconnect && inputs.enable-network-log-capture && steps.gradle-hapi-nd-reconnect.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Node Death Reconnect) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: HAPI Testing (ISS)
+        id: gradle-hapi-iss
+        if: ${{ inputs.enable-hapi-tests-iss && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestIss
+
+      - name: Publish HAPI Test (ISS) Report
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        if: ${{ inputs.enable-hapi-tests-iss && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: HAPI Test (ISS) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (ISS) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-iss && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: HAPI Test (ISS) Report
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (ISS) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-iss && inputs.enable-network-log-capture && steps.gradle-hapi-iss.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (ISS) Network Logs
+          path: |
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Otter Testing
+        id: gradle-otter-tests
+        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} :consensus-otter-tests:test
+
+      - name: Publish Otter Testing Report
+        uses: step-security/publish-unit-test-result-action@cc82caac074385ae176d39d2d143ad05e1130b2d # v2.18.0
+        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: Otter Tests Results"
+          json_thousands_separator: ","
+          junit_files: "**/consensus-otter-tests/build/test-results/test/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Otter Tests Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: Otter Tests Report
+          path: "**/consensus-otter-tests/build/test-results/test/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload Otter Tests Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Tests Network Logs
+          path: |
+            platform-sdk/consensus-otter-tests/build/turtle/**
           retention-days: 7
 
       - name: Publish To Codecov
         if: ${{ inputs.enable-unit-tests && !cancelled() }}
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0
+        uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
         with:
           token: ${{ secrets.codecov-token }}
-          files: gradle/reports/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+          files: gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
 
       - name: Publish to Codacy
         env:
           CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
-        if: ${{ inputs.enable-unit-tests && !cancelled() }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java -r gradle/reports/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+        if: ${{ inputs.enable-unit-tests && !cancelled() && !github.event.pull_request.head.repo.fork }}
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java -r gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
 
       - name: Upload Test Reports
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-unit-tests && !cancelled() }}
         with:
           name: Test Reports
           path: "**/build/reports/tests/**"
 
-      - name: Disable Gradle Configuration Cache
-        if: >-
-          ${{
-            inputs.enable-snyk-scan &&
-            steps.gradle-build.conclusion == 'success' &&
-            (
-              github.event.pull_request.head.repo.full_name == github.repository ||
-              github.event_name == 'push' ||
-              github.event_name == 'workflow_dispatch'
-            ) &&
-            !cancelled()
-          }}
-        run: |
-          sed -i 's/^org.gradle.configuration-cache=.*$/org.gradle.configuration-cache=false/' gradle.properties
-          touch build.gradle.kts
-
       - name: Setup Snyk
-        env:
-          SNYK_TOKEN: ${{ secrets.snyk-token }}
         if: >-
           ${{
             inputs.enable-snyk-scan &&
@@ -535,6 +642,20 @@ jobs:
             !cancelled()
           }}
         run: ${CG_EXEC} npm install -g snyk snyk-to-html @wcj/html-to-markdown-cli
+
+      - name: Snyk Version
+        if: >-
+          ${{
+            inputs.enable-snyk-scan &&
+            steps.gradle-build.conclusion == 'success' &&
+            (
+              github.event.pull_request.head.repo.full_name == github.repository ||
+              github.event_name == 'push' ||
+              github.event_name == 'workflow_dispatch'
+            ) &&
+            !cancelled()
+          }}
+        run: snyk --version
 
       - name: Snyk Scan
         id: snyk
@@ -551,7 +672,7 @@ jobs:
             ) &&
             !cancelled()
           }}
-        run: ${CG_EXEC} snyk test --all-sub-projects --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json
+        run: ${CG_EXEC} snyk test --subProject=aggregation --configuration-matching=mainRuntimeClasspath --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
 
       - name: Snyk Code
         id: snyk-code
@@ -568,7 +689,7 @@ jobs:
             ) &&
             !cancelled()
           }}
-        run: ${CG_EXEC} snyk code test --severity-threshold=high --json-file-output=snyk-code.json
+        run: ${CG_EXEC} snyk code test --severity-threshold=high --json-file-output=snyk-code.json --org=hiero-consensus-node
 
       - name: Publish Snyk Results
         if: >-

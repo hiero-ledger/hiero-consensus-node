@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.fees.usage.crypto;
 
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoContextUtils.convertToCryptoMap;
@@ -37,6 +22,7 @@ public class CryptoApproveAllowanceMeta {
     private final long effectiveNow;
     private final long msgBytesUsed;
     private final Map<Long, Long> cryptoAllowances;
+    private final int cryptoAllowancesCount;
     private final Map<AllowanceId, Long> tokenAllowances;
     private final Set<AllowanceId> nftAllowances;
 
@@ -44,6 +30,7 @@ public class CryptoApproveAllowanceMeta {
         effectiveNow = builder.effectiveNow;
         msgBytesUsed = builder.msgBytesUsed;
         cryptoAllowances = builder.cryptoAllowances;
+        cryptoAllowancesCount = cryptoAllowances.size();
         tokenAllowances = builder.tokenAllowances;
         nftAllowances = builder.nftAllowances;
     }
@@ -53,8 +40,13 @@ public class CryptoApproveAllowanceMeta {
         effectiveNow = transactionValidStartSecs;
         msgBytesUsed = bytesUsedInTxn(cryptoApproveTxnBody);
         cryptoAllowances = convertToCryptoMap(cryptoApproveTxnBody.getCryptoAllowancesList());
+        cryptoAllowancesCount = cryptoApproveTxnBody.getCryptoAllowancesCount();
         tokenAllowances = convertToTokenMap(cryptoApproveTxnBody.getTokenAllowancesList());
         nftAllowances = convertToNftMap(cryptoApproveTxnBody.getNftAllowancesList());
+    }
+
+    public int getCryptoAllowancesCount() {
+        return cryptoAllowancesCount;
     }
 
     private int bytesUsedInTxn(final CryptoApproveAllowanceTransactionBody op) {

@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractLogAsserts.logWith;
@@ -113,22 +98,21 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var amountToBurn = 5L;
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
         // sync
-        return defaultHapiSpec("V2Security004FungibleTokenBurnPositive")
-                .given(
-                        //  overriding(CONTRACTS_MAX_NUM_WITH_HAPI_SIGS_ACCESS,
-                        // CONTRACTS_V2_SECURITY_MODEL_BLOCK_CUTOFF),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER2),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(initialAmount)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                        uploadInitCode(MIXED_BURN_TOKEN))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                //  overriding(CONTRACTS_MAX_NUM_WITH_HAPI_SIGS_ACCESS,
+                // CONTRACTS_V2_SECURITY_MODEL_BLOCK_CUTOFF),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(initialAmount)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 MIXED_BURN_TOKEN,
@@ -190,21 +174,20 @@ public class ContractBurnHTSV2SecurityModelSuite {
                                 .signedBy(SIGNER),
                         // Assert that the token is burned - total supply should be decreased with the amount that was
                         // burned
-                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 4 * amountToBurn))))
-                .then(
-                        // Verify that each test case has 1 successful child record
-                        getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_BURNS_WITH_TRESHOLD_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)));
+                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 4 * amountToBurn))),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_BURNS_WITH_TRESHOLD_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -215,24 +198,23 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var serialNumber2 = new long[] {2L};
         final var serialNumber3 = new long[] {3L};
 
-        return defaultHapiSpec("V2Security005NonFungibleTokenBurnPositive")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER2),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(SECOND))),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(THIRD))),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FOURTH))),
-                        uploadInitCode(MIXED_BURN_TOKEN))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(SECOND))),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(THIRD))),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FOURTH))),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 MIXED_BURN_TOKEN,
@@ -272,18 +254,17 @@ public class ContractBurnHTSV2SecurityModelSuite {
                                 .hasRetryPrecheckFrom(BUSY)
                                 .payingWith(SIGNER2)
                                 .signedBy(SIGNER2, TOKEN_TREASURY),
-                        getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(2 - amountToBurn))))
-                .then(
-                        // Verify that each test case has 1 successful child record
-                        getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)));
+                        getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(2 - amountToBurn))),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -292,22 +273,21 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var amountToBurn = 5L;
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
 
-        return defaultHapiSpec("V2Security004FungibleTokenBurnNegative")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(initialAmount)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                        uploadInitCode(MIXED_BURN_TOKEN),
-                        uploadInitCode(MINT_CONTRACT),
-                        sourcing(() -> contractCreate(
-                                MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(fungible.get())))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(initialAmount)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                uploadInitCode(MINT_CONTRACT),
+                sourcing(() ->
+                        contractCreate(MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(fungible.get())))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(MIXED_BURN_TOKEN, HapiParserUtil.asHeadlongAddress(asAddress(fungible.get()))),
                         // Test Case 1: Signer paying and signing a token burn transaction,
@@ -373,18 +353,17 @@ public class ContractBurnHTSV2SecurityModelSuite {
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
                         getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        // Verify that the child records fail with the expected status
-                        getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                                .logged())),
+                // Verify that the child records fail with the expected status
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
@@ -392,25 +371,24 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final AtomicReference<TokenID> nonFungible = new AtomicReference<>();
         final var serialNumber1 = new long[] {1L};
 
-        return defaultHapiSpec("V2Security004NonFungibleTokenBurnNegative")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
-                        // Mint NFT, so that we can verify that the burn fails as expected
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                        uploadInitCode(MIXED_BURN_TOKEN),
-                        // contractCreate(MIXED_BURN_TOKEN),
-                        uploadInitCode(MINT_CONTRACT),
-                        sourcing(() -> contractCreate(
-                                MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get())))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
+                // Mint NFT, so that we can verify that the burn fails as expected
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                // contractCreate(MIXED_BURN_TOKEN),
+                uploadInitCode(MINT_CONTRACT),
+                sourcing(() ->
+                        contractCreate(MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get())))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 MIXED_BURN_TOKEN, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get()))),
@@ -479,36 +457,34 @@ public class ContractBurnHTSV2SecurityModelSuite {
                         getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                         getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        // Verify that the child records fail with the expected status
-                        getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                                .logged())),
+                // Verify that the child records fail with the expected status
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
     final Stream<DynamicTest> V2Security039NonFungibleTokenWithDelegateContractKeyCanNotBurnFromDelegatecall() {
         final var serialNumber1 = new long[] {1L};
-        return defaultHapiSpec("V2Security035NonFungibleTokenWithDelegateContractKeyCanNotBurnFromDelegatecall")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                        uploadInitCode(MIXED_BURN_TOKEN))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 MIXED_BURN_TOKEN,
@@ -567,8 +543,8 @@ public class ContractBurnHTSV2SecurityModelSuite {
                         // Assert that the token is NOT burned
                         getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(1L),
                         // Assert the token is NOT burned from the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L))))
-                .then(withOpContext((spec, opLog) -> {
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1L))),
+                withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
                             // Verify that each test case has 1 top level call with the correct status
@@ -585,18 +561,17 @@ public class ContractBurnHTSV2SecurityModelSuite {
     @HapiTest
     final Stream<DynamicTest> V2Security039FungibleTokenWithDelegateContractKeyCanNotBurnFromDelegatecall() {
         final var initialAmount = 20L;
-        return defaultHapiSpec("V2Security035FungibleTokenWithDelegateContractKeyCanNotBurnFromDelegatecall")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(initialAmount)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        uploadInitCode(MIXED_BURN_TOKEN))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(initialAmount)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 MIXED_BURN_TOKEN,
@@ -645,8 +620,8 @@ public class ContractBurnHTSV2SecurityModelSuite {
                         // Assert that the token is NOT burned
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount),
                         // Assert the token is NOT burned from the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, initialAmount))))
-                .then(withOpContext((spec, opLog) -> {
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, initialAmount))),
+                withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
                             // Verify that each test case has 1 top level call with the correct status
@@ -667,30 +642,28 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var amount = 99L;
         final AtomicLong fungibleNum = new AtomicLong();
 
-        return defaultHapiSpec("burnTokenWithFullPrefixAndPartialPrefixKeys")
-                .given(
-                        newKeyNamed(SIGNER),
-                        uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                        contractCreate(ORDINARY_CALLS_CONTRACT),
-                        newKeyNamed(THRESHOLD_KEY)
-                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
-                        cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(100)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(SIGNER)
-                                .supplyKey(THRESHOLD_KEY)
-                                .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
-                        tokenCreate(FUNGIBLE_TOKEN_2)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(100)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(SIGNER)
-                                .supplyKey(SIGNER)
-                                .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(SIGNER),
+                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                contractCreate(ORDINARY_CALLS_CONTRACT),
+                newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(100)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(SIGNER)
+                        .supplyKey(THRESHOLD_KEY)
+                        .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
+                tokenCreate(FUNGIBLE_TOKEN_2)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(100)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(SIGNER)
+                        .supplyKey(SIGNER)
+                        .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         ORDINARY_CALLS_CONTRACT,
@@ -713,30 +686,29 @@ public class ContractBurnHTSV2SecurityModelSuite {
                                 .via(secondBurnTxn)
                                 .payingWith(ACCOUNT_NAME)
                                 .alsoSigningWithFullPrefix(SIGNER, THRESHOLD_KEY, ACCOUNT_NAME)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                firstBurnTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                secondBurnTxn,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(99)))
-                                        .newTotalSupply(99)),
-                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        firstBurnTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        secondBurnTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(99)))
+                                .newTotalSupply(99)),
+                getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount));
     }
 
     @HapiTest
@@ -748,80 +720,77 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var SUPPLY_KEY = "SUPPLY_KEY";
         final var ADMIN_KEY = "ADMIN_KEY";
 
-        return defaultHapiSpec("hscsPreC020RollbackBurnThatFailsAfterAPrecompileTransfer")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN_KEY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(ALICE).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(bob).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(feeCollector).balance(0L),
-                        tokenCreate(tokenWithHbarFee)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .initialSupply(0L)
-                                .treasury(TOKEN_TREASURY)
-                                .withCustom(fixedHbarFee(300 * ONE_HBAR, feeCollector)),
-                        mintToken(tokenWithHbarFee, List.of(copyFromUtf8(FIRST))),
-                        mintToken(tokenWithHbarFee, List.of(copyFromUtf8(SECOND))),
-                        uploadInitCode(theContract),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                theContract,
-                                                asHeadlongAddress(asHexedAddress(
-                                                        spec.registry().getTokenID(tokenWithHbarFee))))
-                                        .payingWith(bob)
-                                        .gas(GAS_TO_OFFER))),
-                        newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, theContract))),
-                        tokenUpdate(tokenWithHbarFee).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
-                        tokenAssociate(ALICE, tokenWithHbarFee),
-                        tokenAssociate(bob, tokenWithHbarFee),
-                        tokenAssociate(theContract, tokenWithHbarFee),
-                        cryptoTransfer(movingUnique(tokenWithHbarFee, 2L).between(TOKEN_TREASURY, ALICE))
-                                .payingWith(GENESIS),
-                        getAccountInfo(feeCollector)
-                                .has(AccountInfoAsserts.accountWith().balance(0L)))
-                .when(
-                        withOpContext((spec, opLog) -> {
-                            final var serialNumbers = new long[] {1L};
-                            allRunFor(
-                                    spec,
-                                    contractCall(
-                                                    theContract,
-                                                    "transferBurn",
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getAccountID(ALICE))),
-                                                    HapiParserUtil.asHeadlongAddress(asAddress(
-                                                            spec.registry().getAccountID(bob))),
-                                                    BigInteger.ZERO,
-                                                    2L,
-                                                    serialNumbers)
-                                            .alsoSigningWithFullPrefix(ALICE, THRESHOLD_KEY)
-                                            .gas(GAS_TO_OFFER)
-                                            .via("contractCallTxn")
-                                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
-                        }),
-                        childRecordsCheck(
-                                "contractCallTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(REVERTED_SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(1))),
-                                recordWith()
-                                        .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))))
-                .then(
-                        getAccountBalance(bob).hasTokenBalance(tokenWithHbarFee, 0),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(tokenWithHbarFee, 1),
-                        getAccountBalance(ALICE).hasTokenBalance(tokenWithHbarFee, 1));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(ADMIN_KEY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ALICE).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(bob).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(feeCollector).balance(0L),
+                tokenCreate(tokenWithHbarFee)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .withCustom(fixedHbarFee(300 * ONE_HBAR, feeCollector)),
+                mintToken(tokenWithHbarFee, List.of(copyFromUtf8(FIRST))),
+                mintToken(tokenWithHbarFee, List.of(copyFromUtf8(SECOND))),
+                uploadInitCode(theContract),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        theContract,
+                                        asHeadlongAddress(
+                                                asHexedAddress(spec.registry().getTokenID(tokenWithHbarFee))))
+                                .payingWith(bob)
+                                .gas(GAS_TO_OFFER))),
+                newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, theContract))),
+                tokenUpdate(tokenWithHbarFee).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
+                tokenAssociate(ALICE, tokenWithHbarFee),
+                tokenAssociate(bob, tokenWithHbarFee),
+                tokenAssociate(theContract, tokenWithHbarFee),
+                cryptoTransfer(movingUnique(tokenWithHbarFee, 2L).between(TOKEN_TREASURY, ALICE))
+                        .payingWith(GENESIS),
+                getAccountInfo(feeCollector)
+                        .has(AccountInfoAsserts.accountWith().balance(0L)),
+                withOpContext((spec, opLog) -> {
+                    final var serialNumbers = new long[] {1L};
+                    allRunFor(
+                            spec,
+                            contractCall(
+                                            theContract,
+                                            "transferBurn",
+                                            HapiParserUtil.asHeadlongAddress(
+                                                    asAddress(spec.registry().getAccountID(ALICE))),
+                                            HapiParserUtil.asHeadlongAddress(
+                                                    asAddress(spec.registry().getAccountID(bob))),
+                                            BigInteger.ZERO,
+                                            2L,
+                                            serialNumbers)
+                                    .alsoSigningWithFullPrefix(ALICE, THRESHOLD_KEY)
+                                    .gas(GAS_TO_OFFER)
+                                    .via("contractCallTxn")
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+                }),
+                childRecordsCheck(
+                        "contractCallTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(REVERTED_SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(1))),
+                        recordWith()
+                                .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))),
+                getAccountBalance(bob).hasTokenBalance(tokenWithHbarFee, 0),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(tokenWithHbarFee, 1),
+                getAccountBalance(ALICE).hasTokenBalance(tokenWithHbarFee, 1));
     }
 
     @HapiTest
@@ -830,82 +799,80 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var CREATION_TX = "CREATION_TX";
         final var MULTI_KEY = "MULTI_KEY";
 
-        return defaultHapiSpec("V2SecurityHscsPrec004TokenBurnOfFungibleTokenUnits")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(MIXED_BURN_TOKEN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                MIXED_BURN_TOKEN,
-                                                asHeadlongAddress(asHexedAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))))
-                                        .payingWith(ALICE)
-                                        .via(CREATION_TX)
-                                        .gas(GAS_TO_OFFER))),
-                        newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
-                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
-                        getTxnRecord(CREATION_TX).logged())
-                .when(
-                        contractCall(MIXED_BURN_TOKEN, BURN_TOKEN_WITH_EVENT, BigInteger.ZERO, new long[0])
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        MIXED_BURN_TOKEN,
+                                        asHeadlongAddress(
+                                                asHexedAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))))
                                 .payingWith(ALICE)
-                                .alsoSigningWithFullPrefix(THRESHOLD_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .via("burnZero"),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 50),
-                        contractCall(MIXED_BURN_TOKEN, BURN_TOKEN_WITH_EVENT, BigInteger.ONE, new long[0])
-                                .payingWith(ALICE)
-                                .alsoSigningWithFullPrefix(THRESHOLD_KEY)
-                                .gas(GAS_TO_OFFER)
-                                .via("burn"),
-                        getTxnRecord("burn")
-                                .hasPriority(recordWith()
-                                        .contractCallResult(resultWith()
-                                                .logs(inOrder(logWith()
-                                                        .noData()
-                                                        .withTopicsInOrder(List.of(parsedToByteString(49))))))),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 49),
-                        childRecordsCheck(
-                                "burn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(49))
-                                                .gasUsed(gasUsed))
-                                        .newTotalSupply(49)
-                                        .tokenTransfers(changingFungibleBalances()
-                                                .including(FUNGIBLE_TOKEN, TOKEN_TREASURY, -1))
-                                        .newTotalSupply(49)),
-                        contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.ONE, new long[0])
-                                .via("burn with contract key")
-                                .gas(GAS_TO_OFFER),
-                        childRecordsCheck(
-                                "burn with contract key",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(48)))
-                                        .newTotalSupply(48)
-                                        .tokenTransfers(changingFungibleBalances()
-                                                .including(FUNGIBLE_TOKEN, TOKEN_TREASURY, -1))))
-                .then(getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 48));
+                                .via(CREATION_TX)
+                                .gas(GAS_TO_OFFER))),
+                newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
+                tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
+                getTxnRecord(CREATION_TX).logged(),
+                contractCall(MIXED_BURN_TOKEN, BURN_TOKEN_WITH_EVENT, BigInteger.ZERO, new long[0])
+                        .payingWith(ALICE)
+                        .alsoSigningWithFullPrefix(THRESHOLD_KEY)
+                        .gas(GAS_TO_OFFER)
+                        .via("burnZero"),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 50),
+                contractCall(MIXED_BURN_TOKEN, BURN_TOKEN_WITH_EVENT, BigInteger.ONE, new long[0])
+                        .payingWith(ALICE)
+                        .alsoSigningWithFullPrefix(THRESHOLD_KEY)
+                        .gas(GAS_TO_OFFER)
+                        .via("burn"),
+                getTxnRecord("burn")
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .logs(inOrder(logWith()
+                                                .noData()
+                                                .withTopicsInOrder(List.of(parsedToByteString(0, 0, 49))))))),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 49),
+                childRecordsCheck(
+                        "burn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(49))
+                                        .gasUsed(gasUsed))
+                                .newTotalSupply(49)
+                                .tokenTransfers(
+                                        changingFungibleBalances().including(FUNGIBLE_TOKEN, TOKEN_TREASURY, -1))
+                                .newTotalSupply(49)),
+                contractCall(MIXED_BURN_TOKEN, "burnToken", BigInteger.ONE, new long[0])
+                        .via("burn with contract key")
+                        .gas(GAS_TO_OFFER),
+                childRecordsCheck(
+                        "burn with contract key",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(48)))
+                                .newTotalSupply(48)
+                                .tokenTransfers(
+                                        changingFungibleBalances().including(FUNGIBLE_TOKEN, TOKEN_TREASURY, -1))),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 48));
     }
 
     @HapiTest
@@ -917,131 +884,121 @@ public class ContractBurnHTSV2SecurityModelSuite {
         final var CREATION_TX = "CREATION_TX";
         final var BURN_AFTER_NESTED_MINT_TX = "burnAfterNestedMint";
 
-        return defaultHapiSpec("V2SecurityHscsPrec011BurnAfterNestedMint")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(innerContract, outerContract),
-                        contractCreate(innerContract).gas(GAS_TO_OFFER),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                outerContract,
-                                                asHeadlongAddress(getNestedContractAddress(innerContract, spec)))
-                                        .payingWith(ALICE)
-                                        .via(CREATION_TX)
-                                        .gas(GAS_TO_OFFER))),
-                        newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
-                        getTxnRecord(CREATION_TX).logged())
-                .when(
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                newKeyNamed(CONTRACT_KEY)
-                                        .shape(revisedKey.signedWith(sigs(ON, innerContract, outerContract))),
-                                tokenUpdate(FUNGIBLE_TOKEN)
-                                        .supplyKey(CONTRACT_KEY)
-                                        .signedByPayerAnd(ADMIN_KEY),
-                                contractCall(
-                                                outerContract,
-                                                BURN_AFTER_NESTED_MINT_TX,
-                                                BigInteger.ONE,
-                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
-                                                new long[0])
-                                        .payingWith(ALICE)
-                                        .alsoSigningWithFullPrefix(CONTRACT_KEY)
-                                        .hasKnownStatus(SUCCESS)
-                                        .via(BURN_AFTER_NESTED_MINT_TX))),
-                        childRecordsCheck(
-                                BURN_AFTER_NESTED_MINT_TX,
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_MINT)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(51)
-                                                        .withSerialNumbers()))
-                                        .tokenTransfers(
-                                                changingFungibleBalances().including(FUNGIBLE_TOKEN, TOKEN_TREASURY, 1))
-                                        .newTotalSupply(51),
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(50)))
-                                        .tokenTransfers(changingFungibleBalances()
-                                                .including(FUNGIBLE_TOKEN, TOKEN_TREASURY, -1))
-                                        .newTotalSupply(50)))
-                .then(getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 50));
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(innerContract, outerContract),
+                contractCreate(innerContract).gas(GAS_TO_OFFER),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(outerContract, asHeadlongAddress(getNestedContractAddress(innerContract, spec)))
+                                .payingWith(ALICE)
+                                .via(CREATION_TX)
+                                .gas(GAS_TO_OFFER))),
+                newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
+                tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
+                getTxnRecord(CREATION_TX).logged(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        newKeyNamed(CONTRACT_KEY).shape(revisedKey.signedWith(sigs(ON, innerContract, outerContract))),
+                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(ADMIN_KEY),
+                        contractCall(
+                                        outerContract,
+                                        BURN_AFTER_NESTED_MINT_TX,
+                                        BigInteger.ONE,
+                                        HapiParserUtil.asHeadlongAddress(
+                                                asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN))),
+                                        new long[0])
+                                .payingWith(ALICE)
+                                .alsoSigningWithFullPrefix(CONTRACT_KEY)
+                                .hasKnownStatus(SUCCESS)
+                                .via(BURN_AFTER_NESTED_MINT_TX))),
+                childRecordsCheck(
+                        BURN_AFTER_NESTED_MINT_TX,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_MINT)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(51)
+                                                .withSerialNumbers()))
+                                .tokenTransfers(changingFungibleBalances().including(FUNGIBLE_TOKEN, TOKEN_TREASURY, 1))
+                                .newTotalSupply(51),
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(50)))
+                                .tokenTransfers(
+                                        changingFungibleBalances().including(FUNGIBLE_TOKEN, TOKEN_TREASURY, -1))
+                                .newTotalSupply(50)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 50));
     }
 
     @HapiTest
     final Stream<DynamicTest> V2SecurityHscsPrec005TokenBurnOfNft() {
         final var gasUsed = 15284L;
         final var CREATION_TX = "CREATION_TX";
-        return defaultHapiSpec("V2SecurityHscsPrec005TokenBurnOfNft")
-                .given(
-                        newKeyNamed(ADMIN_KEY),
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .supplyKey(SUPPLY_KEY)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TOKEN_TREASURY),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
-                        mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(SECOND))),
-                        uploadInitCode(BURN_TOKEN),
-                        withOpContext((spec, opLog) -> allRunFor(
-                                spec,
-                                contractCreate(
-                                                BURN_TOKEN,
-                                                asHeadlongAddress(asHexedAddress(
-                                                        spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
-                                        .payingWith(ALICE)
-                                        .via(CREATION_TX)
-                                        .gas(GAS_TO_OFFER))),
-                        newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
-                        tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
-                        getTxnRecord(CREATION_TX).logged())
-                .when(
-                        withOpContext((spec, opLog) -> {
-                            final var serialNumbers = new long[] {1L};
-                            allRunFor(
-                                    spec,
-                                    contractCall(BURN_TOKEN, "burnToken", BigInteger.ZERO, serialNumbers)
-                                            .payingWith(ALICE)
-                                            .alsoSigningWithFullPrefix(THRESHOLD_KEY)
-                                            .gas(GAS_TO_OFFER)
-                                            .via("burn"));
-                        }),
-                        childRecordsCheck(
-                                "burn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                        .withStatus(SUCCESS)
-                                                        .withTotalSupply(1))
-                                                .gasUsed(gasUsed))
-                                        .newTotalSupply(1)))
-                .then(getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .adminKey(ADMIN_KEY)
+                        .treasury(TOKEN_TREASURY),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(FIRST))),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(copyFromUtf8(SECOND))),
+                uploadInitCode(BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                        BURN_TOKEN,
+                                        asHeadlongAddress(
+                                                asHexedAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN))))
+                                .payingWith(ALICE)
+                                .via(CREATION_TX)
+                                .gas(GAS_TO_OFFER))),
+                newKeyNamed(THRESHOLD_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
+                tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(ADMIN_KEY),
+                getTxnRecord(CREATION_TX).logged(),
+                withOpContext((spec, opLog) -> {
+                    final var serialNumbers = new long[] {1L};
+                    allRunFor(
+                            spec,
+                            contractCall(BURN_TOKEN, "burnToken", BigInteger.ZERO, serialNumbers)
+                                    .payingWith(ALICE)
+                                    .alsoSigningWithFullPrefix(THRESHOLD_KEY)
+                                    .gas(GAS_TO_OFFER)
+                                    .via("burn"));
+                }),
+                childRecordsCheck(
+                        "burn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
+                                                .withStatus(SUCCESS)
+                                                .withTotalSupply(1))
+                                        .gasUsed(gasUsed))
+                                .newTotalSupply(1)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 1));
     }
 }

@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -96,49 +81,48 @@ public class AssociatePrecompileV2SecurityModelSuite {
     @HapiTest
     final Stream<DynamicTest> v2Security031AssociateSingleTokenWithDelegateContractKey() {
 
-        return defaultHapiSpec("v2Security031AssociateSingleTokenWithDelegateContractKey")
-                .given(
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(KYC_KEY),
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(UNFROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(false)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .kycKey(KYC_KEY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        uploadInitCode(ASSOCIATE_CONTRACT, MINT_TOKEN_CONTRACT),
-                        contractCreate(MINT_TOKEN_CONTRACT),
-                        contractCreate(ASSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(KYC_KEY),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(FROZEN_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(true)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(UNFROZEN_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(false)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(KYC_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                uploadInitCode(ASSOCIATE_CONTRACT, MINT_TOKEN_CONTRACT),
+                contractCreate(MINT_TOKEN_CONTRACT),
+                contractCreate(ASSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
                         cryptoUpdate(SIGNER).key(CONTRACT_KEY),
@@ -202,8 +186,8 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                 .hasRetryPrecheckFrom(BUSY)
                                 .via("multipleTokensAssociate")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(getAccountInfo(ACCOUNT)
+                                .hasKnownStatus(SUCCESS))),
+                getAccountInfo(ACCOUNT)
                         .hasToken(relationshipWith(FUNGIBLE_TOKEN)
                                 .kyc(KycNotApplicable)
                                 .freeze(FreezeNotApplicable))
@@ -221,50 +205,49 @@ public class AssociatePrecompileV2SecurityModelSuite {
 
     @HapiTest
     final Stream<DynamicTest> v2Security006TokenAssociateNegativeTests() {
-        return defaultHapiSpec("v2Security006TokenAssociateNegativeTests")
-                .given(
-                        newKeyNamed(FREEZE_KEY),
-                        newKeyNamed(KYC_KEY),
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(SIGNER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(ADMIN_KEY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(FROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(UNFROZEN_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(false)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(KYC_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .kycKey(KYC_KEY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT, MINT_TOKEN_CONTRACT),
-                        contractCreate(ASSOCIATE_CONTRACT),
-                        contractCreate(MINT_TOKEN_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SIGNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(ADMIN_KEY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(FROZEN_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(true)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(UNFROZEN_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .freezeKey(FREEZE_KEY)
+                        .freezeDefault(false)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(KYC_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .kycKey(KYC_KEY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT, MINT_TOKEN_CONTRACT),
+                contractCreate(ASSOCIATE_CONTRACT),
+                contractCreate(MINT_TOKEN_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 NESTED_ASSOCIATE_CONTRACT,
@@ -372,71 +355,69 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                         getTxnRecord("associateTokenToContractFails")
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        childRecordsCheck(
-                                "fungibleTokenAssociate",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "nonFungibleTokenAssociate",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "multipleTokensAssociate",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "nestedAssociateFungibleTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "associateTokenToContractFails",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                .logged())),
+                childRecordsCheck(
+                        "fungibleTokenAssociate",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "nonFungibleTokenAssociate",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "multipleTokensAssociate",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "nestedAssociateFungibleTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "associateTokenToContractFails",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
     }
 
     @HapiTest
     final Stream<DynamicTest> v2Security010NestedAssociateNftAndNonFungibleTokens() {
 
-        return defaultHapiSpec("v2Security010NestedAssociateNftAndNonFungibleTokens")
-                .given(
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 NESTED_ASSOCIATE_CONTRACT,
@@ -477,54 +458,52 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                 .hasRetryPrecheckFrom(BUSY)
                                 .via("nestedAssociateNonFungibleTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(FreezeNotApplicable))
-                                .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(FreezeNotApplicable)),
-                        childRecordsCheck(
-                                "nestedAssociateFungibleTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "nestedAssociateNonFungibleTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))));
+                                .hasKnownStatus(SUCCESS))),
+                getAccountInfo(ACCOUNT)
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(FreezeNotApplicable))
+                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(FreezeNotApplicable)),
+                childRecordsCheck(
+                        "nestedAssociateFungibleTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "nestedAssociateNonFungibleTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))));
     }
 
     @HapiTest
     final Stream<DynamicTest> V2Security036TokenAssociateFromDelegateCallWithDelegateContractId() {
 
-        return defaultHapiSpec("v2Security010NestedAssociateNftAndNonFungibleTokens")
-                .given(
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 NESTED_ASSOCIATE_CONTRACT,
@@ -565,55 +544,53 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                 .hasKnownStatus(SUCCESS),
                         getTxnRecord("nestedAssociateNonFungibleTxn")
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(FUNGIBLE_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(FreezeNotApplicable))
-                                .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
-                                        .kyc(KycNotApplicable)
-                                        .freeze(FreezeNotApplicable)),
-                        childRecordsCheck(
-                                "nestedAssociateFungibleTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "nestedAssociateNonFungibleTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))));
+                                .logged())),
+                getAccountInfo(ACCOUNT)
+                        .hasToken(relationshipWith(FUNGIBLE_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(FreezeNotApplicable))
+                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN)
+                                .kyc(KycNotApplicable)
+                                .freeze(FreezeNotApplicable)),
+                childRecordsCheck(
+                        "nestedAssociateFungibleTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "nestedAssociateNonFungibleTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))));
     }
 
     @HapiTest
     final Stream<DynamicTest> V2Security041TokenAssociateFromStaticcallAndCallcode() {
 
-        return defaultHapiSpec("V2Security041TokenAssociateFromStaticcallAndCallcode")
-                .given(
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TOKEN_TREASURY).balance(THOUSAND_HBAR),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(TOKEN_TREASURY)
-                                .initialSupply(0)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY),
-                        uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT, CALLCODE_CONTRACT),
-                        contractCreate(ASSOCIATE_CONTRACT),
-                        contractCreate(CALLCODE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY).balance(THOUSAND_HBAR),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(TOKEN_TREASURY)
+                        .initialSupply(0)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY),
+                uploadInitCode(ASSOCIATE_CONTRACT, NESTED_ASSOCIATE_CONTRACT, CALLCODE_CONTRACT),
+                contractCreate(ASSOCIATE_CONTRACT),
+                contractCreate(CALLCODE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 NESTED_ASSOCIATE_CONTRACT,
@@ -651,12 +628,14 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                         asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec)),
                                         Bytes.wrap(AssociationsTranslator.ASSOCIATE_ONE
                                                         .encodeCallWithArgs(
-                                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                                        spec.registry()
-                                                                                .getAccountID(ACCOUNT))),
-                                                                HapiParserUtil.asHeadlongAddress(asAddress(
-                                                                        spec.registry()
-                                                                                .getTokenID(FUNGIBLE_TOKEN))))
+                                                                HapiParserUtil.asHeadlongAddress(
+                                                                        asAddress(
+                                                                                spec.registry()
+                                                                                        .getAccountID(ACCOUNT))),
+                                                                HapiParserUtil.asHeadlongAddress(
+                                                                        asAddress(
+                                                                                spec.registry()
+                                                                                        .getTokenID(FUNGIBLE_TOKEN))))
                                                         .array())
                                                 .toArray())
                                 .via("associateCallcodeFungibleTxn")
@@ -669,10 +648,9 @@ public class AssociatePrecompileV2SecurityModelSuite {
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                         getTxnRecord("associateCallcodeFungibleTxn")
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        emptyChildRecordsCheck("associateStaticcallFungibleTxn", CONTRACT_REVERT_EXECUTED),
-                        emptyChildRecordsCheck("associateCallcodeFungibleTxn", CONTRACT_REVERT_EXECUTED),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(FUNGIBLE_TOKEN));
+                                .logged())),
+                emptyChildRecordsCheck("associateStaticcallFungibleTxn", CONTRACT_REVERT_EXECUTED),
+                emptyChildRecordsCheck("associateCallcodeFungibleTxn", CONTRACT_REVERT_EXECUTED),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(FUNGIBLE_TOKEN));
     }
 }

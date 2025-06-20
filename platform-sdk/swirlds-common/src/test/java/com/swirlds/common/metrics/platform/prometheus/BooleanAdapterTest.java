@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform.prometheus;
 
 import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.GLOBAL;
@@ -24,11 +9,11 @@ import static org.assertj.core.data.Offset.offset;
 
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.platform.PlatformFunctionGauge;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class BooleanAdapterTest {
@@ -141,7 +126,7 @@ class BooleanAdapterTest {
         final BooleanAdapter adapter = new BooleanAdapter(registry, metric, PLATFORM);
 
         // when
-        adapter.update(Snapshot.of(metric), new NodeId(1L));
+        adapter.update(Snapshot.of(metric), NodeId.of(1L));
 
         // then
         assertThat(registry.getSampleValue(MAPPING_NAME, NODE_LABEL, NODE_VALUE))
@@ -155,7 +140,7 @@ class BooleanAdapterTest {
         final PlatformFunctionGauge<Boolean> metric =
                 new PlatformFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
         final BooleanAdapter adapter = new BooleanAdapter(registry, metric, PLATFORM);
-        final NodeId nodeId = new NodeId(1L);
+        final NodeId nodeId = NodeId.of(1L);
 
         // then
         assertThatThrownBy(() -> adapter.update(null, null)).isInstanceOf(NullPointerException.class);

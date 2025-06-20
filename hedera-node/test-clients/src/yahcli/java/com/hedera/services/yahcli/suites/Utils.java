@@ -1,23 +1,10 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
 
+import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hederahashgraph.api.proto.java.FileID;
 import java.io.File;
 import java.time.Instant;
@@ -47,17 +34,22 @@ public class Utils {
         }
     }
 
-    public static String extractAccount(final String account) {
-        if (isIdLiteral(account)) {
-            return account;
+    public static String extractEntity(final long shard, final long realm, final String entity) {
+        if (isIdLiteral(entity)) {
+            return entity;
         } else {
             try {
-                long number = Long.parseLong(account);
-                return "0.0." + number;
+                long number = Long.parseLong(entity);
+                return asEntityString(shard, realm, number);
             } catch (NumberFormatException ignore) {
                 throw new IllegalArgumentException("Named accounts not yet supported!");
             }
         }
+    }
+
+    // (FUTURE) Remove this method. It's temporary scaffolding until all yahcli ops are properly using shard/realm
+    public static String extractAccount(final String account) {
+        return extractEntity(HapiPropertySource.getConfigShard(), HapiPropertySource.getConfigRealm(), account);
     }
 
     public static Instant parseFormattedInstant(final String timeStampInStr) {
@@ -100,17 +92,15 @@ public class Utils {
             Map.entry("throttles.json", 123L),
             Map.entry("software-zip", 150L),
             Map.entry("telemetry-zip", 159L));
-    private static final Map<FileID, String> IDS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
-            .filter(entry -> !entry.getKey().contains("."))
-            .collect(Collectors.toMap(
-                    (Map.Entry<String, Long> entry) ->
-                            FileID.newBuilder().setFileNum(entry.getValue()).build(),
-                    Map.Entry::getKey));
+    private static final Map<Long, String> NUMBERS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
+            // For any found duplicates, use the actual file name as the key
+            .filter(e -> e.getKey().matches("^[a-zA-Z0-9-]\\.[a-z0-9]+$"))
+            .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
 
     private static final Set<Long> VALID_NUMBERS = new HashSet<>(NAMES_TO_NUMBERS.values());
 
     public static String nameOf(FileID fid) {
-        return Optional.ofNullable(IDS_TO_NAMES.get(fid)).orElse("<N/A>");
+        return Optional.ofNullable(NUMBERS_TO_NAMES.get(fid.getFileNum())).orElse("<N/A>");
     }
 
     public static EnumSet<ServiceType> rationalizedServices(final String[] services) {

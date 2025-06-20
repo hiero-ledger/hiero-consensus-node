@@ -1,25 +1,17 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.store;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
+import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
@@ -42,14 +34,14 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Factory for all writable stores. It creates new writable stores based on the {@link State}.
@@ -79,20 +71,17 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableNetworkStakingRewardsStore.class,
                 new StoreEntry(
-                        TokenService.NAME,
-                        (states, config, metrics) -> new WritableNetworkStakingRewardsStore(states)));
-        newMap.put(
-                WritableStakingInfoStore.class,
-                new StoreEntry(TokenService.NAME, (states, config, metrics) -> new WritableStakingInfoStore(states)));
+                        TokenService.NAME, (states, entityCounters) -> new WritableNetworkStakingRewardsStore(states)));
+        newMap.put(WritableStakingInfoStore.class, new StoreEntry(TokenService.NAME, WritableStakingInfoStore::new));
         // FreezeService
         newMap.put(
                 WritableFreezeStore.class,
-                new StoreEntry(FreezeService.NAME, (states, config, metrics) -> new WritableFreezeStore(states)));
+                new StoreEntry(FreezeService.NAME, (states, entityCounters) -> new WritableFreezeStore(states)));
         // FileService
         newMap.put(WritableFileStore.class, new StoreEntry(FileService.NAME, WritableFileStore::new));
         newMap.put(
                 WritableUpgradeFileStore.class,
-                new StoreEntry(FileService.NAME, (states, config, metrics) -> new WritableUpgradeFileStore(states)));
+                new StoreEntry(FileService.NAME, (states, entityCounters) -> new WritableUpgradeFileStore(states)));
         // ContractService
         newMap.put(
                 WritableContractStateStore.class,
@@ -100,39 +89,42 @@ public class WritableStoreFactory {
         // EntityIdService
         newMap.put(
                 WritableEntityIdStore.class,
-                new StoreEntry(EntityIdService.NAME, (states, config, metrics) -> new WritableEntityIdStore(states)));
+                new StoreEntry(EntityIdService.NAME, (states, entityCounters) -> new WritableEntityIdStore(states)));
         // Schedule Service
         newMap.put(WritableScheduleStore.class, new StoreEntry(ScheduleService.NAME, WritableScheduleStoreImpl::new));
-        newMap.put(WritableNodeStore.class, new StoreEntry(AddressBookService.NAME, WritableNodeStore::new));
+        // Roster Service
+        newMap.put(
+                WritableRosterStore.class,
+                new StoreEntry(RosterService.NAME, (states, entityCounters) -> new WritableRosterStore(states)));
+        // HintsService
+        newMap.put(WritableHintsStore.class, new StoreEntry(HintsService.NAME, WritableHintsStoreImpl::new));
+        newMap.put(
+                WritableHistoryStore.class,
+                new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
     private final String serviceName;
     private final WritableStates states;
-    private final Configuration configuration;
-    private final StoreMetricsService storeMetricsService;
+    private final WritableEntityCounters entityCounters;
 
     /**
      * Constructor of {@code WritableStoreFactory}
      *
-     * @param state the {@link State} to use
+     * @param state       the {@link State} to use
      * @param serviceName the name of the service to create stores for
-     * @param configuration the configuration to use for the created stores
-     * @param storeMetricsService Service that provides utilization metrics.
+     * @param entityCounters the {@link WritableEntityCounters} to use
      * @throws NullPointerException     if one of the arguments is {@code null}
      * @throws IllegalArgumentException if the service name is unknown
      */
     public WritableStoreFactory(
             @NonNull final State state,
             @NonNull final String serviceName,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        requireNonNull(state, "The argument 'stack' cannot be null!");
+            @NonNull final WritableEntityCounters entityCounters) {
+        requireNonNull(state);
         this.serviceName = requireNonNull(serviceName, "The argument 'serviceName' cannot be null!");
-        this.configuration = requireNonNull(configuration, "The argument 'configuration' cannot be null!");
-        this.storeMetricsService =
-                requireNonNull(storeMetricsService, "The argument 'storeMetricsService' cannot be null!");
         this.states = state.getWritableStates(serviceName);
+        this.entityCounters = requireNonNull(entityCounters);
     }
 
     /**
@@ -149,7 +141,7 @@ public class WritableStoreFactory {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null && serviceName.equals(entry.name())) {
-            final var store = entry.factory().create(states, configuration, storeMetricsService);
+            final var store = entry.factory().create(states, entityCounters);
             if (!storeInterface.isInstance(store)) {
                 throw new IllegalArgumentException("No instance " + storeInterface
                         + " is available"); // This needs to be ensured while stores are registered
@@ -169,10 +161,7 @@ public class WritableStoreFactory {
     }
 
     private interface StoreFactory {
-        Object create(
-                @NonNull WritableStates states,
-                @NonNull Configuration configuration,
-                @NonNull StoreMetricsService storeMetricsService);
+        Object create(@NonNull WritableStates states, @NonNull WritableEntityCounters entityCounters);
     }
 
     private record StoreEntry(@NonNull String name, @NonNull StoreFactory factory) {}

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.5.11;
 contract SimpleStorage {
     uint storedData = 15;

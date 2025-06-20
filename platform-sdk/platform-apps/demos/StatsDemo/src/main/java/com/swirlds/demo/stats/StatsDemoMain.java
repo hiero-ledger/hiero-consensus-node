@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stats;
 /*
  * This file is public domain.
@@ -29,9 +14,12 @@ package com.swirlds.demo.stats;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.gui.SwirldsGui.createConsole;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.metrics.api.Metric;
@@ -39,11 +27,11 @@ import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.ParameterProvider;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.State;
-import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -53,13 +41,17 @@ import java.util.IllegalFormatException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
  * screen, and also saves them to disk in a comma separated value (.csv) file. Each transaction is 100
  * random bytes. So StatsDemoState.handleTransaction doesn't actually do anything.
  */
-public class StatsDemoMain implements SwirldMain {
+public class StatsDemoMain implements SwirldMain<StatsDemoState> {
     // the first four come from the parameters in the config.txt file
 
     /** should this run with no windows? */
@@ -84,7 +76,21 @@ public class StatsDemoMain implements SwirldMain {
     /** used to make the transactions random, so they won't cheat and shrink when zipped */
     private Random random = new java.util.Random();
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
+
+    static {
+        try {
+            ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
+            constructableRegistry.registerConstructable(new ClassConstructorPair(StatsDemoState.class, () -> {
+                StatsDemoState statsDemoState = new StatsDemoState();
+                return statsDemoState;
+            }));
+            registerMerkleStateRootClassIds();
+        } catch (ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private final StoppableThread transactionGenerator;
 
@@ -181,7 +187,7 @@ public class StatsDemoMain implements SwirldMain {
     private synchronized void generateTransactions() {
         byte[] transaction = new byte[bytesPerTrans];
         long now = System.nanoTime();
-        double tps = transPerSecToCreate / platform.getAddressBook().getSize();
+        double tps = transPerSecToCreate / platform.getRoster().rosterEntries().size();
         int numCreated = 0;
 
         if (transPerSecToCreate > -1) { // if not unlimited (-1 means unlimited)
@@ -297,17 +303,28 @@ public class StatsDemoMain implements SwirldMain {
 
     @NonNull
     @Override
-    public MerkleRoot newMerkleStateRoot() {
-        final State state = new State();
-        state.setSwirldState(new StatsDemoState());
+    public StatsDemoState newStateRoot() {
+        final StatsDemoState state = new StatsDemoState();
+        TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    @NonNull
+    @Override
+    public ConsensusStateEventHandler newConsensusStateEvenHandler() {
+        return NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
+    }
+
+    @Override
+    public Bytes encodeSystemTransaction(@NonNull StateSignatureTransaction transaction) {
+        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

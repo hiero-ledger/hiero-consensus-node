@@ -1,27 +1,10 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.streams;
 
 import com.swirlds.base.function.CheckedFunction;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.streams.internal.SerializationOperation;
 import com.swirlds.common.io.streams.internal.SerializationStack;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.utility.ValueReference;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -35,6 +18,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import org.hiero.base.ValueReference;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * A stream that performs the same role as a {@link MerkleDataInputStream} but with extra debug functionality. This
@@ -175,6 +160,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public byte[] readAllBytes() throws IOException {
         startOperation(SerializationOperation.READ_ALL_BYTES);
         try {
@@ -188,6 +174,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public byte[] readNBytes(final int len) throws IOException {
         startOperation(SerializationOperation.READ_N_BYTES);
         try {
@@ -201,7 +188,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public int readNBytes(final byte[] b, final int off, final int len) throws IOException {
+    public int readNBytes(@NonNull final byte[] b, final int off, final int len) throws IOException {
         startOperation(SerializationOperation.READ_N_BYTES_ARRAY);
         try {
             return super.readNBytes(b, off, len);
@@ -240,7 +227,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public void readFully(final byte[] b) throws IOException {
+    public void readFully(@NonNull final byte[] b) throws IOException {
         startOperation(SerializationOperation.READ_FULLY);
         try {
             super.readFully(b);
@@ -253,7 +240,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
-    public void readFully(final byte[] b, final int off, final int len) throws IOException {
+    public void readFully(@NonNull final byte[] b, final int off, final int len) throws IOException {
         startOperation(SerializationOperation.READ_FULLY_OFFSET);
         try {
             super.readFully(b, off, len);
@@ -396,6 +383,7 @@ public class DebuggableMerkleDataInputStream extends MerkleDataInputStream {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public String readUTF() throws IOException {
         startOperation(SerializationOperation.READ_UTF);
         try {

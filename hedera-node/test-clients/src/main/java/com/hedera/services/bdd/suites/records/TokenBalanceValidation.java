@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.records;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
@@ -166,10 +151,9 @@ public class TokenBalanceValidation extends HapiSuite {
      * @return HAPI queries to execute
      */
     final Stream<DynamicTest> validateTokenBalances() {
-        return defaultHapiSpec("ValidateTokenBalances")
-                .given(getHapiSpecsForTransferTxs()) // set up transfers if needed
-                .when()
-                .then(inParallel(expectedTokenBalances.entrySet().stream()
+        return hapiTest(flattened(
+                getHapiSpecsForTransferTxs(), // set up transfers if needed
+                inParallel(expectedTokenBalances.entrySet().stream()
                                 .map(
                                         entry -> { // for each expectedTokenBalance
                                             final var accountNum =
@@ -177,7 +161,8 @@ public class TokenBalanceValidation extends HapiSuite {
                                             final var tokenNum = entry.getKey().tokenNum();
                                             final var tokenAmt = entry.getValue();
 
-                                            // validate that the transfer worked and the receiver account has the tokens
+                                            // validate that the transfer worked and the receiver account
+                                            // has the tokens
                                             return QueryVerbs.getAccountBalance(
                                                             "0.0." + accountNum,
                                                             accountClassifier.isContract(accountNum))
@@ -191,7 +176,7 @@ public class TokenBalanceValidation extends HapiSuite {
                                                     .includeTokenMemoOnError();
                                         })
                                 .toArray(HapiSpecOperation[]::new))
-                        .failOnErrors());
+                        .failOnErrors()));
     }
 
     @Override

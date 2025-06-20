@@ -1,34 +1,20 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextLong;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.parallel.ExecutionMode.SAME_THREAD;
 
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -57,7 +43,7 @@ class LongListValidRangeTest {
     @ParameterizedTest
     @MethodSource("defaultLongListProvider")
     @DisplayName("Update min and max index to -1")
-    void testUpdateMinMaxMinuxOne(AbstractLongList<?> list) {
+    void testUpdateMinMaxMinusOne(AbstractLongList<?> list) {
         this.list = list;
         assertDoesNotThrow(() -> list.updateValidRange(-1, -1));
     }
@@ -105,12 +91,33 @@ class LongListValidRangeTest {
     @Test
     @DisplayName("Attempt to create LongListOffHeap with too many memory chunks")
     void testInvalidMemoryChunkNumber() {
-        new LongListOffHeap(1, 32768, 1).close();
-        new LongListHeap(1, 32768, 1).close();
-        new LongListDisk(1, 32768, 1).resetTransferBuffer().close();
-        assertThrows(IllegalArgumentException.class, () -> new LongListOffHeap(1, 32769, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LongListHeap(1, 32769, 1));
-        assertThrows(IllegalArgumentException.class, () -> new LongListDisk(1, 32769, 1));
+        // Valid cases
+        new LongListOffHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
+        new LongListOffHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
+        new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
+        new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
+        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION)
+                .resetTransferBuffer()
+                .close();
+        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION)
+                .resetTransferBuffer()
+                .close();
+        // Illegal cases, too many chunks
+        assertThrows(
+                IllegalArgumentException.class, () -> new LongListOffHeap(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListOffHeap(8, AbstractLongList.MAX_NUM_CHUNKS * 8 + 1, 1));
+        assertThrows(IllegalArgumentException.class, () -> new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListHeap(16, AbstractLongList.MAX_NUM_CHUNKS * 16 + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListDisk(32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION));
     }
 
     @Tag(TestComponentTags.VMAP)
@@ -747,7 +754,7 @@ class LongListValidRangeTest {
         return Stream.of(
                 Arguments.of(new LongListOffHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
-                Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength)));
+                Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION)));
     }
 
     private long maxValidIndex() {

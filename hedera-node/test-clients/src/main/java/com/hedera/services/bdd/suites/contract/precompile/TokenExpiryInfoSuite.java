@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -44,13 +28,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -90,7 +75,6 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("updateTokenExpiryInfo")
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    private static final Address MISSING_LONG_ZERO_ADDRESS = asHeadlongAddress(Long.toHexString(Integer.MAX_VALUE));
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String UPDATED_AUTO_RENEW_ACCOUNT = "updatedAutoRenewAccount";
@@ -161,19 +145,16 @@ public class TokenExpiryInfoSuite {
         @HapiTest
         @DisplayName("still cannot set an invalid auto-renew account")
         final Stream<DynamicTest> cannotSetInvalidAutoRenewAccount() {
-            return hapiTest(
-                    // This function takes four arguments---a token address, an expiry second, an auto-renew account
-                    // address, and an auto-renew period---and tries to update the token at that address with the given
-                    // metadata; here we set an invalid auto-renew account address
-                    tokenExpiryContract
-                            .call(
-                                    "updateExpiryInfoForToken",
-                                    mutableToken,
-                                    0L,
-                                    MISSING_LONG_ZERO_ADDRESS,
-                                    MONTH_IN_SECONDS)
-                            .andAssert(
-                                    txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT)));
+            return hapiTest(withOpContext((spec, log) -> {
+                final var missingLongZeroAddress = asHeadlongAddress(asSolidityAddress(spec, Integer.MAX_VALUE));
+                // This function takes four arguments---a token address, an expiry second, an auto-renew account
+                // address, and an auto-renew period---and tries to update the token at that address with the given
+                // metadata; here we set an invalid auto-renew account address
+                final var callOp = tokenExpiryContract
+                        .call("updateExpiryInfoForToken", mutableToken, 0L, missingLongZeroAddress, MONTH_IN_SECONDS)
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT));
+                allRunFor(spec, callOp);
+            }));
         }
 
         @HapiTest
@@ -186,7 +167,8 @@ public class TokenExpiryInfoSuite {
                     // set an invalid auto-renew account period of 1 second
                     tokenExpiryContract
                             .call("updateExpiryInfoForToken", mutableToken, 0L, ZERO_ADDRESS, 1L)
-                            .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_RENEWAL_PERIOD)));
+                            .andAssert(txn ->
+                                    txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, AUTORENEW_DURATION_NOT_IN_RANGE)));
         }
 
         @HapiTest
@@ -221,30 +203,29 @@ public class TokenExpiryInfoSuite {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> updatedAutoRenewAccountID = new AtomicReference<>();
         final var someValidExpiry = new AtomicLong();
-        return defaultHapiSpec("updateExpiryInfoForTokenAndReadLatestInfo")
-                .given(
-                        new RunnableOp(() ->
-                                someValidExpiry.set(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS + 123L)),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L),
-                        cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
-                        cryptoCreate(UPDATED_AUTO_RENEW_ACCOUNT)
-                                .keyShape(SigControl.ED25519_ON)
-                                .balance(0L)
-                                .exposingCreatedIdTo(updatedAutoRenewAccountID::set),
-                        newKeyNamed(ADMIN_KEY),
-                        uploadInitCode(TOKEN_EXPIRY_CONTRACT),
-                        contractCreate(TOKEN_EXPIRY_CONTRACT).gas(1_000_000L),
-                        tokenCreate(VANILLA_TOKEN)
-                                .supplyType(TokenSupplyType.FINITE)
-                                .treasury(TOKEN_TREASURY)
-                                .expiry(100)
-                                .autoRenewAccount(AUTO_RENEW_ACCOUNT)
-                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                                .maxSupply(1000)
-                                .initialSupply(500L)
-                                .adminKey(ADMIN_KEY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                new RunnableOp(
+                        () -> someValidExpiry.set(Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS + 123L)),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                cryptoCreate(UPDATED_AUTO_RENEW_ACCOUNT)
+                        .keyShape(SigControl.ED25519_ON)
+                        .balance(0L)
+                        .exposingCreatedIdTo(updatedAutoRenewAccountID::set),
+                newKeyNamed(ADMIN_KEY),
+                uploadInitCode(TOKEN_EXPIRY_CONTRACT),
+                contractCreate(TOKEN_EXPIRY_CONTRACT).gas(1_000_000L),
+                tokenCreate(VANILLA_TOKEN)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .treasury(TOKEN_TREASURY)
+                        .expiry(100)
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .maxSupply(1000)
+                        .initialSupply(500L)
+                        .adminKey(ADMIN_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_EXPIRY_CONTRACT))),
@@ -260,8 +241,8 @@ public class TokenExpiryInfoSuite {
                                 .alsoSigningWithFullPrefix(ADMIN_KEY, UPDATED_AUTO_RENEW_ACCOUNT)
                                 .via("updateExpiryAndReadLatestInfoTxn")
                                 .gas(GAS_TO_OFFER)
-                                .payingWith(GENESIS))))
-                .then(withOpContext((spec, opLog) -> allRunFor(
+                                .payingWith(GENESIS))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 "updateExpiryAndReadLatestInfoTxn",

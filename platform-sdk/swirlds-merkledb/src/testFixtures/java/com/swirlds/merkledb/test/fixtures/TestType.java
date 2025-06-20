@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.test.fixtures;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.DigestType;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
@@ -42,6 +27,7 @@ import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Supports parameterized testing of {@link MerkleDbDataSource} with
@@ -82,8 +68,8 @@ public enum TestType {
 
     public Metrics getMetrics() {
         if (metrics == null) {
-            final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-            MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+            final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
+            MetricsConfig metricsConfig = CONFIGURATION.getConfigData(MetricsConfig.class);
 
             final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
             when(registry.register(any(), any(), any())).thenReturn(true);
@@ -94,7 +80,7 @@ public enum TestType {
                     new PlatformMetricsFactoryImpl(metricsConfig),
                     metricsConfig);
             MerkleDbStatistics statistics =
-                    new MerkleDbStatistics(configuration.getConfigData(MerkleDbConfig.class), "test");
+                    new MerkleDbStatistics(CONFIGURATION.getConfigData(MerkleDbConfig.class), "test");
             statistics.registerMetrics(metrics);
         }
         return metrics;
@@ -220,11 +206,9 @@ public enum TestType {
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            final MerkleDb database = MerkleDb.getInstance(dbPath);
-            final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384)
-                    .preferDiskIndices(preferDiskBasedIndexes)
-                    .maxNumberOfKeys(size * 10L)
-                    .hashesRamToDiskThreshold(hashesRamToDiskThreshold);
+            final MerkleDb database = MerkleDb.getInstance(dbPath, CONFIGURATION);
+            final MerkleDbTableConfig tableConfig =
+                    new MerkleDbTableConfig((short) 1, DigestType.SHA_384, size, hashesRamToDiskThreshold);
             MerkleDbDataSource dataSource = database.createDataSource(name, tableConfig, enableMerging);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
@@ -232,7 +216,7 @@ public enum TestType {
 
         public MerkleDbDataSource getDataSource(final Path dbPath, final String name, final boolean enableMerging)
                 throws IOException {
-            final MerkleDb database = MerkleDb.getInstance(dbPath);
+            final MerkleDb database = MerkleDb.getInstance(dbPath, CONFIGURATION);
             return database.getDataSource(name, enableMerging);
         }
 

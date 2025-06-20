@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
@@ -50,9 +35,9 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.node.token.AccountInfo;
 import com.hedera.hapi.node.token.CryptoGetInfoQuery;
 import com.hedera.hapi.node.token.CryptoGetInfoResponse;
+import com.hedera.hapi.node.token.CryptoGetInfoResponse.AccountInfo;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
@@ -61,6 +46,7 @@ import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.api.AccountSummariesApi;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
@@ -73,7 +59,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
@@ -82,6 +68,7 @@ import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -101,6 +88,10 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
     private Token token1, token2;
     @Mock
     private ReadableStates readableStates1, readableStates2, readableStates3, readableStates4;
+
+    @Mock
+    private Configuration configuration;
+
     private CryptoOpsUsage cryptoOpsUsage;
     private final InstantSource instantSource = InstantSource.system();
 
@@ -143,7 +134,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
     void validatesQueryWhenValidAccount() {
         readableAccounts = emptyReadableAccountStateBuilder().value(id, account).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createCryptoGetInfoQuery(accountNum);
         given(context.query()).willReturn(query);
@@ -158,7 +149,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
         final var state =
                 MapReadableKVState.<AccountID, Account>builder(ACCOUNTS_KEY).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(state);
-        final var store = new ReadableAccountStoreImpl(readableStates);
+        final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createEmptyCryptoGetInfoQuery();
 
@@ -176,7 +167,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
         final var state =
                 MapReadableKVState.<AccountID, Account>builder(ACCOUNTS_KEY).build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(state);
-        final var store = new ReadableAccountStoreImpl(readableStates);
+        final var store = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createCryptoGetInfoQuery(accountNum);
         when(context.query()).thenReturn(query);
@@ -195,7 +186,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .value(deleteAccountId, deleteAccount)
                 .build();
         given(readableStates.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
 
         final var query = createCryptoGetInfoQuery(deleteAccountNum);
         when(context.query()).thenReturn(query);
@@ -436,7 +427,8 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .value(id, account)
                 .build();
         given(readableStates1.<AccountID, Account>get(ACCOUNTS_KEY)).willReturn(readableAccounts);
-        ReadableAccountStore ReadableAccountStore = new ReadableAccountStoreImpl(readableStates1);
+        ReadableAccountStore ReadableAccountStore =
+                new ReadableAccountStoreImpl(readableStates1, readableEntityCounters);
         when(context.createStore(ReadableAccountStore.class)).thenReturn(ReadableAccountStore);
     }
 
@@ -446,7 +438,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
             readableToken.value(token.tokenId(), token);
         }
         given(readableStates2.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableToken.build());
-        final var readableTokenStore = new ReadableTokenStoreImpl(readableStates2);
+        final var readableTokenStore = new ReadableTokenStoreImpl(readableStates2, readableEntityCounters);
         when(context.createStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
     }
 
@@ -461,7 +453,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                     tokenRelation);
         }
         given(readableStates3.<EntityIDPair, TokenRelation>get(TOKEN_RELS_KEY)).willReturn(readableTokenRel.build());
-        final var readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates3);
+        final var readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates3, readableEntityCounters);
         when(context.createStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelStore);
     }
 
@@ -470,13 +462,13 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .value(id, stakingNodeInfo)
                 .build();
         given(readableStates4.<AccountID, StakingNodeInfo>get(STAKING_INFO_KEY)).willReturn(readableStakingNodes);
-        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4);
+        final var readableStakingInfoStore = new ReadableStakingInfoStoreImpl(readableStates4, readableEntityCounters);
         when(context.createStore(ReadableStakingInfoStore.class)).thenReturn(readableStakingInfoStore);
     }
 
     private void setupStakingRewardsStore() {
         final AtomicReference<NetworkStakingRewards> backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L));
+                new AtomicReference<>(new NetworkStakingRewards(true, 100000L, 50000L, 1000L, Timestamp.DEFAULT));
         final var stakingRewardsState = new ReadableSingletonStateBase<>(NETWORK_REWARDS, backingValue::get);
         given(readableStates.getSingleton(NETWORK_REWARDS)).willReturn((ReadableSingletonState) stakingRewardsState);
         final var readableRewardsStore = new ReadableNetworkStakingRewardsStoreImpl(readableStates);
@@ -506,7 +498,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(AccountSummariesApi.hexedEvmAddressOf(account))
                 .stakingInfo(getExpectedStakingInfo());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationship());
@@ -529,7 +521,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(AccountSummariesApi.hexedEvmAddressOf(account))
                 .stakingInfo(getExpectedStakingInfo2());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationship());
@@ -574,7 +566,8 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
                 .maxAutomaticTokenAssociations(10)
                 .ethereumNonce(0)
                 .alias(alias.alias())
-                .contractAccountID("0000000000000000000000000000000000000003")
+                .contractAccountID(
+                        AccountSummariesApi.hexedEvmAddressOf(account)) // "00000005000000000000000a0000000000000003")
                 .stakingInfo(getExpectedStakingInfo());
         if (balancesInQueriesEnabled) {
             builder.tokenRelationships(getExpectedTokenRelationships());
@@ -650,7 +643,7 @@ class CryptoGetAccountInfoHandlerTest extends CryptoHandlerTestBase {
 
     private Query createCryptoGetInfoQuery(final long accountId) {
         final var data = CryptoGetInfoQuery.newBuilder()
-                .accountID(AccountID.newBuilder().accountNum(accountId).build())
+                .accountID(idFactory.newAccountId(accountId))
                 .header(QueryHeader.newBuilder().build())
                 .build();
 

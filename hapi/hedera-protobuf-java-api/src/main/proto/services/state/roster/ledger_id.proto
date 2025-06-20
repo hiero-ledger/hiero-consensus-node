@@ -1,0 +1,125 @@
+/**
+ * # Ledger ID
+ * A Ledger ID is a Threshold Signature Scheme (TSS) public key that
+ * identifies the ledger.  A Ledger ID is intended to be long-lived, but
+ * may change under rare circumstances.  The Ledger ID for a particular
+ * distributed ledger can be used to validate the signature of that ledger
+ * in, for example, a block stream "block proof".
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.roster;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.roster">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A ledger identifier.<br/>
+ * This message identifies a ledger and is used to verify ledger
+ * signatures in a Threshold Signature Scheme (TSS).
+ *
+ * A ledger identifier SHALL be a public key defined according to the TSS
+ * process.<br/>
+ * A ledger identifier SHOULD NOT change, but MAY do so in rare
+ * circumstances.<br/>
+ * Clients SHOULD always check for the correct ledger identifier, according to
+ * the network roster, before attempting to verify any state proof or other
+ * ledger signature.
+ *
+ * ### Block Stream Effects
+ * Every block in the Block Stream `BlockProof` SHALL be signed via TSS and
+ * MUST be verified with the ledger identifier current at the _start_ of that
+ * block.
+ * If the ledger identifier changes, the new value MUST be used to validate
+ * Block Proof items after the change.
+ * A change to the ledger identifier SHALL be reported in a State Change for
+ * the block containing that change, which SHALL be verified with the _prior_
+ * ledger identifier.
+ */
+message LedgerId {
+
+  /**
+   * A public key.<br/>
+   * This key both identifies the ledger and can be used to verify ledger
+   * signatures.
+   * <p>
+   * This value MUST be set.<br/>
+   * This value MUST NOT be empty.<br/>
+   * This value MUST contain a valid public key.
+   */
+  bytes ledger_id = 1;
+
+  /**
+   * A round number.<br/>
+   * This identifies when this ledger id becomes active.<br/>
+   * This value is REQUIRED.
+   */
+  uint64 round = 2;
+
+  /**
+   * A signature from the prior ledger key.<br/>
+   * This signature is the _previous_ ledger ID signing _this_ ledger ID.<br/>
+   * This value MAY be unset, if there is no prior ledger ID.<br/>
+   * This value SHOULD be set if a prior ledger ID exists
+   * to generate the signature.
+   */
+  bytes ledger_signature = 3;
+
+  /**
+   * The signatures from nodes in the active roster signing the new
+   * ledger id.<br/>
+   * These signatures establish a chain of trust from the network to the new
+   * ledger id.
+   * <p>
+   * This value MUST be present when the ledger signature of a previous ledger
+   * id is absent.
+   */
+  RosterSignatures roster_signatures = 4;
+}
+
+/**
+ * A collection of signatures from nodes in a roster.
+ */
+message RosterSignatures {
+  /**
+   * A roster hash for the roster that the node signatures are from.
+   */
+  bytes roster_hash = 1;
+
+  /**
+   * A list of node signatures on the same message where all node ids in the
+   * NodeSignature objects are from the roster that the roster_hash represents.
+   */
+  repeated NodeSignature node_signatures = 2;
+}
+
+/**
+ * A pair of a _RSA_ signature and the node id of the node that created the
+ * signature.
+ */
+message NodeSignature {
+  /**
+   * The node id of the node that created the _RSA_ signature.
+   * This value MUST be set.<br/>
+   * This value MUST NOT be empty.<br/>
+   * This value is REQUIRED.
+   */
+  uint64 node_id = 1;
+
+  /**
+   * The bytes of an _RSA_ signature.
+   * This value MUST be set.<br/>
+   * This value MUST NOT be empty.<br/>
+   * This value MUST contain a valid signature.
+   */
+  bytes node_signature = 2;
+}

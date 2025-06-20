@@ -1,26 +1,9 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stats.signing;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.stats.signing.algorithms.ExtendedSignature;
 import com.swirlds.demo.stats.signing.algorithms.SigningAlgorithm;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
@@ -36,6 +19,8 @@ import java.util.Objects;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Provides pre-generated random transactions that are optionally pre-signed.
@@ -63,7 +48,7 @@ final class SttTransactionPool {
     private final boolean signed;
 
     /**
-     * the standard psuedo-random number generator
+     * the standard pseudo-random number generator
      */
     private final Random random;
 
@@ -165,7 +150,7 @@ final class SttTransactionPool {
                     final byte[] sig = exSig.getSignature();
 
                     transactions[i] = TransactionCodec.encode(alg, transactionId, sig, data);
-                } catch (SignatureException e) {
+                } catch (final SignatureException e) {
                     // If we are unable to sign the transaction then log the failure and create an unsigned transaction
                     logger.error(
                             EXCEPTION.getMarker(),
@@ -202,7 +187,7 @@ final class SttTransactionPool {
                 if (algorithm.isAvailable()) {
                     activeAlgorithms.put(algorithm.getId(), algorithm);
                 }
-            } catch (Exception ex) {
+            } catch (final Exception ex) {
                 logger.error(
                         EXCEPTION.getMarker(),
                         "Failed to Activate Signing Algorithm [ id = {}, class = {} ]",

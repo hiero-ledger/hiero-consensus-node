@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.testfixtures;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -39,7 +24,7 @@ import com.hedera.node.config.converter.ScaleFactorConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ApiPermissionConfig;
-import com.hedera.node.config.data.AutoCreationConfig;
+import com.hedera.node.config.data.AtomicBatchConfig;
 import com.hedera.node.config.data.AutoRenew2Config;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.BalancesConfig;
@@ -49,19 +34,19 @@ import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
-import com.hedera.node.config.data.CryptoCreateWithAliasConfig;
-import com.hedera.node.config.data.DevConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GrpcConfig;
+import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.RatesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -69,7 +54,7 @@ import com.hedera.node.config.data.StatsConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.data.TraceabilityConfig;
-import com.hedera.node.config.data.UtilPrngConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
@@ -81,7 +66,6 @@ import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.crypto.config.CryptoConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
@@ -90,16 +74,18 @@ import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.config.TransactionConfig;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.TransactionConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The
@@ -139,9 +125,10 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(PrometheusConfig.class)
                 .withConfigDataType(PlatformStatusConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
+                .withConfigDataType(AddressBookConfig.class)
+                .withConfigDataType(OpsDurationConfig.class)
                 /*
                 These data types from the platform were not available on the classpath. Add if needed later.
-                .withConfigDataType(AddressBookConfig.class)
                 .withConfigDataType(ThreadConfig.class)
                 .withConfigDataType(DispatchConfiguration.class)
                 .withConfigDataType(PreconsensusEventStreamConfig.class)
@@ -155,7 +142,6 @@ public final class HederaTestConfigBuilder {
                 // These data types, converters, and validators are defined by services.
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(ApiPermissionConfig.class)
-                .withConfigDataType(AutoCreationConfig.class)
                 .withConfigDataType(AutoRenew2Config.class)
                 .withConfigDataType(AutoRenewConfig.class)
                 .withConfigDataType(BalancesConfig.class)
@@ -164,15 +150,12 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(CacheConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
                 .withConfigDataType(ContractsConfig.class)
-                .withConfigDataType(CryptoCreateWithAliasConfig.class)
-                .withConfigDataType(DevConfig.class)
                 .withConfigDataType(EntitiesConfig.class)
                 .withConfigDataType(ExpiryConfig.class)
                 .withConfigDataType(FeesConfig.class)
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(GrpcConfig.class)
                 .withConfigDataType(HederaConfig.class)
-                .withConfigDataType(LazyCreationConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(NettyConfig.class)
                 .withConfigDataType(NetworkAdminConfig.class)
@@ -183,10 +166,13 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(TokensConfig.class)
                 .withConfigDataType(TopicsConfig.class)
                 .withConfigDataType(TraceabilityConfig.class)
-                .withConfigDataType(UtilPrngConfig.class)
                 .withConfigDataType(VersionConfig.class)
                 .withConfigDataType(NodesConfig.class)
+                .withConfigDataType(TssConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(AtomicBatchConfig.class)
+                .withConfigDataType(JumboTransactionsConfig.class)
+                .withConfigDataType(GrpcUsageTrackerConfig.class)
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(KnownBlockValues.class, new KnownBlockValuesConverter())

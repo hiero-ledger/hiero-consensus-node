@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * This package contains the {@link com.swirlds.logging.api.extensions.handler.LogHandler} extension. This extension
  * allows to create custom logging handlers that can be used to handle logging events. Examples are a console handler

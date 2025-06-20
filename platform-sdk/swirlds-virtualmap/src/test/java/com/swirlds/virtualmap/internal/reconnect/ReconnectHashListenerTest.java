@@ -1,36 +1,22 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
@@ -48,60 +34,33 @@ import java.util.List;
 import java.util.TreeSet;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ReconnectHashListenerTest {
 
-    private static final Cryptography CRYPTO = CryptographyHolder.get();
+    private static final Cryptography CRYPTO = CryptographyProvider.getInstance();
 
     @Test
-    @DisplayName("Null datasource throws")
-    void nullDataSourceThrows() {
+    @DisplayName("Null flusher throws")
+    void nullFlusherThrows() {
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashListener<TestKey, TestValue>(
-                        1, 1, TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, null, null),
-                "A null data source should produce an NPE");
+                () -> new ReconnectHashListener<TestKey, TestValue>(null),
+                "A null flusher should produce an NPE");
     }
 
-    // Future: We should also check for first/last leaf path being equal when not 1. That really should never happen.
-    // That check should be laced through everything, including VirtualMapState.
-    @ParameterizedTest
-    @CsvSource({
-        "-2,  1", // Invalid negative first, good last
-        " 1, -2", // Good first, invalid negative last
-        " 0,  1", // Invalid zero first, good last
-        " 1,  0", // Good first, invalid zero last
-        " 0,  0", // Both invalid
-        " 9, 8"
-    }) // Invalid (both should be equal only if == 1
-    @DisplayName("Illegal first and last leaf path combinations throw")
-    void badLeafPaths(long firstLeafPath, long lastLeafPath) {
-        final VirtualDataSource ds = new InMemoryBuilder().build("badLeafPaths", true);
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> new ReconnectHashListener<>(
-                        firstLeafPath,
-                        lastLeafPath,
-                        TestKeySerializer.INSTANCE,
-                        TestValueSerializer.INSTANCE,
-                        ds,
-                        null),
-                "Should have thrown IllegalArgumentException");
-    }
-
-    @ParameterizedTest
-    @CsvSource({"-1, -1", " 1,  1", " 1,  2", " 4,  8"})
+    @Test
     @DisplayName("Valid configurations create an instance")
-    void goodLeafPaths(long firstLeafPath, long lastLeafPath) {
-        final VirtualDataSource ds = new InMemoryBuilder().build("goodLeafPaths", true);
+    void goodLeafPaths() {
+        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = mock(ReconnectHashLeafFlusher.class);
         try {
-            new ReconnectHashListener<>(
-                    firstLeafPath, lastLeafPath, TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, ds, null);
+            new ReconnectHashListener<>(flusher);
         } catch (Exception e) {
             fail("Should have been able to create the instance", e);
         }
@@ -114,15 +73,25 @@ class ReconnectHashListenerTest {
     void flushOrder(int size) {
         final VirtualDataSourceSpy ds = new VirtualDataSourceSpy(new InMemoryBuilder().build("flushOrder", true));
 
-        final ReconnectNodeRemover<TestKey, TestValue> remover = mock(ReconnectNodeRemover.class);
+        final VirtualMapStatistics statistics = mock(VirtualMapStatistics.class);
+        final ReconnectHashLeafFlusher<TestKey, TestValue> flusher = new ReconnectHashLeafFlusher<>(
+                TestKeySerializer.INSTANCE,
+                TestValueSerializer.INSTANCE,
+                ds,
+                VIRTUAL_MAP_CONFIG.reconnectFlushInterval(),
+                statistics);
 
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final long last = size + size;
-        final ReconnectHashListener<TestKey, TestValue> listener = new ReconnectHashListener<>(
-                size, last, TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, ds, remover);
+        final ReconnectHashListener<TestKey, TestValue> listener = new ReconnectHashListener<>(flusher);
         final VirtualHasher<TestKey, TestValue> hasher = new VirtualHasher<>();
         hasher.hash(
-                this::hash, LongStream.range(size, last).mapToObj(this::leaf).iterator(), size, last, listener);
+                this::hash,
+                LongStream.range(size, last).mapToObj(this::leaf).iterator(),
+                size,
+                last,
+                listener,
+                CONFIGURATION.getConfigData(VirtualMapConfig.class));
 
         // Now validate that everything showed up the data source in ordered chunks
         final TreeSet<VirtualHashRecord> allInternalRecords =
@@ -175,8 +144,8 @@ class ReconnectHashListenerTest {
         }
 
         @Override
-        public void close() throws IOException {
-            delegate.close();
+        public void close(final boolean keepData) throws IOException {
+            delegate.close(keepData);
         }
 
         @Override

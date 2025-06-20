@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * This class provides methods for validating new address books. These methods do not throw exceptions if validation
@@ -73,118 +58,21 @@ public final class AddressBookValidator {
     }
 
     /**
-     * Sanity check, make sure that the next address book has a next ID greater or equal to the previous one.
+     * Validates that the next address book is not empty.
      *
-     * @param previousAddressBook the previous address book
-     * @param addressBook         the address book to validate
-     * @return if the address book passes this validation
-     */
-    public static boolean validNextId(final AddressBook previousAddressBook, final AddressBook addressBook) {
-
-        if (previousAddressBook.getNextNodeId().compareTo(addressBook.getNextNodeId()) > 0) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Invalid next node ID. Previous address book has a next node ID of {}, "
-                            + "new address book has a next node ID of {}",
-                    previousAddressBook.getNextNodeId(),
-                    addressBook.getNextNodeId());
-            return false;
-        }
-
-        return true;
-    }
-
-    /**
-     * Validates the following properties:
-     * <ul>
-     * <li>newAddressBook.getNextNodeId() is greater than or equal to oldAddressBook.getNextNodeId() </li>
-     * <li>for each nodeId in newAddressBook that is not in oldAddressBook:
-     * <ul>
-     *     <li>the nodeId is greater than or equal to oldAddressBook.getNextNodeId()</li>
-     *     <li>the nodeId is less than newAddressBook.getNextNodeId()</li>
-     * </ul>
-     * </li>
-     * </ul>
+     * The value of `nextNodeId` is no longer used in validation.
      *
      * @param oldAddressBook the old address book
      * @param newAddressBook the new address book
-     * @throws IllegalStateException if the nextNodeId in the new address book is less than or equal to the nextNodeId
-     *                               in the old address book, or if there are any new nodes in the new address book that
-     *                               are less than the old nextNodeId or greater than or equal to the new nextNodeId, or
-     *                               if the new address book is empty.
+     * @throws IllegalStateException if the new address book is empty.
      */
     public static void validateNewAddressBook(
             @NonNull final AddressBook oldAddressBook, @NonNull final AddressBook newAddressBook) {
-
-        final NodeId oldNextNodeId = oldAddressBook.getNextNodeId();
-        final NodeId newNextNodeId = newAddressBook.getNextNodeId();
-
-        if (newNextNodeId.compareTo(oldNextNodeId) < 0) {
-            throw new IllegalStateException("The new address book's nextNodeId " + newNextNodeId
-                    + " must be greater than or equal to the previous address book's nextNodeId "
-                    + oldNextNodeId);
-        }
-
-        final int oldSize = oldAddressBook.getSize();
         final int newSize = newAddressBook.getSize();
 
         if (newSize == 0) {
             throw new IllegalStateException("The new address book's size must be greater than 0");
         }
-
-        // Verify that the old next node id is greater than the highest node id in the old address book.
-        final NodeId oldLastNodeId = (oldSize == 0 ? null : oldAddressBook.getNodeId(oldSize - 1));
-        if (oldLastNodeId != null && oldLastNodeId.compareTo(oldNextNodeId) > 0) {
-            throw new IllegalStateException(
-                    "The nextNodeId of the previous address book must be greater than the highest address's node id.");
-        }
-
-        // Determine the new node ids that are in the new address book and not in the old address book.
-        final List<NodeId> newNodes = new ArrayList<>();
-        for (int i = 0; i < newSize; i++) {
-            final NodeId newNodeId = newAddressBook.getNodeId(i);
-            if (!oldAddressBook.contains(newNodeId)) {
-                newNodes.add(newNodeId);
-            }
-        }
-
-        // verify that all new nodes are greater than or equal to oldNextNodeId and less than newNextNodeId.
-        for (final NodeId nodeId : newNodes) {
-            if (nodeId.compareTo(oldNextNodeId) < 0) {
-                throw new IllegalStateException("The new node " + nodeId
-                        + " is less than the previous address book's nextNodeId " + oldNextNodeId);
-            }
-            if (nodeId.compareTo(newNextNodeId) >= 0) {
-                throw new IllegalStateException("The new node " + nodeId
-                        + " is greater than or equal to the new address book's nextNodeId " + newNextNodeId);
-            }
-        }
-    }
-
-    /**
-     * No address that is removed may be re-added to the address book. If address N is skipped and address N+1 is later
-     * added, then address N can never be added (as this is difficult to distinguish from N being added and then
-     * removed).
-     *
-     * @param previousAddressBook the previous address book
-     * @param addressBook         the address book to validate
-     * @return if the address book passes this validation
-     */
-    public static boolean noAddressReinsertion(final AddressBook previousAddressBook, final AddressBook addressBook) {
-
-        final NodeId previousNextId = previousAddressBook.getNextNodeId();
-        for (final Address address : addressBook) {
-            final NodeId nodeId = address.getNodeId();
-            if (nodeId.compareTo(previousNextId) < 0 && !previousAddressBook.contains(nodeId)) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "Once an address is removed or a node ID is skipped, "
-                                + "an address with that some node ID may never be added again. Invalid node ID = {}",
-                        nodeId);
-                return false;
-            }
-        }
-        return true;
     }
 
     /**
@@ -203,17 +91,12 @@ public final class AddressBookValidator {
      * Check if a new address book transition is valid. In the case of an invalid address book, this method will write
      * an error message to the log.
      *
-     * @param previousAddressBook  the previous address book, is assumed to be valid
      * @param candidateAddressBook the new address book that follows the current address book
      * @return true if the transition is valid
      */
-    public static boolean isNextAddressBookValid(
-            final AddressBook previousAddressBook, final AddressBook candidateAddressBook) {
+    public static boolean isNextAddressBookValid(final AddressBook candidateAddressBook) {
 
-        return hasNonZeroWeight(candidateAddressBook)
-                && isNonEmpty(candidateAddressBook)
-                && validNextId(previousAddressBook, candidateAddressBook)
-                && noAddressReinsertion(previousAddressBook, candidateAddressBook);
+        return hasNonZeroWeight(candidateAddressBook) && isNonEmpty(candidateAddressBook);
     }
 
     /**

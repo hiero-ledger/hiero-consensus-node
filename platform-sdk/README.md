@@ -7,8 +7,6 @@
 - **Adoptium OpenJDK 17**
   - Available from
     [https://adoptium.net/temurin/releases/](https://adoptium.net/temurin/releases/)
-- **Gradle 7.5.1**
-  - Available via the provided Gradle wrapper included in this repository.
 
 ### Standard Build Command
 
@@ -22,6 +20,10 @@ git clone https://github.com/hashgraph/hedera-services.git
 cd hedera-services/platform-sdk
 ./gradlew build
 ```
+
+For more information, also refer to the
+[documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#build)
+which this project uses.
 
 ## Support
 
@@ -46,7 +48,7 @@ Portions of this Hedera Hashgraph, LLC Software may utilize the following copyri
 use of which is hereby acknowledged.
 
 The full list of acknowledgements is available at
-[https://github.com/hashgraph/hedera-services/raw/develop/platform-sdk/sdk/docs/acknowledgments.html](sdk/docs/acknowledgments.html)
+[https://github.com/hashgraph/hedera-services/raw/main/platform-sdk/sdk/docs/acknowledgments.html](sdk/docs/acknowledgments.html)
 
 ## License
 

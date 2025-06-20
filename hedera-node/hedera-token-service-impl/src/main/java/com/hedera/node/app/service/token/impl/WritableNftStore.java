@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static java.util.Objects.requireNonNull;
@@ -21,12 +6,9 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Nft;
-import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.metrics.StoreMetricsService.StoreType;
-import com.hedera.node.config.data.TokensConfig;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -45,27 +27,22 @@ public class WritableNftStore extends ReadableNftStoreImpl {
     /** The underlying data storage class that holds the NFT data. */
     private final WritableKVState<NftID, Nft> nftState;
 
+    private final WritableEntityCounters entityCounters;
+
     /**
      * Create a new {@link WritableNftStore} instance.
      *
      * @param states The state to use.
-     * @param configuration The configuration used to read the maximum allowed mints.
-     * @param storeMetricsService Service that provides utilization metrics.
      */
     public WritableNftStore(
-            @NonNull final WritableStates states,
-            @NonNull final Configuration configuration,
-            @NonNull final StoreMetricsService storeMetricsService) {
-        super(states);
+            @NonNull final WritableStates states, @NonNull final WritableEntityCounters entityCounters) {
+        super(states, entityCounters);
         this.nftState = states.get(V0490TokenSchema.NFTS_KEY);
-
-        final long maxCapacity = configuration.getConfigData(TokensConfig.class).nftsMaxAllowedMints();
-        final var storeMetrics = storeMetricsService.get(StoreType.NFT, maxCapacity);
-        nftState.setMetrics(storeMetrics);
+        this.entityCounters = entityCounters;
     }
 
     /**
-     * Persists a new {@link Nft} into the state, as well as exporting its ID to the transaction
+     * Persists an updated {@link Nft} into the state, as well as exporting its ID to the transaction
      * receipt.
      *
      * @param nft - the nft to be persisted.
@@ -77,28 +54,13 @@ public class WritableNftStore extends ReadableNftStoreImpl {
     }
 
     /**
-     * Returns the {@link Token} with the given number using {@link WritableKVState#getForModify}.
-     * If no such token exists, returns {@code Optional.empty()}
-     * @param id - the number of the unique token id to be retrieved.
-     * @return the Nft with the given NftId, or null if no such token exists
+     * Persists a new {@link Nft} into the state. This also increments the entity counts for
+     * {@link EntityType#NFT}.
+     * @param nft the nft to be persisted
      */
-    @Nullable
-    public Nft getForModify(final NftID id) {
-        return nftState.getForModify(requireNonNull(id));
-    }
-
-    /**
-     * Returns the {@link Nft} with the given number using {@link WritableKVState#getForModify}.
-     * If no such token exists, returns {@code Optional.empty()}
-     * @param tokenId - the number of the unique token id to be retrieved.
-     * @param serialNumber - the serial number of the NFT to be retrieved.
-     * @return the Nft with the given tokenId and serial, or null if no such token exists
-     */
-    @Nullable
-    public Nft getForModify(final TokenID tokenId, final long serialNumber) {
-        requireNonNull(tokenId);
-        return nftState.getForModify(
-                NftID.newBuilder().tokenId(tokenId).serialNumber(serialNumber).build());
+    public void putAndIncrementCount(@NonNull final Nft nft) {
+        put(nft);
+        entityCounters.incrementEntityTypeCount(EntityType.NFT);
     }
 
     /**
@@ -117,6 +79,7 @@ public class WritableNftStore extends ReadableNftStoreImpl {
      */
     public void remove(final @NonNull NftID serialNum) {
         nftState.remove(requireNonNull(serialNum));
+        entityCounters.decrementEntityTypeCounter(EntityType.NFT);
     }
 
     /**

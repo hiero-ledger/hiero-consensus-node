@@ -1,0 +1,119 @@
+/**
+ * # Local Contract Call
+ * A Contract Call executed directly on the current node
+ * (that is, without consensus).
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.contract">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/contract_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Call a view function of a given smart contract<br/>
+ * The call must provide function parameter inputs as needed.<br/>
+ * This is potentially useful for calling view functions that will not revert
+ * when executed in a static EVM context. Many such use cases will be better
+ * served by using a Mirror Node API, however.
+ *
+ * This is performed locally on the particular node that the client is
+ * communicating with. Executing the call locally is faster and less costly,
+ * but imposes certain restrictions.<br/>
+ * The call MUST NOT change the state of the contract instance. This also
+ * precludes any expenditure or transfer of HBAR or other tokens.<br/>
+ * The call SHALL NOT have a separate consensus timestamp.<br/>
+ * The call SHALL NOT generate a record nor a receipt.<br/>
+ * The response SHALL contain the output returned by the function call.<br/>
+ * Any contract call that would use the `STATICCALL` opcode MAY be called via
+ * contract call local with performance and cost benefits.
+ *
+ * Unlike a ContractCall transaction, the node SHALL always consume the
+ * _entire_ amount of offered "gas" in determining the fee for this query, so
+ * accurate gas estimation is important.
+ */
+message ContractCallLocalQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     * <p>
+     * The payment MUST be sufficient for the base fees _and_ the full amount
+     * in the `gas` field.
+     */
+    QueryHeader header = 1;
+
+    /**
+     * The ID of a smart contract to call.
+     */
+    ContractID contractID = 2;
+
+    /**
+     * The amount of "gas" to use for this call.
+     * <p>
+     * This transaction SHALL consume all of the gas offered and charge the
+     * corresponding fee according to the current exchange rate between
+     * HBAR and "gas".
+     */
+    int64 gas = 3;
+
+    /**
+     * The smart contract function to call, and the parameters to pass to that
+     * function.
+     * <p>
+     * These SHALL be presented in EVM bytecode function call format.
+     */
+    bytes functionParameters = 4;
+
+    /**
+     * Do not use this field; it is ignored in the current software.
+     * <p>
+     * The maximum number of bytes that the result might include.<br/>
+     * The call will fail if it would have returned more than this number
+     * of bytes.
+     */
+    int64 maxResultSize = 5 [deprecated = true];
+
+    /**
+     * The account that is the "sender" for this contract call.
+     * <p>
+     * If this is not set it SHALL be interpreted as the accountId from the
+     * associated transactionId.<br/>
+     * If this is set then either the associated transaction or the foreign
+     * transaction data MUST be signed by the referenced account.
+     */
+    AccountID sender_id = 6;
+}
+
+/**
+ * The response returned by a `ContractCallLocalQuery` transaction.
+ */
+message ContractCallLocalResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * The result(s) returned by the function call, if successful.
+     * <p>
+     * If the call failed this value SHALL be unset.
+     */
+    ContractFunctionResult functionResult = 2;
+}

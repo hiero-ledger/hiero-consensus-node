@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
 import static com.hedera.node.app.service.contract.impl.exec.operations.CustomizedOpcodes.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.apache.tuweni.bytes.Bytes32.leftPad;
 import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
@@ -29,7 +15,6 @@ import com.google.common.collect.ImmutableList;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomLogOperation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -128,7 +113,7 @@ class CustomLogOperationTest {
         for (int i = 0; i < 3; i++) {
             builder.add(LogTopic.create(leftPad(TOPICS[i])));
         }
-        final var mirrorAddress = ConversionUtils.asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
+        final var mirrorAddress = asLongZeroAddress(CALLED_CONTRACT_ID.contractNumOrThrow());
         final var expectedLog = new Log(mirrorAddress, pbjToTuweniBytes(TestHelpers.LOG_DATA), builder.build());
 
         final var subject = new CustomLogOperation(3, gasCalculator);

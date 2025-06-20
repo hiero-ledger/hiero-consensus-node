@@ -1,0 +1,168 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.addressbook;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+import "services/basic_types.proto";
+
+/**
+ * Transaction body to modify address book node attributes.
+ *
+ * - This transaction SHALL enable the node operator, as identified by the
+ *   `admin_key`, to modify operational attributes of the node.
+ * - This transaction MUST be signed by the active `admin_key` for the node.
+ * - If this transaction sets a new value for the `admin_key`, then both the
+ *   current `admin_key`, and the new `admin_key` MUST sign this transaction.
+ * - This transaction SHALL NOT change any field that is not set (is null) in
+ *   this transaction body.
+ * - This SHALL create a pending update to the node, but the change SHALL NOT
+ *   be immediately applied to the active configuration.
+ * - All pending node updates SHALL be applied to the active network
+ *   configuration during the next `freeze` transaction with the field
+ *   `freeze_type` set to `PREPARE_UPGRADE`.
+ *
+ * ### Block Stream Effects
+ * None.
+ */
+message NodeUpdateTransactionBody {
+    /**
+     * A consensus node identifier in the network state.
+     * <p>
+     * The node identified MUST exist in the network address book.<br/>
+     * The node identified MUST NOT be deleted.<br/>
+     * This value is REQUIRED.
+     */
+    uint64 node_id = 1;
+
+    /**
+     * An account identifier.
+     * <p>
+     * If set, this SHALL replace the node account identifier.<br/>
+     * If set, this transaction MUST be signed by the active `key` for _both_
+     * the current node account _and_ the identified new node account.
+     */
+    proto.AccountID account_id = 2;
+
+    /**
+     * A short description of the node.
+     * <p>
+     * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+     * (default 100) bytes when encoded as UTF-8.<br/>
+     * If set, this value SHALL replace the previous value.
+     */
+    google.protobuf.StringValue description = 3;
+
+    /**
+     * A list of service endpoints for gossip.
+     * <p>
+     * If set, this list MUST meet the following requirements.
+     * <hr/>
+     * These endpoints SHALL represent the published endpoints to which other
+     * consensus nodes may _gossip_ transactions.<br/>
+     * These endpoints SHOULD NOT specify both address and DNS name.<br/>
+     * This list MUST NOT be empty.<br/>
+     * This list MUST NOT contain more than `10` entries.<br/>
+     * The first two entries in this list SHALL be the endpoints published to
+     * all consensus nodes.<br/>
+     * All other entries SHALL be reserved for future use.
+     * <p>
+     * Each network may have additional requirements for these endpoints.
+     * A client MUST check network-specific documentation for those
+     * details.<br/>
+     * <blockquote>Example<blockquote>
+     * Hedera Mainnet _requires_ that address be specified, and does not
+     * permit DNS name (FQDN) to be specified.
+     * </blockquote>
+     * <blockquote>
+     * Solo, however, _requires_ DNS name (FQDN) but also permits
+     * address.
+     * </blockquote></blockquote>
+     * <p>
+     * If set, the new list SHALL replace the existing list.
+     */
+    repeated proto.ServiceEndpoint gossip_endpoint = 4;
+
+    /**
+     * A list of service endpoints for gRPC calls.
+     * <p>
+     * If set, this list MUST meet the following requirements.
+     * <hr/>
+     * These endpoints SHALL represent the published endpoints to which clients
+     * may submit transactions.<br/>
+     * These endpoints SHOULD specify address and port.<br/>
+     * These endpoints MAY specify a DNS name.<br/>
+     * These endpoints SHOULD NOT specify both address and DNS name.<br/>
+     * This list MUST NOT be empty.<br/>
+     * This list MUST NOT contain more than `8` entries.
+     * <p>
+     * Each network may have additional requirements for these endpoints.
+     * A client MUST check network-specific documentation for those
+     * details.
+     * <p>
+     * If set, the new list SHALL replace the existing list.
+     */
+    repeated proto.ServiceEndpoint service_endpoint = 5;
+
+    /**
+     * A certificate used to sign gossip events.
+     * <p>
+     * This value MUST be a certificate of a type permitted for gossip
+     * signatures.<br/>
+     * This value MUST be the DER encoding of the certificate presented.
+     * <p>
+     * If set, the new value SHALL replace the existing bytes value.
+     */
+    google.protobuf.BytesValue gossip_ca_certificate = 6;
+
+    /**
+     * A hash of the node gRPC TLS certificate.
+     * <p>
+     * This value MAY be used to verify the certificate presented by the node
+     * during TLS negotiation for gRPC.<br/>
+     * This value MUST be a SHA-384 hash.<br/>
+     * The TLS certificate to be hashed MUST first be in PEM format and MUST be
+     * encoded with UTF-8 NFKD encoding to a stream of bytes provided to
+     * the hash algorithm.<br/>
+     * <p>
+     * If set, the new value SHALL replace the existing hash value.
+     */
+    google.protobuf.BytesValue grpc_certificate_hash = 7;
+
+    /**
+     * An administrative key controlled by the node operator.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * If set, this key MUST sign this transaction.<br/>
+     * If set, this key MUST sign each subsequent transaction to
+     * update this node.<br/>
+     * If set, this field MUST contain a valid `Key` value.<br/>
+     * If set, this field MUST NOT be set to an empty `KeyList`.
+     */
+    proto.Key admin_key = 8;
+
+    /**
+     * A boolean indicating that this node has chosen to decline node rewards
+     * distributed at the end of staking period.
+     * <p>
+     * This node SHALL NOT receive reward if this value is set, and `true`.
+     */
+    google.protobuf.BoolValue decline_reward = 9;
+
+    /**
+     * A web proxy for gRPC from non-gRPC clients.
+     * <p>
+     * This endpoint SHALL be a Fully Qualified Domain Name (FQDN) using the HTTPS
+     * protocol, and SHALL support gRPC-Web for use by browser-based clients.<br/>
+     * This endpoint MUST be signed by a trusted certificate authority.<br/>
+     * This endpoint MUST use a valid port and SHALL be reachable over TLS.<br/>
+     * This field MAY be omitted if the node does not support gRPC-Web access.<br/>
+     * This field MUST be updated if the gRPC-Web endpoint changes.<br/>
+     * This field SHALL enable frontend clients to avoid hard-coded proxy endpoints.
+     */
+    proto.ServiceEndpoint grpc_proxy_endpoint = 10;
+}

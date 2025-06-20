@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
@@ -31,6 +16,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
+import org.bouncycastle.util.BigIntegers;
 
 public record EthTxData(
         byte[] rawTx,
@@ -80,7 +66,7 @@ public record EthTxData(
                 return populateLegacyEthTxData(rlpItem, data);
             }
 
-            return switch (rlpItem.asByte()) {
+            return switch (asByte(rlpItem)) {
                 case 1 -> populateEip2390EthTxData(decoder.next(), data);
                 case 2 -> populateEip1559EthTxData(decoder.next(), data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
@@ -164,7 +150,7 @@ public record EthTxData(
             throw new IllegalStateException("Re-encoding access list is unsupported");
         }
         return switch (type) {
-            case LEGACY_ETHEREUM -> RLPEncoder.encodeAsList(
+            case LEGACY_ETHEREUM -> RLPEncoder.list(
                     Integers.toBytes(nonce),
                     gasPrice,
                     Integers.toBytes(gasLimit),
@@ -174,7 +160,7 @@ public record EthTxData(
                     v,
                     r,
                     s);
-            case EIP2930 -> RLPEncoder.encodeSequentially(
+            case EIP2930 -> RLPEncoder.sequence(
                     Integers.toBytes(0x01),
                     List.of(
                             chainId,
@@ -188,7 +174,7 @@ public record EthTxData(
                             Integers.toBytes(recId),
                             r,
                             s));
-            case EIP1559 -> RLPEncoder.encodeSequentially(
+            case EIP1559 -> RLPEncoder.sequence(
                     Integers.toBytes(0x02),
                     List.of(
                             chainId,
@@ -366,6 +352,69 @@ public record EthTxData(
                 s);
     }
 
+    @VisibleForTesting
+    public EthTxData replaceRecId(final int newRecId) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                newRecId,
+                v,
+                r,
+                s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceR(final byte[] newR) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                recId,
+                v,
+                newR,
+                s);
+    }
+
+    @VisibleForTesting
+    public EthTxData replaceS(final byte[] newS) {
+        return new EthTxData(
+                null,
+                type,
+                chainId,
+                nonce,
+                gasPrice,
+                maxPriorityGas,
+                maxGas,
+                gasLimit,
+                to,
+                value,
+                callData,
+                accessList,
+                recId,
+                v,
+                r,
+                newS);
+    }
+
     /**
      * Encodes the transaction data into a EthTxData according to legacy RLP format.
      *
@@ -385,7 +434,12 @@ public record EthTxData(
         if (vBI.compareTo(BigInteger.valueOf(34)) > 0) {
             // after EIP155 the chain id is equal to
             // CHAIN_ID = (v - {0,1} - 35) / 2
-            chainId = vBI.subtract(BigInteger.valueOf(35)).shiftRight(1).toByteArray();
+            // BigIntegers.asUnsignedByteArray method is used here to ensure no extra byte is added at the beginning
+            // of the byte array, which can happen in BigInteger.toByteArray when the highest bit
+            // in the result is already occupied by stored values. This issue is further explained
+            // in https://github.com/hashgraph/hedera-services/issues/15953
+            chainId = BigIntegers.asUnsignedByteArray(
+                    vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
         } else if (isLegacyUnprotectedEtx(vBI)) {
             // before EIP155 the chain id is considered equal to 0
             chainId = new byte[0];
@@ -395,11 +449,11 @@ public record EthTxData(
                 rawTx,
                 EthTransactionType.LEGACY_ETHEREUM,
                 chainId,
-                rlpList.get(0).asLong(), // nonce
+                asLong(rlpList.get(0)), // nonce
                 rlpList.get(1).asBytes(), // gasPrice
                 null, // maxPriorityGas
                 null, // maxGas
-                rlpList.get(2).asLong(), // gasLimit
+                asLong(rlpList.get(2)), // gasLimit
                 rlpList.get(3).data(), // to
                 rlpList.get(4).asBigInt(), // value
                 rlpList.get(5).data(), // callData
@@ -430,16 +484,16 @@ public record EthTxData(
                 rawTx,
                 EthTransactionType.EIP1559,
                 rlpList.get(0).data(), // chainId
-                rlpList.get(1).asLong(), // nonce
+                asLong(rlpList.get(1)), // nonce
                 null, // gasPrice
                 rlpList.get(2).data(), // maxPriorityGas
                 rlpList.get(3).data(), // maxGas
-                rlpList.get(4).asLong(), // gasLimit
+                asLong(rlpList.get(4)), // gasLimit
                 rlpList.get(5).data(), // to
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
-                rlpList.get(9).asByte(), // recId
+                asByte(rlpList.get(9)), // recId
                 null, // v
                 rlpList.get(10).data(), // r
                 rlpList.get(11).data() // s
@@ -465,16 +519,16 @@ public record EthTxData(
                 rawTx,
                 EthTransactionType.EIP2930,
                 rlpList.get(0).data(), // chainId
-                rlpList.get(1).asLong(), // nonce
+                asLong(rlpList.get(1)), // nonce
                 rlpList.get(2).data(), // gasPrice
                 null, // maxPriorityGas
                 null, // maxGas
-                rlpList.get(3).asLong(), // gasLimit
+                asLong(rlpList.get(3)), // gasLimit
                 rlpList.get(4).data(), // to
                 rlpList.get(5).asBigInt(), // value
                 rlpList.get(6).data(), // callData
                 rlpList.get(7).data(), // accessList
-                rlpList.get(8).asByte(), // recId
+                asByte(rlpList.get(8)), // recId
                 null, // v
                 rlpList.get(9).data(), // r
                 rlpList.get(10).data() // s
@@ -485,5 +539,32 @@ public record EthTxData(
     // (unprotected) ethereum transactions is either 27 or 28
     private static boolean isLegacyUnprotectedEtx(@NonNull BigInteger vBI) {
         return vBI.compareTo(LEGACY_V_BYTE_SIGNATURE_0) == 0 || vBI.compareTo(LEGACY_V_BYTE_SIGNATURE_1) == 0;
+    }
+
+    // `asByte` and `asLong` always return positive values by replacing out of range values with
+    // `MAX_VALUE`.  (`RLPItem.asBigInt` cannot return negative values: Negative values cannot be
+    // encoded in RLP.)
+
+    private static byte asByte(@NonNull final RLPItem rlpItem) {
+        var v = rlpItem.asBigInt(false);
+        if (v.compareTo(BigInteger.ZERO) < 0) throwOutOfRange();
+        if (v.compareTo(BigInteger.valueOf(Byte.MAX_VALUE)) > 0) throwOutOfRange();
+        return v.byteValueExact();
+    }
+
+    private static long asLong(@NonNull final RLPItem rlpItem) {
+        var v = rlpItem.asBigInt(false);
+        if (v.compareTo(BigInteger.ZERO) < 0) throwOutOfRange();
+        if (v.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) throwOutOfRange();
+        return v.longValueExact();
+    }
+
+    private static void throwOutOfRange() {
+        class OutOfRangeException extends IllegalArgumentException {
+            public OutOfRangeException() {
+                super("EthTxData has RLPItem out of range");
+            }
+        }
+        throw new OutOfRangeException();
     }
 }

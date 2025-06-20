@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.service.addressbook {
     exports com.hedera.node.app.service.addressbook;
 
@@ -10,5 +11,5 @@ module com.hedera.node.app.service.addressbook {
     requires com.swirlds.config.api;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
-    requires static com.github.spotbugs.annotations;
+    requires static transitive com.github.spotbugs.annotations;
 }

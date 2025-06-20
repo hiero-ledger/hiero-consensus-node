@@ -1,29 +1,12 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.internal.Deserializer;
 import com.swirlds.platform.internal.Serializer;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -31,12 +14,14 @@ import java.net.SocketException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.function.Supplier;
-import java.util.stream.StreamSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.CryptoUtils;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This is a collection of static utility methods, such as for comparing and deep cloning of arrays.
@@ -95,7 +80,7 @@ public final class Utilities {
     /**
      * Compare arrays lexicographically, with element 0 having the most influence.
      * A null array is considered less than a non-null array.
-     * This is the same as Java.Util.Arrays#compar
+     * This is the same as Java.Util.Arrays#compare
      *
      * @param b1
      * 		first array
@@ -362,25 +347,41 @@ public final class Utilities {
     }
 
     /**
-     * Create a list of PeerInfos from the address book. The list will contain information about all peers but not us.
+     * Create a list of PeerInfos from the roster. The list will contain information about all peers but not us.
+     * Peers without valid gossip certificates are not included.
      *
-     * @param addressBook
-     * 		the address book to create the list from
+     * @param roster
+     * 		the roster to create the list from
      * @param selfId
      * 		our ID
      * @return a list of PeerInfo
      */
     public static @NonNull List<PeerInfo> createPeerInfoList(
-            @NonNull final AddressBook addressBook, @NonNull final NodeId selfId) {
-        Objects.requireNonNull(addressBook);
+            @NonNull final Roster roster, @NonNull final NodeId selfId) {
+        Objects.requireNonNull(roster);
         Objects.requireNonNull(selfId);
-        return StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(addressBook.iterator(), Spliterator.ORDERED), false)
-                .filter(address -> !address.getNodeId().equals(selfId))
-                .map(address -> new PeerInfo(
-                        address.getNodeId(),
-                        Objects.requireNonNull(address.getHostnameExternal()),
-                        Objects.requireNonNull(address.getSigCert())))
+        return roster.rosterEntries().stream()
+                .filter(entry -> entry.nodeId() != selfId.id())
+                // Only include peers with valid gossip certificates
+                // https://github.com/hashgraph/hedera-services/issues/16648
+                .filter(entry -> CryptoUtils.checkCertificate((RosterUtils.fetchGossipCaCertificate(entry))))
+                .map(Utilities::toPeerInfo)
                 .toList();
+    }
+
+    /**
+     * Converts single roster entry to PeerInfo, which is more abstract class representing information about possible node connection
+     * @param entry data to convert
+     * @return PeerInfo with extracted hostname, port and certificate for remote host
+     */
+    public static @NonNull PeerInfo toPeerInfo(@NonNull RosterEntry entry) {
+        Objects.requireNonNull(entry);
+        return new PeerInfo(
+                NodeId.of(entry.nodeId()),
+                // Assume that the first ServiceEndpoint describes the external hostname,
+                // which is the same order in which RosterRetriever.buildRoster(AddressBook) lists them.
+                Objects.requireNonNull(RosterUtils.fetchHostname(entry, 0)),
+                RosterUtils.fetchPort(entry, 0),
+                Objects.requireNonNull(RosterUtils.fetchGossipCaCertificate(entry)));
     }
 }

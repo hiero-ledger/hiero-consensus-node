@@ -1,0 +1,71 @@
+/**
+ * # File Append
+ * A transaction body message to append data to a "file" in state.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.file">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * A transaction body for an `appendContent` transaction.<br/>
+ * This transaction body provides a mechanism to append content to a "file" in
+ * network state. Hedera transactions are limited in size, but there are many
+ * uses for in-state byte arrays (e.g. smart contract bytecode) which require
+ * more than may fit within a single transaction. The `appendFile` transaction
+ * exists to support these requirements. The typical pattern is to create a
+ * file, append more data until the full content is stored, verify the file is
+ * correct, then update the file entry with any final metadata changes (e.g.
+ * adding threshold keys and removing the initial upload key).
+ *
+ * Each append transaction MUST remain within the total transaction size limit
+ * for the network (typically 6144 bytes).<br/>
+ * The total size of a file MUST remain within the maximum file size limit for
+ * the network (typically 1048576 bytes).
+ *
+ * #### Signature Requirements
+ * Append transactions MUST have signatures from _all_ keys in the `KeyList`
+ * assigned to the `keys` field of the file.<br/>
+ * See the [File Service](#FileService) specification for a detailed
+ * explanation of the signature requirements for all file transactions.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message FileAppendTransactionBody {
+    /**
+     * A file identifier.<br/>
+     * This identifies the file to which the `contents` will be appended.
+     * <p>
+     * This field is REQUIRED.<br/>
+     * The identified file MUST exist.<br/>
+     * The identified file MUST NOT be larger than the current maximum file
+     * size limit.<br/>
+     * The identified file MUST NOT be deleted.<br/>
+     * The identified file MUST NOT be immutable.
+     */
+    FileID fileID = 2;
+
+    /**
+     * An array of bytes to append.<br/>
+     * <p>
+     * This content SHALL be appended to the identified file if this
+     * transaction succeeds.<br/>
+     * This field is REQUIRED.<br/>
+     * This field MUST NOT be empty.
+     */
+    bytes contents = 4;
+}

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
@@ -26,8 +11,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.SignatureMap;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
@@ -39,6 +26,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.Base64;
+import org.hiero.base.crypto.DigestType;
 
 public final class CommonUtils {
     private CommonUtils() {
@@ -53,6 +41,9 @@ public final class CommonUtils {
 
     public static ByteString extractTransactionBodyByteString(final TransactionOrBuilder transaction)
             throws InvalidProtocolBufferException {
+        if (transaction.hasBody()) {
+            return transaction.getBody().toByteString();
+        }
         final var signedTransactionBytes = transaction.getSignedTransactionBytes();
         if (!signedTransactionBytes.isEmpty()) {
             return SignedTransaction.parseFrom(signedTransactionBytes).getBodyBytes();
@@ -92,6 +83,23 @@ public final class CommonUtils {
             return SignedTransaction.parseFrom(signedTransactionBytes).getSigMap();
         }
         return transaction.getSigMap();
+    }
+
+    /**
+     * Returns a {@link MessageDigest} instance for the SHA-384 algorithm, throwing an unchecked exception if the
+     * algorithm is not found.
+     * @return a {@link MessageDigest} instance for the SHA-384 algorithm
+     */
+    public static MessageDigest sha384DigestOrThrow() {
+        try {
+            return MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
+        } catch (final NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
+        }
+    }
+
+    public static Bytes noThrowSha384HashOf(final Bytes bytes) {
+        return Bytes.wrap(noThrowSha384HashOf(bytes.toByteArray()));
     }
 
     public static byte[] noThrowSha384HashOf(final byte[] byteArray) {
@@ -146,5 +154,21 @@ public final class CommonUtils {
 
     public static Instant pbjTimestampToInstant(final com.hedera.hapi.node.base.Timestamp timestamp) {
         return Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
+    }
+
+    /**
+     * Converts a long-zero address to a PBJ {@link ScheduleID} using the address as the entity number
+     * @param shard the shard of the Hedera network
+     * @param realm the realm of the Hedera network
+     * @param address
+     * @return the PBJ {@link ScheduleID}
+     */
+    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
+            final long shard, final long realm, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
+        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setScheduleNum(address.value().longValueExact())
+                .build();
     }
 }

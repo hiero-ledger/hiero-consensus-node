@@ -79,7 +79,7 @@ then
 
      keytool  -genkeypair -alias "k-stream" -keystore "private-stream.pfx" -storetype "pkcs12" -storepass "password" -dname "cn=k-stream" -keyalg "ec" -sigalg "SHA384withECDSA" -keysize "384" -validity "36500"
 
-    # export certificat 
+    # export certificate 
     keytool    -certreq    -alias "k-stream" -keystore "private-stream.pfx" -storetype "pkcs12" -storepass "password"  |
       keytool -gencert    -alias "s-stream" -keystore "private-stream.pfx" -storetype "pkcs12" -storepass "password" -validity "36500" |
       keytool -importcert -alias "k-stream" -keystore "private-stream.pfx" -storetype "pkcs12" -storepass "password" 

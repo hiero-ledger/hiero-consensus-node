@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.listeners;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
@@ -29,6 +15,8 @@ import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -39,8 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Listener that will be notified with {@link
- * StateWriteToDiskCompleteNotification} when state is
+ * Listener that will be notified with {@link StateWriteToDiskCompleteNotification} when state is
  * written to disk. This writes {@code NOW_FROZEN_MARKER} to disk when upgrade is pending
  */
 @Singleton
@@ -50,18 +37,24 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
     private final Executor executor;
     private final ConfigProvider configProvider;
+    private final StartupNetworks startupNetworks;
+    private final SemanticVersion softwareVersionFactory;
+    private final EntityIdFactory entityIdFactory;
 
     @Inject
     public WriteStateToDiskListener(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull @Named("FreezeService") final Executor executor,
-            @NonNull final ConfigProvider configProvider) {
-        requireNonNull(stateAccessor);
-        requireNonNull(executor);
-        requireNonNull(configProvider);
-        this.stateAccessor = stateAccessor;
-        this.executor = executor;
-        this.configProvider = configProvider;
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final SemanticVersion softwareVersionFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        this.stateAccessor = requireNonNull(stateAccessor);
+        this.executor = requireNonNull(executor);
+        this.configProvider = requireNonNull(configProvider);
+        this.startupNetworks = requireNonNull(startupNetworks);
+        this.softwareVersionFactory = softwareVersionFactory;
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     @Override
@@ -86,12 +79,18 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                         executor,
                         readableUpgradeFileStore,
                         readableNodeStore,
-                        readableStakingInfoStore);
+                        readableStakingInfoStore,
+                        entityIdFactory);
                 log.info("Externalizing freeze if upgrade is pending");
                 upgradeActions.externalizeFreezeIfUpgradePending();
             } catch (Exception e) {
                 log.error("Error while responding to freeze state notification", e);
             }
+        }
+        // We don't archive genesis startup assets until at least one round has actually been handled,
+        // since we need these assets to create genesis entities at the beginning of the first round
+        if (notification.getRoundNumber() > 0) {
+            startupNetworks.archiveStartupNetworks();
         }
     }
 }

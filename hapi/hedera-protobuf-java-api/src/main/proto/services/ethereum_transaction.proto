@@ -1,0 +1,96 @@
+/**
+ * # Ethereum Call
+ * Make an Ethereum transaction "call" with all data in Ethereum formats,
+ * including the contract alias. Call data may be in the transaction,
+ * or stored within an Hedera File.<br/>
+ * The caller MAY offer additional gas above what is offered in the call
+ * data, but MAY be charged up to 80% of that value if the amount required
+ * is less than this "floor" amount.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.contract">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * A transaction in Ethereum format.<br/>
+ * Make an Ethereum transaction "call" with all data in Ethereum formats,
+ * including the contract alias. Call data may be in the transaction, or
+ * stored within an Hedera File.
+ *
+ * The caller MAY offer additional gas above what is offered in the call data,
+ * but MAY be charged up to 80% of that value if the amount required is less
+ * than this "floor" amount.
+ *
+ * ### Block Stream Effects
+ * An `EthereumOutput` message SHALL be emitted for each transaction.
+ */
+message EthereumTransactionBody {
+
+    /**
+     * The raw Ethereum transaction data.
+     * <p>
+     * This transaction MUST be RLP encoded.<br/>
+     * This SHALL be the complete transaction data unless the `call_data`
+     * field is set.<br/>
+     * If `call_data` is set, this field SHALL be modified to replace the
+     * `callData` element with the content of the referenced file.<br/>
+     * The transaction signature SHALL be validated after `callData` is
+     * complete, if necessary.
+     */
+    bytes ethereum_data = 1;
+
+    /**
+     * The `callData` for the Ethereum transaction.
+     * <p>
+     * If this field is set, the data in the `ethereum_data` field SHALL be
+     * re-written to replace the `callData` element with the contents of this
+     * file at time of execution.<br/>
+     * The Ethereum transaction MUST be "rehydrated" with this modified
+     * `callData` before signature validation MAY be performed.
+     */
+    FileID call_data = 2;
+
+    /**
+     * A maximum amount of "gas" offered to pay the Ethereum transaction costs.
+     * <p>
+     * This gas offered is in addition to any gas supplied with the Ethereum
+     * transaction as declared in the `ethereum_data`.<br/>
+     * In most circumstances the account with an alias matching the public
+     * key available from the Ethereum transaction signature offers sufficient
+     * gas to power the transaction, but in some cases it MAY be desirable
+     * for the account submitting this transaction to either supplement
+     * or entirely fund the transaction cost.<br/>
+     * The amount of gas offered here SHALL be used to pay for
+     * transaction costs _in excess_ of any gas offered within
+     * the Ethereum transaction.<br/>
+     * If the gas offered within the Ethereum transaction is sufficient
+     * for all costs, the gas offered in this field SHALL NOT be expended.<br/>
+     * Regardless of actual transaction cost, the payer for this transaction
+     * SHALL NOT be charged more gas than the amount offered here.<br/>
+     * If the sum of both gas amounts is not sufficient to pay for the
+     * transaction, the entire total amount of gas offered SHALL be expended,
+     * the transaction SHALL fail, and the response code `INSUFFICIENT_GAS`
+     * SHALL be set.<br/>
+     * If any amount of gas is charged to the payer of this transaction,
+     * at least 80% of the value offered in this field SHALL be charged
+     * as a minimum fee.<br/>
+     * If the amount of gas authorized in the Ethereum transaction data is `0`,
+     * then the payer of this transaction SHALL be charged the entire cost of
+     * the Ethereum transaction, subject to the limit set in this field.
+     */
+    int64 max_gas_allowance = 3;
+}

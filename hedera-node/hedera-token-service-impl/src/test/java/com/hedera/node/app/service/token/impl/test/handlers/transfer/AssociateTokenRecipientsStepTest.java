@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.transfer;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -29,14 +15,17 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
+import org.assertj.core.api.AssertionsForClassTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,7 +50,11 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
     private CryptoTransferStreamBuilder builder;
 
     private AssociateTokenRecipientsStep subject;
+    private AssociateTokenRecipientsStep subjectWithApproval;
+    private AssociateTokenRecipientsStep subjectNFTWithApproval;
     private CryptoTransferTransactionBody txn;
+    private CryptoTransferTransactionBody txnWithApproval;
+    private CryptoTransferTransactionBody txnNFTWithApproval;
     private TransferContextImpl transferContext;
 
     @BeforeEach
@@ -71,13 +64,15 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
         refreshWritableStores();
         givenStoresAndConfig(handleContext);
         subject = new AssociateTokenRecipientsStep(txn);
+        subjectWithApproval = new AssociateTokenRecipientsStep(txnWithApproval);
+        subjectNFTWithApproval = new AssociateTokenRecipientsStep(txnNFTWithApproval);
         transferContext = new TransferContextImpl(handleContext);
         writableTokenStore.put(givenValidFungibleToken(ownerId, false, false, false, false, false));
         writableTokenStore.put(givenValidNonFungibleToken(false));
     }
 
     @Test
-    void associatesTokenRecepients() {
+    void associatesTokenRecipients() {
         assertThat(writableTokenRelStore.get(ownerId, fungibleTokenId)).isNotNull();
         assertThat(writableTokenRelStore.get(ownerId, nonFungibleTokenId)).isNotNull();
         assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
@@ -98,21 +93,100 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
         assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNotNull();
     }
 
+    @Test
+    void validateFungibleAllowancesAndOtherPrivateChecks() {
+        assertThat(writableTokenRelStore.get(ownerId, fungibleTokenId)).isNotNull();
+        assertThat(writableTokenRelStore.get(ownerId, nonFungibleTokenId)).isNotNull();
+        assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
+        assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNull();
+
+        final var modifiedConfiguration = HederaTestConfigBuilder.create()
+                .withValue("entities.unlimitedAutoAssociationsEnabled", false)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(builder);
+        given(builder.isUserDispatch()).willThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT));
+
+        AssertionsForClassTypes.assertThatThrownBy(() -> subjectWithApproval.doIn(transferContext))
+                .isInstanceOf(HandleException.class);
+    }
+
+    @Test
+    void validateNFTAllowancesAndOtherPrivateChecks() {
+        assertThat(writableTokenRelStore.get(ownerId, fungibleTokenId)).isNotNull();
+        assertThat(writableTokenRelStore.get(ownerId, nonFungibleTokenId)).isNotNull();
+        assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
+        assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNull();
+
+        final var modifiedConfiguration = HederaTestConfigBuilder.create()
+                .withValue("entities.unlimitedAutoAssociationsEnabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(any())).willReturn(builder);
+        given(builder.isUserDispatch()).willReturn(true);
+
+        AssertionsForClassTypes.assertThatThrownBy(() -> subjectNFTWithApproval.doIn(transferContext))
+                .isInstanceOf(HandleException.class);
+    }
+
+    @Test
+    void validateNFTAllowancesAndForceToThrow() {
+        assertThat(writableTokenRelStore.get(ownerId, fungibleTokenId)).isNotNull();
+        assertThat(writableTokenRelStore.get(ownerId, nonFungibleTokenId)).isNotNull();
+        assertThat(writableTokenRelStore.get(spenderId, fungibleTokenId)).isNull();
+        assertThat(writableTokenRelStore.get(spenderId, nonFungibleTokenId)).isNull();
+        writableTokenRelStore.remove(TokenRelation.newBuilder()
+                .accountId(ownerId)
+                .tokenId(nonFungibleTokenId)
+                .build());
+        final var modifiedConfiguration = HederaTestConfigBuilder.create()
+                .withValue("entities.unlimitedAutoAssociationsEnabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(modifiedConfiguration);
+        given(handleContext.savepointStack()).willReturn(stack);
+
+        AssertionsForClassTypes.assertThatThrownBy(() -> subjectNFTWithApproval.doIn(transferContext))
+                .isInstanceOf(HandleException.class);
+    }
+
     void givenValidTxn() {
         txn = CryptoTransferTransactionBody.newBuilder()
                 .transfers(TransferList.newBuilder()
-                        .accountAmounts(adjustFrom(ownerId, -1_000))
-                        .accountAmounts(adjustFrom(spenderId, +1_000))
+                        .accountAmounts(adjustFrom(ownerId, -1_000, false))
+                        .accountAmounts(adjustFrom(spenderId, +1_000, false))
                         .build())
                 .tokenTransfers(
                         TokenTransferList.newBuilder()
                                 .token(fungibleTokenId)
-                                .transfers(List.of(adjustFrom(ownerId, -1_000), adjustFrom(spenderId, +1_000)))
+                                .transfers(List.of(
+                                        adjustFrom(ownerId, -1_000, false), adjustFrom(spenderId, +1_000, false)))
                                 .build(),
                         TokenTransferList.newBuilder()
                                 .token(nonFungibleTokenId)
-                                .nftTransfers(nftTransferWith(ownerId, spenderId, 1))
+                                .nftTransfers(nftTransferWith(ownerId, spenderId, 1, false))
                                 .build())
+                .build();
+        txnWithApproval = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(adjustFrom(ownerId, -1_000, true))
+                        .accountAmounts(adjustFrom(spenderId, -1_000, true))
+                        .build())
+                .tokenTransfers(TokenTransferList.newBuilder()
+                        .token(fungibleTokenId)
+                        .transfers(List.of(adjustFrom(ownerId, -1_000, true), adjustFrom(spenderId, -1_000, true)))
+                        .build())
+                .build();
+        txnNFTWithApproval = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(adjustFrom(ownerId, -1_000, true))
+                        .accountAmounts(adjustFrom(spenderId, -1_000, true))
+                        .build())
+                .tokenTransfers(TokenTransferList.newBuilder()
+                        .token(nonFungibleTokenId)
+                        .nftTransfers(nftTransferWith(ownerId, spenderId, 1, true))
+                        .build())
                 .build();
         given(handleContext.configuration()).willReturn(configuration);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -122,15 +196,20 @@ public class AssociateTokenRecipientsStepTest extends StepsBase {
         given(handleContext.savepointStack()).willReturn(stack);
     }
 
-    private AccountAmount adjustFrom(AccountID account, long amount) {
-        return AccountAmount.newBuilder().accountID(account).amount(amount).build();
+    private AccountAmount adjustFrom(AccountID account, long amount, boolean isApproval) {
+        return AccountAmount.newBuilder()
+                .accountID(account)
+                .amount(amount)
+                .isApproval(isApproval)
+                .build();
     }
 
-    private NftTransfer nftTransferWith(AccountID from, AccountID to, long serialNo) {
+    private NftTransfer nftTransferWith(AccountID from, AccountID to, long serialNo, boolean isApproval) {
         return NftTransfer.newBuilder()
                 .senderAccountID(from)
                 .receiverAccountID(to)
                 .serialNumber(serialNo)
+                .isApproval(isApproval)
                 .build();
     }
 }

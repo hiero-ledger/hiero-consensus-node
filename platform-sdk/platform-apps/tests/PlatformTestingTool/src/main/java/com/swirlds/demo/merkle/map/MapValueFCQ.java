@@ -1,30 +1,13 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.merkle.map;
 
 import com.swirlds.common.FastCopyable;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.exceptions.IllegalChildIndexException;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.utility.Keyed;
 import com.swirlds.common.merkle.utility.MerkleLong;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.demo.platform.expiration.ExpirationRecordEntry;
 import com.swirlds.demo.platform.expiration.ExpirationUtils;
 import com.swirlds.fcqueue.FCQueue;
@@ -36,6 +19,8 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 /**
  * MapValue with a {@link FCQueue}
@@ -142,7 +127,7 @@ public class MapValueFCQ<T extends FastCopyable & SerializableHashable> extends 
             return getHash();
         }
 
-        return MerkleCryptoFactory.getInstance().digestTreeSync(this);
+        return TestMerkleCryptoFactory.getInstance().digestTreeSync(this);
     }
 
     public long getBalanceValue() {

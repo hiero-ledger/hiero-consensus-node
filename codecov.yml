@@ -22,4 +22,7 @@ coverage:
 github_checks:
   annotations: true
 ignore:
-  - "test-clients"
+  - "**/test-clients/**"
+  - "**/statedumpers/**"
+  - "**/testFixtures/**"
+  - "**/example-apps/**"

@@ -1,24 +1,11 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
+import static java.lang.Thread.onSpinWait;
+import static java.lang.Thread.sleep;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.google.common.base.Stopwatch;
@@ -26,12 +13,17 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
@@ -60,8 +52,19 @@ public class ProviderRun extends UtilOp {
     private Supplier<TimeUnit> unitSupplier = () -> DEFAULT_UNIT;
     private IntSupplier totalOpsToSubmit = () -> DEFAULT_TOTAL_OPS_TO_SUBMIT;
     private boolean loggingOff = false;
+    private boolean waitForPendingOps = false;
+    private static final Duration WAIT_PENDING_OPS_TIMEOUT = Duration.ofSeconds(10);
 
-    private Map<HederaFunctionality, AtomicInteger> counts = new HashMap<>();
+    private Optional<BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>>>
+            statusCountAsserter = Optional.empty();
+
+    public ProviderRun assertStatusCounts(
+            BiConsumer<EnumMap<ResponseCodeEnum, AtomicInteger>, EnumMap<ResponseCodeEnum, AtomicInteger>> asserter) {
+        statusCountAsserter = Optional.of(asserter);
+        return this;
+    }
+
+    private final Map<HederaFunctionality, AtomicInteger> counts = new HashMap<>();
 
     public ProviderRun(Function<HapiSpec, OpProvider> providerFn) {
         this.providerFn = providerFn;
@@ -102,6 +105,11 @@ public class ProviderRun extends UtilOp {
 
     public ProviderRun backoffSleepSecs(IntSupplier backoffSleepSecsSupplier) {
         this.backoffSleepSecsSupplier = backoffSleepSecsSupplier;
+        return this;
+    }
+
+    public ProviderRun waitForPendingOps() {
+        this.waitForPendingOps = true;
         return this;
     }
 
@@ -196,9 +204,20 @@ public class ProviderRun extends UtilOp {
             } else {
                 log.warn("Now {} ops pending; backing off for {}s!", numPending, BACKOFF_SLEEP_SECS);
                 try {
-                    Thread.sleep(BACKOFF_SLEEP_SECS * 1_000L);
+                    sleep(BACKOFF_SLEEP_SECS * 1_000L);
                 } catch (InterruptedException ignore) {
                 }
+            }
+        }
+
+        if (waitForPendingOps) {
+            if (!loggingOff) {
+                log.info("Waiting for {} pending ops to finish...", spec.numPendingOps());
+            }
+            long beginWait = Instant.now().toEpochMilli();
+            while (spec.numPendingOps() > 0
+                    || (Instant.now().toEpochMilli() - beginWait) < WAIT_PENDING_OPS_TIMEOUT.toMillis()) {
+                onSpinWait();
             }
         }
 
@@ -208,6 +227,10 @@ public class ProviderRun extends UtilOp {
                         Map.Entry::getKey, entry -> entry.getValue().get()));
         log.info("Final breakdown of *provided* ops: {}", finalCounts);
         log.info("Final breakdown of *resolved* statuses: {}", spec.finalizedStatusCounts());
+
+        statusCountAsserter.ifPresent(statusCountsBiConsumer -> statusCountsBiConsumer.accept(
+                (EnumMap<ResponseCodeEnum, AtomicInteger>) spec.precheckStatusCounts(),
+                (EnumMap<ResponseCodeEnum, AtomicInteger>) spec.finalizedStatusCounts()));
 
         return false;
     }

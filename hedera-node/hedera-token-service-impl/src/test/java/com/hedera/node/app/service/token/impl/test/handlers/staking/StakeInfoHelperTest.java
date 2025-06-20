@@ -1,21 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
 import static com.hedera.node.app.service.token.impl.test.WritableStakingInfoStoreImplTest.NODE_ID_1;
@@ -28,26 +15,27 @@ import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOf
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.STAKING_INFO_2;
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.EndOfStakingPeriodUpdaterTest.STAKING_INFO_3;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.service.token.records.NodeStakeUpdateStreamBuilder;
-import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
-import com.hedera.node.app.spi.fixtures.state.MapWritableStates;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
-import java.time.Instant;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Map;
 import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,20 +45,27 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class StakeInfoHelperTest {
-    private static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+    public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
 
     private WritableStakingInfoStore infoStore;
-
-    @Mock
-    private TokenContext tokenContext;
-
-    @Mock
-    private NodeStakeUpdateStreamBuilder streamBuilder;
 
     @Mock
     private WritableNetworkStakingRewardsStore rewardsStore;
 
     private final StakeInfoHelper subject = new StakeInfoHelper();
+
+    private WritableEntityIdStore entityIdStore;
+
+    @BeforeEach
+    void setup() {
+        entityIdStore = new WritableEntityIdStore(new MapWritableStates(Map.of(
+                ENTITY_ID_STATE_KEY,
+                new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}),
+                ENTITY_COUNTS_KEY,
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}))));
+    }
 
     @ParameterizedTest
     @CsvSource({
@@ -87,8 +82,8 @@ class StakeInfoHelperTest {
                                 .unclaimedStakeRewardStart(5)
                                 .build())
                 .build();
-        infoStore =
-                new WritableStakingInfoStore(new MapWritableStates(Map.of(V0490TokenSchema.STAKING_INFO_KEY, state)));
+        infoStore = new WritableStakingInfoStore(
+                new MapWritableStates(Map.of(V0490TokenSchema.STAKING_INFO_KEY, state)), entityIdStore);
         assertUnclaimedStakeRewardStartPrecondition();
 
         subject.increaseUnclaimedStakeRewards(NODE_ID_1.number(), amount, infoStore);
@@ -110,18 +105,17 @@ class StakeInfoHelperTest {
                 .value(NODE_NUM_2, STAKING_INFO_2)
                 .value(NODE_NUM_3, STAKING_INFO_3)
                 .build();
+
         final var newStates = newStatesInstance(stakingInfosState);
-        infoStore = new WritableStakingInfoStore(newStates);
+        infoStore = new WritableStakingInfoStore(newStates, entityIdStore);
+        entityIdStore.adjustEntityCount(EntityType.STAKING_INFO, 4L);
         // Platform address book has node Ids 2, 4, 8
         final var networkInfo = new FakeNetworkInfo();
-        given(tokenContext.consensusTime()).willReturn(Instant.EPOCH);
-        given(tokenContext.addPrecedingChildRecordBuilder(NodeStakeUpdateStreamBuilder.class))
-                .willReturn(streamBuilder);
-        given(streamBuilder.transaction(any())).willReturn(streamBuilder);
-        given(streamBuilder.memo(any())).willReturn(streamBuilder);
+
+        given(rewardsStore.get()).willReturn(NetworkStakingRewards.DEFAULT);
 
         // Should update the state to mark node 1 and 3 as deleted
-        subject.adjustPostUpgradeStakes(tokenContext, networkInfo, DEFAULT_CONFIG, infoStore, rewardsStore);
+        subject.adjustPostUpgradeStakes(networkInfo, DEFAULT_CONFIG, infoStore, rewardsStore);
         final var updatedStates = newStates.get(STAKING_INFO_KEY);
         // marks nodes 1, 2 as deleted
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_1)).deleted()).isTrue();
@@ -131,12 +125,12 @@ class StakeInfoHelperTest {
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_4)).deleted()).isFalse();
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_4)).weight()).isZero();
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_4)).minStake()).isZero();
-        assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_4)).maxStake()).isEqualTo(1666666666666666666L);
+        assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_4)).maxStake()).isEqualTo(45000000000000000L);
         // Also adds node 8 to the state
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_8)).deleted()).isFalse();
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_8)).weight()).isZero();
         assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_8)).minStake()).isZero();
-        assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_8)).maxStake()).isEqualTo(1666666666666666666L);
+        assertThat(((StakingNodeInfo) updatedStates.get(NODE_NUM_8)).maxStake()).isEqualTo(45000000000000000L);
     }
 
     private MapWritableStates newStatesInstance(final MapWritableKVState<EntityNumber, StakingNodeInfo> stakingInfo) {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.associations;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
@@ -22,6 +7,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUN
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
@@ -29,6 +15,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsDecoder;
@@ -46,6 +33,9 @@ class AssociationsDecoderTest {
 
     @Mock
     private HtsCallAttempt attempt;
+
+    @Mock
+    private HederaNativeOperations hederaNativeOperations;
 
     private final AssociationsDecoder subject = new AssociationsDecoder();
 
@@ -72,6 +62,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeAssociateOne(attempt);
         assertAssociationPresent(body, OWNER_ID, NON_FUNGIBLE_TOKEN_ID);
@@ -86,6 +78,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeAssociateMany(attempt);
         assertAssociationPresent(body, OWNER_ID, FUNGIBLE_TOKEN_ID);
@@ -99,6 +93,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeDissociateOne(attempt);
         assertDissociationPresent(body, OWNER_ID, NON_FUNGIBLE_TOKEN_ID);
@@ -113,6 +109,8 @@ class AssociationsDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
         final var body = subject.decodeDissociateMany(attempt);
         assertDissociationPresent(body, OWNER_ID, FUNGIBLE_TOKEN_ID);

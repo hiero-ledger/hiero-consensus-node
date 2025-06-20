@@ -1,24 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.Consumer;
 
 /**
  * A runtime exception that wraps a {@link ResponseCodeEnum} status. Thrown by
@@ -30,33 +19,30 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * {@link IllegalArgumentException} as appropriate.
  */
 public class HandleException extends RuntimeException {
-    private final ShouldRollbackStack shouldRollbackStack;
     private final ResponseCodeEnum status;
-    /**
-     * Whether the stack should be rolled back. In case of a ContractCall if it reverts, the gas charged
-     * should not be rolled back
-     */
-    public enum ShouldRollbackStack {
-        YES,
-        NO
-    }
+
+    @Nullable
+    private final Consumer<FeeCharging.Context> rollbackFeesCb;
 
     public HandleException(final ResponseCodeEnum status) {
-        this(status, ShouldRollbackStack.YES);
+        this(status, null);
     }
 
-    public HandleException(final ResponseCodeEnum status, final ShouldRollbackStack shouldRollbackStack) {
+    public HandleException(
+            @NonNull final ResponseCodeEnum status, @Nullable final Consumer<FeeCharging.Context> rollbackFeesCb) {
         super(status.protoName());
-        this.status = status;
-        this.shouldRollbackStack = shouldRollbackStack;
+        this.status = requireNonNull(status);
+        this.rollbackFeesCb = rollbackFeesCb;
     }
 
     /**
-     * Returns whether the stack should be rolled back. In case of a ContractCall if it reverts, the gas charged
-     * should not be rolled back
+     * If the exception was constructed with rollback fee charging, charges it in the given context.
+     * @param context the context in which to charge the rollback fees
      */
-    public boolean shouldRollbackStack() {
-        return shouldRollbackStack == ShouldRollbackStack.YES;
+    public void maybeReplayFees(@NonNull final FeeCharging.Context context) {
+        if (rollbackFeesCb != null) {
+            rollbackFeesCb.accept(context);
+        }
     }
 
     /**
@@ -92,22 +78,5 @@ public class HandleException extends RuntimeException {
     @Override
     public String toString() {
         return "HandleException{" + "status=" + status + '}';
-    }
-
-    /**
-     * <strong>Disallowed</strong> constructor of {@code HandleException}.
-     * This {@link Exception} subclass is used as a form of unconditional jump, rather than a true
-     * exception.  If another {@link Throwable} caused this exception to be thrown, then that other
-     * throwable <strong>must</strong> be logged to appropriate diagnostics before the {@code HandleException}
-     * is thrown.
-     *
-     * @param responseCode the {@link ResponseCodeEnum responseCode}.  This is ignored.
-     * @param cause the {@link Throwable} that caused this exception.  This is ignored.
-     * @throws UnsupportedOperationException always.  This constructor must not be called.
-     */
-    // Suppressing the warning that the constructor and arguments are not used
-    @SuppressWarnings({"java:S1144", "java:S1172"})
-    private HandleException(@NonNull final ResponseCodeEnum responseCode, @Nullable final Throwable cause) {
-        throw new UnsupportedOperationException("HandleException must not chain a cause");
     }
 }

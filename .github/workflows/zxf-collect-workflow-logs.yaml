@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: Collect Workflow Run Logs"
+on:
+  workflow_dispatch:
+    inputs:
+      workflow_id:
+        description: "ID of the workflow run to collect logs from (example: #123456789)"
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  collect-logs:
+    name: Collect Workflow Run Logs
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Get run ID from run number
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        id: run_id
+        run: |
+          RUN_ID=$(gh api -H "Accept: application/vnd.github+json" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/workflows/zxcron-extended-test-suite.yaml/runs \
+            --jq '.workflow_runs[] | select(.run_number == ${{ inputs.workflow_id }}) | .id')
+          echo "::set-output name=value::$RUN_ID"
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Get run logs
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: gh run view ${{ steps.run_id.outputs.value }} --log >> workflow-run.log
+
+      - name: Upload log as artifact
+        id: upload-log
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          path: workflow-run.log
+
+      - name: Share log information
+        run: |
+          echo "### Logs Collected for Workflow:" >> $GITHUB_STEP_SUMMARY
+          echo "Workflow run ID: ${{ inputs.workflow_id  }}" >> $GITHUB_STEP_SUMMARY
+          echo "Workflow URL: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/${{ steps.run_id.outputs.value }}" >> $GITHUB_STEP_SUMMARY
+          echo "Log file download URL: ${{ steps.upload-log.outputs.artifact-url }}" >> $GITHUB_STEP_SUMMARY

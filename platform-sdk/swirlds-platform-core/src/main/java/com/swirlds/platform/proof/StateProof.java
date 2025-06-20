@@ -1,30 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.proof.algorithms.NodeSignature;
@@ -32,12 +11,18 @@ import com.swirlds.platform.proof.algorithms.StateProofSerialization;
 import com.swirlds.platform.proof.algorithms.StateProofTreeBuilder;
 import com.swirlds.platform.proof.algorithms.StateProofUtils;
 import com.swirlds.platform.proof.tree.StateProofNode;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A state proof on one or more merkle nodes.
@@ -107,7 +92,6 @@ public class StateProof implements SelfSerializable {
             @NonNull final Threshold threshold) {
 
         return isValid(
-                cryptography,
                 addressBook,
                 threshold,
                 (signature, bytes, publicKey) ->
@@ -117,7 +101,6 @@ public class StateProof implements SelfSerializable {
     /**
      * Cryptographically validate this state proof using the provided threshold.
      *
-     * @param cryptography      provides cryptographic primitives
      * @param addressBook       the address book to use to validate the state proof
      * @param threshold         the threshold of signatures required to trust this state proof
      * @param signatureVerifier a function that verifies a signature
@@ -125,19 +108,17 @@ public class StateProof implements SelfSerializable {
      * @throws IllegalStateException if this method is called before this object has been fully deserialized
      */
     public boolean isValid(
-            @NonNull final Cryptography cryptography,
             @NonNull final AddressBook addressBook,
             @NonNull final Threshold threshold,
             @NonNull final SignatureVerifier signatureVerifier) {
 
-        Objects.requireNonNull(cryptography);
         Objects.requireNonNull(addressBook);
         Objects.requireNonNull(threshold);
         Objects.requireNonNull(signatureVerifier);
 
         if (hashBytes == null) {
             // we only need to recompute the hash once
-            hashBytes = StateProofUtils.computeStateProofTreeHash(cryptography, root);
+            hashBytes = StateProofUtils.computeStateProofTreeHash(root);
         }
         final long validWeight =
                 StateProofUtils.computeValidSignatureWeight(addressBook, signatures, signatureVerifier, hashBytes);

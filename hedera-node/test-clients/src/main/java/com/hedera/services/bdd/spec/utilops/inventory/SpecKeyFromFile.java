@@ -1,41 +1,33 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
 
+import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.isValid;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.keyFileAt;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.passFileFor;
 import static com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils.promptForPassphrase;
-import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportWithPass;
+import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportEcdsaWithPass;
+import static com.hedera.services.bdd.spec.utilops.inventory.NewSpecKey.exportEd25519WithPass;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.createAndLinkEcdsaKey;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkFromMnemonic;
-import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkSimpleKey;
-import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromPem.incorporatePem;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMnemonic.createAndLinkSimpleEdKey;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromPem.incorporateUnknownTypePem;
 
 import com.google.common.base.MoreObjects;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
-import com.swirlds.common.utility.CommonUtils;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class SpecKeyFromFile extends UtilOp {
@@ -79,6 +71,7 @@ public class SpecKeyFromFile extends UtilOp {
         }
         final var f = keyFile.orElseThrow();
         Optional<String> finalPassphrase = Optional.empty();
+        final SigControl keyType;
         if (f.getName().endsWith(".pem")) {
             var optPassFile = passFileFor(f);
             if (optPassFile.isPresent()) {
@@ -96,9 +89,9 @@ public class SpecKeyFromFile extends UtilOp {
             if (finalPassphrase.isEmpty() || !isValid(f, finalPassphrase)) {
                 Assertions.fail(String.format("No valid passphrase could be obtained for PEM %s", loc));
             }
-            incorporatePem(
+
+            keyType = incorporateUnknownTypePem(
                     spec,
-                    SigControl.ON,
                     keyFile.get().getAbsolutePath(),
                     finalPassphrase.orElseThrow(),
                     name,
@@ -107,15 +100,18 @@ public class SpecKeyFromFile extends UtilOp {
         } else if (f.getName().endsWith(".words")) {
             final var mnemonic = Bip0032.mnemonicFromFile(f.getAbsolutePath());
             createAndLinkFromMnemonic(spec, mnemonic, name, linkedId, null);
+            keyType = ED25519_ON;
         } else {
             var hexed = Files.readString(f.toPath()).trim();
             final var privateKey = CommonUtils.unhex(hexed);
-            createAndLinkSimpleKey(spec, privateKey, name, linkedId, null);
+            keyType = createAndLinkSimpleKeyUnknownType(spec, privateKey, name, linkedId, null);
         }
+
+        // Export the key (if requested)
         if (immediateExportLoc.isPresent() && immediateExportPass.isPresent()) {
             final var exportLoc = immediateExportLoc.get();
             final var exportPass = finalPassphrase.orElse(immediateExportPass.get());
-            exportWithPass(spec, name, exportLoc, exportPass);
+            exportKeyWithPassByType(spec, name, exportLoc, exportPass, keyType);
             if (verboseLoggingOn && yahcliLogger) {
                 System.out.println(".i. Exported key from " + flexLoc + " to " + exportLoc);
             }
@@ -130,5 +126,31 @@ public class SpecKeyFromFile extends UtilOp {
         helper.add("loc", loc);
         linkedId.ifPresent(s -> helper.add("linkedId", s));
         return helper;
+    }
+
+    private static SigControl createAndLinkSimpleKeyUnknownType(
+            HapiSpec spec,
+            byte[] existingPrivateKeyBytes,
+            String name,
+            Optional<String> linkedId,
+            @Nullable Logger logToUse) {
+        final PrivateKey pk = KeyUtils.readUnknownTypeKeyFrom(existingPrivateKeyBytes);
+        final var type = TypedKey.from(pk).type();
+        if (type == SigControl.SECP256K1_ON) {
+            createAndLinkEcdsaKey(spec, (ECPrivateKey) pk, name, linkedId, Optional.empty(), logToUse);
+        } else {
+            createAndLinkSimpleEdKey(spec, existingPrivateKeyBytes, name, linkedId, logToUse);
+        }
+
+        return type;
+    }
+
+    private static void exportKeyWithPassByType(
+            HapiSpec spec, String name, String exportLoc, String exportPass, SigControl keyType) throws IOException {
+        if (keyType == SigControl.SECP256K1_ON) {
+            exportEcdsaWithPass(spec, name, exportLoc, exportPass);
+        } else {
+            exportEd25519WithPass(spec, name, exportLoc, exportPass);
+        }
     }
 }

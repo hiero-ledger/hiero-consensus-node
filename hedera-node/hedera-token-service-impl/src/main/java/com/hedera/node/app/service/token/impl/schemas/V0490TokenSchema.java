@@ -1,25 +1,6 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.schemas;
 
-import static com.hedera.node.app.service.token.impl.schemas.SyntheticAccountCreator.asAccountId;
-import static java.util.Objects.requireNonNull;
-
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -33,42 +14,27 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LedgerConfig;
-import com.hedera.node.config.data.StakingConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.Schema;
-import com.swirlds.state.spi.StateDefinition;
-import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
-import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.function.Consumer;
-import java.util.stream.LongStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Initial mod-service schema for the token service.
  */
 public class V0490TokenSchema extends Schema {
-    private static final Logger log = LogManager.getLogger(V0490TokenSchema.class);
 
-    // These need to be big so databases are created at right scale. If they are too small then the on disk hash map
-    // buckets will be too full which results in very poor performance. Have chosen 10 billion as should give us
-    // plenty of runway.
-    private static final long MAX_STAKING_INFOS = 1_000_000L;
-    private static final long MAX_TOKENS = 1_000_000_000L;
-    private static final long MAX_ACCOUNTS = 1_000_000_000L;
-    private static final long MAX_TOKEN_RELS = 1_000_000_000L;
-    private static final long MAX_MINTABLE_NFTS = 1_000_000_000L;
-    private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
-    private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
-    private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
+    // Initial virtual map capacity values. Previously these values had to be large enough to avoid
+    // key hash collisions at the database level, which would result in low performance. With the
+    // new feature of dynamic hash map resizing in the database, these capacity hints can be kept
+    // low. These are just hints for initial virtual map sizes. Over time the maps will be able to
+    // contain more elements, if needed
+    private static final long MAX_STAKING_INFOS = 1_000L;
+    private static final long MAX_TOKENS = 1_000_000L;
+    private static final long MAX_ACCOUNTS = 1_000_000L;
+    private static final long MAX_TOKEN_RELS = 1_000_000L;
+    private static final long MAX_MINTABLE_NFTS = 1_000_000L;
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
 
@@ -80,19 +46,8 @@ public class V0490TokenSchema extends Schema {
     public static final String STAKING_INFO_KEY = "STAKING_INFOS";
     public static final String STAKING_NETWORK_REWARDS_KEY = "STAKING_NETWORK_REWARDS";
 
-    private final SyntheticAccountCreator syntheticAccountCreator;
-
-    /**
-     * Constructor for this schema. Each of the supplier params should produce a {@link SortedSet} of
-     * {@link Account} objects, where each account object represents a _synthetic record_ (see {@link
-     * SyntheticAccountCreator} for more details). Even though these sorted sets contain account
-     * objects, these account objects may or may not yet exist in state. They're usually not needed,
-     * but are required for an event recovery situation.
-     *
-     */
-    public V0490TokenSchema(@NonNull final SyntheticAccountCreator syntheticAccountCreator) {
+    public V0490TokenSchema() {
         super(VERSION);
-        this.syntheticAccountCreator = requireNonNull(syntheticAccountCreator);
     }
 
     @NonNull
@@ -111,168 +66,15 @@ public class V0490TokenSchema extends Schema {
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var isGenesis = ctx.previousVersion() == null;
-        if (isGenesis) {
-            createGenesisSchema(ctx);
-        }
-    }
-
-    private void createGenesisSchema(@NonNull final MigrationContext ctx) {
-        // Create the network rewards state
-        initializeNetworkRewards(ctx);
-        initializeStakingNodeInfo(ctx);
-
-        // Get the map for storing all the created accounts
-        final var accounts = ctx.newStates().<AccountID, Account>get(ACCOUNTS_KEY);
-        if (accounts.size() != 0) {
-            throw new IllegalStateException("Accounts map should be empty at genesis");
-        }
-
-        // We will use these various configs for creating accounts. It would be nice to consolidate them somehow
-        final var ledgerConfig = ctx.configuration().getConfigData(LedgerConfig.class);
-        final var hederaConfig = ctx.configuration().getConfigData(HederaConfig.class);
-        final var accountsConfig = ctx.configuration().getConfigData(AccountsConfig.class);
-
-        // Generate synthetic accounts based on the genesis configuration
-        final Consumer<SortedSet<Account>> noOpCb = ignore -> {};
-        syntheticAccountCreator.generateSyntheticAccounts(ctx.configuration(), noOpCb, noOpCb, noOpCb, noOpCb, noOpCb);
-        // ---------- Create system accounts -------------------------
-        for (final Account acct : syntheticAccountCreator.systemAccounts()) {
-            accounts.put(acct.accountIdOrThrow(), acct);
-        }
-        log.info(
-                "Created {} system accounts",
-                syntheticAccountCreator.systemAccounts().size());
-        // ---------- Create staking fund accounts -------------------------
-        for (final Account acct : syntheticAccountCreator.stakingAccounts()) {
-            accounts.put(acct.accountIdOrThrow(), acct);
-        }
-        log.info(
-                "Created {} staking accounts",
-                syntheticAccountCreator.stakingAccounts().size());
-        // ---------- Create treasury clones -------------------------
-        for (final Account acct : syntheticAccountCreator.treasuryClones()) {
-            accounts.put(acct.accountIdOrThrow(), acct);
-        }
-        log.info(
-                "Created {} treasury clones",
-                syntheticAccountCreator.treasuryClones().size());
-        // ---------- Create miscellaneous accounts -------------------------
-        for (final Account acct : syntheticAccountCreator.multiUseAccounts()) {
-            accounts.put(acct.accountIdOrThrow(), acct);
-        }
-        log.info(
-                "Created {} miscellaneous accounts",
-                syntheticAccountCreator.multiUseAccounts().size());
-        // ---------- Create blocklist accounts -------------------------
-        if (accountsConfig.blocklistEnabled()) {
-            final var existingAliases = ctx.newStates().<Bytes, AccountID>get(ALIASES_KEY);
-            if (existingAliases.size() != 0) {
-                throw new IllegalStateException("Aliases map should be empty at genesis");
-            }
-            for (final Account acct : syntheticAccountCreator.blocklistAccounts()) {
-                final var id = asAccountId(ctx.newEntityNum(), hederaConfig);
-                if (!Objects.equals(
-                        id.accountNumOrThrow(), acct.accountIdOrThrow().accountNumOrThrow())) {
-                    throw new IllegalStateException(
-                            "Next entity num " + id + " did not match synthetic block list account " + acct);
-                }
-                // Put the account and its alias in state
-                accounts.put(id, acct);
-                existingAliases.put(acct.alias(), id);
-            }
-        }
-        log.info(
-                "Created {} blocklist accounts",
-                syntheticAccountCreator.blocklistAccounts().size());
-
-        // ---------- Balances Safety Check -------------------------
-        // Add up the balances of all accounts, they must match 50,000,000,000 HBARs (config)
-        final var totalBalance = getTotalBalanceOfAllAccounts(accounts, hederaConfig);
-        if (totalBalance != ledgerConfig.totalTinyBarFloat()) {
-            throw new IllegalStateException("Total balance of all accounts does not match the total float: actual: "
-                    + totalBalance + " vs expected: " + ledgerConfig.totalTinyBarFloat());
-        }
-        log.info(
-                "Ledger float is {} tinyBars; {} modified accounts.",
-                totalBalance,
-                accounts.modifiedKeys().size());
-    }
-
-    /**
-     * Get the total balance of all accounts. Since we cannot iterate over the accounts in VirtualMap,
-     * we have to do this manually.
-     *
-     * @param accounts The accounts map
-     * @param hederaConfig The Hedera configuration
-     * @return The total balance of all accounts
-     */
-    public long getTotalBalanceOfAllAccounts(
-            @NonNull final WritableKVState<AccountID, Account> accounts, @NonNull final HederaConfig hederaConfig) {
-        long totalBalance = 0;
-        long curAccountId = 1; // Start with the first account ID
-        long totalAccounts = accounts.size();
-        do {
-            final Account account = accounts.get(asAccountId(curAccountId, hederaConfig));
-            if (account != null) {
-                totalBalance += account.tinybarBalance();
-                totalAccounts--;
-            }
-            curAccountId++;
-        } while (totalAccounts > 0);
-        return totalBalance;
-    }
-
-    /**
-     * Get the entity numbers of all system entities that are not contracts.
-     *
-     * @param numReservedSystemEntities The number of reserved system entities
-     * @return The entity numbers of all system entities that are not contracts
-     */
-    @VisibleForTesting
-    public static long[] nonContractSystemNums(final long numReservedSystemEntities) {
-        return LongStream.rangeClosed(FIRST_POST_SYSTEM_FILE_ENTITY, numReservedSystemEntities)
-                .filter(i -> i < FIRST_RESERVED_SYSTEM_CONTRACT || i > LAST_RESERVED_SYSTEM_CONTRACT)
-                .toArray();
-    }
-
-    private void initializeStakingNodeInfo(@NonNull final MigrationContext ctx) {
-        final var config = ctx.configuration();
-        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var stakingConfig = config.getConfigData(StakingConfig.class);
-        final var addressBook = ctx.networkInfo().addressBook();
-        final var numberOfNodes = addressBook.size();
-
-        final long maxStakePerNode = ledgerConfig.totalTinyBarFloat() / numberOfNodes;
-        final long minStakePerNode = 0;
-
-        final var numRewardHistoryStoredPeriods = stakingConfig.rewardHistoryNumStoredPeriods();
-        final var stakingInfoState = ctx.newStates().get(STAKING_INFO_KEY);
-        final var rewardSumHistory = new Long[numRewardHistoryStoredPeriods + 1];
-        Arrays.fill(rewardSumHistory, 0L);
-
-        for (final var node : addressBook) {
-            final var nodeNumber = node.nodeId();
-            final var stakingInfo = StakingNodeInfo.newBuilder()
-                    .nodeNumber(nodeNumber)
-                    .maxStake(maxStakePerNode)
-                    .minStake(minStakePerNode)
-                    .rewardSumHistory(Arrays.asList(rewardSumHistory))
-                    .weight(500)
+        if (ctx.isGenesis()) {
+            final var networkRewardsState = ctx.newStates().getSingleton(STAKING_NETWORK_REWARDS_KEY);
+            final var networkRewards = NetworkStakingRewards.newBuilder()
+                    .pendingRewards(0)
+                    .totalStakedRewardStart(0)
+                    .totalStakedStart(0)
+                    .stakingRewardsActivated(true)
                     .build();
-            stakingInfoState.put(EntityNumber.newBuilder().number(nodeNumber).build(), stakingInfo);
+            networkRewardsState.put(networkRewards);
         }
-    }
-
-    private void initializeNetworkRewards(@NonNull final MigrationContext ctx) {
-        // Set genesis network rewards state
-        final var networkRewardsState = ctx.newStates().getSingleton(STAKING_NETWORK_REWARDS_KEY);
-        final var networkRewards = NetworkStakingRewards.newBuilder()
-                .pendingRewards(0)
-                .totalStakedRewardStart(0)
-                .totalStakedStart(0)
-                .stakingRewardsActivated(true)
-                .build();
-        networkRewardsState.put(networkRewards);
     }
 }

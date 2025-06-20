@@ -1,27 +1,8 @@
-/*
- * Copyright (C) 2019-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.crypto.internal;
 
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.HashBuilder;
-import com.swirlds.common.crypto.engine.CachingOperationProvider;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.IllegalChildHashException;
@@ -30,6 +11,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashBuilder;
+import org.hiero.base.crypto.engine.CachingOperationProvider;
 
 /**
  * A {@link CachingOperationProvider} implementation that is capable of computing a hash for a supplied {@link

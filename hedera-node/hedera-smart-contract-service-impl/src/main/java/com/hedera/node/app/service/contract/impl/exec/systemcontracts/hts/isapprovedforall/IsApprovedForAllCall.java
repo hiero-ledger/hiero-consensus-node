@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isapprovedforall;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -28,6 +13,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -77,14 +63,18 @@ public class IsApprovedForAllCall extends AbstractRevertibleTokenViewCall {
 
         if (operatorNum > 0 && ownerNum > 0) {
             verdict = operatorMatches(
-                    requireNonNull(nativeOperations().getAccount(ownerNum)),
-                    AccountID.newBuilder().accountNum(operatorNum).build(),
+                    requireNonNull(nativeOperations()
+                            .getAccount(enhancement
+                                    .nativeOperations()
+                                    .entityIdFactory()
+                                    .newAccountId(ownerNum))),
+                    enhancement.nativeOperations().entityIdFactory().newAccountId(operatorNum),
                     token.tokenIdOrThrow());
         }
         if (isErcRedirect) {
             return gasOnly(
                     successResult(
-                            ERC_IS_APPROVED_FOR_ALL.getOutputs().encodeElements(verdict),
+                            ERC_IS_APPROVED_FOR_ALL.getOutputs().encode(Tuple.singleton(verdict)),
                             gasCalculator.viewGasRequirement()),
                     SUCCESS,
                     true);
@@ -93,7 +83,7 @@ public class IsApprovedForAllCall extends AbstractRevertibleTokenViewCall {
                     successResult(
                             CLASSIC_IS_APPROVED_FOR_ALL
                                     .getOutputs()
-                                    .encodeElements((long) SUCCESS.protoOrdinal(), verdict),
+                                    .encode(Tuple.of((long) SUCCESS.protoOrdinal(), verdict)),
                             gasCalculator.viewGasRequirement()),
                     SUCCESS,
                     true);

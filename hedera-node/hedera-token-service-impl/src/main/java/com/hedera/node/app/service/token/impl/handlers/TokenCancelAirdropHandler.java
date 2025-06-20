@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -38,7 +23,6 @@ import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.token.TokenCancelAirdropTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
@@ -48,6 +32,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -78,12 +63,14 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
         final var op = txn.tokenCancelAirdropOrThrow();
         final var allPendingAirdrops = op.pendingAirdrops();
         for (final var airdrop : allPendingAirdrops) {
-            context.requireAliasedKeyOrThrow(airdrop.senderIdOrThrow(), INVALID_ACCOUNT_ID);
+            context.requireAliasedKeyOrThrow(airdrop.senderIdOrThrow(), INVALID_PENDING_AIRDROP_ID);
         }
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn, "Transaction body cannot be null");
         final var op = txn.tokenCancelAirdropOrThrow();
 
@@ -93,8 +80,8 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
             if (!uniquePendingAirdrops.add(airdrop)) {
                 throw new PreCheckException(PENDING_AIRDROP_ID_REPEATED);
             }
-            validateAccountID(airdrop.receiverId(), null);
-            validateAccountID(airdrop.senderId(), null);
+            validateAccountID(airdrop.receiverId(), INVALID_PENDING_AIRDROP_ID);
+            validateAccountID(airdrop.senderId(), INVALID_PENDING_AIRDROP_ID);
 
             if (airdrop.hasFungibleTokenType()) {
                 final var tokenID = airdrop.fungibleTokenType();

@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.dsl.operations.transactions;
 
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.TokenType;
@@ -101,10 +86,10 @@ public class AirdropOperation extends AbstractSpecTransaction<AirdropOperation, 
         public TokenMovement asMovementFrom(@NonNull final SpecAccount sender) {
             final var builder =
                     switch (type()) {
-                        case FUNGIBLE_COMMON -> TokenMovement.moving(
-                                asset, fungibleTokenOrThrow().name());
-                        case NON_FUNGIBLE_UNIQUE -> TokenMovement.movingUnique(
-                                nonFungibleTokenOrThrow().name(), asset);
+                        case FUNGIBLE_COMMON ->
+                            TokenMovement.moving(asset, fungibleTokenOrThrow().name());
+                        case NON_FUNGIBLE_UNIQUE ->
+                            TokenMovement.movingUnique(nonFungibleTokenOrThrow().name(), asset);
                     };
             return switch (aliasUsage) {
                 case NEITHER -> builder.between(sender.name(), receiver.name());

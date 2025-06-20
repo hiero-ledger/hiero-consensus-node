@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -31,7 +16,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
@@ -51,11 +35,12 @@ import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.state.SingleTransactionRecord;
-import com.hedera.node.app.state.SingleTransactionRecord.TransactionOutputs;
+import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
+import com.hedera.node.app.state.recordcache.PartialRecordSource;
 import com.hedera.node.app.state.recordcache.RecordCacheImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -65,8 +50,9 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.info.NetworkInfo;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -151,6 +137,7 @@ public class NetworkAdminHandlerTestBase {
     protected TransactionRecord duplicate1;
     protected TransactionRecord duplicate2;
     protected TransactionRecord duplicate3;
+    protected TransactionRecord otherRecord;
     protected TransactionRecord recordOne;
     protected TransactionRecord recordTwo;
     protected TransactionRecord recordThree;
@@ -193,7 +180,13 @@ public class NetworkAdminHandlerTestBase {
     private NetworkInfo networkInfo;
 
     @Mock
+    private StartupNetworks startupNetworks;
+
+    @Mock
     protected FeeCalculator feeCalculator;
+
+    @Mock
+    protected ReadableEntityCounters readableEntityCounters;
 
     private final InstantSource instantSource = InstantSource.system();
 
@@ -202,8 +195,8 @@ public class NetworkAdminHandlerTestBase {
         final var validStartTime = Instant.ofEpochMilli(123456789L); // aligned to millisecond boundary for convenience.
         transactionID = transactionID(validStartTime, 0);
         otherNonceOneTransactionID = transactionID(validStartTime.plusNanos(1), 1);
-        otherNonceTwoTransactionID = transactionID(validStartTime.plusNanos(2), 2);
-        otherNonceThreeTransactionID = transactionID(validStartTime.plusNanos(3), 3);
+        otherNonceTwoTransactionID = transactionID(validStartTime.plusNanos(1), 2);
+        otherNonceThreeTransactionID = transactionID(validStartTime.plusNanos(1), 3);
         transactionIDNotInCache = transactionID(validStartTime.plusNanos(5), 5);
 
         givenValidAccount(false, Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
@@ -222,7 +215,7 @@ public class NetworkAdminHandlerTestBase {
         final var registry = new FakeSchemaRegistry();
         final var svc = new RecordCacheService();
         svc.registerSchemas(registry);
-        registry.migrate(svc.getServiceName(), state, networkInfo);
+        registry.migrate(svc.getServiceName(), state, startupNetworks);
         lenient().when(wsa.getState()).thenReturn(state);
         lenient().when(stack.getWritableStates(NAME)).thenReturn(state.getWritableStates(NAME));
         lenient().when(props.getConfiguration()).thenReturn(versionedConfig);
@@ -236,13 +229,13 @@ public class NetworkAdminHandlerTestBase {
     private void givenAccountsInReadableStore() {
         readableAccounts = readableAccountState();
         given(readableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(readableAccounts);
-        readableAccountStore = new ReadableAccountStoreImpl(readableStates);
+        readableAccountStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void givenTokensInReadableStore() {
         readableTokenState = readableTokenState();
         given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        readableTokenStore = new ReadableTokenStoreImpl(readableStates);
+        readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void givenReadableTokenRelsStore() {
@@ -251,7 +244,7 @@ public class NetworkAdminHandlerTestBase {
                 .value(nonFungiblePair, nonFungibleTokenRelation)
                 .build();
         given(readableStates.<EntityIDPair, TokenRelation>get(TOKEN_RELS)).willReturn(readableTokenRelState);
-        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates);
+        readableTokenRelStore = new ReadableTokenRelationStoreImpl(readableStates, readableEntityCounters);
     }
 
     private void givenRecordCacheState() {
@@ -281,36 +274,55 @@ public class NetworkAdminHandlerTestBase {
                 .receipt(receipt)
                 .consensusTimestamp(asTimestamp(consensusTimestamp.plusMillis(3)))
                 .build();
+        final var otherTxnId = otherNonceOneTransactionID.copyBuilder().nonce(0).build();
+        otherRecord = TransactionRecord.newBuilder()
+                .transactionID(otherTxnId)
+                .receipt(receipt)
+                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(5)))
+                .build();
         recordOne = TransactionRecord.newBuilder()
                 .transactionID(otherNonceOneTransactionID)
                 .receipt(receipt)
-                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(1)))
+                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(6)))
                 .parentConsensusTimestamp(asTimestamp(consensusTimestamp))
                 .build();
         recordTwo = TransactionRecord.newBuilder()
                 .transactionID(otherNonceTwoTransactionID)
                 .receipt(receipt)
-                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(2)))
+                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(7)))
                 .parentConsensusTimestamp(asTimestamp(consensusTimestamp))
                 .build();
         recordThree = TransactionRecord.newBuilder()
                 .transactionID(otherNonceThreeTransactionID)
                 .receipt(receipt)
-                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(3)))
+                .consensusTimestamp(asTimestamp(consensusTimestamp.plusNanos(8)))
                 .parentConsensusTimestamp(asTimestamp(consensusTimestamp))
                 .build();
-        cache.add(0, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(primaryRecord)));
-        cache.add(1, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(duplicate1)));
-        cache.add(2, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(duplicate2)));
-        cache.add(3, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(duplicate3)));
-        cache.add(0, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(recordOne)));
-        cache.add(0, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(recordTwo)));
-        cache.add(0, PAYER_ACCOUNT_ID, List.of(singleTransactionRecord(recordThree)));
-    }
-
-    private SingleTransactionRecord singleTransactionRecord(TransactionRecord record) {
-        return new SingleTransactionRecord(
-                Transaction.DEFAULT, record, List.of(), new TransactionOutputs(TokenType.FUNGIBLE_COMMON));
+        cache.addRecordSource(
+                0,
+                primaryRecord.transactionIDOrThrow(),
+                HederaRecordCache.DueDiligenceFailure.NO,
+                new PartialRecordSource(List.of(primaryRecord)));
+        cache.addRecordSource(
+                1,
+                duplicate1.transactionIDOrThrow(),
+                HederaRecordCache.DueDiligenceFailure.NO,
+                new PartialRecordSource(List.of(duplicate1)));
+        cache.addRecordSource(
+                2,
+                duplicate2.transactionIDOrThrow(),
+                HederaRecordCache.DueDiligenceFailure.NO,
+                new PartialRecordSource(List.of(duplicate2)));
+        cache.addRecordSource(
+                3,
+                duplicate3.transactionIDOrThrow(),
+                HederaRecordCache.DueDiligenceFailure.NO,
+                new PartialRecordSource(List.of(duplicate3)));
+        cache.addRecordSource(
+                0,
+                otherTxnId,
+                HederaRecordCache.DueDiligenceFailure.NO,
+                new PartialRecordSource(List.of(otherRecord, recordOne, recordTwo, recordThree)));
     }
 
     protected MapReadableKVState<AccountID, Account> readableAccountState() {
@@ -334,7 +346,7 @@ public class NetworkAdminHandlerTestBase {
     @NonNull
     protected RecordCacheImpl emptyRecordCacheBuilder() {
         dedupeCache = new DeduplicationCacheImpl(props, instantSource);
-        return new RecordCacheImpl(dedupeCache, wsa, props);
+        return new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
     }
 
     @NonNull
@@ -460,7 +472,7 @@ public class NetworkAdminHandlerTestBase {
     protected void givenNonFungibleTokenRelation() {
         nonFungibleTokenRelation = TokenRelation.newBuilder()
                 .tokenId(nonFungibleTokenId)
-                .accountId(asAccount(accountNum))
+                .accountId(asAccount(0L, 0L, accountNum))
                 .balance(1000L)
                 .frozen(false)
                 .kycGranted(false)
@@ -471,14 +483,10 @@ public class NetworkAdminHandlerTestBase {
     }
 
     private TransactionID transactionID(Instant validStartTime, int nonce) {
-        return transactionID(validStartTime, 0, nonce);
-    }
-
-    private TransactionID transactionID(Instant validStartTime, int nanos, int nonce) {
         return TransactionID.newBuilder()
                 .transactionValidStart(Timestamp.newBuilder()
                         .seconds(validStartTime.getEpochSecond())
-                        .nanos(nanos))
+                        .nanos(validStartTime.getNano()))
                 .accountID(PAYER_ACCOUNT_ID)
                 .nonce(nonce)
                 .build();

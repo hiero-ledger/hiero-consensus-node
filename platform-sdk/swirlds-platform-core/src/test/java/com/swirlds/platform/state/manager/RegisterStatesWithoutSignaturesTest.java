@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -21,17 +6,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.HashMap;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,8 +31,7 @@ public class RegisterStatesWithoutSignaturesTest extends AbstractStateSignatureC
     // the class file with other tests.
     // DO NOT ADD ADDITIONAL UNIT TESTS TO THIS CLASS!
 
-    private final AddressBook addressBook =
-            RandomAddressBookBuilder.create(random).withSize(4).build();
+    private final Roster roster = RandomRosterBuilder.create(random).withSize(4).build();
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.
@@ -73,6 +60,16 @@ public class RegisterStatesWithoutSignaturesTest extends AbstractStateSignatureC
         };
     }
 
+    @BeforeEach
+    void setUp() {
+        MerkleDb.resetDefaultInstancePath();
+    }
+
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+    }
+
     /**
      * Keep adding new states to the manager but never sign any of them (other than self signatures).
      */
@@ -90,8 +87,9 @@ public class RegisterStatesWithoutSignaturesTest extends AbstractStateSignatureC
         // Create a series of signed states. Don't add any signatures. Self signatures will be automatically added.
         final int count = 100;
         for (int round = 0; round < count; round++) {
+            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
-                    .setAddressBook(addressBook)
+                    .setRoster(roster)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
                     .build();

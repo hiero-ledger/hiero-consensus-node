@@ -1,28 +1,16 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.yahcli.config.ConfigManager;
+import com.hedera.services.yahcli.util.HapiSpecUtils;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,12 +22,11 @@ public class FreezeHelperSuite extends HapiSuite {
     private final Instant freezeStartTime;
     private final boolean isAbort;
 
-    private final Map<String, String> specConfig;
+    private final ConfigManager configManager;
 
-    public FreezeHelperSuite(
-            final Map<String, String> specConfig, final Instant freezeStartTime, final boolean isAbort) {
+    public FreezeHelperSuite(final ConfigManager configManager, final Instant freezeStartTime, final boolean isAbort) {
         this.isAbort = isAbort;
-        this.specConfig = specConfig;
+        this.configManager = configManager;
         this.freezeStartTime = freezeStartTime;
     }
 
@@ -49,11 +36,11 @@ public class FreezeHelperSuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> doFreeze() {
-        return HapiSpec.customHapiSpec("DoFreeze")
-                .withProperties(specConfig)
-                .given()
-                .when()
-                .then(requestedFreezeOp());
+        final var spec =
+                new HapiSpec("DoFreeze", new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
+                    requestedFreezeOp()
+                });
+        return HapiSpecUtils.targeted(spec, configManager);
     }
 
     private HapiSpecOperation requestedFreezeOp() {

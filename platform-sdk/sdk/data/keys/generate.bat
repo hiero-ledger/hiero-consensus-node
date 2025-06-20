@@ -1,6 +1,6 @@
 SETLOCAL 
 REM set "JAVA_HOME=C:\Program Files\Java\jdk1.8.0_131"
-set NAMES=(alice bob carol dave eric fred gina hank iris judy kent lucy)
+set NAMES=(node1 node2 node3 node4)
 
 REM Replace the JAVA_HOME line with where the jdk is stored. This can be found by searching 
 REM the hard drive for "java" from the search box at the top of any folder window.

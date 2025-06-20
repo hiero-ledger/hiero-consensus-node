@@ -1,61 +1,94 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.roster.schemas;
 
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_KEY;
 import static com.hedera.node.app.roster.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.RosterState;
-import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.StateDefinition;
-import com.swirlds.state.spi.WritableSingletonState;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.internal.network.Network;
+import com.hedera.node.internal.network.NodeMetadata;
+import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Unit tests for {@link V0540RosterSchema}.
  */
+@ExtendWith(MockitoExtension.class)
 class V0540RosterSchemaTest {
+    private static final long ROUND_NO = 666L;
+    private static final Network NETWORK = Network.newBuilder()
+            .nodeMetadata(NodeMetadata.newBuilder()
+                    .rosterEntry(RosterEntry.newBuilder().nodeId(1L).build())
+                    .build())
+            .build();
+    private static final Roster ROSTER = new Roster(NETWORK.nodeMetadata().stream()
+            .map(NodeMetadata::rosterEntryOrThrow)
+            .toList());
 
-    @LoggingSubject
+    @Mock
+    private MigrationContext ctx;
+
+    @Mock
+    private WritableStates writableStates;
+
+    @Mock
+    private WritableRosterStore rosterStore;
+
+    @Mock
+    private StartupNetworks startupNetworks;
+
+    @Mock
+    private Function<WritableStates, WritableRosterStore> rosterStoreFactory;
+
+    @Mock
+    private BiConsumer<Roster, Roster> onAdopt;
+
+    @Mock
+    private Predicate<Roster> canAdopt;
+
+    @Mock
+    private State state;
+
+    @Mock
+    private PlatformStateFacade platformStateFacade;
+
+    private State getState() {
+        return state;
+    }
+
     private V0540RosterSchema subject;
-
-    private MigrationContext migrationContext;
-    private WritableSingletonState<Object> rosterState;
 
     @BeforeEach
     void setUp() {
-        subject = new V0540RosterSchema();
-        migrationContext = mock(MigrationContext.class);
-        rosterState = mock(WritableSingletonState.class);
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, this::getState, platformStateFacade);
     }
 
     @Test
-    void registersExpectedRosterSchema() {
+    void registersExpectedSchema() {
         final var statesToCreate = subject.statesToCreate();
         assertThat(statesToCreate).hasSize(2);
         final var iter =
@@ -65,26 +98,123 @@ class V0540RosterSchemaTest {
     }
 
     @Test
-    @DisplayName("For this version, migrate from existing state version returns default.")
-    void testMigrateFromNullRosterStateReturnsDefault() {
-        when(migrationContext.newStates()).thenReturn(mock(WritableStates.class));
-        when(migrationContext.newStates().getSingleton(V0540RosterSchema.ROSTER_STATES_KEY))
-                .thenReturn(rosterState);
+    void usesGenesisRosterIfLifecycleEnabledAndApropros() {
+        given(ctx.newStates()).willReturn(writableStates);
+        given(ctx.isGenesis()).willReturn(true);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
+        given(startupNetworks.genesisNetworkOrThrow(DEFAULT_CONFIG)).willReturn(NETWORK);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
 
-        subject.migrate(migrationContext);
-        verify(rosterState, times(1)).put(RosterState.DEFAULT);
+        subject.restart(ctx);
+
+        verify(rosterStore).putActiveRoster(ROSTER, 0L);
     }
 
     @Test
-    @DisplayName("Migrate from older state version returns default.")
-    void testMigrateFromPreviousStateVersion() {
-        when(migrationContext.newStates()).thenReturn(mock(WritableStates.class));
-        when(migrationContext.newStates().getSingleton(V0540RosterSchema.ROSTER_STATES_KEY))
-                .thenReturn(rosterState);
-        when(migrationContext.previousVersion())
-                .thenReturn(
-                        SemanticVersion.newBuilder().major(0).minor(53).patch(0).build());
-        subject.migrate(migrationContext);
-        verify(rosterState, times(1)).put(RosterState.DEFAULT);
+    void noOpIfNotUpgradeAndActiveRosterPresent() {
+        given(ctx.newStates()).willReturn(writableStates);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+
+        subject.restart(ctx);
+
+        verify(rosterStore).getActiveRoster();
+        verifyNoMoreInteractions(rosterStore);
+    }
+
+    @Test
+    void doesNotAdoptNullCandidateRoster() {
+        given(ctx.newStates()).willReturn(writableStates);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        given(ctx.isUpgrade(any())).willReturn(true);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+
+        subject.restart(ctx);
+
+        verify(rosterStore).getActiveRoster();
+        verify(rosterStore).getCandidateRoster();
+        verifyNoMoreInteractions(rosterStore);
+    }
+
+    @Test
+    void doesNotAdoptCandidateRosterIfNotSpecified() {
+        given(ctx.newStates()).willReturn(writableStates);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        given(ctx.isUpgrade(any())).willReturn(true);
+        given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
+        given(canAdopt.test(ROSTER)).willReturn(false);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+
+        subject.restart(ctx);
+
+        verify(rosterStore).getActiveRoster();
+        verify(rosterStore).getCandidateRoster();
+        verifyNoMoreInteractions(rosterStore);
+    }
+
+    @Test
+    void adoptsCandidateRosterIfTestPasses() {
+        given(ctx.newStates()).willReturn(writableStates);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        given(ctx.isUpgrade(any())).willReturn(true);
+        given(rosterStore.getCandidateRoster()).willReturn(ROSTER);
+        given(canAdopt.test(ROSTER)).willReturn(true);
+        given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+
+        subject.restart(ctx);
+
+        verify(rosterStore, times(2)).getActiveRoster();
+        verify(rosterStore).getCandidateRoster();
+        verify(rosterStore).adoptCandidateRoster(ROUND_NO + 1L);
+    }
+
+    @Test
+    void restartSetsActiveRosterFromOverrideIfPresent() {
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
+        given(startupNetworks.overrideNetworkFor(ROUND_NO, DEFAULT_CONFIG)).willReturn(Optional.of(NETWORK));
+        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+
+        subject.restart(ctx);
+
+        verify(rosterStore).putActiveRoster(ROSTER, ROUND_NO + 1L);
+        verify(startupNetworks).setOverrideRound(ROUND_NO);
+        verify(onAdopt).accept(ROSTER, ROSTER);
+    }
+
+    @Test
+    void restartSetsActiveRosterFromOverrideWithPreservedWeightsIfPresent() {
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(rosterStore.getActiveRoster())
+                .willReturn(new Roster(
+                        List.of(RosterEntry.newBuilder().nodeId(1L).weight(42L).build())));
+        given(startupNetworks.overrideNetworkFor(ROUND_NO, DEFAULT_CONFIG)).willReturn(Optional.of(NETWORK));
+        final var adaptedRoster = new Roster(
+                List.of(RosterEntry.newBuilder().nodeId(1L).weight(42L).build()));
+        given(rosterStore.getActiveRoster()).willReturn(adaptedRoster);
+
+        subject.restart(ctx);
+
+        verify(rosterStore).putActiveRoster(adaptedRoster, ROUND_NO + 1L);
+        verify(startupNetworks).setOverrideRound(ROUND_NO);
     }
 }

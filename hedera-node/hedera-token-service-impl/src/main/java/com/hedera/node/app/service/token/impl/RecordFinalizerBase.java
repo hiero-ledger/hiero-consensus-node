@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
@@ -41,9 +26,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class RecordFinalizerBase {
+public abstract class RecordFinalizerBase {
     protected static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
+
+    /**
+     * Whether system entities are being created (which in particular requires non-zero sum
+     * hbar balance changes).
+     */
+    protected abstract boolean systemEntitiesCreated();
 
     /**
      * Gets all hbar changes for all modified accounts from the given {@link WritableAccountStore}.
@@ -74,14 +65,17 @@ public class RecordFinalizerBase {
                 hbarChanges.put(modifiedAcctId, netHbarChange);
             }
         }
-        // Since this is a finalization handler, we should have already succeeded in handling the transaction in a
-        // handler before getting here. Therefore, if the sum is non-zero, something went wrong, and we'll respond with
-        // FAIL_INVALID
-        if (netHbarBalance != 0) {
+        // Net HBAR balances can only change when creating system entities at genesis
+        if (netHbarBalance != 0 && systemEntitiesCreated()) {
             throw new HandleException(FAIL_INVALID);
         }
 
         return hbarChanges;
+    }
+
+    public enum IsCryptoTransfer {
+        YES,
+        NO
     }
 
     /**
@@ -93,7 +87,8 @@ public class RecordFinalizerBase {
      */
     @NonNull
     protected Map<EntityIDPair, Long> tokenRelChangesFrom(
-            @NonNull final WritableTokenRelationStore writableTokenRelStore, final boolean filterZeroAmounts) {
+            @NonNull final WritableTokenRelationStore writableTokenRelStore,
+            @NonNull final IsCryptoTransfer isCryptoTransfer) {
         final var tokenRelChanges = new HashMap<EntityIDPair, Long>();
         for (final EntityIDPair modifiedRel : writableTokenRelStore.modifiedTokens()) {
             final var relAcctId = modifiedRel.accountIdOrThrow();
@@ -124,7 +119,7 @@ public class RecordFinalizerBase {
                 final var prevPointerChanged = !Objects.equals(
                         persistedTokenRel != null ? persistedTokenRel.previousToken() : null,
                         modifiedTokenRel != null ? modifiedTokenRel.previousToken() : null);
-                if (!filterZeroAmounts && !prevPointerChanged) {
+                if (isCryptoTransfer == IsCryptoTransfer.YES && !prevPointerChanged) {
                     tokenRelChanges.put(modifiedRel, 0L);
                 }
             }
@@ -138,12 +133,12 @@ public class RecordFinalizerBase {
      * relations, returns a list of {@link TokenTransferList} representing the changes to the token relations.
      *
      * @param fungibleChanges the map of {@link EntityIDPair} to {@link Long} representing the changes to the balances
-     * @param filterZeroAmounts whether to filter out zero amounts
+     * @param isCryptoTransfer the {@link IsCryptoTransfer} representing if the transaction is a crypto transfer
      * @return a list of {@link TokenTransferList} representing the changes to the token relations
      */
     @NonNull
     protected List<TokenTransferList> asTokenTransferListFrom(
-            @NonNull final Map<EntityIDPair, Long> fungibleChanges, final boolean filterZeroAmounts) {
+            @NonNull final Map<EntityIDPair, Long> fungibleChanges, @NonNull final IsCryptoTransfer isCryptoTransfer) {
         final var fungibleTokenTransferLists = new ArrayList<TokenTransferList>();
         final var acctAmountsByTokenId = new HashMap<TokenID, HashMap<AccountID, Long>>();
         for (final var fungibleChange : fungibleChanges.entrySet()) {
@@ -152,7 +147,7 @@ public class RecordFinalizerBase {
             if (!acctAmountsByTokenId.containsKey(tokenIdOfAcctAmountChange)) {
                 acctAmountsByTokenId.put(tokenIdOfAcctAmountChange, new HashMap<>());
             }
-            if (fungibleChange.getValue() != 0 || !filterZeroAmounts) {
+            if (fungibleChange.getValue() != 0 || isCryptoTransfer == IsCryptoTransfer.YES) {
                 final var tokenIdMap = acctAmountsByTokenId.get(tokenIdOfAcctAmountChange);
                 tokenIdMap.merge(accountIdOfAcctAmountChange, fungibleChange.getValue(), Long::sum);
             }
@@ -164,6 +159,15 @@ public class RecordFinalizerBase {
             if (!singleTokenTransfers.isEmpty()) {
                 final var aaList = asAccountAmounts(singleTokenTransfers);
                 aaList.sort(ACCOUNT_AMOUNT_COMPARATOR);
+                if (isCryptoTransfer == IsCryptoTransfer.YES) {
+                    long netAdjustment = 0L;
+                    for (final var aa : aaList) {
+                        netAdjustment = addExactOrThrowReason(netAdjustment, aa.amount(), FAIL_INVALID);
+                    }
+                    if (netAdjustment != 0L) {
+                        throw new HandleException(FAIL_INVALID);
+                    }
+                }
                 fungibleTokenTransferLists.add(TokenTransferList.newBuilder()
                         .token(acctAmountsForToken.getKey())
                         .transfers(aaList)

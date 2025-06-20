@@ -1,24 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -53,6 +36,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.assertTxnRecordHasNoTraceabilityEnrichedContractFnResult;
 import static com.hedera.services.bdd.suites.contract.Utils.expectedPrecompileGasFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hedera.services.bdd.suites.utils.contracts.FunctionParameters.functionParameters;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
@@ -109,29 +93,28 @@ public class ContractMintHTSSuite {
 
         var invalidTokenNFTTest = "invalidTokenNFTTest";
         var invalidTokenTest = "invalidTokenTest";
-        return defaultHapiSpec("MintFungibleTokenWithInvalidAndExtremeValues")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(RECIPIENT).maxAutomaticTokenAssociations(1),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(1000)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(NEGATIVE_MINT_CONTRACT),
-                        contractCreate(NEGATIVE_MINT_CONTRACT).gas(GAS_TO_OFFER))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECIPIENT).maxAutomaticTokenAssociations(1),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(1000)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(NEGATIVE_MINT_CONTRACT),
+                contractCreate(NEGATIVE_MINT_CONTRACT).gas(GAS_TO_OFFER),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // Fungible Mint calls with extreme values
                         contractCall(
@@ -202,14 +185,11 @@ public class ContractMintHTSSuite {
                                 .alsoSigningWithFullPrefix(MULTI_KEY)
                                 .gas(GAS_TO_OFFER),
                         getTxnRecord(invalidTokenTest).andAllChildRecords().logged(),
-                        getTxnRecord(invalidTokenNFTTest).andAllChildRecords().logged())))
-                .then(
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 1_000),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0),
-                        childRecordsCheck(
-                                invalidTokenTest, SUCCESS, recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                invalidTokenNFTTest, SUCCESS, recordWith().status(INVALID_TOKEN_ID)));
+                        getTxnRecord(invalidTokenNFTTest).andAllChildRecords().logged())),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 1_000),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0),
+                childRecordsCheck(invalidTokenTest, SUCCESS, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(invalidTokenNFTTest, SUCCESS, recordWith().status(INVALID_TOKEN_ID)));
     }
 
     @HapiTest
@@ -220,29 +200,28 @@ public class ContractMintHTSSuite {
         var mintWithZeroedAddressTest = "mintWithZeroedAddressTest";
         var mintWithZeroedAddressAndMetadataTest = "mintWithZeroedAddressAndMetadataTest";
 
-        return defaultHapiSpec("MintFungibleTokenWithInvalidAndExtremeValues")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(RECIPIENT).maxAutomaticTokenAssociations(1),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(1000)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY),
-                        uploadInitCode(NEGATIVE_MINT_CONTRACT),
-                        contractCreate(NEGATIVE_MINT_CONTRACT).gas(GAS_TO_OFFER))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECIPIENT).maxAutomaticTokenAssociations(1),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(1000)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(NEGATIVE_MINT_CONTRACT),
+                contractCreate(NEGATIVE_MINT_CONTRACT).gas(GAS_TO_OFFER),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(NEGATIVE_MINT_CONTRACT)),
                         tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
@@ -293,33 +272,31 @@ public class ContractMintHTSSuite {
                                 .logged(),
                         getTxnRecord(mintWithZeroedAddressAndMetadataTest)
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 1_000),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0),
-                        childRecordsCheck(
-                                fungibleMintWithMetadataTest,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TRANSACTION_BODY)),
-                        childRecordsCheck(
-                                mintWithZeroedAddressTest,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                mintWithZeroedAddressAndMetadataTest,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        withOpContext((spec, opLog) -> {
-                            final var baseTxnId = spec.registry().getTxnId(mintWithZeroedAddressAndMetadataTest);
-                            final var childTxnId =
-                                    baseTxnId.toBuilder().setNonce(1).build();
-                            allRunFor(spec, getReceipt(childTxnId).hasPriorityStatus(INVALID_TOKEN_ID));
-                            allRunFor(
-                                    spec,
-                                    getTxnRecord(childTxnId)
-                                            .assertingNothingAboutHashes()
-                                            .hasPriority(recordWith().status(INVALID_TOKEN_ID)));
-                        }));
+                                .logged())),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 1_000),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0),
+                childRecordsCheck(
+                        fungibleMintWithMetadataTest,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_TRANSACTION_BODY)),
+                childRecordsCheck(
+                        mintWithZeroedAddressTest,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        mintWithZeroedAddressAndMetadataTest,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_TOKEN_ID)),
+                withOpContext((spec, opLog) -> {
+                    final var baseTxnId = spec.registry().getTxnId(mintWithZeroedAddressAndMetadataTest);
+                    final var childTxnId = baseTxnId.toBuilder().setNonce(1).build();
+                    allRunFor(spec, getReceipt(childTxnId).hasPriorityStatus(INVALID_TOKEN_ID));
+                    allRunFor(
+                            spec,
+                            getTxnRecord(childTxnId)
+                                    .assertingNothingAboutHashes()
+                                    .hasPriority(recordWith().status(INVALID_TOKEN_ID)));
+                }));
     }
 
     @HapiTest
@@ -415,7 +392,6 @@ public class ContractMintHTSSuite {
                                                             .withStatus(SUCCESS)
                                                             .withTotalSupply(1L)
                                                             .withSerialNumbers(1L))
-                                                    .gas(3_836_587L)
                                                     .amount(0L)
                                                     .functionParameters(functionParameters()
                                                             .forFunction(FunctionParameters.PrecompileFunction.MINT)

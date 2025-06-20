@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static java.util.Objects.requireNonNull;
@@ -26,6 +11,8 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
@@ -38,6 +25,9 @@ import org.hyperledger.besu.datatypes.Address;
  * Provides the Hedera operations that only a {@link ProxyWorldUpdater} needs (but not a {@link DispatchingEvmFrameState}.
  */
 public interface HederaOperations {
+    /**
+     * A contract id to indicate that a given ContractId has a mismatch with the config.
+     */
     ContractID MISSING_CONTRACT_ID = ContractID.newBuilder().contractNum(0).build();
 
     /**
@@ -135,23 +125,46 @@ public interface HederaOperations {
     long valueInTinybars(long tinycents);
 
     /**
-     * Collects the given fee from the given account. The caller should have already
-     * verified that the account exists and has sufficient balance to pay the fee, so
-     * this method surfaces any problem by throwing an exception.
+     * Collects the given fee from the given account, within a stack frame that on
+     * revert should have all side effects discarded.
+     * <p>
+     * The caller should have already verified that the account exists and has
+     * sufficient balance to pay the fee, so this method surfaces any problem by
+     * throwing an exception.
      *
      * @param payerId the account to collect the fee from
      * @param amount the amount to collect
      * @throws IllegalArgumentException if the collection fails for any reason
      */
-    void collectFee(@NonNull AccountID payerId, final long amount);
+    void collectHtsFee(@NonNull AccountID payerId, long amount);
+
+    /**
+     * Collects the given fee from the given account, for initial gas charging, so
+     * it can be replayed on revert.
+     * <p>
+     * The caller should have already verified that the account exists and has
+     * sufficient balance to pay the fee, so this method surfaces any problem by
+     * throwing an exception.
+     *
+     * @param payerId the account to collect the fee from
+     * @param amount the amount to collect
+     * @param withNonceIncrement whether the nonce should be incremented
+     * @throws IllegalArgumentException if the collection fails for any reason
+     */
+    void collectGasFee(@NonNull AccountID payerId, long amount, boolean withNonceIncrement);
 
     /**
      * Refunds the given {@code amount} of fees from the given {@code fromEntityNumber}.
      *
      * @param payerId the address of the account to refund the fees to
-     * @param amount          the amount of fees to collect
+     * @param amount the amount of fees to collect
      */
-    void refundFee(@NonNull AccountID payerId, final long amount);
+    void refundGasFee(@NonNull AccountID payerId, long amount);
+
+    /**
+     * Replays gas charging (and possible refunding) in the given context.
+     */
+    void replayGasChargingIn(FeeCharging.Context feeChargingContext);
 
     /**
      * Attempts to charge the given {@code amount} of rent to the given {@code contractNumber}, with
@@ -162,7 +175,7 @@ public interface HederaOperations {
      * @param amount                 the amount to charge
      * @param itemizeStoragePayments whether to itemize storage payments in the record
      */
-    void chargeStorageRent(ContractID contractID, final long amount, final boolean itemizeStoragePayments);
+    void chargeStorageRent(ContractID contractID, long amount, boolean itemizeStoragePayments);
 
     /**
      * Updates the storage metadata for the given contract.
@@ -186,7 +199,7 @@ public interface HederaOperations {
      * @param parentNumber the number of the contract whose properties the new contract should inherit
      * @param evmAddress   if not null, the EVM address to use as an alias of the created contract
      */
-    void createContract(long number, long parentNumber, @Nullable Bytes evmAddress);
+    void createContract(long number, long parentNumber, @Nullable final Bytes evmAddress);
 
     /**
      * Creates a new contract with the given entity number and EVM address; and also "links" the alias
@@ -201,7 +214,7 @@ public interface HederaOperations {
      * @param op         the top-level operation creating this contract
      * @param evmAddress if not null, the EVM address to use as an alias of the created contract
      */
-    void createContract(long number, @NonNull ContractCreateTransactionBody op, @Nullable Bytes evmAddress);
+    void createContract(long number, @NonNull ContractCreateTransactionBody op, @Nullable final Bytes evmAddress);
 
     /**
      * Deletes the contract whose alias is the given {@code evmAddress}, and also "unlinks" the alias.
@@ -276,4 +289,10 @@ public interface HederaOperations {
                 ? contractId
                 : MISSING_CONTRACT_ID;
     }
+
+    /**
+     * Returns the ThrottleAdvisor or null if it is not available in this scope.
+     */
+    @Nullable
+    ThrottleAdviser getThrottleAdviser();
 }

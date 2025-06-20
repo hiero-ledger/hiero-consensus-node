@@ -1,29 +1,17 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer.customfees;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler;
@@ -105,6 +93,20 @@ public class CustomFeeAssessor extends BaseTokenHandler {
     }
 
     /**
+     * Sets the transaction fees as assessed for a given payer and custom fee.
+     * This method updates the assessment result with the specified custom fee.
+     * Note: This method does not adjust the payer's balance.
+     *
+     * @param payer The Account ID of the payer responsible for the custom fee.
+     * @param fee The custom fee to be assessed.
+     * @param result The assessment result to be updated with the custom fee.
+     */
+    public void setTransactionFeesAsAssessed(
+            @NonNull final AccountID payer, @NonNull final FixedCustomFee fee, @NonNull final AssessmentResult result) {
+        fixedFeeAssessor.setTransactionFeesAsAssessed(payer, fee, result);
+    }
+
+    /**
      * Validates the assessment result after each type of fees assessment(fixed fees, fractional fees, royalty fees).
      * The validation consists of two steps:
      * 1. Ensures that the sender account has sufficient balance to pay the custom fee
@@ -131,13 +133,24 @@ public class CustomFeeAssessor extends BaseTokenHandler {
             final var entryValue = entry.getValue();
             for (final var entryTx : entryValue.entrySet()) {
                 final Long htsBalanceChange = entryTx.getValue();
+                final var accountId = entryTx.getKey();
+                final var tokenRel = tokenRelStore.get(accountId, entry.getKey());
+                // revalidate collector's association
+                if (htsBalanceChange > 0) {
+                    if (tokenRel == null) {
+                        final var currentAccount = accountStore.getAccountById(accountId);
+                        final var mayBeAutoAssociatedHere = currentAccount != null
+                                && (currentAccount.maxAutoAssociations() > currentAccount.usedAutoAssociations()
+                                        || currentAccount.maxAutoAssociations() == -1);
+                        validateTrue(mayBeAutoAssociatedHere, TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR);
+                    }
+                }
+
                 if (htsBalanceChange < 0) {
                     // IMPORTANT: These special cases exist only to simulate mono-service failure codes in
                     // some of the "classic" custom fee scenarios encoded in EETs; but they have no logical
                     // priority relative to other failure responses that would be assigned in a later step
                     // if we didn't fail here
-                    final var accountId = entryTx.getKey();
-                    final var tokenRel = tokenRelStore.get(accountId, entry.getKey());
                     final var precedingChanges =
                             result.getImmutableInputTokenAdjustments().get(entry.getKey());
                     final var precedingAdjustment =

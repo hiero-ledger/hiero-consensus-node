@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -33,6 +18,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler;
@@ -50,8 +36,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CryptoTransferHandlerTestBase extends StepsBase {
-    protected static final AccountID ACCOUNT_ID_3333 = asAccount(3333);
-    protected static final AccountID ACCOUNT_ID_4444 = asAccount(4444);
+
+    protected static final AccountID ACCOUNT_ID_3333 = asAccount(0L, 0L, 3333);
+    protected static final AccountID ACCOUNT_ID_4444 = asAccount(0L, 0L, 4444);
     protected static final TokenID TOKEN_2468 = asToken(2468);
     protected static final TokenID TOKEN_2469 = asToken(2469);
     protected static final NftID NFT_ID =
@@ -69,6 +56,11 @@ class CryptoTransferHandlerTestBase extends StepsBase {
             AccountAmount.newBuilder().accountID(ACCOUNT_ID_4444).amount(10).build();
     protected static final NftTransfer SERIAL_1_FROM_3333_TO_4444 = NftTransfer.newBuilder()
             .serialNumber(1)
+            .senderAccountID(ACCOUNT_ID_3333)
+            .receiverAccountID(ACCOUNT_ID_4444)
+            .build();
+    protected static final NftTransfer SERIAL_2_FROM_3333_TO_4444 = NftTransfer.newBuilder()
+            .serialNumber(2)
             .senderAccountID(ACCOUNT_ID_3333)
             .receiverAccountID(ACCOUNT_ID_4444)
             .build();
@@ -91,7 +83,7 @@ class CryptoTransferHandlerTestBase extends StepsBase {
     @BeforeEach
     public void setUp() {
         super.setUp();
-        validator = new CryptoTransferValidator();
+        validator = new CryptoTransferValidator(new AppEntityIdFactory(configuration));
         tokenAirdropValidator = new TokenAirdropValidator();
         subject = new CryptoTransferHandler(validator);
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);

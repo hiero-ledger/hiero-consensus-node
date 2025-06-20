@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -26,9 +11,6 @@ import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRec
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -40,6 +22,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * RecordFileWriter for V6 record file format.
@@ -59,9 +44,9 @@ public final class BlockRecordFormatV6 implements BlockRecordFormat {
     static {
         try {
             // compute Hash object header, the hash header is not the usual SelfSerializable Hash object.
-            // @see com.swirlds.common.crypto.engine.RunningHashProvider.updateForHash
-            // @see com.swirlds.common.crypto.HashBuilder.update(long)
-            // @see com.swirlds.common.crypto.HashBuilder.update(int)
+            // @see org.hiero.base.crypto.engine.RunningHashProvider.updateForHash
+            // @see org.hiero.base.crypto.HashBuilder.update(long)
+            // @see org.hiero.base.crypto.HashBuilder.update(int)
             ByteBuffer buf = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             buf.putLong(Hash.CLASS_ID);

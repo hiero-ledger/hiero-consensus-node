@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.appcomm;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
@@ -22,15 +7,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.state.notifications.NewSignedStateListener;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,17 +38,19 @@ public class LatestCompleteStateNotifierTests {
         final CountDownLatch listenerLatch = new CountDownLatch(1);
         final AtomicInteger numInvocations = new AtomicInteger();
 
+        AtomicReference<Throwable> notificationProcessingErrorRef = new AtomicReference<>();
         notificationEngine.register(NewSignedStateListener.class, n -> {
             numInvocations.incrementAndGet();
             try {
                 assertThat(senderLatch.await(1, TimeUnit.SECONDS)).isTrue();
                 assertFalse(
-                        n.getSwirldState().isDestroyed(),
-                        "SwirldState should not be destroyed until the callback has completed");
-                assertEquals(signedState.getSwirldState(), n.getSwirldState(), "Unexpected SwirldState");
-                listenerLatch.countDown();
-            } catch (InterruptedException e) {
+                        n.getState().isDestroyed(), "State should not be destroyed until the callback has completed");
+                assertEquals(signedState.getState(), n.getState(), "Unexpected State");
+            } catch (Throwable e) {
+                notificationProcessingErrorRef.set(e);
                 throw new RuntimeException(e);
+            } finally {
+                listenerLatch.countDown();
             }
         });
 
@@ -78,7 +69,13 @@ public class LatestCompleteStateNotifierTests {
         senderLatch.countDown();
 
         // Wait for the notification callback to complete
-        assertThat(listenerLatch.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(listenerLatch.await(5, TimeUnit.SECONDS)).isTrue();
+        assertNull(notificationProcessingErrorRef.get(), () -> {
+            StringWriter out = new StringWriter();
+            PrintWriter writer = new PrintWriter(out);
+            notificationProcessingErrorRef.get().printStackTrace(writer);
+            return "Unexpected error: " + out;
+        });
 
         // The notification listener has completed, but the post-listener callback may not have yet
         assertEventuallyEquals(

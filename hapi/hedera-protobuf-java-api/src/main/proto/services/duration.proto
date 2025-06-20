@@ -1,0 +1,32 @@
+/**
+ * # Duration
+ * A duration, in seconds.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.base">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A length of time in seconds.
+ *
+ * It is RECOMMENDED that this message be used whenever an amount of time,
+ * rather than a specific point in time, is needed.
+ */
+message Duration {
+    /**
+     * The number of seconds for this duration.
+     */
+    int64 seconds = 1;
+}

@@ -1,36 +1,22 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.nextInt;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
 import static com.swirlds.platform.state.service.PbjConverterTest.randomPlatformState;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_KEY;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.system.BasicSoftwareVersion;
 import com.swirlds.state.merkle.singleton.SingletonNode;
 import com.swirlds.state.merkle.singleton.WritableSingletonStateImpl;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,27 +42,23 @@ class WritablePlatformStateStoreTest {
 
         when(writableStates.<PlatformState>getSingleton(PLATFORM_STATE_KEY))
                 .thenReturn(new WritableSingletonStateImpl<>(PLATFORM_STATE_KEY, platformSingleton));
-        store = new WritablePlatformStateStore(writableStates, (version) -> new BasicSoftwareVersion(version.major()));
+        store = new WritablePlatformStateStore(writableStates);
     }
 
     @Test
     void verifySetAllFrom() {
         final var platformState = randomPlatformState(randotron);
         store.setAllFrom(platformState);
-        assertEquals(
-                platformState.getCreationSoftwareVersion().getPbjSemanticVersion(),
-                store.getCreationSoftwareVersion().getPbjSemanticVersion());
-        assertEquals(platformState.getAddressBook(), store.getAddressBook());
-        assertEquals(platformState.getPreviousAddressBook(), store.getPreviousAddressBook());
+        assertEquals(platformState.getCreationSoftwareVersion(), store.getCreationSoftwareVersion());
         assertEquals(platformState.getSnapshot().round(), store.getRound());
         assertEquals(platformState.getLegacyRunningEventHash(), store.getLegacyRunningEventHash());
-        assertEquals(platformState.getSnapshot().consensusTimestamp(), store.getConsensusTimestamp());
+        assertEquals(
+                CommonUtils.fromPbjTimestamp(platformState.getSnapshot().consensusTimestamp()),
+                store.getConsensusTimestamp());
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
-        assertEquals(
-                platformState.getFirstVersionInBirthRoundMode().getPbjSemanticVersion(),
-                store.getFirstVersionInBirthRoundMode().getPbjSemanticVersion());
+        assertEquals(platformState.getFirstVersionInBirthRoundMode(), store.getFirstVersionInBirthRoundMode());
         assertEquals(platformState.getLastRoundBeforeBirthRoundMode(), store.getLastRoundBeforeBirthRoundMode());
         assertEquals(
                 platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
@@ -86,24 +68,9 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyCreationSoftwareVersion() {
         final var version = nextInt(1, 100);
-        store.setCreationSoftwareVersion(new BasicSoftwareVersion(version));
-        assertEquals(
-                version,
-                store.getCreationSoftwareVersion().getPbjSemanticVersion().major());
-    }
-
-    @Test
-    void verifyAddressBook() {
-        final var addressBook = PbjConverterTest.randomAddressBook(randotron);
-        store.setAddressBook(addressBook);
-        assertEquals(addressBook, store.getAddressBook());
-    }
-
-    @Test
-    void verifyPreviousAddressBook() {
-        final var addressBook = PbjConverterTest.randomAddressBook(randotron);
-        store.setPreviousAddressBook(addressBook);
-        assertEquals(addressBook, store.getPreviousAddressBook());
+        store.setCreationSoftwareVersion(
+                SemanticVersion.newBuilder().major(version).build());
+        assertEquals(version, store.getCreationSoftwareVersion().major());
     }
 
     @Test
@@ -158,10 +125,9 @@ class WritablePlatformStateStoreTest {
     @Test
     void verifyFirstVersionInBirthRoundMode() {
         final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(new BasicSoftwareVersion(version));
-        assertEquals(
-                version,
-                store.getFirstVersionInBirthRoundMode().getPbjSemanticVersion().major());
+        store.setFirstVersionInBirthRoundMode(
+                SemanticVersion.newBuilder().major(version).build());
+        assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
     }
 
     @Test

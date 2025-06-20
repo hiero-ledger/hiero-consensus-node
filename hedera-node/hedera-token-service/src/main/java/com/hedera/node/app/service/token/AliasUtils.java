@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
-import static com.hedera.node.app.spi.key.KeyUtils.isValid;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -35,15 +20,7 @@ import java.util.HexFormat;
  * A collection of static utility methods for working with aliases on {@link Account}s.
  */
 public final class AliasUtils {
-    /**
-     * The first 12 bytes of an "entity num alias". See {@link #isEntityNumAlias(Bytes)}.
-     *
-     * <p>FUTURE: The actual shard and realm are defined in config, and we should use that. However, the config can only
-     * be read dynamically, not statically. But, the shard and realm *cannot change* once a node has been started with
-     * a given state. So we really could have some static way to get the shard and realm, based on bootstrap config,
-     * or based on state as it has been loaded. This detail has not been worked out, and on all networks today shard
-     * and realm are 0, so we just let this byte array be all zeros for now.
-     */
+    /** The first 12 bytes of an "entity num alias". See {@link #isEntityNumAlias(Bytes)}. */
     private static final byte[] ENTITY_NUM_ALIAS_PREFIX = new byte[12];
     /** All EVM addresses are 20 bytes long, and key-encoded keys are not. */
     private static final int EVM_ADDRESS_SIZE = 20;
@@ -104,9 +81,10 @@ public final class AliasUtils {
      *
      * <p>Every entity in the system (accounts, tokens, etc.) may be represented within ethereum with a 20-byte EVM
      * address. This address can be explicit (as part of the alias), or it can be based on the entity ID number. When
-     * based on the entity number, the first 20 bytes represent the shard and alias, while the last 8 bytes represent
-     * the entity number. When shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as
-     * the "long-zero" alias.
+     * based on the entity number, the first 12 bytes will be defined to be zero which indicates the current networks
+     * shard and realm, while the last 8 bytes represent the entity number. In the case where such an address is detected,
+     * the resultant entity id extract from such an address will be {@literal <local shard>.<local realm>.<entity number>}.
+     * Because the shard and realm are zero, this prefix is all zeros, which is why it is sometimes known as the "long-zero" alias.
      *
      * @param alias The alias to check
      * @return True if the alias is an entity num alias

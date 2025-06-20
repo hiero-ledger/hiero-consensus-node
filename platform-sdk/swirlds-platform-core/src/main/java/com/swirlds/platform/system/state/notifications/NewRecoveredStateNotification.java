@@ -1,59 +1,43 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.system.SwirldState;
+import com.swirlds.platform.state.MerkleNodeState;
 import java.time.Instant;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a new signed state has been created as a
+ * A {@link Notification Notification} that a new signed state has been created as a
  * result of the event recovery process.
  * <p>
  * This notification is sent once during event recovery for the resulting recovered state.
  */
 public class NewRecoveredStateNotification extends AbstractNotification {
 
-    private final SwirldState swirldState;
+    private final MerkleNodeState state;
     private final long round;
     private final Instant consensusTimestamp;
 
     /**
      * Create a notification for a state created as a result of event recovery.
      *
-     * @param swirldState        the swirld state from the recovered state
+     * @param state        the swirld state from the recovered state
      * @param round              the round of the recovered state
      * @param consensusTimestamp the consensus timestamp of the recovered state round
      */
     public NewRecoveredStateNotification(
-            final SwirldState swirldState, final long round, final Instant consensusTimestamp) {
-
-        this.swirldState = swirldState;
+            final MerkleNodeState state, final long round, final Instant consensusTimestamp) {
+        this.state = state;
         this.round = round;
         this.consensusTimestamp = consensusTimestamp;
     }
 
     /**
-     * Get the swirld state from the recovered state. Guaranteed to hold a reservation in the scope of this
+     * Get the state from the recovered state. Guaranteed to hold a reservation in the scope of this
      * notification.
      */
-    @SuppressWarnings("unchecked")
-    public <T extends SwirldState> T getSwirldState() {
-        return (T) swirldState;
+    public MerkleNodeState getState() {
+        return state;
     }
 
     /**

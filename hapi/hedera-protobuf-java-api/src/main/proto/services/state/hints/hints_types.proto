@@ -1,0 +1,223 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.hints;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.hints">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * The id of a party in a hinTS scheme with a certain
+ * number of parties.
+ */
+message HintsPartyId {
+  /**
+   * The party id, in the range [0, num_parties).
+   */
+  uint32 party_id = 1;
+  /**
+   * The number of parties in the hinTS scheme.
+   */
+  uint32 num_parties = 2;
+}
+
+/**
+ * A set of hinTS keys submitted by a node.
+ */
+message HintsKeySet {
+  /**
+   * The id of the node submitting these keys.
+   */
+  uint64 node_id = 1;
+  /**
+   * The consensus time at which the network adopted the active
+   * hinTS key in this set.
+   */
+  proto.Timestamp adoption_time = 2;
+  /**
+   * The party's active hinTS key.
+   */
+  bytes key = 3;
+  /**
+   * If set, the new hinTS key the node wants to use when
+   * the next construction begins.
+   */
+  bytes next_key = 4;
+}
+
+/**
+ * The output of the hinTS preprocessing algorithm; that is, a
+ * linear-size aggregation key and a succinct verification key.
+ */
+message PreprocessedKeys {
+  /**
+   * The aggregation key for the hinTS scheme
+   */
+  bytes aggregation_key = 1;
+  /**
+   * The succinct verification key for the hinTS scheme.
+   */
+  bytes verification_key = 2;
+}
+
+/**
+ * The id for a node's vote for the output of the
+ * preprocessing output of a hinTS construction.
+ */
+message PreprocessingVoteId {
+  /**
+   * The construction this vote is connected to.
+   */
+  uint64 construction_id = 1;
+  /**
+   * The id of the node submitting the vote.
+   */
+  uint64 node_id = 2;
+}
+
+/**
+ * A node's vote for the consensus output of a hinTS preprocessing
+ * algorithm.
+ */
+message PreprocessingVote {
+  oneof vote {
+    /**
+     * The preprocessed keys this node is voting for.
+     */
+    PreprocessedKeys preprocessed_keys = 1;
+    /**
+     * The id of any node that already voted for the exact keys
+     * that this node wanted to vote for.
+     */
+    uint64 congruent_node_id = 2;
+  }
+}
+
+/**
+ * A node's weighted hinTS party id.
+ */
+message NodePartyId {
+  /**
+   * The node id.
+   */
+  uint64 node_id = 1;
+  /**
+   * The party id.
+   */
+  uint32 party_id = 2;
+  /**
+   * The party's weight in the construction.
+   */
+  uint64 party_weight = 3;
+}
+
+/**
+ * The information constituting the hinTS scheme Hiero TSS.
+ */
+message HintsScheme {
+  /**
+   * The aggregation and verification keys for the scheme.
+   */
+  PreprocessedKeys preprocessed_keys = 1;
+
+  /**
+   * The final party ids assigned to each node in the target roster.
+   */
+  repeated NodePartyId node_party_ids = 2;
+}
+
+/**
+ * A summary of progress in constructing a hinTS scheme.
+ */
+message HintsConstruction {
+  /**
+   * The id of the construction.
+   */
+  uint64 construction_id = 1;
+  /**
+   * The hash of the roster whose weights are used to determine when
+   * the >=1/3 weight signing threshold is reached.
+   */
+  bytes source_roster_hash = 2;
+  /**
+   * The hash of the roster whose weights are used to determine when
+   * the >2/3 weight availability threshold is reached.
+   */
+  bytes target_roster_hash = 3;
+
+  oneof preprocessing_state {
+    /**
+     * If the network is still gathering hinTS keys for this construction,
+     * the time at which honest nodes should stop waiting for tardy
+     * publications and begin preprocessing as soon as there are valid
+     * hinTS keys for nodes with >2/3 weight in the target roster.
+     */
+    proto.Timestamp grace_period_end_time = 4;
+    /**
+     * If the network has gathered enough hinTS keys for this construction
+     * to begin preprocessing, the cutoff time by which keys must have been
+     * adopted to be included as input to the preprocessing algorithm.
+     */
+    proto.Timestamp preprocessing_start_time = 5;
+
+    /**
+     * If set, the completed hinTS scheme.
+     */
+    HintsScheme hints_scheme = 6;
+  }
+}
+
+/**
+ * The stage of a CRS construction.
+ */
+enum CRSStage {
+    /**
+     * The network is gathering contributions to the CRS from all nodes.
+     */
+    GATHERING_CONTRIBUTIONS = 0;
+
+    /**
+     * The network is waiting for some grace period to allow the verification future
+     * to be completed after the last node has contributed to the CRS.
+     */
+    WAITING_FOR_ADOPTING_FINAL_CRS = 1;
+
+    /**
+     * The network has completed the CRS construction and is set in the CrsState.
+     */
+    COMPLETED = 2;
+}
+
+/**
+ * The state of a CRS construction.
+ */
+message CRSState {
+
+  /**
+     * The bytes of the CRS. Based on the CRSStage, this may be the initial CRS
+     * or the final CRS.
+     */
+    bytes crs = 1;
+
+    /**
+     * The stage of the CRS construction.
+     */
+    CRSStage stage = 2;
+
+    /**
+     * The id of the next node that should contribute to the CRS. This is used
+     * to ensure that all nodes contribute to the CRS in a round-robin fashion.
+     * If this is null, then all nodes in the network have contributed to the CRS.
+     */
+    google.protobuf.UInt64Value next_contributing_node_id = 3;
+
+    /**
+     * The time at which the network should stop waiting for the node's contributions
+     * and move on to the next node in the round-robin fashion.
+     */
+    proto.Timestamp contribution_end_time = 4;
+}

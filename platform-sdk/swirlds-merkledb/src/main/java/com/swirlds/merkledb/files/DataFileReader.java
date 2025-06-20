@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
@@ -126,7 +111,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      */
     public DataFileReader(final MerkleDbConfig dbConfig, final Path path) throws IOException {
-        this(dbConfig, path, new DataFileMetadata(path));
+        this(dbConfig, path, DataFileMetadata.readFromFile(path));
     }
 
     /**
@@ -136,8 +121,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      * @param metadata the file's metadata to save loading from file
      */
-    public DataFileReader(final MerkleDbConfig dbConfig, final Path path, final DataFileMetadata metadata)
-            throws IOException {
+    DataFileReader(final MerkleDbConfig dbConfig, final Path path, final DataFileMetadata metadata) throws IOException {
         this.dbConfig = dbConfig;
         maxFileChannels = dbConfig.maxFileChannelsPerFileReader();
         threadsPerFileChannel = dbConfig.maxThreadsPerFileChannel();
@@ -166,7 +150,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * is created for a new file, which is still being written in a different thread, it's marked as
      * completed right after the file is fully written and the writer is closed.
      */
-    public void setFileCompleted() {
+    void setFileCompleted() {
         try {
             fileSizeBytes.set(fileChannels.get(0).size());
         } catch (final IOException e) {
@@ -296,7 +280,10 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
 
     @Override
     public void close() throws IOException {
-        open.set(false);
+        if (!open.compareAndSet(true, false)) {
+            return;
+        }
+
         for (int i = 0; i < maxFileChannels; i++) {
             final FileChannel fileChannel = fileChannels.getAndSet(i, null);
             if (fileChannel != null) {
@@ -423,13 +410,20 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
                 readBB.clear();
                 readBB.limit(PRE_READ_BUF_SIZE); // No need to read more than that for a header
                 int bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
-                assert !isFileCompleted() || (bytesRead == Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile));
+                if (isFileCompleted() && (bytesRead != Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile))) {
+                    throw new IOException("Failed to read all bytes: toread="
+                            + Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile) + " read=" + bytesRead
+                            + " file=" + getIndex() + " off=" + byteOffsetInFile);
+                }
                 // Then read the tag and size from the read buffer, since it's wrapped over the byte buffer
                 readBuf.reset();
                 final int tag = readBuf.getVarInt(0, false); // tag
-                assert tag
-                        == ((FIELD_DATAFILE_ITEMS.number() << TAG_FIELD_OFFSET)
-                                | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal());
+                if (tag
+                        != ((FIELD_DATAFILE_ITEMS.number() << TAG_FIELD_OFFSET)
+                                | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal())) {
+                    throw new IOException(
+                            "Unknown data item tag: tag=" + tag + " file=" + getIndex() + " off=" + byteOffsetInFile);
+                }
                 final int sizeOfTag = ProtoWriterTools.sizeOfUnsignedVarInt32(tag);
                 final int size = readBuf.getVarInt(sizeOfTag, false);
                 final int sizeOfSize = ProtoWriterTools.sizeOfUnsignedVarInt32(size);
@@ -451,7 +445,10 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
                 }
                 bytesRead = MerkleDbFileUtils.completelyRead(
                         fileChannel, readBB, byteOffsetInFile + sizeOfTag + sizeOfSize);
-                assert bytesRead == size : "Failed to read all data item bytes";
+                if (bytesRead != size) {
+                    throw new IOException("Failed to read all bytes: toread=" + size + " read=" + bytesRead + " file="
+                            + getIndex() + " off=" + byteOffsetInFile);
+                }
                 readBuf.position(0);
                 readBuf.limit(bytesRead);
                 return readBuf;

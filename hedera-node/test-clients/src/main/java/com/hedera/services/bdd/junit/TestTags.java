@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
 public class TestTags {
@@ -29,6 +14,18 @@ public class TestTags {
     public static final String RESTART = "RESTART";
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
+    public static final String ISS = "ISS";
+    public static final String BLOCK_NODE_SIMULATOR = "BLOCK_NODE_SIMULATOR";
+    /**
+     * Tags a embedded tests run as part of the default {@code Test} to provide efficient
+     * integration tests of the app workflows (e.g., ingest, pre-handle, handle) and services.
+     */
+    public static final String INTEGRATION = "INTEGRATION";
+    /**
+     * Tags a test that <b>must</b> be run in subprocess mode, generally because it
+     * depends on actual gossip occurring.
+     */
+    public static final String ONLY_SUBPROCESS = "ONLY_SUBPROCESS";
     /**
      * Tags a test that <b>must</b> be run in embedded mode, either because it directly
      * submits duplicate or invalid transactions to non-default nodes; or because it

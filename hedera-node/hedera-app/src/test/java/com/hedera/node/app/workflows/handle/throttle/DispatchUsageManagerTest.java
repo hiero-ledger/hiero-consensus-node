@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
@@ -53,17 +38,17 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
-import com.hedera.node.app.workflows.handle.metric.HandleWorkflowMetrics;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.state.spi.info.NetworkInfo;
-import com.swirlds.state.spi.info.SelfNodeInfo;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -132,7 +117,7 @@ class DispatchUsageManagerTest {
     private NetworkInfo networkInfo;
 
     @Mock
-    private SelfNodeInfo selfNodeInfo;
+    private NodeInfo selfNodeInfo;
 
     @Mock
     private ReadableStoreFactory readableStoreFactory;
@@ -147,7 +132,7 @@ class DispatchUsageManagerTest {
     private RecordStreamBuilder recordBuilder;
 
     @Mock
-    private HandleWorkflowMetrics handleWorkflowMetrics;
+    private OpWorkflowMetrics opWorkflowMetrics;
 
     @Mock
     private ThrottleServiceManager throttleServiceManager;
@@ -166,7 +151,7 @@ class DispatchUsageManagerTest {
     @BeforeEach
     void setUp() {
         subject = new DispatchUsageManager(
-                networkInfo, handleWorkflowMetrics, throttleServiceManager, networkUtilizationManager);
+                networkInfo, opWorkflowMetrics, throttleServiceManager, networkUtilizationManager);
     }
 
     @Test
@@ -193,7 +178,7 @@ class DispatchUsageManagerTest {
     }
 
     @Test
-    void throwsNativeThrottleExceptionIfGasThrottled() {
+    void throwsNativeThrottleExceptionIfThrottled() {
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
         given(dispatch.stack()).willReturn(stack);
@@ -227,7 +212,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeAndSaveUsage(dispatch);
@@ -240,12 +225,12 @@ class DispatchUsageManagerTest {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(SUBMIT_TXN_INFO);
         given(dispatch.stack()).willReturn(stack);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
 
         subject.finalizeAndSaveUsage(dispatch);
 
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
-        verifyNoInteractions(handleWorkflowMetrics);
+        verifyNoInteractions(opWorkflowMetrics);
     }
 
     @Test
@@ -254,13 +239,13 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(CONTRACT_CALL_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
         given(recordBuilder.getGasUsedForContractTxn()).willReturn(GAS_USED);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(handleWorkflowMetrics).addGasUsed(GAS_USED);
+        verify(opWorkflowMetrics).addGasUsed(GAS_USED);
         verify(networkUtilizationManager).leakUnusedGasPreviouslyReserved(CONTRACT_CALL_TXN_INFO, GAS_LIMIT - GAS_USED);
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
     }
@@ -271,13 +256,13 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(CONTRACT_CREATE_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
         given(recordBuilder.getGasUsedForContractTxn()).willReturn(GAS_USED);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(handleWorkflowMetrics).addGasUsed(GAS_USED);
+        verify(opWorkflowMetrics).addGasUsed(GAS_USED);
         verify(networkUtilizationManager)
                 .leakUnusedGasPreviouslyReserved(CONTRACT_CREATE_TXN_INFO, GAS_LIMIT - GAS_USED);
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
@@ -289,7 +274,7 @@ class DispatchUsageManagerTest {
         given(dispatch.txnInfo()).willReturn(ETH_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
         given(recordBuilder.getGasUsedForContractTxn()).willReturn(GAS_USED);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
@@ -297,7 +282,7 @@ class DispatchUsageManagerTest {
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(handleWorkflowMetrics).addGasUsed(GAS_USED);
+        verify(opWorkflowMetrics).addGasUsed(GAS_USED);
         verify(networkUtilizationManager)
                 .leakUnusedGasPreviouslyReserved(ETH_TXN_INFO, ETH_DATA_WITH_TO_ADDRESS.gasLimit() - GAS_USED);
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
@@ -307,12 +292,12 @@ class DispatchUsageManagerTest {
     void doesNotLeakUnusedGasForContractOperationWithoutResult() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CONTRACT_CALL_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(handleWorkflowMetrics, never()).addGasUsed(GAS_USED);
+        verify(opWorkflowMetrics, never()).addGasUsed(GAS_USED);
         verify(networkUtilizationManager, never()).leakUnusedGasPreviouslyReserved(any(), anyLong());
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
     }
@@ -321,7 +306,7 @@ class DispatchUsageManagerTest {
     void reclaimsSelfFrontendCapacityOnFailedImplicitCreation() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
@@ -341,7 +326,7 @@ class DispatchUsageManagerTest {
     void doesNotReclaimSelfFrontendCapacityOnZeroFailedImplicitCreation() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
@@ -359,7 +344,7 @@ class DispatchUsageManagerTest {
     void doesntReclaimSelfFrontendCapacityOnFailedImplicitCreationFromOtherNode() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.recordBuilder()).willReturn(recordBuilder);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);

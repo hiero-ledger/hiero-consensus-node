@@ -1,28 +1,16 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.config.ConfigProviderImpl;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.info.NetworkInfo;
+import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -36,29 +24,29 @@ public interface ServiceMigrator {
     /**
      * Perform the migrations on the given state.
      *
-     * @param state            The state to migrate
+     * @param state The state to migrate
      * @param servicesRegistry The services registry to use for the migrations
      * @param previousVersion The previous version of the state
      * @param currentVersion The current version of the state
-     * @param config The configuration to use for the migrations
-     * @param networkInfo The network information to use for the migrations
+     * @param appConfig The app configuration to use for the migrations
+     * @param platformConfig The platform configuration to use for subsequent object initializations
      * @param metrics The metrics to use for the migrations
+     * @param startupNetworks The startup networks to use for the migrations
+     * @param storeMetricsService The store metrics service to use for the migrations
+     * @param configProvider The config provider to use for the migrations
+     * @param platformStateFacade The facade object to access platform state properties
      * @return The list of builders for state changes that occurred during the migrations
      */
     List<StateChanges.Builder> doMigrations(
-            @NonNull State state,
+            @NonNull MerkleNodeState state,
             @NonNull ServicesRegistry servicesRegistry,
-            @Nullable SoftwareVersion previousVersion,
-            @NonNull SoftwareVersion currentVersion,
-            @NonNull Configuration config,
-            @NonNull NetworkInfo networkInfo,
-            @NonNull Metrics metrics);
-
-    /**
-     * Given a {@link State}, returns the creation version of the state if it was deserialized, or null otherwise.
-     * @param state the state
-     * @return the version of the state if it was deserialized, otherwise null
-     */
-    @Nullable
-    SemanticVersion creationVersionOf(@NonNull State state);
+            @Nullable SemanticVersion previousVersion,
+            @NonNull SemanticVersion currentVersion,
+            @NonNull Configuration appConfig,
+            @NonNull Configuration platformConfig,
+            @NonNull Metrics metrics,
+            @NonNull StartupNetworks startupNetworks,
+            @NonNull StoreMetricsServiceImpl storeMetricsService,
+            @NonNull ConfigProviderImpl configProvider,
+            @NonNull PlatformStateFacade platformStateFacade);
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test.map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,19 +7,19 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.utility.KeyedMerkleLong;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.merkle.map.internal.MerkleMapEntry;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -139,10 +124,10 @@ class MerkleMapEntryTests {
         final String hashEquals = "expected hash to be equal";
         final String hashNotEquals = "expected hash to not be equal";
 
-        MerkleCryptoFactory.getInstance().digestTreeSync(entry1);
-        MerkleCryptoFactory.getInstance().digestTreeSync(entry2);
-        MerkleCryptoFactory.getInstance().digestTreeSync(entry3);
-        MerkleCryptoFactory.getInstance().digestTreeSync(entry4);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry1);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry2);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry3);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(entry4);
 
         assertEquals(entry1.getHash(), entry1.getHash(), hashEquals);
         assertEquals(entry1.getHash(), entry2.getHash(), hashEquals);
@@ -172,6 +157,7 @@ class MerkleMapEntryTests {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.merkle.map");
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
 
         final MerkleMapEntry<SerializableLong, KeyedMerkleLong<SerializableLong>> entry =
                 new MerkleMapEntry<>(new SerializableLong(1), new KeyedMerkleLong<>(1));

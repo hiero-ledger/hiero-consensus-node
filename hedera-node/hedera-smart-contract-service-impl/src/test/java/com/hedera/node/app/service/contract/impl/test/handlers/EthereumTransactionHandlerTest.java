@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -25,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DAT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -36,17 +22,24 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
@@ -65,8 +58,12 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.metrics.api.Metrics;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.function.Supplier;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -74,6 +71,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mock.Strictness;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -114,6 +112,9 @@ class EthereumTransactionHandlerTest {
     private HandleContext.SavepointStack stack;
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private RootProxyWorldUpdater baseProxyWorldUpdater;
 
     @Mock
@@ -132,7 +133,10 @@ class EthereumTransactionHandlerTest {
     private TransactionProcessor transactionProcessor;
 
     @Mock
-    CustomGasCharging customGasCharging;
+    private CustomGasCharging customGasCharging;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     private EthereumTransactionHandler subject;
 
@@ -145,38 +149,57 @@ class EthereumTransactionHandlerTest {
     @Mock
     private EthTxData ethTxDataReturned;
 
+    @Mock(strictness = Strictness.LENIENT)
+    private ContractServiceComponent contractServiceComponent;
+
+    @Mock
+    private ContractsConfig contractsConfig;
+
+    @Mock
+    private HederaOpsDuration hederaOpsDuration;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
+    private final Metrics metrics = new NoOpMetrics();
+    private final ContractMetrics contractMetrics =
+            new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
+
     @BeforeEach
     void setUp() {
-        subject = new EthereumTransactionHandler(ethereumSignatures, callDataHydration, () -> factory, gasCalculator);
+        contractMetrics.createContractPrimaryMetrics();
+        given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
+        subject = new EthereumTransactionHandler(
+                ethereumSignatures, callDataHydration, () -> factory, gasCalculator, contractServiceComponent);
     }
 
     void setUpTransactionProcessing() {
-        final var contractsConfig = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
+        final var defaultContractsConfig = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
 
         final var contextTransactionProcessor = new ContextTransactionProcessor(
                 HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS),
                 handleContext,
-                contractsConfig,
+                defaultContractsConfig,
                 DEFAULT_CONFIG,
                 hederaEvmContext,
                 null,
                 tracer,
                 baseProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 transactionProcessor,
-                customGasCharging);
+                customGasCharging,
+                hederaOpsDuration);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
-        given(hevmTransactionFactory.fromHapiTransaction(handleContext.body())).willReturn(HEVM_CREATION);
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.DEFAULT)
+                .build();
+        given(handleContext.body()).willReturn(body);
+        given(handleContext.payer()).willReturn(AccountID.DEFAULT);
+        given(hevmTransactionFactory.fromHapiTransaction(handleContext.body(), handleContext.payer()))
+                .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
-                        HEVM_CREATION,
-                        baseProxyWorldUpdater,
-                        feesOnlyUpdater,
-                        hederaEvmContext,
-                        tracer,
-                        DEFAULT_CONFIG))
+                        HEVM_CREATION, baseProxyWorldUpdater, hederaEvmContext, tracer, DEFAULT_CONFIG))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
     }
 
@@ -184,18 +207,22 @@ class EthereumTransactionHandlerTest {
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+        given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
         givenSenderAccount();
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+
         final var expectedResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
+                null,
+                null,
                 null,
                 null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
@@ -223,22 +250,25 @@ class EthereumTransactionHandlerTest {
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS));
+        given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedResult =
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
+                null,
+                null,
                 null,
                 null);
 
-        given(createRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
         given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
@@ -265,7 +295,7 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void preHandleTranslatesIseAsInvalidEthereumTransaction() throws PreCheckException {
+    void preHandleTranslatesIseAsInvalidEthereumTransaction() {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
                 .build();
@@ -311,18 +341,51 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void validatePureChecks() throws PreCheckException {
+    void testCalculateFeesWithZeroHapiFeesConfigDisabled() {
+        final var ethTxn = EthereumTransactionBody.newBuilder()
+                .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
+                .build();
+        final var txn = TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
+        final var feeCtx = mock(FeeContext.class);
+        given(feeCtx.body()).willReturn(txn);
+
+        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
+        final var feeCalc = mock(FeeCalculator.class);
+        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
+        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
+
+        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
+        verify(feeCalc).legacyCalculate(any());
+    }
+
+    @Test
+    void validatePureChecks() {
         // check bad eth txn body
         final var txn1 = ethTxWithNoTx();
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn1));
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check bad to evm address
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            final var toAddress = new byte[] {1, 0, 1, 0};
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD + 1);
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
+                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        }
 
         // check at least intrinsic gas
         try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
-            given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD - 1);
             given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false))
                     .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            assertThrows(PreCheckException.class, () -> subject.pureChecks(ethTxWithTx()));
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         }
     }
 

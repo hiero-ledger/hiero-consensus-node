@@ -1,0 +1,83 @@
+/**
+ * # Tss Vote Transaction
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.tss;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.services.auxiliary.tss.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.tss">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A transaction body to vote on the validity of Threshold Signature Scheme
+ * (TSS) Messages for a candidate roster.
+ *
+ * - A `TssVoteTransactionBody` MUST identify the hash of the roster containing
+ *   the node generating this TssVote
+ * - A `TssVoteTransactionBody` MUST identify the hash of the roster that the
+ *   TSS messages is for
+ *  - If the candidate roster has received enough yes votes, the candidate
+ *    roster SHALL be adopted.
+ *  - Switching to the candidate roster MUST not happen until enough nodes have
+ *    voted that they have verified a threshold number of TSS messages from the
+ *    active roster.
+ *  - A vote consists of a bit vector of message statuses where each bit
+ *    corresponds to the order of TssMessages as they have come through
+ *    consensus.
+ *  - The threshold for votes to adopt a candidate roster SHALL be at least 1/3
+ *    of the consensus weight of the active roster to ensure that at least 1
+ *    honest node has validated the TSS key material.
+ */
+message TssVoteTransactionBody {
+
+  /**
+   * A hash of the roster containing the node generating this TssVote.
+   */
+  bytes source_roster_hash = 1;
+
+  /**
+   * A hash of the roster that this TssVote is for.
+   */
+  bytes target_roster_hash = 2;
+
+  /**
+   * An identifier (and public key) computed from the TssMessages for the target
+   * roster.
+   */
+  bytes ledger_id = 3;
+
+  /**
+   * A signature produced by the node.
+   * <p>
+   * This signature SHALL be produced using the node RSA signing key to sign
+   * the ledger_id.<br/>
+   * This signature SHALL be used to establish a chain of trust in the ledger id.
+   */
+  bytes node_signature = 4;
+
+  /**
+   * A bit vector of message statuses.
+   * <p>
+   * #### Example
+   * <ul><li>The least significant bit of byte[0] SHALL be the 0th item in the sequence.</li>
+   *     <li>The most significant bit of byte[0] SHALL be the 7th item in the sequence.</li>
+   *     <li>The least significant bit of byte[1] SHALL be the 8th item in the sequence.</li>
+   *     <li>The most significant bit of byte[1] SHALL be the 15th item in the sequence.</li>
+   * </ul>
+   * A bit SHALL be set if the `TssMessage` for the `TssMessageTransaction`
+   * with a sequence number matching that bit index has been
+   * received, and is valid.<br/>
+   * A bit SHALL NOT be set if the `TssMessage` has not been received or was
+   * received but not valid.
+   */
+  bytes tss_vote = 5;
+}

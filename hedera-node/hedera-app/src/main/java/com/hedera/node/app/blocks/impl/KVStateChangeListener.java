@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
@@ -29,6 +14,7 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
@@ -40,18 +26,36 @@ import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.HintsKeySet;
+import com.hedera.hapi.node.state.hints.HintsPartyId;
+import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
+import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
+import com.hedera.hapi.node.state.schedule.ScheduledCounts;
+import com.hedera.hapi.node.state.schedule.ScheduledOrder;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
+import com.hedera.hapi.node.state.tss.TssMessageMapKey;
+import com.hedera.hapi.node.state.tss.TssVoteMapKey;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
+import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -160,6 +164,28 @@ public class KVStateChangeListener implements StateChangeListener {
             case PendingAirdropId pendingAirdropId -> MapChangeKey.newBuilder()
                     .pendingAirdropIdKey(pendingAirdropId)
                     .build();
+            case TimestampSeconds timestampSeconds -> MapChangeKey.newBuilder()
+                    .timestampSecondsKey(timestampSeconds)
+                    .build();
+            case ScheduledOrder scheduledOrder -> MapChangeKey.newBuilder()
+                    .scheduledOrderKey(scheduledOrder)
+                    .build();
+            case TssMessageMapKey tssMessageMapKey -> MapChangeKey.newBuilder()
+                    .tssMessageMapKey(tssMessageMapKey)
+                    .build();
+            case TssVoteMapKey tssVoteMapKey -> MapChangeKey.newBuilder()
+                    .tssVoteMapKey(tssVoteMapKey)
+                    .build();
+            case HintsPartyId hintsPartyId -> MapChangeKey.newBuilder()
+                    .hintsPartyIdKey(hintsPartyId)
+                    .build();
+            case PreprocessingVoteId preprocessingVoteId -> MapChangeKey.newBuilder()
+                    .preprocessingVoteIdKey(preprocessingVoteId)
+                    .build();
+            case NodeId nodeId -> MapChangeKey.newBuilder().nodeIdKey(nodeId).build();
+            case ConstructionNodeId constructionNodeId -> MapChangeKey.newBuilder()
+                    .constructionNodeIdKey(constructionNodeId)
+                    .build();
             default -> throw new IllegalStateException(
                     "Unrecognized key type " + key.getClass().getSimpleName());
         };
@@ -188,6 +214,9 @@ public class KVStateChangeListener implements StateChangeListener {
             case Schedule schedule -> MapChangeValue.newBuilder()
                     .scheduleValue(schedule)
                     .build();
+            case ScheduleID scheduleID -> MapChangeValue.newBuilder()
+                    .scheduleIdValue(scheduleID)
+                    .build();
             case ScheduleList scheduleList -> MapChangeValue.newBuilder()
                     .scheduleListValue(scheduleList)
                     .build();
@@ -204,6 +233,39 @@ public class KVStateChangeListener implements StateChangeListener {
             case Topic topic -> MapChangeValue.newBuilder().topicValue(topic).build();
             case AccountPendingAirdrop accountPendingAirdrop -> MapChangeValue.newBuilder()
                     .accountPendingAirdropValue(accountPendingAirdrop)
+                    .build();
+            case ScheduledCounts scheduledCounts -> MapChangeValue.newBuilder()
+                    .scheduledCountsValue(scheduledCounts)
+                    .build();
+            case ThrottleUsageSnapshots throttleUsageSnapshots -> MapChangeValue.newBuilder()
+                    .throttleUsageSnapshotsValue(throttleUsageSnapshots)
+                    .build();
+            case TssMessageTransactionBody tssMessageTransactionBody -> MapChangeValue.newBuilder()
+                    .tssMessageValue(tssMessageTransactionBody)
+                    .build();
+            case TssVoteTransactionBody tssVoteTransactionBody -> MapChangeValue.newBuilder()
+                    .tssVoteValue(tssVoteTransactionBody)
+                    .build();
+            case TssEncryptionKeys tssEncryptionKeys -> MapChangeValue.newBuilder()
+                    .tssEncryptionKeysValue(tssEncryptionKeys)
+                    .build();
+            case HintsKeySet hintsKeySet -> MapChangeValue.newBuilder()
+                    .hintsKeySetValue(hintsKeySet)
+                    .build();
+            case PreprocessingVote preprocessingVote -> MapChangeValue.newBuilder()
+                    .preprocessingVoteValue(preprocessingVote)
+                    .build();
+            case RecordedHistorySignature recordedHistorySignature -> MapChangeValue.newBuilder()
+                    .historySignatureValue(recordedHistorySignature)
+                    .build();
+            case HistoryProofVote historyProofVote -> MapChangeValue.newBuilder()
+                    .historyProofVoteValue(historyProofVote)
+                    .build();
+            case ProofKeySet proofKeySet -> MapChangeValue.newBuilder()
+                    .proofKeySetValue(proofKeySet)
+                    .build();
+            case CrsPublicationTransactionBody crsPublicationTransactionBody -> MapChangeValue.newBuilder()
+                    .crsPublicationValue(crsPublicationTransactionBody)
                     .build();
             default -> throw new IllegalStateException(
                     "Unexpected value: " + value.getClass().getSimpleName());

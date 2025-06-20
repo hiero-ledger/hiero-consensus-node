@@ -1,24 +1,11 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.MAX_PENDING_REWARDS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
+import static com.hedera.node.app.service.token.impl.test.handlers.staking.StakeInfoHelperTest.DEFAULT_CONFIG;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -28,24 +15,34 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(LogCaptureExtension.class)
+@ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
-    @LoggingSubject
-    private StakingRewardsHelper subject = new StakingRewardsHelper();
 
     @LoggingTarget
     private LogCaptor logCaptor;
+
+    @Mock
+    private ConfigProvider configProvider;
+
+    @LoggingSubject
+    private StakingRewardsHelper subject;
 
     @BeforeEach
     public void setUp() {
         super.setUp();
         refreshWritableStores();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
+        subject = new StakingRewardsHelper(configProvider);
     }
 
     @Test
@@ -175,7 +172,6 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void increasesPendingRewardsAccurately() {
-        final var subject = new StakingRewardsHelper();
         assertThat(writableRewardsStore.get().pendingRewards()).isEqualTo(1000L);
         final var copyStakingInfo =
                 subject.increasePendingRewardsBy(writableRewardsStore, 100L, writableStakingInfoStore.get(0L));
@@ -184,7 +180,6 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void increasesPendingRewardsByZeroIfStkingInfoShowsDeleted() {
-        final var subject = new StakingRewardsHelper();
         writableStakingInfoStore.put(
                 node0Id.number(), node0Info.copyBuilder().deleted(true).build());
         assertThat(writableStakingInfoStore.get(0).pendingRewards()).isEqualTo(1000000L);
@@ -197,7 +192,6 @@ class StakingRewardsHelperTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void increasesPendingRewardsByMaxValueIfVeryLargeNumber() {
-        final var subject = new StakingRewardsHelper();
         assertThat(writableStakingInfoStore.get(0).pendingRewards()).isEqualTo(1000000L);
         assertThat(writableRewardsStore.get().pendingRewards()).isEqualTo(1000L);
 

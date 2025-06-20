@@ -1,21 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.node;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asPosNodeId;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
@@ -23,6 +11,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUp
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
+import com.google.protobuf.BoolValue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.google.protobuf.StringValue;
@@ -31,8 +20,10 @@ import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -60,8 +51,10 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     private Optional<AccountID> newAccountAlias = Optional.empty();
     private Optional<String> newDescription = Optional.empty();
+    private Optional<Boolean> declineReward = Optional.empty();
     private List<ServiceEndpoint> newGossipEndpoints = Collections.emptyList();
     private List<ServiceEndpoint> newServiceEndpoints = Collections.emptyList();
+    private ServiceEndpoint grpcWebProxyEndpoint;
 
     @Nullable
     private byte[] newGossipCaCertificate;
@@ -74,6 +67,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     public HapiNodeUpdate(@NonNull final String nodeName) {
         this.nodeName = nodeName;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiNodeUpdate accountId(@NonNull final String accountId) {
@@ -92,6 +86,11 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
         return this;
     }
 
+    public HapiNodeUpdate declineReward(final boolean decline) {
+        this.declineReward = Optional.of(decline);
+        return this;
+    }
+
     public HapiNodeUpdate gossipEndpoint(final List<ServiceEndpoint> gossipEndpoint) {
         this.newGossipEndpoints = gossipEndpoint;
         return this;
@@ -99,6 +98,11 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     public HapiNodeUpdate serviceEndpoint(final List<ServiceEndpoint> serviceEndpoint) {
         this.newServiceEndpoints = serviceEndpoint;
+        return this;
+    }
+
+    public HapiNodeUpdate grpcProxyEndpoint(ServiceEndpoint grpcProxyEndpoint) {
+        this.grpcWebProxyEndpoint = grpcProxyEndpoint;
         return this;
     }
 
@@ -146,6 +150,10 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
         });
         try {
             final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
+            final var op = txn.getNodeUpdate();
+            if (op.hasAccountId() && spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                subProcessNetwork.updateNodeAccount(op.getNodeId(), toPbj(op.getAccountId()));
+            }
             spec.registry().saveNodeMeta(nodeName, txn.getNodeUpdate());
         } catch (final Exception impossible) {
             throw new IllegalStateException(impossible);
@@ -175,6 +183,7 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                             newAccountAlias.ifPresent(builder::setAccountId);
                             newDescription.ifPresent(s -> builder.setDescription(StringValue.of(s)));
                             newAdminKey.ifPresent(builder::setAdminKey);
+                            builder.setDeclineReward(BoolValue.of(declineReward.orElse(false)));
                             builder.addAllGossipEndpoint(newGossipEndpoints.stream()
                                     .map(CommonPbjConverters::fromPbj)
                                     .toList());
@@ -188,6 +197,9 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                             if (newGrpcCertificateHash != null) {
                                 builder.setGrpcCertificateHash(
                                         BytesValue.of(ByteString.copyFrom(newGrpcCertificateHash)));
+                            }
+                            if (grpcWebProxyEndpoint != null) {
+                                builder.setGrpcProxyEndpoint(fromPbj(grpcWebProxyEndpoint));
                             }
                         });
         return builder -> builder.setNodeUpdate(opBody);

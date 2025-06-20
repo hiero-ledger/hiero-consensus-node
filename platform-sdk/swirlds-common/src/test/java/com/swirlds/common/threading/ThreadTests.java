@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -27,14 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -284,7 +269,7 @@ class ThreadTests {
                 Thread.currentThread().getContextClassLoader().getParent();
 
         final ThreadFactory factory = new ThreadConfiguration(getStaticThreadManager())
-                .setNodeId(new NodeId(1234L))
+                .setNodeId(NodeId.of(1234L))
                 .setComponent("pool1")
                 .setThreadName("thread1")
                 .setDaemon(false)
@@ -333,7 +318,7 @@ class ThreadTests {
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
-                .setNodeId(new NodeId(1234L))
+                .setNodeId(NodeId.of(1234L))
                 .build();
         assertEquals("<foo: bar 1234>", thread3.getName(), "unexpected thread name");
 
@@ -341,8 +326,8 @@ class ThreadTests {
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
-                .setNodeId(new NodeId(1234L))
-                .setOtherNodeId(new NodeId(4321L))
+                .setNodeId(NodeId.of(1234L))
+                .setOtherNodeId(NodeId.of(4321L))
                 .build();
         assertEquals("<foo: bar 1234 to 4321>", thread4.getName(), "unexpected thread name");
 
@@ -350,8 +335,8 @@ class ThreadTests {
                 .setRunnable(() -> {})
                 .setComponent("foo")
                 .setThreadName("bar")
-                .setNodeId(new NodeId(1234L))
-                .setOtherNodeId(new NodeId(4321L))
+                .setNodeId(NodeId.of(1234L))
+                .setOtherNodeId(NodeId.of(4321L))
                 .buildFactory();
 
         assertEquals("<foo: bar 1234 to 4321 #0>", factory.newThread(null).getName(), "unexpected thread name");
@@ -460,7 +445,7 @@ class ThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration0.setNodeId(new NodeId(0L)),
+                () -> configuration0.setNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -476,7 +461,7 @@ class ThreadTests {
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
-                () -> configuration0.setOtherNodeId(new NodeId(0L)),
+                () -> configuration0.setOtherNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -510,7 +495,7 @@ class ThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration1.setNodeId(new NodeId(0L)),
+                () -> configuration1.setNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -526,7 +511,7 @@ class ThreadTests {
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
-                () -> configuration1.setOtherNodeId(new NodeId(0L)),
+                () -> configuration1.setOtherNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -560,7 +545,7 @@ class ThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration2.setNodeId(new NodeId(0L)),
+                () -> configuration2.setNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -576,7 +561,7 @@ class ThreadTests {
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
-                () -> configuration2.setOtherNodeId(new NodeId(0L)),
+                () -> configuration2.setOtherNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -648,7 +633,7 @@ class ThreadTests {
         final Runnable runnable = () -> {};
 
         final ThreadConfiguration configuration = new ThreadConfiguration(getStaticThreadManager())
-                .setNodeId(new NodeId(1234L))
+                .setNodeId(NodeId.of(1234L))
                 .setComponent("component")
                 .setThreadName("name")
                 .setThreadGroup(group)

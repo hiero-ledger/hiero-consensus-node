@@ -20,6 +20,10 @@ This documents explains how to use Gradle directly from the command line via the
 command. All Gradle tasks can also be invoked from the Gradle view in
 [IntelliJ IDEA](intellij-quickstart.md).
 
+For more information, also refer to the
+[documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#build)
+which this project uses.
+
 There are several Gradle tasks you can use. Most notably:
 
 - `./gradlew assemble` compile all code and create all Jar files
@@ -38,68 +42,11 @@ You may run `./gradlew` (without arguments) for a detailed overview
 
 ## Using Gradle during Development
 
-### Changing or adding Modules of Hedera (aka Gradle Subprojects)
+### Defining modules and dependencies
 
-All modules are listed in [settings.gradle.kts](../settings.gradle.kts) using
-`include(":<module-name>", "<module-folder-path>")`. The `module-folder-path` should be a folder in
-a subdirectory like [platform-sdk](../platform-sdk) or [hedera-node](../hedera-node). In the folder,
-the following files are expected:
-
-- `build.gradle.kts` specifies to which group of modules the module belongs, e.g.
-  `id("com.hedera.gradle.services")` or `id("com.hedera.gradle.platform")` and may contain
-  [dependency definitions](#changing-or-adding-dependencies) for tests.
-- `src/main/java/module-info.java` is the Java Module specification that is also used to determine
-  the [dependencies of the module](#changing-or-adding-dependencies) by Gradle. Note that the last
-  segment of the module name defined in the `module-info.java` file needs to correspond to the
-  name of the module defined in [settings.gradle.kts](../settings.gradle.kts).
-
-### Changing or Adding Dependencies
-
-This project use of the _Java Module System (JPMS)_. With this, dependencies between modules are
-defined in the `src/main/java/module-info.java` files that each module contains. Other modules are
-identified by their _Module Name_ there. For example, a dependency to the `swirlds-logging` module
-is expressed by `requires com.swirlds.logging`. A dependency to the 3rd party library
-`com.fasterxml.jackson.core` is expressed by `requires com.fasterxml.jackson.core`. Note: This
-project utilizes the
-[org.gradlex.java-module-dependencies](https://github.com/gradlex-org/java-module-dependencies)
-plugin to achieve this integration between Gradle and the Java Module System.
-
-Each dependency definition contains a scope – e.g. `requires` or `requires transitive`. If you are
-unsure about a scope, use `requires` when adding a dependency. Then execute `./gradlew qualityGate`
-which runs a dependency scope check that analysis the code to determine which Java types are visible
-(and should be visible) to which modules. If the check fails, it will advise you how to change the
-scope.
-
-### Adding or Changing the Version of a 3rd party dependency
-
-If you use a 3rd party module lke `com.fasterxml.jackson.core`, a version for that module needs to
-be selected. For this, the
-[hedera-dependency-versions/build.gradle.kts](../hedera-dependency-versions/build.gradle.kts)
-defines a so-called _Gradle platform_ (also called BOM) that contains the versions of all 3rd party
-modules used. If you want to upgrade the version of a module, do this here. Remember to run
-`./gradlew qualityGate` after the change. If you need to use a new 3rd party module in a
-`src/main/java/module-info.java` file, you need to add the version here. (If the new module is not
-completely Java Module System compatible, you may also need to add
-[patching rules](#patching-3rd-party-modules)).
-
-### Patching 3rd Party Modules
-
-Some 3rd party libraries we use are not yet fully Java Module System compatible. And some modules
-pull in other dependencies that we can neglect. Situations like this are treated as wrong/incomplete
-metadata in our Gradle setup and the file
-[com.hedera.gradle.jpms-modules.gradle.kts](../gradle/plugins/src/main/kotlin/com.hedera.gradle.jpms-modules.gradle.kts)
-contains the rules to adjust or extend the metadata of 3rd party libraries to address such problems.
-
-Note: This project utilizes the
-[org.gradlex.extra-java-module-info](https://github.com/gradlex-org/extra-java-module-info) and
-[org.gradlex.jvm-dependency-conflict-resolution](https://gradlex.org/jvm-dependency-conflict-resolution/#resolution-plugin)
-plugins to ease the definition of patching rules.
-
-### Incrementing the Version of Hedera itself
-
-Our Gradle build has a single version number for all modules. It is defined in
-[version.txt](../version.txt). Changing this version number will automatically apply to every
-module.
+Please refer to the section about _modules and dependencies_ in the
+[documentation of the Hiero Gradle Conventions](https://github.com/hiero-ledger/hiero-gradle-conventions#modules)
+which this project uses.
 
 ### Testing
 

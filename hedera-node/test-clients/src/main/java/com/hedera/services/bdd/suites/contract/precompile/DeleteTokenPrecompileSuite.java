@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -84,25 +69,21 @@ public class DeleteTokenPrecompileSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final var tokenAlreadyDeletedTxn = "tokenAlreadyDeletedTxn";
 
-        return defaultHapiSpec("deleteFungibleToken")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT)
-                                .key(MULTI_KEY)
-                                .balance(100 * ONE_HBAR)
-                                .exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id)))
-                                .initialSupply(1110),
-                        uploadInitCode(DELETE_TOKEN_CONTRACT),
-                        contractCreate(DELETE_TOKEN_CONTRACT),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).key(MULTI_KEY).balance(100 * ONE_HBAR).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id)))
+                        .initialSupply(1110),
+                uploadInitCode(DELETE_TOKEN_CONTRACT),
+                contractCreate(DELETE_TOKEN_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(THRESHOLD_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, DELETE_TOKEN_CONTRACT))),
@@ -127,8 +108,8 @@ public class DeleteTokenPrecompileSuite {
                                 .via(tokenAlreadyDeletedTxn)
                                 .signedBy(GENESIS, ACCOUNT)
                                 .alsoSigningWithFullPrefix(ACCOUNT)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(childRecordsCheck(
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
                         tokenAlreadyDeletedTxn,
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
@@ -144,24 +125,23 @@ public class DeleteTokenPrecompileSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final var notAnAdminTxn = "notAnAdminTxn";
 
-        return defaultHapiSpec("deleteNftToken")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ACCOUNT).balance(100 * ONE_HBAR).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id)))
-                                .initialSupply(0),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
-                        uploadInitCode(DELETE_TOKEN_CONTRACT),
-                        contractCreate(DELETE_TOKEN_CONTRACT),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT)))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HBAR).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id)))
+                        .initialSupply(0),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
+                uploadInitCode(DELETE_TOKEN_CONTRACT),
+                contractCreate(DELETE_TOKEN_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         DELETE_TOKEN_CONTRACT,
@@ -183,8 +163,8 @@ public class DeleteTokenPrecompileSuite {
                                 .signedBy(GENESIS, ACCOUNT)
                                 .alsoSigningWithFullPrefix(ACCOUNT)
                                 .gas(GAS_TO_OFFER),
-                        getTokenInfo(VANILLA_TOKEN).isDeleted().logged())))
-                .then(childRecordsCheck(
+                        getTokenInfo(VANILLA_TOKEN).isDeleted().logged())),
+                childRecordsCheck(
                         notAnAdminTxn,
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()

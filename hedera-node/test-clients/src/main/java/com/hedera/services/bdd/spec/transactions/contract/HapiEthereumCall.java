@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
@@ -91,6 +76,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private ByteString alias = null;
     private byte[] explicitTo = null;
     private Integer chainId = CHAIN_ID;
+    private boolean wrongRecId;
+    private boolean isJumboTxn = false;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -101,6 +88,11 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         HapiEthereumCall call = new HapiEthereumCall();
         call.details = Optional.of(actionable);
         return call;
+    }
+
+    public HapiEthereumCall withWrongParityRecId() {
+        wrongRecId = true;
+        return this;
     }
 
     private HapiEthereumCall() {}
@@ -352,10 +344,10 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 null);
 
         byte[] privateKeyByteArray = getEcdsaPrivateKeyFromSpec(spec, privateKeyRef);
-        var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray);
+        var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray, wrongRecId);
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
-        if (createCallDataFile || callData.length > MAX_CALL_DATA_SIZE) {
+        if (createCallDataFile || (!isJumboTxn && callData.length > MAX_CALL_DATA_SIZE)) {
             final var callDataBytesString = ByteString.copyFrom(Hex.encode(callData));
             final var createFile = new HapiFileCreate(CALL_DATA_FILE_NAME);
             final var updateLargeFile =
@@ -390,7 +382,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 final var function = com.esaulpaugh.headlong.abi.Function.fromJson(abi.orElse(null));
                 final var result = function.decodeReturn(
                         rcd.getContractCallResult().getContractCallResult().toByteArray());
-                resultObserver.accept(result.toList().toArray());
+                resultObserver.accept(result.toArray());
             });
         }
         if (eventDataObserver != null) {
@@ -441,5 +433,10 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 .add("contract", contract)
                 .add("abi", abi)
                 .add("params", Arrays.toString(params.orElse(null)));
+    }
+
+    public HapiEthereumCall markAsJumboTxn() {
+        isJumboTxn = true;
+        return this;
     }
 }

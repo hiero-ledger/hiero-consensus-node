@@ -6,6 +6,14 @@
       <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5p %-4L %c{1} - %m{nolookups}%n"/>
     </Console>
 
+    <RollingFile name="GrpcAccessLog" fileName="output/grpc-access.log" filePattern="output/grpc-access.log-%i.log">
+      <PatternLayout>
+        <pattern>%m{nolookups}%n</pattern>
+      </PatternLayout>
+      <SizeBasedTriggeringPolicy size="100 MB" />
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+
     <RollingFile name="RollingFile" fileName="output/hgcaa.log"
       filePattern="output/hgcaa-%i.log">
       <PatternLayout>
@@ -226,132 +234,6 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="com.hedera.services.sigs" level="error" additivity="false">
-      <AppenderRef ref="Console"/>
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.queries.answering" level="warn" additivity="false">
-      <AppenderRef ref="QueriesRollingFile"/>
-    </Logger>
-
-    <Logger name="com.hedera.services.legacy" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.netty" level="info" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.service" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.services" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.handler" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.utils.UnzipUtility" level="info" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.utils" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.hgcca.core" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.evm" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="com.hedera.services.legacy.initialization" level="warn" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-  	<Logger name="com.hedera.services.legacy.config" level="info" additivity="false">
-      <AppenderRef ref="RollingFile"/>
-      <AppenderRef ref="Console"/>
-    </Logger>
-
-
-    <Logger name="org.springframework" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="state" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="trie" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="net" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="execute" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="VM" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="pending" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="sync" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="wire" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="db" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="general" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="TCK-Test" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="org.hibernate" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="repository" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="blockchain" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="mine" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="blockqueue" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="rlp" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
     <Logger name="java.nio" level="ERROR" additivity="false">
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>
@@ -364,13 +246,8 @@
       <!-- <AppenderRef ref="Console"/> -->
       <AppenderRef ref="RollingFile"/>
     </Logger>
-    <Logger name="discover" level="WARN" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
-    </Logger>
-    <Logger name="hsqldb.db" level="ERROR" additivity="false">
-      <!-- <AppenderRef ref="Console"/> -->
-      <AppenderRef ref="RollingFile"/>
+    <Logger name="grpc-access-log" level="INFO" additivity="false">
+      <AppenderRef ref="GrpcAccessLog" />
     </Logger>
   </Loggers>
 </Configuration>

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -25,6 +10,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
@@ -276,38 +262,17 @@ public interface PreHandleContext extends TransactionKeys {
     /**
      * Returns all (required and optional) keys of a nested transaction.
      *
-     * @param nestedTxn the {@link TransactionBody} which keys are needed
-     * @param payerForNested the payer for the nested transaction
+     * @param body the {@link TransactionBody} which keys are needed
+     * @param payerId the payer for the nested transaction
      * @return the set of keys
      * @throws PreCheckException If there is a problem with the nested transaction
      */
     @NonNull
-    TransactionKeys allKeysForTransaction(@NonNull TransactionBody nestedTxn, @NonNull AccountID payerForNested)
+    TransactionKeys allKeysForTransaction(@NonNull TransactionBody body, @NonNull AccountID payerId)
             throws PreCheckException;
 
     /**
-     * Creates a new {@link PreHandleContext} for a nested transaction. The nested transaction will be set on
-     * this context as the "inner context". There can only be one such at a time. The inner context is returned
-     * for convenience.
-     *
-     * @param nestedTxn the nested transaction
-     * @param payerForNested the payer for the nested transaction
-     * @return the inner context
-     * @throws PreCheckException If the payer is not valid
-     * @deprecated Use {@link #allKeysForTransaction(TransactionBody, AccountID)} instead.
+     * Returns the {@link NodeInfo} of the creator of the transaction.
      */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    PreHandleContext createNestedContext(
-            @NonNull final TransactionBody nestedTxn, @NonNull final AccountID payerForNested) throws PreCheckException;
-
-    /**
-     * Gets the inner context, if any.
-     *
-     * @return The inner context.
-     * @deprecated Use {@link #allKeysForTransaction(TransactionBody, AccountID)} instead.
-     */
-    @Deprecated(forRemoval = true)
-    @Nullable
-    PreHandleContext innerContext();
+    NodeInfo creatorInfo();
 }

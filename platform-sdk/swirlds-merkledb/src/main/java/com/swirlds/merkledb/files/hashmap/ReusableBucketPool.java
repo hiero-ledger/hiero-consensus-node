@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -28,7 +13,7 @@ import java.util.function.Function;
  * <p>Bucket pool is accessed from multiple threads:
  * <ul>
  *     <li>Transaction thread, when a key path is loaded from HDHM as a part of
- *     get or getForModify call</li>
+ *     get call</li>
  *     <li>Lifecycle thread, when updated bucket is written to disk in the end
  *     of HDHM flushing</li>
  *     <li>HDHM background bucket reading threads</li>
@@ -39,12 +24,10 @@ import java.util.function.Function;
  * for other threads) on a single thread, this class would be as simple as a
  * single {@link ThreadLocal} object. This is not the case, unfortunately. For
  * example, when HDHM background reading threads read buckets from disk, buckets
- * are requested from the pool by {@link BucketSerializer} as a part of data
- * file collection read call. Then buckets are updated and put to a queue, which
- * is processed on a different thread, virtual pipeline (aka lifecycle) thread.
- * Only after that buckets can be reused. This is why the pool is implemented as
- * an array of buckets with fast concurrent read/write access from multiple
- * threads.
+ * are requested from the pool. Then buckets are updated and then stored to
+ * disk on a different thread. After that buckets can be reused. This is why the
+ * pool is implemented as an array of buckets with fast concurrent read/write
+ * access from multiple threads.
  */
 public class ReusableBucketPool {
 

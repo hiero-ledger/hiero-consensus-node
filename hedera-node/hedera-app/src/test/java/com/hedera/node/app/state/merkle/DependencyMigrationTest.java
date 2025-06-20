@@ -1,53 +1,42 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
-import static com.swirlds.platform.test.fixtures.state.TestSchema.CURRENT_VERSION;
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.hedera.node.app.HederaStateRoot;
+import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
-import com.hedera.node.app.version.ServicesSoftwareVersion;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.constructable.ConstructableRegistry;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.MerkleStateLifecycles;
-import com.swirlds.platform.state.MerkleStateRoot;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.Schema;
-import com.swirlds.state.spi.SchemaRegistry;
-import com.swirlds.state.spi.Service;
-import com.swirlds.state.spi.StateDefinition;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.lifecycle.Service;
+import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
-import com.swirlds.state.spi.info.NetworkInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -62,20 +51,28 @@ class DependencyMigrationTest extends MerkleTestBase {
             new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1);
     private static final long INITIAL_ENTITY_ID = 5;
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(49).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(59).patch(0).build();
 
     @Mock
-    private MerkleStateLifecycles lifecycles;
+    private StartupNetworks startupNetworks;
 
-    @Mock
-    private NetworkInfo networkInfo;
+    private StoreMetricsServiceImpl storeMetricsService;
 
-    private MerkleStateRoot merkleTree;
+    private ConfigProviderImpl configProvider;
+
+    private HederaStateRoot merkleTree;
 
     @BeforeEach
     void setUp() {
         registry = mock(ConstructableRegistry.class);
-        merkleTree = new MerkleStateRoot(lifecycles, version -> new ServicesSoftwareVersion(version, 0));
+        merkleTree = new HederaStateRoot();
+        configProvider = new ConfigProviderImpl();
+        storeMetricsService = new StoreMetricsServiceImpl(new NoOpMetrics());
+    }
+
+    @AfterEach
+    void tearDown() {
+        merkleTree.release();
     }
 
     @Nested
@@ -92,10 +89,14 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             servicesRegistry,
                             null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
+                            CURRENT_VERSION,
                             VERSIONED_CONFIG,
-                            networkInfo,
-                            mock(Metrics.class)))
+                            VERSIONED_CONFIG,
+                            mock(Metrics.class),
+                            startupNetworks,
+                            storeMetricsService,
+                            configProvider,
+                            TEST_PLATFORM_STATE_FACADE))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -108,36 +109,30 @@ class DependencyMigrationTest extends MerkleTestBase {
                             null,
                             null,
                             VERSIONED_CONFIG,
-                            networkInfo,
-                            mock(Metrics.class)))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        void versionedConfigRequired() {
-            final var subject = new OrderedServiceMigrator();
-            Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
-                            servicesRegistry,
-                            null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
-                            null,
-                            networkInfo,
-                            mock(Metrics.class)))
-                    .isInstanceOf(NullPointerException.class);
-        }
-
-        @Test
-        void networkInfoRequired() {
-            final var subject = new OrderedServiceMigrator();
-            Assertions.assertThatThrownBy(() -> subject.doMigrations(
-                            merkleTree,
-                            servicesRegistry,
-                            null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
                             VERSIONED_CONFIG,
+                            mock(Metrics.class),
+                            startupNetworks,
+                            storeMetricsService,
+                            configProvider,
+                            TEST_PLATFORM_STATE_FACADE))
+                    .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        void configRequired2() {
+            final var subject = new OrderedServiceMigrator();
+            Assertions.assertThatThrownBy(() -> subject.doMigrations(
+                            merkleTree,
+                            servicesRegistry,
                             null,
-                            mock(Metrics.class)))
+                            CURRENT_VERSION,
+                            null,
+                            null,
+                            mock(Metrics.class),
+                            startupNetworks,
+                            storeMetricsService,
+                            configProvider,
+                            TEST_PLATFORM_STATE_FACADE))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -148,71 +143,16 @@ class DependencyMigrationTest extends MerkleTestBase {
                             merkleTree,
                             servicesRegistry,
                             null,
-                            new ServicesSoftwareVersion(CURRENT_VERSION),
+                            CURRENT_VERSION,
                             VERSIONED_CONFIG,
-                            networkInfo,
-                            null))
+                            VERSIONED_CONFIG,
+                            null,
+                            startupNetworks,
+                            storeMetricsService,
+                            configProvider,
+                            TEST_PLATFORM_STATE_FACADE))
                     .isInstanceOf(NullPointerException.class);
         }
-    }
-
-    @Test
-    @DisplayName("Genesis inter-service dependency migration works")
-    void genesisWithNullVersion() {
-        // Given: register the EntityIdService and the DependentService (order of registration shouldn't matter)
-        final var servicesRegistry = new ServicesRegistryImpl(registry, DEFAULT_CONFIG);
-        final var entityService = new EntityIdService() {
-            @Override
-            public void registerSchemas(@NonNull final SchemaRegistry registry) {
-                registry.register(new Schema(VERSION) {
-                    @NonNull
-                    @Override
-                    public Set<StateDefinition> statesToCreate() {
-                        return Set.of(StateDefinition.singleton(ENTITY_ID_STATE_KEY, EntityNumber.PROTOBUF));
-                    }
-
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        final var entityIdState = ctx.newStates().getSingleton(ENTITY_ID_STATE_KEY);
-                        entityIdState.put(new EntityNumber(INITIAL_ENTITY_ID));
-                    }
-                });
-            }
-        };
-        final DependentService dsService = new DependentService();
-        Set.of(entityService, dsService).forEach(servicesRegistry::register);
-
-        // When: the migrations are run
-        final var subject = new OrderedServiceMigrator();
-        subject.doMigrations(
-                merkleTree,
-                servicesRegistry,
-                null,
-                new ServicesSoftwareVersion(
-                        SemanticVersion.newBuilder().major(2).build()),
-                VERSIONED_CONFIG,
-                networkInfo,
-                mock(Metrics.class));
-
-        // Then: we verify the migrations had the desired effects on both entity ID state and DependentService state
-        // First check that the entity ID service has an updated entity ID, despite its schema migration not doing
-        // anything except setting the initial entity ID. DependentService's schema #2 should have caused the increments
-        // with its new additions to its own state.
-        final var postMigrationEntityIdState =
-                merkleTree.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
-        assertThat(postMigrationEntityIdState.get()).isEqualTo(new EntityNumber(INITIAL_ENTITY_ID + 2));
-
-        // Also verify that both of the DependentService's schema migrations took place. First the initial mappings are
-        // created, then the new mappings dependent on the incrementing entity ID are added
-        final var postMigrationDsState =
-                merkleTree.getReadableStates(DependentService.NAME).get(DependentService.STATE_KEY);
-        assertThat(postMigrationDsState.get(new EntityNumber(INITIAL_ENTITY_ID - 1)))
-                .isEqualTo(new ProtoString("previously added"));
-        assertThat(postMigrationDsState.get(new EntityNumber(INITIAL_ENTITY_ID)))
-                .isEqualTo(new ProtoString("last added"));
-        assertThat(postMigrationDsState.get(new EntityNumber(INITIAL_ENTITY_ID + 1)))
-                .isEqualTo(new ProtoString("newly-added 1"));
-        assertThat(postMigrationDsState.get(new EntityNumber(INITIAL_ENTITY_ID + 2)))
-                .isEqualTo(new ProtoString("newly-added 2"));
     }
 
     @Test
@@ -230,7 +170,9 @@ class DependencyMigrationTest extends MerkleTestBase {
                 registry.register(new Schema(VERSION) {
                     @NonNull
                     public Set<StateDefinition> statesToCreate() {
-                        return Set.of(StateDefinition.singleton(ENTITY_ID_STATE_KEY, EntityNumber.PROTOBUF));
+                        return Set.of(
+                                StateDefinition.singleton(ENTITY_ID_STATE_KEY, EntityNumber.PROTOBUF),
+                                StateDefinition.singleton(ENTITY_COUNTS_KEY, EntityCounts.PROTOBUF));
                     }
 
                     public void migrate(@NonNull MigrationContext ctx) {
@@ -285,7 +227,7 @@ class DependencyMigrationTest extends MerkleTestBase {
             }
         };
         // Intentionally register the services in a different order than the expected migration order
-        List.of(dsService, serviceA, entityIdService, serviceB).forEach(service -> servicesRegistry.register(service));
+        List.of(dsService, serviceA, entityIdService, serviceB).forEach(servicesRegistry::register);
 
         // When: the migrations are run
         final var subject = new OrderedServiceMigrator();
@@ -293,11 +235,14 @@ class DependencyMigrationTest extends MerkleTestBase {
                 merkleTree,
                 servicesRegistry,
                 null,
-                new ServicesSoftwareVersion(
-                        SemanticVersion.newBuilder().major(1).build()),
+                SemanticVersion.newBuilder().major(1).build(),
                 VERSIONED_CONFIG,
-                networkInfo,
-                mock(Metrics.class));
+                VERSIONED_CONFIG,
+                mock(Metrics.class),
+                startupNetworks,
+                storeMetricsService,
+                configProvider,
+                TEST_PLATFORM_STATE_FACADE);
 
         // Then: we verify the migrations were run in the expected order
         Assertions.assertThat(orderedInvocations)
@@ -346,14 +291,8 @@ class DependencyMigrationTest extends MerkleTestBase {
             registry.register(new Schema(SemanticVersion.newBuilder().major(2).build()) {
                 public void migrate(@NonNull final MigrationContext ctx) {
                     final WritableStates dsWritableStates = ctx.newStates();
-                    final var newEntityNum1 = ctx.newEntityNum();
-                    dsWritableStates
-                            .get(STATE_KEY)
-                            .put(new EntityNumber(newEntityNum1), new ProtoString("newly-added 1"));
-                    final var newEntityNum2 = ctx.newEntityNum();
-                    dsWritableStates
-                            .get(STATE_KEY)
-                            .put(new EntityNumber(newEntityNum2), new ProtoString("newly-added 2"));
+                    dsWritableStates.get(STATE_KEY).put(new EntityNumber(1L), new ProtoString("newly-added 1"));
+                    dsWritableStates.get(STATE_KEY).put(new EntityNumber(2L), new ProtoString("newly-added 2"));
                 }
             });
         }

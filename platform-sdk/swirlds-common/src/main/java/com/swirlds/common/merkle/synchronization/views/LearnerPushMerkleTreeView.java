@@ -1,29 +1,10 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.views;
 
-import static com.swirlds.common.constructable.ClassIdFormatter.classIdString;
+import static org.hiero.base.constructable.ClassIdFormatter.classIdString;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
@@ -43,12 +24,15 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 
 /**
  * Implementation for a view of a standard in memory merkle tree.
  */
 public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
-
     private final ReconnectConfig reconnectConfig;
 
     private final MerkleNode originalRoot;
@@ -145,7 +129,7 @@ public class LearnerPushMerkleTreeView implements LearnerTreeView<MerkleNode> {
     @Override
     public Hash getNodeHash(final MerkleNode node) {
         if (node == null) {
-            return CryptographyHolder.get().getNullHash();
+            return Cryptography.NULL_HASH;
         } else {
             return node.getHash();
         }

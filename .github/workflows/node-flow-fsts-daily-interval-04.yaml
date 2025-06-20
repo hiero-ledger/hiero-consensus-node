@@ -53,6 +53,7 @@ jobs:
   comp-3nreconnect-15n-4c:
     name: Comp-3NReconnect-15N-4C
     uses: ./.github/workflows/zxc-jrs-regression.yaml
+    if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
@@ -70,7 +71,6 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    if: ${{ !cancelled() && always() }}
 
 
 #  global-3nreconnect-15n-4c:

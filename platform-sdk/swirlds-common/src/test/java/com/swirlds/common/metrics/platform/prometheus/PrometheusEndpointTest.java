@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform.prometheus;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,7 +27,6 @@ import com.swirlds.common.metrics.platform.PlatformRunningAverageMetric;
 import com.swirlds.common.metrics.platform.PlatformSpeedometerMetric;
 import com.swirlds.common.metrics.platform.PlatformStatEntry;
 import com.swirlds.common.metrics.platform.SnapshotEvent;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleAccumulator;
@@ -69,6 +53,7 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,9 +66,9 @@ class PrometheusEndpointTest {
 
     private static final String CATEGORY = "CaTeGoRy";
     private static final String NAME = "NaMe";
-    private static final NodeId NODE_ID_1 = new NodeId(1L);
+    private static final NodeId NODE_ID_1 = NodeId.of(1L);
     private static final String LABEL_1 = NODE_ID_1.toString();
-    private static final NodeId NODE_ID_2 = new NodeId(2L);
+    private static final NodeId NODE_ID_2 = NodeId.of(2L);
     private static final String LABEL_2 = NODE_ID_2.toString();
 
     private static final InetSocketAddress ADDRESS = new InetSocketAddress(0);

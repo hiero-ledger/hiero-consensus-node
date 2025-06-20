@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.infra;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
@@ -115,6 +100,7 @@ class IterableStorageManagerTest {
         // Model deleting the second contract storage
         verify(store).getSlotValue(new SlotKey(CONTRACT_2, BYTES_1));
         verify(store).removeSlot(new SlotKey(CONTRACT_2, BYTES_1));
+        verify(store).adjustSlotCount(-1);
         verifyNoMoreInteractions(store);
 
         // Model call to modify metadata for CONTRACT_2.
@@ -137,7 +123,7 @@ class IterableStorageManagerTest {
         // Deleting the first slot
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_2));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_2)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(BYTES_2, BYTES_1, BYTES_3));
 
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
@@ -147,6 +133,7 @@ class IterableStorageManagerTest {
         verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_1));
         // The new first key is BYTES_2 as the first slot for the contract was deleted.
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_2, -1);
+        verify(store).adjustSlotCount(-1);
         verifyNoMoreInteractions(store);
         verifyNoMoreInteractions(hederaOperations);
     }
@@ -166,12 +153,13 @@ class IterableStorageManagerTest {
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_2));
         // The next slot is missing (invariant failure, should be impossible)
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_2))).willReturn(null);
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2))).willReturn(null);
 
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
 
         // Model deleting the first contract storage
         verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_1));
+        verify(store).adjustSlotCount(-1);
         // The new first key is BYTES_2 as the first slot for the contract was deleted.
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_1, -1);
         verifyNoMoreInteractions(store);
@@ -192,9 +180,9 @@ class IterableStorageManagerTest {
         // Deleting the second slot
         given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(BYTES_2, BYTES_1, BYTES_3));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, BYTES_2));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_3)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_3)))
                 .willReturn(new SlotValue(BYTES_3, BYTES_2, BYTES_3));
 
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
@@ -205,6 +193,7 @@ class IterableStorageManagerTest {
         verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_2));
         // The new first key is BYTES_1 as before running the test
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_1, -1);
+        verify(store).adjustSlotCount(-1);
         verifyNoMoreInteractions(store);
         verifyNoMoreInteractions(hederaOperations);
     }
@@ -253,8 +242,27 @@ class IterableStorageManagerTest {
 
         // The new first key is BYTES_2
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_2, 1);
+        verify(store).adjustSlotCount(+1);
         verifyNoMoreInteractions(store);
         verifyNoMoreInteractions(hederaOperations);
+    }
+
+    @Test
+    void zeroIntoEmptySlotJustRemovesSuperfluousPendingUpdate() {
+        final var accesses = List.of(new StorageAccesses(
+                CONTRACT_1, List.of(StorageAccess.newWrite(UInt256.valueOf(2L), UInt256.ZERO, UInt256.ZERO))));
+
+        final var sizeChanges = List.of(new StorageSizeChange(CONTRACT_1, 0, 0));
+
+        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
+        given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
+        given(account.firstContractStorageKey()).willReturn(Bytes.EMPTY);
+
+        // "Insert" zero into an empty slot
+        subject.persistChanges(enhancement, accesses, sizeChanges, store);
+
+        verify(store).removeSlot(new SlotKey(CONTRACT_1, BYTES_2));
+        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -271,9 +279,9 @@ class IterableStorageManagerTest {
         given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
         given(account.firstContractStorageKey()).willReturn(BYTES_1);
         given(enhancement.operations()).willReturn(hederaOperations);
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, Bytes.EMPTY));
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_2)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_2)))
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, BYTES_1));
 
         // Should insert into the head of the existing storage list
@@ -300,6 +308,7 @@ class IterableStorageManagerTest {
 
         // The new first key is BYTES_3
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_3, 2);
+        verify(store).adjustSlotCount(2);
         verifyNoMoreInteractions(store);
         verifyNoMoreInteractions(hederaOperations);
     }
@@ -315,7 +324,7 @@ class IterableStorageManagerTest {
         given(hederaNativeOperations.getAccount(CONTRACT_1)).willReturn(account);
         given(account.firstContractStorageKey()).willReturn(BYTES_1);
         given(enhancement.operations()).willReturn(hederaOperations);
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1)))
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1)))
                 .willReturn(new SlotValue(tuweniToPbjBytes(UInt256.ONE), Bytes.EMPTY, Bytes.EMPTY));
 
         // Should insert into the head of the existing storage list
@@ -332,6 +341,7 @@ class IterableStorageManagerTest {
 
         // The new first key is BYTES_2
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_2, 1);
+        verify(store).adjustSlotCount(+1);
         verifyNoMoreInteractions(store);
         verifyNoMoreInteractions(hederaOperations);
     }
@@ -348,7 +358,7 @@ class IterableStorageManagerTest {
         given(account.firstContractStorageKey()).willReturn(BYTES_1);
         given(enhancement.operations()).willReturn(hederaOperations);
         // The next slot is missing (invariant failure, should be impossible)
-        given(store.getSlotValueForModify(new SlotKey(CONTRACT_1, BYTES_1))).willReturn(null);
+        given(store.getSlotValue(new SlotKey(CONTRACT_1, BYTES_1))).willReturn(null);
 
         // Insert into the second slot
         subject.persistChanges(enhancement, accesses, sizeChanges, store);
@@ -361,6 +371,7 @@ class IterableStorageManagerTest {
 
         // The new first key is BYTES_2
         verify(hederaOperations).updateStorageMetadata(CONTRACT_1, BYTES_2, 1);
+        verify(store).adjustSlotCount(+1);
         verifyNoMoreInteractions(store);
         verifyNoMoreInteractions(hederaOperations);
     }

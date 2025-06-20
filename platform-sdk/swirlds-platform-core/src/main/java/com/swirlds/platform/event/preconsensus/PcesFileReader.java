@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
@@ -22,8 +7,6 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.fileSanityCh
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.utility.ValueReference;
-import com.swirlds.platform.event.AncientMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,6 +17,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.ValueReference;
 
 /**
  * This class is responsible for reading event files from disk and adding them to the collection of tracked files.
@@ -53,7 +37,6 @@ public class PcesFileReader {
      * @param databaseDirectory the directory to scan for files
      * @param startingRound     the round to start reading from
      * @param permitGaps        if gaps are permitted in sequence number
-     * @param typeToRead        the type of file to read, files of other types will be ignored
      * @return the files read from disk
      * @throws IOException if there is an error reading the files
      */
@@ -61,21 +44,19 @@ public class PcesFileReader {
             @NonNull final PlatformContext platformContext,
             @NonNull final Path databaseDirectory,
             final long startingRound,
-            final boolean permitGaps,
-            final AncientMode typeToRead)
+            final boolean permitGaps)
             throws IOException {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(databaseDirectory);
 
-        final PcesFileTracker files = new PcesFileTracker(typeToRead);
+        final PcesFileTracker files = new PcesFileTracker();
 
         try (final Stream<Path> fileStream = Files.walk(databaseDirectory)) {
             fileStream
                     .filter(f -> !Files.isDirectory(f))
                     .map(PcesUtilities::parseFile)
                     .filter(Objects::nonNull)
-                    .filter(f -> f.getFileType() == typeToRead)
                     .sorted()
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }
@@ -170,7 +151,7 @@ public class PcesFileReader {
 
         final long initialOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
 
-        final int firstRelevantFileIndex = files.getFirstRelevantFileIndex(startingRound);
+        final int firstRelevantFileIndex = files.getFirstRelevantFileIndex(initialOrigin);
         int firstIndexToDelete = firstRelevantFileIndex + 1;
         for (; firstIndexToDelete < files.getFileCount(); firstIndexToDelete++) {
             final PcesFile file = files.getFile(firstIndexToDelete);

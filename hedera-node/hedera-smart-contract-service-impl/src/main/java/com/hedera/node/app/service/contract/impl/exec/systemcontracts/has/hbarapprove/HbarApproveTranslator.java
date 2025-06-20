@@ -1,34 +1,24 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarapprove;
 
 import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -38,24 +28,36 @@ import javax.inject.Singleton;
 @Singleton
 public class HbarApproveTranslator extends AbstractCallTranslator<HasCallAttempt> {
 
-    public static final Function HBAR_APPROVE_PROXY = new Function("hbarApprove(address,int256)", ReturnTypes.INT_64);
+    /** Selector for hbarApprove(address,int256) method. */
+    public static final SystemContractMethod HBAR_APPROVE_PROXY = SystemContractMethod.declare(
+                    "hbarApprove(address,int256)", ReturnTypes.INT_64)
+            .withVia(CallVia.PROXY)
+            .withCategories(Category.APPROVAL);
 
-    public static final Function HBAR_APPROVE = new Function("hbarApprove(address,address,int256)", ReturnTypes.INT_64);
-
-    @Inject
-    public HbarApproveTranslator() {
-        // Dagger2
-    }
+    /** Selector for hbarApprove(address,address,int256) method. */
+    public static final SystemContractMethod HBAR_APPROVE = SystemContractMethod.declare(
+                    "hbarApprove(address,address,int256)", ReturnTypes.INT_64)
+            .withCategories(Category.APPROVAL);
 
     /**
-     * {@inheritDoc}
+     * Default constructor for injection.
      */
-    @Override
-    public boolean matches(@NonNull final HasCallAttempt attempt) {
-        requireNonNull(attempt);
-        return attempt.isSelector(HBAR_APPROVE, HBAR_APPROVE_PROXY);
+    @Inject
+    public HbarApproveTranslator(
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        // Dagger2
+        super(SystemContractMethod.SystemContract.HAS, systemContractMethodRegistry, contractMetrics);
+
+        registerMethods(HBAR_APPROVE, HBAR_APPROVE_PROXY);
     }
 
+    @Override
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HasCallAttempt attempt) {
+        requireNonNull(attempt);
+
+        return attempt.isMethod(HBAR_APPROVE, HBAR_APPROVE_PROXY);
+    }
     /**
      * {@inheritDoc}
      */

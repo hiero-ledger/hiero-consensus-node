@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.wipe;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asTokenId;
@@ -21,7 +6,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -47,7 +31,7 @@ public class WipeDecoder {
      */
     public TransactionBody decodeWipeFungibleV1(@NonNull final HtsCallAttempt attempt) {
         final var call = WipeTranslator.WIPE_FUNGIBLE_V1.decodeCall(attempt.inputBytes());
-        return bodyOf(wipeFungible(attempt.addressIdConverter(), call.get(0), call.get(1), call.get(2)));
+        return bodyOf(wipeFungible(attempt, call.get(0), call.get(1), call.get(2)));
     }
 
     /**
@@ -58,7 +42,7 @@ public class WipeDecoder {
      */
     public TransactionBody decodeWipeFungibleV2(@NonNull final HtsCallAttempt attempt) {
         final var call = WipeTranslator.WIPE_FUNGIBLE_V2.decodeCall(attempt.inputBytes());
-        return bodyOf(wipeFungible(attempt.addressIdConverter(), call.get(0), call.get(1), call.get(2)));
+        return bodyOf(wipeFungible(attempt, call.get(0), call.get(1), call.get(2)));
     }
 
     /**
@@ -69,29 +53,29 @@ public class WipeDecoder {
      */
     public TransactionBody decodeWipeNonFungible(@NonNull final HtsCallAttempt attempt) {
         final var call = WipeTranslator.WIPE_NFT.decodeCall(attempt.inputBytes());
-        return bodyOf(wipeNonFungible(attempt.addressIdConverter(), call.get(0), call.get(1), call.get(2)));
+        return bodyOf(wipeNonFungible(attempt, call.get(0), call.get(1), call.get(2)));
     }
 
     private TokenWipeAccountTransactionBody wipeFungible(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address tokenAddress,
             @NonNull final Address accountAddress,
             final long amount) {
         return TokenWipeAccountTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
-                .account(addressIdConverter.convert(accountAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
+                .account(attempt.addressIdConverter().convert(accountAddress))
                 .amount(amount)
                 .build();
     }
 
     private TokenWipeAccountTransactionBody wipeNonFungible(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address tokenAddress,
             @NonNull final Address accountAddress,
             @NonNull final long[] serialNumbers) {
         return TokenWipeAccountTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
-                .account(addressIdConverter.convert(accountAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
+                .account(attempt.addressIdConverter().convert(accountAddress))
                 .serialNumbers(Arrays.stream(serialNumbers).boxed().toList())
                 .build();
     }

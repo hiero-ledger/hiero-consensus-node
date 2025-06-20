@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -30,7 +16,7 @@ import picocli.CommandLine;
 @CommandLine.Command(
         name = "activate-staking",
         subcommands = {CommandLine.HelpCommand.class},
-        description = "Activates staking on the target network (requires 0.0.2 payer)")
+        description = "Activates staking on the target network (requires <SHARD>.<REALM>.2 payer)")
 public class SetupStakeCommand implements Callable<Integer> {
     private static final long CANONICAL_REWARD_RATE = 6849L;
     private static final long CANONICAL_800_START_BALANCE = 250 * HapiSuite.ONE_MILLION_HBARS;
@@ -84,12 +70,14 @@ public class SetupStakeCommand implements Callable<Integer> {
         final var delegate = new StakeSetupSuite(stakePerNode, rewardRate, start800Balance, config);
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        final var firstSpec = delegate.getFinalSpecs().getFirst();
+        if (firstSpec.getStatus() == HapiSpec.SpecStatus.PASSED) {
+            final var fqStakingAcct = asEntityString(firstSpec.shard(), firstSpec.realm(), 800);
             final var msgSb = new StringBuilder("SUCCESS - staking activated on network '")
                     .append(config.getTargetName())
                     .append("' with,\n.i.   * Reward rate of               ")
                     .append(rewardRate)
-                    .append("\n.i.   * 0.0.800 balance credit of    ")
+                    .append("\n.i.   * " + fqStakingAcct + " balance credit of    ")
                     .append(start800Balance)
                     .append("\n");
             final var perNodeStake = stakePerNode;

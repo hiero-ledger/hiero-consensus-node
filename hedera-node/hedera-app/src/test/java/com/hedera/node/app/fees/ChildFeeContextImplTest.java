@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -32,6 +17,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -85,12 +71,15 @@ class ChildFeeContextImplTest {
     @Mock
     private ReadableStoreFactory storeFactory;
 
+    @Mock
+    private AppKeyVerifier verifier;
+
     private ChildFeeContextImpl subject;
 
     @BeforeEach
     void setUp() {
         subject = new ChildFeeContextImpl(
-                feeManager, context, SAMPLE_BODY, PAYER_ID, true, authorizer, storeFactory, NOW);
+                feeManager, context, SAMPLE_BODY, PAYER_ID, true, authorizer, storeFactory, NOW, verifier, 0);
     }
 
     @Test
@@ -119,7 +108,16 @@ class ChildFeeContextImplTest {
     @Test
     void propagatesInvalidBodyAsIllegalStateException() {
         subject = new ChildFeeContextImpl(
-                feeManager, context, TransactionBody.DEFAULT, PAYER_ID, true, authorizer, storeFactory, NOW);
+                feeManager,
+                context,
+                TransactionBody.DEFAULT,
+                PAYER_ID,
+                true,
+                authorizer,
+                storeFactory,
+                NOW,
+                verifier,
+                0);
         assertThrows(IllegalStateException.class, () -> subject.feeCalculatorFactory()
                 .feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES));
     }

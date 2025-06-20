@@ -1,27 +1,18 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.isapprovedforall;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.fromHeadlongAddress;
+import static java.util.Objects.requireNonNull;
 
-import com.esaulpaugh.headlong.abi.Function;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.CallVia;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -30,21 +21,33 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class IsApprovedForAllTranslator extends AbstractCallTranslator<HtsCallAttempt> {
-    public static final Function CLASSIC_IS_APPROVED_FOR_ALL =
-            new Function("isApprovedForAll(address,address,address)", "(int64,bool)");
-    public static final Function ERC_IS_APPROVED_FOR_ALL = new Function("isApprovedForAll(address,address)", "(bool)");
-
-    @Inject
-    public IsApprovedForAllTranslator() {
-        // Dagger2
-    }
+    /** Selector for isApprovedForAll(address,address,address) method. */
+    public static final SystemContractMethod CLASSIC_IS_APPROVED_FOR_ALL = SystemContractMethod.declare(
+                    "isApprovedForAll(address,address,address)", "(int64,bool)")
+            .withCategories(Category.TOKEN_QUERY, Category.APPROVAL);
+    /** Selector for isApprovedForAll(address,address) method. */
+    public static final SystemContractMethod ERC_IS_APPROVED_FOR_ALL = SystemContractMethod.declare(
+                    "isApprovedForAll(address,address)", "(bool)")
+            .withVia(CallVia.PROXY)
+            .withCategories(Category.TOKEN_QUERY, Category.APPROVAL);
 
     /**
-     * {@inheritDoc}
+     * Default constructor for injection.
      */
+    @Inject
+    public IsApprovedForAllTranslator(
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        // Dagger2
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
+
+        registerMethods(CLASSIC_IS_APPROVED_FOR_ALL, ERC_IS_APPROVED_FOR_ALL);
+    }
+
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isSelector(CLASSIC_IS_APPROVED_FOR_ALL, ERC_IS_APPROVED_FOR_ALL);
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        requireNonNull(attempt);
+        return attempt.isMethod(CLASSIC_IS_APPROVED_FOR_ALL, ERC_IS_APPROVED_FOR_ALL);
     }
 
     /**

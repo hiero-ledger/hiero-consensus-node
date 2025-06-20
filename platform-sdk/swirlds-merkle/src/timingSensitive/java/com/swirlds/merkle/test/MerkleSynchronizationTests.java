@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfterCopy;
@@ -23,17 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.copy.MerkleCopy;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.utility.MerkleUtils;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyCustomReconnectRoot;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
@@ -47,6 +29,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -64,10 +50,14 @@ public class MerkleSynchronizationTests {
 
     private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
+    private final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
+
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
     }
 
     /**
@@ -276,14 +266,14 @@ public class MerkleSynchronizationTests {
         // Modify a leaf value without re-hashing.
         final DummyMerkleNode root1 = MerkleTestUtils.buildLessSimpleTree();
         root1.reserve();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root1);
+        merkleCryptography.digestTreeSync(root1);
 
         ((DummyMerkleLeaf) root1.asInternal().getChild(0)).setValue("this is not the hashed value");
 
         final MerkleNode newRoot1 = MerkleTestUtils.hashAndTestSynchronization(null, root1, reconnectConfig);
         final Hash resultingHash1 = newRoot1.getHash();
         assertNotEquals(root1.getHash(), resultingHash1, "we should not derive the same hash since data was changed");
-        MerkleUtils.rehashTree(newRoot1);
+        MerkleUtils.rehashTree(merkleCryptography, newRoot1);
         assertEquals(
                 resultingHash1,
                 newRoot1.getHash(),
@@ -292,7 +282,7 @@ public class MerkleSynchronizationTests {
         // Modify an internal node without re-hashing.
         final DummyMerkleNode root2 = MerkleTestUtils.buildLessSimpleTree();
         root2.reserve();
-        MerkleCryptoFactory.getInstance().digestTreeSync(root2);
+        merkleCryptography.digestTreeSync(root2);
 
         Hash oldHash = root2.getHash();
         root2.asInternal().setChild(3, null);
@@ -301,7 +291,7 @@ public class MerkleSynchronizationTests {
         final MerkleNode newRoot2 = MerkleTestUtils.hashAndTestSynchronization(null, root2, reconnectConfig);
         final Hash resultingHash2 = newRoot2.getHash();
         assertNotEquals(root2.getHash(), resultingHash2, "we should not derive the same hash since data was changed");
-        MerkleUtils.rehashTree(newRoot2);
+        MerkleUtils.rehashTree(merkleCryptography, newRoot2);
         assertEquals(
                 resultingHash2,
                 newRoot2.getHash(),

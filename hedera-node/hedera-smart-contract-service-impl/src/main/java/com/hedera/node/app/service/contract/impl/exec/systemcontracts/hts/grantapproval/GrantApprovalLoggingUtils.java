@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
@@ -26,11 +11,24 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiCon
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hyperledger.besu.datatypes.Address;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
+/**
+ * Util class used for logging on granting approvals
+ */
 public class GrantApprovalLoggingUtils {
 
+    private GrantApprovalLoggingUtils() {}
+
+    /**
+     * @param tokenId the token id that the spender is approved
+     * @param sender the sender account
+     * @param spender the spender account
+     * @param amount the amount of the granted approval
+     * @param accountStore the current account store
+     * @param frame the current message frame
+     */
     public static void logSuccessfulFTApprove(
             @NonNull final TokenID tokenId,
             @NonNull final AccountID sender,
@@ -49,6 +47,14 @@ public class GrantApprovalLoggingUtils {
                 .build());
     }
 
+    /**
+     * @param tokenId the token id that the spender is approved
+     * @param sender the sender account
+     * @param spender the spender account
+     * @param amount the amount of the granted approval
+     * @param accountStore the current account store
+     * @param frame the current message frame
+     */
     public static void logSuccessfulNFTApprove(
             @NonNull final TokenID tokenId,
             @NonNull final AccountID sender,
@@ -76,7 +82,7 @@ public class GrantApprovalLoggingUtils {
         final var senderAddress = priorityAddressOf(requireNonNull(accountStore.getAccountById(senderId)));
 
         final var spenderAccount = accountStore.getAccountById(spenderId);
-        final var spenderAddress = spenderAccount != null ? priorityAddressOf(spenderAccount) : Address.EMPTY;
+        final var spenderAddress = spenderAccount != null ? priorityAddressOf(spenderAccount) : Bytes.EMPTY;
         return LogBuilder.logBuilder()
                 .forLogger(tokenAddress)
                 .forEventSignature(AbiConstants.APPROVAL_EVENT)

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asTokenIds;
@@ -23,7 +8,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.token.TokenAssociateTransactionBody;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -35,6 +19,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class AssociationsDecoder {
+    /**
+     * Default constructor for injection.
+     */
     @Inject
     public AssociationsDecoder() {
         // Dagger2
@@ -76,7 +63,7 @@ public class AssociationsDecoder {
      */
     public TransactionBody decodeAssociateOne(@NonNull final HtsCallAttempt attempt) {
         final var call = AssociationsTranslator.ASSOCIATE_ONE.decodeCall(attempt.inputBytes());
-        return bodyOf(association(attempt.addressIdConverter(), call.get(0), call.get(1)));
+        return bodyOf(association(attempt, call.get(0), call.get(1)));
     }
 
     /**
@@ -87,7 +74,7 @@ public class AssociationsDecoder {
      */
     public TransactionBody decodeAssociateMany(@NonNull final HtsCallAttempt attempt) {
         final var call = AssociationsTranslator.ASSOCIATE_MANY.decodeCall(attempt.inputBytes());
-        return bodyOf(associations(attempt.addressIdConverter(), call.get(0), call.get(1)));
+        return bodyOf(associations(attempt, call.get(0), call.get(1)));
     }
 
     /**
@@ -98,7 +85,7 @@ public class AssociationsDecoder {
      */
     public TransactionBody decodeDissociateOne(@NonNull final HtsCallAttempt attempt) {
         final var call = AssociationsTranslator.DISSOCIATE_ONE.decodeCall(attempt.inputBytes());
-        return bodyOf(dissociation(attempt.addressIdConverter(), call.get(0), call.get(1)));
+        return bodyOf(dissociation(attempt, call.get(0), call.get(1)));
     }
 
     /**
@@ -109,7 +96,7 @@ public class AssociationsDecoder {
      */
     public TransactionBody decodeDissociateMany(@NonNull final HtsCallAttempt attempt) {
         final var call = AssociationsTranslator.DISSOCIATE_MANY.decodeCall(attempt.inputBytes());
-        return bodyOf(dissociations(attempt.addressIdConverter(), call.get(0), call.get(1)));
+        return bodyOf(dissociations(attempt, call.get(0), call.get(1)));
     }
 
     private TransactionBody bodyOf(@NonNull final TokenAssociateTransactionBody association) {
@@ -121,50 +108,50 @@ public class AssociationsDecoder {
     }
 
     private TokenAssociateTransactionBody association(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address tokenAddress) {
-        return internalAssociations(addressIdConverter, accountAddress, tokenAddress);
+        return internalAssociations(attempt, accountAddress, tokenAddress);
     }
 
     private TokenAssociateTransactionBody associations(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address[] tokenAddresses) {
-        return internalAssociations(addressIdConverter, accountAddress, tokenAddresses);
+        return internalAssociations(attempt, accountAddress, tokenAddresses);
     }
 
     private TokenDissociateTransactionBody dissociation(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address tokenAddress) {
-        return internalDissociations(addressIdConverter, accountAddress, tokenAddress);
+        return internalDissociations(attempt, accountAddress, tokenAddress);
     }
 
     private TokenDissociateTransactionBody dissociations(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address[] tokenAddresses) {
-        return internalDissociations(addressIdConverter, accountAddress, tokenAddresses);
+        return internalDissociations(attempt, accountAddress, tokenAddresses);
     }
 
     private TokenAssociateTransactionBody internalAssociations(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address... tokenAddresses) {
         return TokenAssociateTransactionBody.newBuilder()
-                .account(addressIdConverter.convert(accountAddress))
-                .tokens(asTokenIds(tokenAddresses))
+                .account(attempt.addressIdConverter().convert(accountAddress))
+                .tokens(asTokenIds(attempt.nativeOperations().entityIdFactory(), tokenAddresses))
                 .build();
     }
 
     private TokenDissociateTransactionBody internalDissociations(
-            @NonNull final AddressIdConverter addressIdConverter,
+            @NonNull final HtsCallAttempt attempt,
             @NonNull final Address accountAddress,
             @NonNull final Address... tokenAddresses) {
         return TokenDissociateTransactionBody.newBuilder()
-                .account(addressIdConverter.convert(accountAddress))
-                .tokens(asTokenIds(tokenAddresses))
+                .account(attempt.addressIdConverter().convert(accountAddress))
+                .tokens(asTokenIds(attempt.nativeOperations().entityIdFactory(), tokenAddresses))
                 .build();
     }
 }

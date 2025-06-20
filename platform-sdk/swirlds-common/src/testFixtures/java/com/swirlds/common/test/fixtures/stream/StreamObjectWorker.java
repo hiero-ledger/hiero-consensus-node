@@ -1,34 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.stream;
 
 import static com.swirlds.common.test.fixtures.stream.TestStreamType.TEST_STREAM;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.stream.HashCalculatorForStream;
 import com.swirlds.common.stream.QueueThreadObjectStream;
 import com.swirlds.common.stream.QueueThreadObjectStreamConfiguration;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
-import com.swirlds.common.stream.Signer;
 import com.swirlds.common.stream.internal.TimestampStreamFileWriter;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
@@ -36,6 +15,10 @@ import java.time.Instant;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signer;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * For testing object stream;
@@ -98,15 +81,14 @@ public class StreamObjectWorker {
     private void initialize(int totalNum, int intervalMs, Hash initialHash, Instant firstTimestamp) {
         this.remainNum = totalNum;
         this.iterator = new ObjectForTestStreamGenerator(totalNum, intervalMs, firstTimestamp).getIterator();
-        Cryptography cryptography = CryptographyHolder.get();
         // receives objects from hashCalculator, calculates and set runningHash for this object
-        RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
-                new RunningHashCalculatorForStream<>(writeQueueThread, cryptography);
+        final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
+                new RunningHashCalculatorForStream<>(writeQueueThread);
 
         // receives objects from hashQueueThread, calculates it's Hash, then passes to
         // runningHashCalculator
-        HashCalculatorForStream<ObjectForTestStream> hashCalculator =
-                new HashCalculatorForStream<>(runningHashCalculator, cryptography);
+        final HashCalculatorForStream<ObjectForTestStream> hashCalculator =
+                new HashCalculatorForStream<>(runningHashCalculator);
 
         hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
                 .setForwardTo(hashCalculator)

@@ -1,25 +1,57 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fixtures;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 
 /** Holds information related to a node used in test {@link Scenarios} */
 public record TestNode(
-        long nodeNumber, @NonNull AccountID nodeAccountID, @NonNull Account account, @NonNull TestKeyInfo keyInfo) {}
+        long nodeNumber, @NonNull AccountID nodeAccountID, @NonNull Account account, @NonNull TestKeyInfo keyInfo) {
+    /**
+     * Returns a {@link NodeInfo} representation of this {@link TestNode}
+     */
+    public NodeInfo asInfo() {
+        return new NodeInfo() {
+            @Override
+            public long nodeId() {
+                return nodeNumber;
+            }
+
+            @Override
+            public AccountID accountId() {
+                return nodeAccountID;
+            }
+
+            @Override
+            public long weight() {
+                return 0;
+            }
+
+            @Override
+            public Bytes sigCertBytes() {
+                return Bytes.EMPTY;
+            }
+
+            @Override
+            public List<ServiceEndpoint> gossipEndpoints() {
+                return List.of();
+            }
+
+            @NonNull
+            @Override
+            public List<ServiceEndpoint> hapiEndpoints() {
+                return List.of();
+            }
+
+            @Override
+            public boolean declineReward() {
+                return false;
+            }
+        };
+    }
+}

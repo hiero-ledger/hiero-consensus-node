@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.api;
 
 import static com.hedera.hapi.node.base.TokenFreezeStatus.FREEZE_NOT_APPLICABLE;
@@ -23,14 +8,13 @@ import static com.hedera.hapi.node.base.TokenKycStatus.GRANTED;
 import static com.hedera.hapi.node.base.TokenKycStatus.KYC_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenKycStatus.REVOKED;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.epochSecondAtStartOfPeriod;
 import static com.hedera.node.app.service.token.api.StakingRewardsApi.estimatePendingReward;
-import static com.hedera.node.app.spi.key.KeyUtils.ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.StakingInfo;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenFreezeStatus;
@@ -40,17 +24,13 @@ import com.hedera.hapi.node.base.TokenRelationship;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.UnaryOperator;
 
 /**
  * Methods for summarizing an account's relationships and attributes to HAPI clients.
@@ -78,17 +58,12 @@ public interface AccountSummariesApi {
      */
     static String hexedEvmAddressOf(@NonNull final Account account) {
         requireNonNull(account);
-        final var alias = account.alias().toByteArray();
-        if (alias.length == EVM_ADDRESS_SIZE) {
-            return hex(alias);
-        }
-        // If we can recover an Ethereum EOA address from the account key, we should return that
-        final var evmAddress = tryAddressRecovery(account.key(), EthSigsUtils::recoverAddressFromPubKey);
-        if (evmAddress.length == EVM_ADDRESS_SIZE) {
-            return Bytes.wrap(evmAddress).toHex();
-        } else {
-            return hex(asEvmAddress(account.accountIdOrThrow().accountNumOrThrow()));
-        }
+        final var accountId = account.accountIdOrThrow();
+        final var arbitraryEvmAddress = extractEvmAddress(account.alias());
+        final var evmAddress = arbitraryEvmAddress != null
+                ? arbitraryEvmAddress.toByteArray()
+                : asEvmAddress(accountId.accountNumOrThrow());
+        return hex(evmAddress);
     }
 
     /**
@@ -155,32 +130,6 @@ public interface AccountSummariesApi {
                 .automaticAssociation(tokenRelation.automaticAssociation())
                 .build();
         ret.add(tokenRelationship);
-    }
-
-    /**
-     * Tries to recover EVM address from an account key with a given recovery function.
-     *
-     * @param key   the key of the account
-     * @param addressRecovery    the function to recover EVM address
-     * @return the explicit EVM address bytes, if recovered; empty array otherwise
-     */
-    private static byte[] tryAddressRecovery(@Nullable final Key key, final UnaryOperator<byte[]> addressRecovery) {
-        if (key != null && key.hasEcdsaSecp256k1()) {
-            // Only compressed keys are stored at the moment
-            final var keyBytes = key.ecdsaSecp256k1().toByteArray();
-            if (keyBytes.length == ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH) {
-                final var evmAddress = addressRecovery.apply(keyBytes);
-                if (evmAddress != null && evmAddress.length == EVM_ADDRESS_SIZE) {
-                    return evmAddress;
-                } else {
-                    // Not ever expected, since above checks should imply a valid input to the
-                    // LibSecp256k1 library
-                    throw new IllegalArgumentException(
-                            "Unable to recover EVM address from structurally valid " + hex(keyBytes));
-                }
-            }
-        }
-        return new byte[0];
     }
 
     /**

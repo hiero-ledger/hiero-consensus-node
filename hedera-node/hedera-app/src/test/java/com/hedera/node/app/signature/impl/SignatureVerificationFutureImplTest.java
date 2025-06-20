@@ -1,40 +1,23 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
-import static com.swirlds.common.crypto.VerificationStatus.INVALID;
-import static com.swirlds.common.crypto.VerificationStatus.VALID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.base.crypto.VerificationStatus.INVALID;
+import static org.hiero.base.crypto.VerificationStatus.VALID;
 import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.crypto.VerificationStatus;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.base.crypto.VerificationStatus;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,16 +36,8 @@ final class SignatureVerificationFutureImplTest implements Scenarios {
     private final AtomicReference<VerificationStatus> cryptoResult = new AtomicReference<>();
 
     @BeforeEach
-    void setUp(@Mock final TransactionSignature sig) throws InterruptedException {
+    void setUp(@Mock final TransactionSignature sig) {
         this.sut = new SignatureVerificationFutureImpl(ALICE.keyInfo().publicKey(), null, sig);
-        lenient().when(sig.waitForFuture()).then(i -> {
-            //noinspection StatementWithEmptyBody
-            while (cryptoFuture.get() == null) {
-                /* spin */
-            }
-            return cryptoFuture.get();
-        });
-        lenient().when(sig.getFuture()).thenAnswer(i -> cryptoFuture.get());
         lenient().when(sig.getSignatureStatus()).thenAnswer(i -> cryptoResult.get());
     }
 
@@ -151,60 +126,6 @@ final class SignatureVerificationFutureImplTest implements Scenarios {
                     .isEqualTo(true);
             assertThat(sut.isDone()).isTrue();
         }
-
-        @ParameterizedTest
-        @ValueSource(booleans = {true, false})
-        @DisplayName("If canceled after canceled, nothing happens")
-        void cancelAfterCancelDoesNothing(final boolean mayInterruptIfRunning) {
-            // Given an instance with this sig that is NOT already complete
-            signatureSubmittedToCryptoEngine();
-
-            // When we call cancel twice
-            final var wasCanceled1 = sut.cancel(mayInterruptIfRunning);
-            final var wasCanceled2 = sut.cancel(mayInterruptIfRunning);
-
-            // Then we find that the FIRST time it was canceled, but the SECOND time it was already canceled
-            assertThat(wasCanceled1).isTrue();
-            assertThat(wasCanceled2).isFalse();
-            assertThat(sut.isCancelled()).isTrue();
-            assertThat(sut.isDone())
-                    .isTrue(); // Even though the future was not "DONE" this future is because of cancel!
-        }
-
-        @ParameterizedTest
-        @ValueSource(booleans = {true, false})
-        @DisplayName("Canceled before task is submitted to crypto engine")
-        void cancelBeforeSubmit(final boolean mayInterruptIfRunning) {
-            // Given an instance with this sig that has not been submitted to the crypto engine
-            // When we call cancel and THEN it is submitted
-            final var wasCanceled = sut.cancel(mayInterruptIfRunning);
-            signatureSubmittedToCryptoEngine();
-
-            // Then we find that our future was canceled, but the one created by the crypto engine is not.
-            assertThat(wasCanceled).isTrue();
-            assertThat(sut.isCancelled()).isTrue();
-            assertThat(sut.isDone())
-                    .isTrue(); // Even though the future was not "DONE" this future is because of cancel!
-            assertThat(cryptoFuture.get().isCancelled()).isFalse();
-        }
-
-        @ParameterizedTest
-        @ValueSource(booleans = {true, false})
-        @DisplayName("Canceled after future is received from crypto engine but before completion")
-        void cancelAfterSubmit(final boolean mayInterruptIfRunning) {
-            // Given an instance with this sig that has been submitted to the crypto engine
-            signatureSubmittedToCryptoEngine();
-
-            // When we call cancel
-            final var wasCanceled = sut.cancel(mayInterruptIfRunning);
-
-            // Then we find that our future was canceled, AND the one from the crypto engine is too.
-            assertThat(wasCanceled).isTrue();
-            assertThat(sut.isCancelled()).isTrue();
-            assertThat(sut.isDone())
-                    .isTrue(); // Even though the future was not "DONE" this future is because of cancel!
-            assertThat(cryptoFuture.get().isCancelled()).isTrue();
-        }
     }
 
     @Nested
@@ -222,73 +143,6 @@ final class SignatureVerificationFutureImplTest implements Scenarios {
             cryptoEngineReturnsResult(VALID);
 
             // Then we find that the SignatureVerificationResult is done, and returns "true" from its get methods
-            assertThat(sut)
-                    .succeedsWithin(1, TimeUnit.SECONDS)
-                    .extracting("passed")
-                    .isEqualTo(true);
-            assertThat(sut.isDone()).isTrue();
-        }
-
-        @Test
-        @DisplayName("Get with timout will timeout until TransactionSignature future is available")
-        void getWithTimeoutWillTimeoutUntilResultsAreAvailable() {
-            // Given an instance with this sig that is NOT YET submitted to the crypto engine
-            // When we block on the get method, then it doesn't complete without a timeout
-            assertThat(sut).isNotDone().failsWithin(1, TimeUnit.MILLISECONDS);
-
-            // And when we then submit it to the crypto engine, but it has not yet completed
-            signatureSubmittedToCryptoEngine();
-
-            // Then we still time out
-            assertThat(sut).isNotDone().failsWithin(10, TimeUnit.MILLISECONDS);
-
-            // And when the crypto engine completes
-            cryptoEngineReturnsResult(VALID);
-
-            // Then we find that the SignatureVerificationResult is done
-            assertThat(sut)
-                    .succeedsWithin(1, TimeUnit.SECONDS)
-                    .extracting("passed")
-                    .isEqualTo(true);
-            assertThat(sut.isDone()).isTrue();
-        }
-
-        @Test
-        @Disabled("This test is flaky")
-        @DisplayName("Get method blocks until TransactionSignature future is available")
-        @SuppressWarnings("java:S2925") // suppressing the warning about Thread.sleep usage in tests
-        void getBlocksUntilResultsAreAvailable() throws InterruptedException {
-            // Given an instance with this sig that is NOT YET submitted to the crypto engine
-            // When we block on the get method
-            final var aboutToBlock = new CountDownLatch(1);
-            final var futureIsDone = new CountDownLatch(1);
-            final var th = new Thread(() -> {
-                try {
-                    aboutToBlock.countDown();
-                    sut.get();
-                    futureIsDone.countDown();
-                } catch (final Exception e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            th.start();
-
-            // Then it doesn't complete yet
-            assertThat(aboutToBlock.await(50, TimeUnit.MILLISECONDS)).isTrue();
-            assertThat(futureIsDone.getCount()).isEqualTo(1);
-
-            // And when we have submitted it to the crypto engine
-            signatureSubmittedToCryptoEngine();
-
-            // Then it still hasn't completed
-            Thread.sleep(1); // just to increase the chance that the background thread does some work
-            assertThat(futureIsDone.getCount()).isEqualTo(1);
-
-            // But when it does complete
-            cryptoEngineReturnsResult(VALID);
-
-            // Then we find that the SignatureVerificationResult is done
-            assertThat(futureIsDone.await(50, TimeUnit.MILLISECONDS)).isTrue();
             assertThat(sut)
                     .succeedsWithin(1, TimeUnit.SECONDS)
                     .extracting("passed")

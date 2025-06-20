@@ -1,0 +1,41 @@
+/**
+ * # Utility PRNG query
+ * A query to retrieve a deterministic pseudo-random value.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Request a deterministic pseudo-random number.
+ *
+ * The value returned SHALL be deterministic, but not easily predicted.
+ * The value returned SHALL NOT be suitable for cryptographic use.
+ *
+ * ### Block Stream Effects
+ * The result of this transaction is reported in a `UtilPrngOutput` message.
+ */
+message UtilPrngTransactionBody {
+    /**
+     * A range for the requested value.
+     * <p>
+     * If this is greater than `0`, the service SHALL return a 32-bit
+     * pseudo-random number between 0 and the value provided in the
+     * transaction record.<br/>
+     * If this is unset, zero, or negative; the service SHALL return a
+     * 384-bit unsigned pseudo-random number in the record.
+     */
+    int32 range = 1;
+}

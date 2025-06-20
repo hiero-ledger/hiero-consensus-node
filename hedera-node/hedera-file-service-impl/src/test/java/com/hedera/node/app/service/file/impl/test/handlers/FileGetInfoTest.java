@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.hiero.base.utility.CommonUtils.hex;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -39,7 +24,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.file.FileGetInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoResponse;
-import com.hedera.hapi.node.file.FileInfo;
+import com.hedera.hapi.node.file.FileGetInfoResponse.FileInfo;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
@@ -51,7 +36,7 @@ import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.common.crypto.CryptographyHolder;
+import org.hiero.base.crypto.CryptographyProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -78,7 +63,7 @@ class FileGetInfoTest extends FileTestBase {
 
     @Test
     void extractsHeader() {
-        final var query = createGetFileInfoQuery(fileId.fileNum());
+        final var query = createGetFileInfoQuery(fileId);
         final var header = subject.extractHeader(query);
         final var op = query.fileGetInfoOrThrow();
         assertEquals(op.header(), header);
@@ -116,7 +101,7 @@ class FileGetInfoTest extends FileTestBase {
     void validatesQueryWhenValidFile() {
         givenValidFile();
 
-        final var query = createGetFileInfoQuery(fileId.fileNum());
+        final var query = createGetFileInfoQuery(fileId);
         given(context.query()).willReturn(query);
         given(context.createStore(ReadableFileStore.class)).willReturn(readableStore);
 
@@ -136,9 +121,9 @@ class FileGetInfoTest extends FileTestBase {
         givenValidFile(true);
         readableFileState = readableFileState();
         given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
-        readableStore = new ReadableFileStoreImpl(readableStates);
+        readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
 
-        final var query = createGetFileInfoQuery(fileId.fileNum());
+        final var query = createGetFileInfoQuery(fileId);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
@@ -151,7 +136,7 @@ class FileGetInfoTest extends FileTestBase {
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.FAIL_FEE)
                 .build();
 
-        final var query = createGetFileInfoQuery(fileId.fileNum());
+        final var query = createGetFileInfoQuery(fileId);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
@@ -169,7 +154,7 @@ class FileGetInfoTest extends FileTestBase {
                 .build();
         final var expectedInfo = getExpectedInfo();
 
-        final var query = createGetFileInfoQuery(fileId.fileNum());
+        final var query = createGetFileInfoQuery(fileId);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
@@ -186,7 +171,7 @@ class FileGetInfoTest extends FileTestBase {
                 .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
                 .build();
 
-        final var query = createGetFileInfoQuery(fileIdNotExist.fileNum());
+        final var query = createGetFileInfoQuery(fileIdNotExist);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 
@@ -205,7 +190,7 @@ class FileGetInfoTest extends FileTestBase {
                 .build();
         final var expectedInfo = getExpectedUpgradeInfo();
 
-        final var query = createGetFileInfoQuery(fileUpgradeFileId.fileNum());
+        final var query = createGetFileInfoQuery(fileUpgradeFileId);
         when(context.query()).thenReturn(query);
         when(context.createStore(ReadableUpgradeFileStore.class)).thenReturn(readableUpgradeFileStore);
         final var response = subject.findResponse(context, responseHeader);
@@ -226,24 +211,11 @@ class FileGetInfoTest extends FileTestBase {
                 .build();
     }
 
-    private FileInfo getExpectedSystemInfo() {
-        final var upgradeHash = hex(CryptographyHolder.get().digestBytesSync(contents));
-        return FileInfo.newBuilder()
-                .memo(upgradeHash)
-                .fileID(FileID.newBuilder().fileNum(fileSystemFileId.fileNum()).build())
-                .keys(keys)
-                .expirationTime(Timestamp.newBuilder().seconds(file.expirationSecond()))
-                .ledgerId(ledgerId)
-                .deleted(false)
-                .size(8)
-                .build();
-    }
-
     private FileInfo getExpectedUpgradeInfo() {
-        final var upgradeHash = hex(CryptographyHolder.get().digestBytesSync(contents));
+        final var upgradeHash = hex(CryptographyProvider.getInstance().digestBytesSync(contents));
         return FileInfo.newBuilder()
                 .memo(upgradeHash)
-                .fileID(FileID.newBuilder().fileNum(fileUpgradeFileId.fileNum()).build())
+                .fileID(fileUpgradeFileId)
                 .keys(keys)
                 .expirationTime(Timestamp.newBuilder().seconds(file.expirationSecond()))
                 .ledgerId(ledgerId)
@@ -252,9 +224,9 @@ class FileGetInfoTest extends FileTestBase {
                 .build();
     }
 
-    private Query createGetFileInfoQuery(final long fileId) {
+    private Query createGetFileInfoQuery(final FileID fileID) {
         final var data = FileGetInfoQuery.newBuilder()
-                .fileID(FileID.newBuilder().fileNum(fileId).build())
+                .fileID(fileID)
                 .header(QueryHeader.newBuilder().payment(Transaction.DEFAULT).build())
                 .build();
 

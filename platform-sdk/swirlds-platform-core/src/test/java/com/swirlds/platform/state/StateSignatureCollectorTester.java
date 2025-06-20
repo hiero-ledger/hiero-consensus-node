@@ -1,29 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
-import com.swirlds.platform.components.transaction.system.ScopedSystemTransaction;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
@@ -33,6 +14,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
  * A StateSignatureCollector that is used for unit testing. In the future, these unit tests should become small
@@ -71,11 +58,9 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     @Override
     public List<ReservedSignedState> addReservedState(@NonNull final ReservedSignedState reservedSignedState) {
-        final EventWindow window = new EventWindow(
-                reservedSignedState.get().getRound(),
-                1 /* ignored by this test */,
-                1 /* ignored by this test */,
-                AncientMode.GENERATION_THRESHOLD /* ignored by this test*/);
+        final EventWindow window = EventWindowBuilder.builder()
+                .setLatestConsensusRound(reservedSignedState.get().getRound())
+                .build();
 
         latestSignedState.updateEventWindow(window);
 
@@ -84,24 +69,30 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
 
     @Override
     public List<ReservedSignedState> handlePreconsensusSignatures(
-            @NonNull final List<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         return processStates(super.handlePreconsensusSignatures(transactions));
     }
 
     public void handlePreconsensusSignatureTransaction(
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction signatureTransaction) {
-        handlePreconsensusSignatures(List.of(new ScopedSystemTransaction<>(signerId, null, signatureTransaction)));
+        final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
+                new ConcurrentLinkedQueue<>();
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, signatureTransaction));
+        handlePreconsensusSignatures(systemTransactions);
     }
 
     @Override
     public List<ReservedSignedState> handlePostconsensusSignatures(
-            @NonNull final List<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
+            @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         return processStates(super.handlePostconsensusSignatures(transactions));
     }
 
     public void handlePostconsensusSignatureTransaction(
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction transaction) {
-        handlePostconsensusSignatures(List.of(new ScopedSystemTransaction<>(signerId, null, transaction)));
+        final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
+                new ConcurrentLinkedQueue<>();
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, transaction));
+        handlePostconsensusSignatures(systemTransactions);
     }
 
     private List<ReservedSignedState> processStates(@Nullable final List<ReservedSignedState> states) {

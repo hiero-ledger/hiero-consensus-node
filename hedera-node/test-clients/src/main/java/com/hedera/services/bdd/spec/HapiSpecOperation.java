@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static java.util.Collections.EMPTY_LIST;
@@ -45,6 +31,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -56,6 +43,7 @@ import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.MessageFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,7 +53,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Random;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -121,7 +108,6 @@ public abstract class HapiSpecOperation implements SpecOperation {
 
     protected boolean useTls = false;
     protected HapiSpecSetup.TxnProtoStructure txnProtoStructure = HapiSpecSetup.TxnProtoStructure.ALTERNATE;
-    protected Set<HederaFunctionality> skipIfAutoScheduling = Collections.emptySet();
     protected Optional<ByteString> expectedLedgerId = Optional.empty();
     protected Optional<Integer> hardcodedNumPayerKeys = Optional.empty();
     protected Optional<SigMapGenerator> sigMapGen = Optional.empty();
@@ -129,14 +115,16 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected Optional<ControlForKey[]> controlOverrides = Optional.empty();
     protected Map<Key, SigControl> overrides = Collections.EMPTY_MAP;
 
+    protected Optional<Function<HapiSpec, Key>> batchKey = Optional.empty();
     protected Optional<Long> fee = Optional.empty();
+    protected List<Function<HapiSpec, CustomFeeLimit>> maxCustomFeeList = new ArrayList<>();
     protected Optional<Long> validDurationSecs = Optional.empty();
     protected Optional<String> customTxnId = Optional.empty();
     protected Optional<String> memo = Optional.empty();
     protected Optional<String> metadata = Optional.empty();
     protected Optional<String> payer = Optional.empty();
     protected Optional<Boolean> genRecord = Optional.empty();
-    protected Optional<AccountID> node = Optional.empty();
+    protected Optional<String> node = Optional.empty();
     protected Optional<Supplier<AccountID>> nodeSupplier = Optional.empty();
     protected OptionalDouble usdFee = OptionalDouble.empty();
     protected Optional<Integer> retryLimits = Optional.empty();
@@ -181,8 +169,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     }
 
     protected AccountID targetNodeFor(final HapiSpec spec) {
-        fixNodeFor(spec);
-        return node.get();
+        return fixNodeFor(spec);
     }
 
     protected void configureTlsFor(final HapiSpec spec) {
@@ -195,42 +182,19 @@ public abstract class HapiSpecOperation implements SpecOperation {
                 : spec.setup().txnProtoStructure();
     }
 
-    protected void fixNodeFor(final HapiSpec spec) {
+    protected AccountID fixNodeFor(final HapiSpec spec) {
         if (node.isPresent()) {
-            return;
+            return asId(node.get(), spec);
         }
         if (nodeSupplier.isPresent()) {
-            node = Optional.of(nodeSupplier.get().get());
+            return nodeSupplier.get().get();
         } else {
             if (spec.setup().nodeSelector() == HapiSpecSetup.NodeSelection.RANDOM) {
-                node = Optional.of(randomNodeFrom(spec));
+                return randomNodeFrom(spec);
             } else {
-                node = Optional.of(spec.setup().defaultNode());
+                return spec.setup().defaultNode();
             }
         }
-    }
-
-    /**
-     * Gives the {@link HapiSpec} author the option to skip this operation if certain
-     * functions are being auto-scheduled.
-     *
-     * @param functions the functions being auto-scheduled
-     * @return this operation
-     */
-    public HapiSpecOperation skippedIfAutoScheduling(final Set<HederaFunctionality> functions) {
-        skipIfAutoScheduling = functions;
-        return this;
-    }
-
-    /**
-     * Indicates whether this operation should be skipped, given a set of functions being
-     * auto-scheduled.
-     *
-     * @param beingAutoScheduled the functions being auto-scheduled
-     * @return true if this operation should be skipped
-     */
-    public boolean shouldSkipWhenAutoScheduling(final Set<HederaFunctionality> beingAutoScheduled) {
-        return !Collections.disjoint(skipIfAutoScheduling, beingAutoScheduled);
     }
 
     private AccountID randomNodeFrom(final HapiSpec spec) {
@@ -243,9 +207,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
         try {
             final boolean hasCompleteLifecycle = submitOp(spec);
 
-            if (shouldRegisterTxn) {
-                registerTxnSubmitted(spec);
-            }
+            maybeRegisterTxnSubmitted(spec);
 
             if (hasCompleteLifecycle) {
                 assertExpectationsGiven(spec);
@@ -265,11 +227,9 @@ public abstract class HapiSpecOperation implements SpecOperation {
         return Optional.empty();
     }
 
-    private void registerTxnSubmitted(final HapiSpec spec) throws Throwable {
-        if (txnSubmitted != Transaction.getDefaultInstance()) {
-            spec.registry().saveBytes(txnName, txnSubmitted.toByteString());
-            final TransactionID txnId = extractTxnId(txnSubmitted);
-            spec.registry().saveTxnId(txnName, txnId);
+    protected void maybeRegisterTxnSubmitted(final HapiSpec spec) throws Throwable {
+        if (shouldRegisterTxn) {
+            registerTransaction(spec, txnName, txnSubmitted);
         }
     }
 
@@ -308,12 +268,13 @@ public abstract class HapiSpecOperation implements SpecOperation {
             if (omitNodeAccount) {
                 builder.clearNodeAccountID();
             } else {
-                node.ifPresent(builder::setNodeAccountID);
+                node.ifPresent((s) -> builder.setNodeAccountID(fixNodeFor(spec)));
             }
             validDurationSecs.ifPresent(s -> builder.setTransactionValidDuration(
                     Duration.newBuilder().setSeconds(s).build()));
             genRecord.ifPresent(builder::setGenerateRecord);
             memo.ifPresent(builder::setMemo);
+            batchKey.ifPresent(k -> builder.setBatchKey(k.apply(spec)));
         };
     }
 
@@ -342,6 +303,10 @@ public abstract class HapiSpecOperation implements SpecOperation {
         Consumer<TransactionBody.Builder> netDef = fee.map(amount -> minDef.andThen(b -> b.setTransactionFee(amount)))
                 .orElse(minDef)
                 .andThen(opDef);
+
+        for (final var supplier : maxCustomFeeList) {
+            netDef = netDef.andThen(b -> b.addMaxCustomFees(supplier.apply(spec)));
+        }
 
         setKeyControlOverrides(spec);
         List<Key> keys = signersToUseFor(spec);
@@ -480,7 +445,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
             helper.add("sigs", FeeBuilder.getSignatureCount(txnSubmitted));
         }
         payer.ifPresent(a -> helper.add("payer", a));
-        node.ifPresent(id -> helper.add("node", HapiPropertySource.asAccountString(id)));
+        node.ifPresent(id -> helper.add("node", id));
         return helper;
     }
 
@@ -488,9 +453,34 @@ public abstract class HapiSpecOperation implements SpecOperation {
         return payer;
     }
 
+    public String getTxnName() {
+        return txnName;
+    }
+
+    public boolean shouldRegisterTxn() {
+        return shouldRegisterTxn;
+    }
+
     protected ByteString rationalize(final String expectedLedgerId) {
         final var hex = expectedLedgerId.substring(2);
         final var bytes = HexFormat.of().parseHex(hex);
         return ByteString.copyFrom(bytes);
+    }
+
+    /**
+     * Registers a transaction in a {@link HapiSpec}'s registry by a given name
+     *
+     * @param spec the spec to register the transaction with
+     * @param txnName the name given to reference the transaction
+     * @param txn the value to store for the given name
+     * @throws Throwable if no transaction ID can be extracted from the given `txn` param
+     */
+    public static void registerTransaction(final HapiSpec spec, final String txnName, final Transaction txn)
+            throws Throwable {
+        if (txn != Transaction.getDefaultInstance()) {
+            spec.registry().saveBytes(txnName, txn.toByteString());
+            final TransactionID txnId = extractTxnId(txn);
+            spec.registry().saveTxnId(txnName, txnId);
+        }
     }
 }

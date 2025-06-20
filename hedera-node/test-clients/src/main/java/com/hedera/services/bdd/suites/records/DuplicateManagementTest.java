@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -71,75 +56,85 @@ import org.junit.jupiter.api.DynamicTest;
 public class DuplicateManagementTest {
     private static final String REPEATED = "repeated";
     public static final String TXN_ID = "txnId";
-    private static final String TO = "0.0.3";
+    private static final String TO = "3";
     private static final String CIVILIAN = "civilian";
     private static final long MS_TO_WAIT_FOR_CONSENSUS = 6_000L;
 
     @HapiTest
     @SuppressWarnings("java:S5960")
     final Stream<DynamicTest> hasExpectedDuplicates() {
-        return defaultHapiSpec("HasExpectedDuplicates")
-                .given(
-                        cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
-                        usableTxnIdNamed(TXN_ID).payerId(CIVILIAN))
-                .when(
-                        uncheckedSubmit(cryptoCreate(REPEATED)
-                                        .payingWith(CIVILIAN)
-                                        .txnId(TXN_ID))
-                                .payingWith(CIVILIAN)
-                                .fee(ONE_HBAR)
-                                .hasPrecheckFrom(NOT_SUPPORTED, BUSY),
-                        uncheckedSubmit(
-                                cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
-                        uncheckedSubmit(
-                                cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
-                        uncheckedSubmit(
-                                cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
-                        sleepFor(MS_TO_WAIT_FOR_CONSENSUS))
-                .then(
-                        getReceipt(TXN_ID)
-                                .andAnyDuplicates()
-                                .payingWith(CIVILIAN)
-                                .hasPriorityStatus(SUCCESS)
-                                .hasDuplicateStatuses(DUPLICATE_TRANSACTION, DUPLICATE_TRANSACTION),
-                        getTxnRecord(TXN_ID)
-                                .payingWith(CIVILIAN)
-                                .via("cheapTxn")
-                                .assertingNothingAboutHashes()
-                                .hasPriority(recordWith().status(SUCCESS)),
-                        getTxnRecord(TXN_ID)
-                                .andAnyDuplicates()
-                                .payingWith(CIVILIAN)
-                                .via("costlyTxn")
-                                .assertingNothingAboutHashes()
-                                .hasPriority(recordWith().status(SUCCESS))
-                                .hasDuplicates(inOrder(
-                                        recordWith().status(DUPLICATE_TRANSACTION),
-                                        recordWith().status(DUPLICATE_TRANSACTION))),
-                        sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
-                        withOpContext((spec, opLog) -> {
-                            var cheapGet = getTxnRecord("cheapTxn").assertingNothingAboutHashes();
-                            var costlyGet = getTxnRecord("costlyTxn").assertingNothingAboutHashes();
-                            allRunFor(spec, cheapGet, costlyGet);
-                            var cheapRecord = cheapGet.getResponseRecord();
-                            var costlyRecord = costlyGet.getResponseRecord();
-                            opLog.info("cheapRecord: {}", cheapRecord);
-                            opLog.info("costlyRecord: {}", costlyRecord);
-                            var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
-                            var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
-                            assertEquals(
-                                    3 * cheapPrice - 1,
-                                    costlyPrice,
-                                    String.format(
-                                            "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
-                                            costlyPrice, cheapPrice));
-                        }));
+        return hapiTest(
+                cryptoCreate(CIVILIAN).balance(ONE_HUNDRED_HBARS),
+                usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID))
+                        .payingWith(CIVILIAN)
+                        .fee(ONE_HBAR)
+                        .hasPrecheckFrom(NOT_SUPPORTED, BUSY),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                uncheckedSubmit(cryptoCreate(REPEATED).payingWith(CIVILIAN).txnId(TXN_ID)),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                getReceipt(TXN_ID)
+                        .andAnyDuplicates()
+                        .payingWith(CIVILIAN)
+                        .hasPriorityStatus(SUCCESS)
+                        .hasDuplicateStatuses(DUPLICATE_TRANSACTION, DUPLICATE_TRANSACTION),
+                getTxnRecord(TXN_ID)
+                        .payingWith(CIVILIAN)
+                        .via("cheapTxn")
+                        .assertingNothingAboutHashes()
+                        .hasPriority(recordWith().status(SUCCESS)),
+                getTxnRecord(TXN_ID)
+                        .andAnyDuplicates()
+                        .payingWith(CIVILIAN)
+                        .via("costlyTxn")
+                        .assertingNothingAboutHashes()
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasDuplicates(inOrder(
+                                recordWith().status(DUPLICATE_TRANSACTION),
+                                recordWith().status(DUPLICATE_TRANSACTION))),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                withOpContext((spec, opLog) -> {
+                    var cheapGet = getTxnRecord("cheapTxn").assertingNothingAboutHashes();
+                    var costlyGet = getTxnRecord("costlyTxn").assertingNothingAboutHashes();
+                    allRunFor(spec, cheapGet, costlyGet);
+                    var cheapRecord = cheapGet.getResponseRecord();
+                    var costlyRecord = costlyGet.getResponseRecord();
+                    opLog.info("cheapRecord: {}", cheapRecord);
+                    opLog.info("costlyRecord: {}", costlyRecord);
+                    var cheapPrice = getNonFeeDeduction(cheapRecord).orElse(0);
+                    var costlyPrice = getNonFeeDeduction(costlyRecord).orElse(0);
+                    assertEquals(
+                            3 * cheapPrice - 1,
+                            costlyPrice,
+                            String.format(
+                                    "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
+                                    costlyPrice, cheapPrice));
+                }));
+    }
+
+    @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
+    @DisplayName("only warns of missing creator if event version is current")
+    final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
+                        .setNode("666")
+                        .withSubmissionStrategy(usingVersion(PAST))
+                        .hasAnyStatusAtAll(),
+                assertHgcaaLogDoesNotContain(
+                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
+                        .setNode("666")
+                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
+                        .hasAnyStatusAtAll(),
+                assertHgcaaLogContains(
+                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> chargesNetworkFeeToNodeThatSubmitsAuthorizedTransactionWithoutPayerSignature() {
-        final var submittingNodeAccountId = "0.0.4";
+        final var submittingNodeAccountId = "4";
         return hapiTest(
                 newKeyNamed("notTreasuryKey"),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, submittingNodeAccountId, ONE_HBAR)),
@@ -155,28 +150,10 @@ public class DuplicateManagementTest {
                 getAccountBalance(submittingNodeAccountId).hasTinyBars(reducedFromSnapshot("preConsensus")));
     }
 
-    @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
-    @DisplayName("only warns of missing creator if event version is current")
-    final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
-        return hapiTest(
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PAST))
-                        .hasAnyStatusAtAll(),
-                assertHgcaaLogDoesNotContain(
-                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("0.0.666")
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
-                        .hasAnyStatusAtAll(),
-                assertHgcaaLogContains(
-                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)));
-    }
-
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("if a node submits an authorized transaction without payer signature, it is charged the network fee")
     final Stream<DynamicTest> payerSolvencyStillCheckedEvenForDuplicateTransaction() {
-        final var submittingNodeAccountId = "0.0.4";
+        final var submittingNodeAccountId = "4";
         final AtomicLong preDuplicateBalance = new AtomicLong();
         return hapiTest(
                 cryptoCreate(CIVILIAN),
@@ -212,55 +189,45 @@ public class DuplicateManagementTest {
 
     @HapiTest
     final Stream<DynamicTest> usesUnclassifiableIfNoClassifiableAvailable() {
-        return defaultHapiSpec("UsesUnclassifiableIfNoClassifiableAvailable")
-                .given(
-                        newKeyNamed("wrongKey"),
-                        cryptoCreate(CIVILIAN),
-                        usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)))
-                .when(
-                        uncheckedSubmit(cryptoCreate("nope")
-                                .payingWith(CIVILIAN)
-                                .txnId(TXN_ID)
-                                .signedBy("wrongKey")),
-                        sleepFor(MS_TO_WAIT_FOR_CONSENSUS))
-                .then(
-                        getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
-                        getTxnRecord(TXN_ID)
-                                .assertingNothingAboutHashes()
-                                .hasPriority(recordWith()
-                                        .status(INVALID_PAYER_SIGNATURE)
-                                        .transfers(includingDeduction("node payment", TO))));
+        return hapiTest(
+                newKeyNamed("wrongKey"),
+                cryptoCreate(CIVILIAN),
+                usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, TO, ONE_HBAR)),
+                uncheckedSubmit(
+                        cryptoCreate("nope").payingWith(CIVILIAN).txnId(TXN_ID).signedBy("wrongKey")),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                getReceipt(TXN_ID).hasPriorityStatus(INVALID_PAYER_SIGNATURE),
+                getTxnRecord(TXN_ID)
+                        .assertingNothingAboutHashes()
+                        .hasPriority(recordWith()
+                                .status(INVALID_PAYER_SIGNATURE)
+                                .transfers(includingDeduction("node payment", TO))));
     }
 
     @HapiTest
     final Stream<DynamicTest> classifiableTakesPriorityOverUnclassifiable() {
-        return defaultHapiSpec("ClassifiableTakesPriorityOverUnclassifiable")
-                .given(
-                        cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),
-                        usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, TO, 100_000_000L)))
-                .when(
-                        uncheckedSubmit(cryptoCreate("nope")
-                                        .txnId(TXN_ID)
-                                        .payingWith(CIVILIAN)
-                                        .setNode("0.0.4"))
-                                .logged(),
-                        uncheckedSubmit(cryptoCreate("sure")
+        return hapiTest(
+                cryptoCreate(CIVILIAN).balance(100 * 100_000_000L),
+                usableTxnIdNamed(TXN_ID).payerId(CIVILIAN),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, TO, 100_000_000L)),
+                uncheckedSubmit(cryptoCreate("nope")
                                 .txnId(TXN_ID)
                                 .payingWith(CIVILIAN)
-                                .setNode(TO)),
-                        sleepFor(MS_TO_WAIT_FOR_CONSENSUS))
-                .then(
-                        getReceipt(TXN_ID)
-                                .andAnyDuplicates()
-                                .logged()
-                                .hasPriorityStatus(SUCCESS)
-                                .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
-                        getTxnRecord(TXN_ID)
-                                .assertingNothingAboutHashes()
-                                .andAnyDuplicates()
-                                .hasPriority(recordWith().status(SUCCESS))
-                                .hasDuplicates(inOrder(recordWith().status(INVALID_NODE_ACCOUNT))));
+                                .setNode("4"))
+                        .logged(),
+                uncheckedSubmit(
+                        cryptoCreate("sure").txnId(TXN_ID).payingWith(CIVILIAN).setNode(TO)),
+                sleepFor(MS_TO_WAIT_FOR_CONSENSUS),
+                getReceipt(TXN_ID)
+                        .andAnyDuplicates()
+                        .logged()
+                        .hasPriorityStatus(SUCCESS)
+                        .hasDuplicateStatuses(INVALID_NODE_ACCOUNT),
+                getTxnRecord(TXN_ID)
+                        .assertingNothingAboutHashes()
+                        .andAnyDuplicates()
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasDuplicates(inOrder(recordWith().status(INVALID_NODE_ACCOUNT))));
     }
 }

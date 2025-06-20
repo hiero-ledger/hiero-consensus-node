@@ -1,30 +1,18 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
+import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.network.connectivity.SocketFactory;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility class for generating paired streams for synchronization tests.
@@ -46,11 +34,15 @@ public class PairedStreams implements AutoCloseable {
     protected Socket learnerSocket;
     protected ServerSocket server;
 
-    public PairedStreams(final SocketConfig socketConfig) throws IOException {
+    public PairedStreams(
+            @NonNull final NodeId nodeId,
+            @NonNull final SocketConfig socketConfig,
+            @NonNull final GossipConfig gossipConfig)
+            throws IOException {
 
         // open server socket
         server = new ServerSocket();
-        SocketFactory.configureAndBind(server, socketConfig, 0);
+        SocketFactory.configureAndBind(nodeId, server, socketConfig, gossipConfig, 0);
 
         teacherSocket = new Socket("127.0.0.1", server.getLocalPort());
         learnerSocket = server.accept();

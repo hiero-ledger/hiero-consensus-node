@@ -1,21 +1,8 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
+import com.swirlds.platform.gossip.config.GossipConfig;
+import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.network.SocketConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,8 +11,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.List;
+import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Creates, binds and connects server and client sockets
@@ -48,21 +37,40 @@ public interface SocketFactory {
      * 		the socket to configure and bind
      * @param socketConfig
      * 		the configuration for the socket
+     * @param gossipConfig
+     *    the gossip configuration
      * @param port
      * 		the TCP port to bind
      * @throws IOException
      * 		if the bind is unsuccessful
      */
     static void configureAndBind(
-            @NonNull final ServerSocket serverSocket, @NonNull final SocketConfig socketConfig, final int port)
+            @NonNull final NodeId selfId,
+            @NonNull final ServerSocket serverSocket,
+            @NonNull final SocketConfig socketConfig,
+            @NonNull final GossipConfig gossipConfig,
+            final int port)
             throws IOException {
+        Objects.requireNonNull(selfId);
         Objects.requireNonNull(serverSocket);
         Objects.requireNonNull(socketConfig);
+        Objects.requireNonNull(gossipConfig);
+
+        final NetworkEndpoint networkEndpoint = gossipConfig
+                .getInterfaceBindings(selfId.id())
+                .orElseGet(() -> {
+                    try {
+                        return new NetworkEndpoint(selfId.id(), InetAddress.getByAddress(ALL_INTERFACES), port);
+                    } catch (UnknownHostException e) {
+                        throw new RuntimeException("Host 'ALL_INTERFACES' not found", e);
+                    }
+                });
+
         if (isIpTopInRange(socketConfig.ipTos())) {
             // set the IP_TOS option
             serverSocket.setOption(java.net.StandardSocketOptions.IP_TOS, socketConfig.ipTos());
         }
-        final InetSocketAddress endpoint = new InetSocketAddress(InetAddress.getByAddress(ALL_INTERFACES), port);
+        final InetSocketAddress endpoint = new InetSocketAddress(networkEndpoint.hostname(), networkEndpoint.port());
         serverSocket.setReuseAddress(true);
         serverSocket.bind(endpoint); // try to grab a port on this computer
         // do NOT do clientSocket.setSendBufferSize or clientSocket.setReceiveBufferSize
@@ -134,5 +142,5 @@ public interface SocketFactory {
      *
      * @param peers the updated list of peers
      */
-    void reload(@NonNull final List<PeerInfo> peers);
+    void reload(@NonNull final Collection<PeerInfo> peers);
 }

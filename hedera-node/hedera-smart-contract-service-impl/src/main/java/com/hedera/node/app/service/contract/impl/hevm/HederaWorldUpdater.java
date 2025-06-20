@@ -1,28 +1,11 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
@@ -31,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -58,6 +42,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
             @NonNull HederaOperations operations,
             @NonNull HederaNativeOperations nativeOperations,
             @NonNull SystemContractOperations systemOperations) {
+        /**
+         * @param operations the enhanced operations
+         * @param nativeOperations the enhanced native operations
+         * @param systemOperations the enhanced system operations
+         */
         public Enhancement {
             requireNonNull(operations);
             requireNonNull(nativeOperations);
@@ -134,10 +123,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * this method surfaces any problem by throwing an exception.
      *
      * @param payerId the id of the account to collect the fee from
-     * @param amount      the amount to collect
+     * @param amount the amount to collect
+     * @param withNonceIncrement if the nonce should be incremented
      * @throws IllegalArgumentException if the collection fails for any reason
      */
-    void collectFee(@NonNull AccountID payerId, long amount);
+    void collectGasFee(@NonNull AccountID payerId, long amount, boolean withNonceIncrement);
 
     /**
      * Refunds the given fee to the given account. The caller should have already
@@ -147,7 +137,7 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * @param payerId the id of the account to refund the fee to
      * @param amount the amount to refund
      */
-    void refundFee(@NonNull AccountID payerId, long amount);
+    void refundGasFee(@NonNull AccountID payerId, long amount);
 
     /**
      * Tries to transfer the given amount from a sending contract to the recipient. The sender
@@ -189,6 +179,19 @@ public interface HederaWorldUpdater extends WorldUpdater {
      */
     Optional<ExceptionalHaltReason> tryTrackingSelfDestructBeneficiary(
             @NonNull Address deleted, @NonNull Address beneficiary, MessageFrame frame);
+
+    /**
+     * Tracks the given deletion of an account with the designated beneficiary.
+     *
+     * @param deleted the address of the account being deleted, a contract
+     * @param beneficiary the address of the beneficiary of the deletion
+     * @param frame
+     *
+     * `Beneficiary` must not be a token or a schedule.  Contract `deleted` must not be any token's
+     * treasury.  Contract `deleted` must not own any tokens.  These conditions are _not_ checked
+     * by this method.
+     */
+    void trackSelfDestructBeneficiary(@NonNull Address deleted, @NonNull Address beneficiary, MessageFrame frame);
 
     /**
      * Given the HAPI operation initiating a top-level {@code CONTRACT_CREATION} message, sets up the
@@ -274,13 +277,6 @@ public interface HederaWorldUpdater extends WorldUpdater {
     List<StorageAccesses> pendingStorageUpdates();
 
     /**
-     * Externalizes the results of a system contract call into a record
-     * @param result    The result of the system contract call
-     */
-    void externalizeSystemContractResults(
-            @NonNull final ContractFunctionResult result, @NonNull ResponseCodeEnum responseStatus);
-
-    /**
      * Returns the {@link ExchangeRate} for the current consensus timestamp
      * Delegates to {@link SystemContractOperations#currentExchangeRate()} ()}
      * @return the current exchange rate
@@ -294,4 +290,13 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * This is to improve Ethereum equivalence.
      */
     void setContractNotRequired();
+
+    /**
+     * Returns the {@link EntityIdFactory}
+     *
+     * @return the {@link EntityIdFactory}
+     */
+    default EntityIdFactory entityIdFactory() {
+        return enhancement().nativeOperations().entityIdFactory();
+    }
 }

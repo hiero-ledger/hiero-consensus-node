@@ -20,18 +20,19 @@ naming standard.
 
 ### Permanent & Default Branches
 
-The repository will contain two permanent branches as per the GitFlow Workflow `main` and `develop`
-branches.
+The repository will contain one permanent branch, `main`, per the Hashgraph Continuous Integration
+Test and Release workflow
 
 **Default Branches**
 
-The default branch for a repository will be `develop` as per the branching workflow.
+The default branch for a repository will be `main` as per the Hashgraph Continuous Integration
+Test and Release workflow.
 
 ### Branch to Issue Relationship
 
 Aside from the permanent or release branches, no short-lived (feature, hotfix, bugfix) branch should
 be created without being associated to an issue number. No short-lived branch should be merged into
-`develop` or `main` without an associated and approved pull request.
+`main` without an associated and approved pull request.
 
 ### Feature Branch Naming
 

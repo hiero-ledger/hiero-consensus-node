@@ -1,25 +1,8 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -109,7 +92,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.token.TokenAssociationSpecs;
-import com.swirlds.common.utility.CommonUtils;
 import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -117,11 +99,10 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @SuppressWarnings("java:S1192")
-@Tag(ADHOC)
 public class FileUpdateSuite {
     private static final Logger log = LogManager.getLogger(FileUpdateSuite.class);
     private static final String CONTRACT = "CreateTrivial";
@@ -135,31 +116,28 @@ public class FileUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        return defaultHapiSpec("idVariantsTreatedAsExpected")
-                .given(fileCreate("file").contents("ABC"))
-                .when()
-                .then(submitModified(withSuccessivelyVariedBodyIds(), () -> fileUpdate("file")
+        return hapiTest(
+                fileCreate("file").contents("ABC"),
+                submitModified(withSuccessivelyVariedBodyIds(), () -> fileUpdate("file")
                         .contents("DEF")));
     }
 
     @HapiTest
     final Stream<DynamicTest> associateHasExpectedSemantics() {
-        return defaultHapiSpec("AssociateHasExpectedSemantics")
-                .given(flattened((Object[]) TokenAssociationSpecs.basicKeysAndTokens()))
-                .when(
-                        cryptoCreate("misc").balance(0L),
-                        tokenAssociate("misc", TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT),
-                        tokenAssociate("misc", TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT)
-                                .hasKnownStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT),
-                        tokenAssociate("misc", INVALID_ENTITY_ID).hasKnownStatus(INVALID_TOKEN_ID),
-                        tokenAssociate("misc", INVALID_ENTITY_ID, INVALID_ENTITY_ID)
-                                .hasPrecheck(TOKEN_ID_REPEATED_IN_TOKEN_LIST),
-                        tokenDissociate("misc", INVALID_ENTITY_ID, INVALID_ENTITY_ID)
-                                .hasPrecheck(TOKEN_ID_REPEATED_IN_TOKEN_LIST),
-                        tokenAssociate("misc", TokenAssociationSpecs.FREEZABLE_TOKEN_OFF_BY_DEFAULT),
-                        tokenAssociate(
-                                "misc", TokenAssociationSpecs.KNOWABLE_TOKEN, TokenAssociationSpecs.VANILLA_TOKEN))
-                .then(getAccountInfo("misc")
+        return hapiTest(flattened(
+                TokenAssociationSpecs.basicKeysAndTokens(),
+                cryptoCreate("misc").balance(0L),
+                tokenAssociate("misc", TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT),
+                tokenAssociate("misc", TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT)
+                        .hasKnownStatus(TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT),
+                tokenAssociate("misc", INVALID_ENTITY_ID).hasKnownStatus(INVALID_TOKEN_ID),
+                tokenAssociate("misc", INVALID_ENTITY_ID, INVALID_ENTITY_ID)
+                        .hasPrecheck(TOKEN_ID_REPEATED_IN_TOKEN_LIST),
+                tokenDissociate("misc", INVALID_ENTITY_ID, INVALID_ENTITY_ID)
+                        .hasPrecheck(TOKEN_ID_REPEATED_IN_TOKEN_LIST),
+                tokenAssociate("misc", TokenAssociationSpecs.FREEZABLE_TOKEN_OFF_BY_DEFAULT),
+                tokenAssociate("misc", TokenAssociationSpecs.KNOWABLE_TOKEN, TokenAssociationSpecs.VANILLA_TOKEN),
+                getAccountInfo("misc")
                         .hasToken(relationshipWith(TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT)
                                 .kyc(KycNotApplicable)
                                 .freeze(Frozen))
@@ -172,7 +150,7 @@ public class FileUpdateSuite {
                         .hasToken(relationshipWith(TokenAssociationSpecs.VANILLA_TOKEN)
                                 .kyc(KycNotApplicable)
                                 .freeze(FreezeNotApplicable))
-                        .logged());
+                        .logged()));
     }
 
     @LeakyHapiTest(overrides = {"tokens.maxCustomFeesAllowed"})
@@ -192,7 +170,7 @@ public class FileUpdateSuite {
     @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
     final Stream<DynamicTest> optimisticSpecialFileUpdate() {
         final var appendsPerBurst = 128;
-        final var specialFile = "0.0.159";
+        final var specialFile = "159";
         final var contents = randomUtf8Bytes(64 * BYTES_4K);
         final var specialFileContents = ByteString.copyFrom(contents);
         final byte[] expectedHash;
@@ -201,35 +179,31 @@ public class FileUpdateSuite {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
-        return defaultHapiSpec("OptimisticSpecialFileUpdate")
-                .given()
-                .when(updateSpecialFile(GENESIS, specialFile, specialFileContents, BYTES_4K, appendsPerBurst))
-                .then(getFileInfo(specialFile).hasMemo(CommonUtils.hex(expectedHash)));
+        return hapiTest(
+                updateSpecialFile(GENESIS, specialFile, specialFileContents, BYTES_4K, appendsPerBurst),
+                getFileInfo(specialFile).hasMemo(CommonUtils.hex(expectedHash)));
     }
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> apiPermissionsChangeDynamically() {
         final var civilian = CIVILIAN;
-        return defaultHapiSpec("ApiPermissionsChangeDynamically")
-                .given(
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1_000_000_000L)),
-                        cryptoCreate(civilian).balance(ONE_HUNDRED_HBARS),
-                        getFileContents(API_PERMISSIONS).logged(),
-                        tokenCreate("poc").payingWith(civilian))
-                .when(
-                        fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of("tokenCreate", "0-1")),
-                        getFileContents(API_PERMISSIONS).logged())
-                .then(
-                        tokenCreate("poc")
-                                .payingWith(civilian)
-                                .hasPrecheckFrom(NOT_SUPPORTED, OK)
-                                .hasKnownStatus(UNAUTHORIZED),
-                        fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of("tokenCreate", "0-*")),
-                        tokenCreate("secondPoc").payingWith(civilian));
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1_000_000_000L)),
+                cryptoCreate(civilian).balance(ONE_HUNDRED_HBARS),
+                getFileContents(API_PERMISSIONS).logged(),
+                tokenCreate("poc").payingWith(civilian),
+                fileUpdate(API_PERMISSIONS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of("tokenCreate", "0-1")),
+                getFileContents(API_PERMISSIONS).logged(),
+                tokenCreate("poc")
+                        .payingWith(civilian)
+                        .hasPrecheckFrom(NOT_SUPPORTED, OK)
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileUpdate(API_PERMISSIONS)
+                        .payingWith(ADDRESS_BOOK_CONTROL)
+                        .overridingProps(Map.of("tokenCreate", "0-*")),
+                tokenCreate("secondPoc").payingWith(civilian));
     }
 
     @HapiTest
@@ -275,45 +249,35 @@ public class FileUpdateSuite {
         final String firstMemo = "Originally";
         final String secondMemo = "Subsequently";
 
-        return defaultHapiSpec("VanillaUpdateSucceeds")
-                .given(fileCreate("test").entityMemo(firstMemo).contents(old4K))
-                .when(
-                        fileUpdate("test")
-                                .entityMemo(ZERO_BYTE_MEMO)
-                                .contents(new4k)
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
-                        fileUpdate("test").entityMemo(secondMemo).contents(new4k))
-                .then(
-                        getFileContents("test").hasContents(ignore -> new4k),
-                        getFileInfo("test").hasMemo(secondMemo));
+        return hapiTest(
+                fileCreate("test").entityMemo(firstMemo).contents(old4K),
+                fileUpdate("test").entityMemo(ZERO_BYTE_MEMO).contents(new4k).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                fileUpdate("test").entityMemo(secondMemo).contents(new4k),
+                getFileContents("test").hasContents(ignore -> new4k),
+                getFileInfo("test").hasMemo(secondMemo));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotUpdateImmutableFile() {
         final String file1 = "FILE_1";
         final String file2 = "FILE_2";
-        return defaultHapiSpec("CannotUpdateImmutableFile")
-                .given(
-                        fileCreate(file1).contents("Hello World").unmodifiable(),
-                        fileCreate(file2).contents("Hello World").waclShape(SigControl.emptyList()))
-                .when()
-                .then(
-                        fileUpdate(file1)
-                                .contents("Goodbye World")
-                                .signedBy(DEFAULT_PAYER)
-                                .hasKnownStatus(UNAUTHORIZED),
-                        fileUpdate(file2)
-                                .contents("Goodbye World")
-                                .signedBy(DEFAULT_PAYER)
-                                .hasKnownStatus(UNAUTHORIZED));
+        return hapiTest(
+                fileCreate(file1).contents("Hello World").unmodifiable(),
+                fileCreate(file2).contents("Hello World").waclShape(SigControl.emptyList()),
+                fileUpdate(file1)
+                        .contents("Goodbye World")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileUpdate(file2)
+                        .contents("Goodbye World")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(UNAUTHORIZED));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotUpdateExpirationPastMaxLifetime() {
-        return defaultHapiSpec("CannotUpdateExpirationPastMaxLifetime")
-                .given(fileCreate("test"))
-                .when()
-                .then(doWithStartupConfig("entities.maxLifetime", maxLifetime -> fileUpdate("test")
+        return hapiTest(
+                fileCreate("test"), doWithStartupConfig("entities.maxLifetime", maxLifetime -> fileUpdate("test")
                         .lifetime(parseLong(maxLifetime) + 12_345L)
                         .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)));
     }
@@ -336,7 +300,7 @@ public class FileUpdateSuite {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
                 uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(100_000L),
+                contractCreate(CONTRACT).gas(600_000L),
                 contractCall(CONTRACT, CREATE_TXN).gas(1_000_000L),
                 contractCallLocal(CONTRACT, INDIRECT_GET_ABI)
                         .gas(300_000L)

@@ -1,25 +1,11 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.common.io.utility.FileUtils.hardLinkTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -29,9 +15,8 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.config.singleton.ConfigurationHolder;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.files.DataFileCommon;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -41,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -100,12 +87,9 @@ public final class MerkleDb {
     /** Label for database component used in logging, stats, etc. */
     public static final String MERKLEDB_COMPONENT = "merkledb";
 
-    /**
-     * Since {@code com.swirlds.platform.Browser} populates settings, and it is loaded before any
-     * application classes that might instantiate a data source, the {@link ConfigurationHolder}
-     * holder will have been configured by the time this static initializer runs.
-     */
-    private final MerkleDbConfig config;
+    /** Platform configuration */
+    @NonNull
+    private final Configuration configuration;
 
     /**
      * All virtual database instances in a process. Once we have something like "application
@@ -163,26 +147,29 @@ public final class MerkleDb {
      * created first. If the path is {@code null}, the default MerkleDb path is used instead.
      *
      * @param path Database storage dir. If {@code null}, the default MerkleDb path is used
+     * @param configuration platform configuration
      * @return Virtual database instance that stores its data in the specified path
      */
-    public static MerkleDb getInstance(final Path path) {
-        return getInstance(path, ConfigurationHolder.getConfigData(MerkleDbConfig.class));
-    }
+    public static MerkleDb getInstance(final Path path, final @NonNull Configuration configuration) {
+        requireNonNull(configuration);
 
-    static MerkleDb getInstance(final Path path, final MerkleDbConfig config) {
-        return instances.computeIfAbsent(path != null ? path : getDefaultPath(), p -> new MerkleDb(p, config));
+        return instances.computeIfAbsent(
+                path != null ? path : getDefaultPath(configuration), p -> new MerkleDb(p, configuration));
     }
 
     /**
      * A database path (storage dir) to use for new or restored data sources
      *
+     * @param configuration platform configuration
      * @return Default instance path
      */
-    private static Path getDefaultPath() {
+    private static Path getDefaultPath(final @NonNull Configuration configuration) {
+        requireNonNull(configuration);
+
         return defaultInstancePath.updateAndGet(p -> {
             if (p == null) {
                 try {
-                    p = LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb");
+                    p = LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb", configuration);
                 } catch (IOException z) {
                     throw new UncheckedIOException(z);
                 }
@@ -200,7 +187,7 @@ public final class MerkleDb {
      * @param value The new default database path
      */
     public static void setDefaultPath(@NonNull Path value) {
-        Objects.requireNonNull(value);
+        requireNonNull(value);
         // It probably makes sense to let change default instance path only before the first call
         // to getDefaultInstance(). Update: in the tests, this method may be called multiple times,
         // if a test needs to create multiple maps with the same name
@@ -208,7 +195,7 @@ public final class MerkleDb {
     }
 
     /**
-     * This method resets the path to a default instance to force the next {@link #getDefaultInstance()} to
+     * This method resets the path to a default instance to force the next {@link #getDefaultInstance(Configuration)} to
      * create another instance. This method is used in tests to load multiple MerkleDb instances within one process.
      * When a node is restored from a saved state, all virtual maps are restored to the default MerkleDb instance.
      * There is no way yet to provide node config to MerkleDb, it's a singleton. It leads to nodes to attempt overwriting each other's data,
@@ -223,20 +210,24 @@ public final class MerkleDb {
      * Gets a default database instance. Used by virtual data source builder to create new data
      * sources or restore data sources from snapshots.
      *
+     * @param configuration platform configuration
      * @return Default database instance
      */
-    public static MerkleDb getDefaultInstance() {
-        return getInstance(getDefaultPath());
+    public static MerkleDb getDefaultInstance(final @NonNull Configuration configuration) {
+        requireNonNull(configuration);
+        return getInstance(getDefaultPath(configuration), configuration);
     }
 
     /**
      * Creates a new database instance with the given path as the storage dir. If database metadata
      * file exists in the specified folder, it gets loaded into the tables map.
      *
+     * @param configuration platform configuration
      * @param storageDir A folder to store database files in
      */
-    private MerkleDb(final Path storageDir, final MerkleDbConfig config) {
-        this.config = config;
+    private MerkleDb(final Path storageDir, final @NonNull Configuration configuration) {
+        requireNonNull(configuration);
+        this.configuration = configuration;
         if (storageDir == null) {
             throw new IllegalArgumentException("Cannot create a MerkleDatabase instance with null storageDir");
         }
@@ -329,8 +320,12 @@ public final class MerkleDb {
         return getTablesDir(baseDir).resolve(tableName + "-" + tableId);
     }
 
-    public MerkleDbConfig getConfig() {
-        return config;
+    /**
+     * Get Platform Configuration
+     * @return configuration platform configuration
+     */
+    public Configuration getConfiguration() {
+        return configuration;
     }
 
     /**
@@ -360,7 +355,7 @@ public final class MerkleDb {
         final int tableId = getNextTableId();
         tableConfigs.set(tableId, new TableMetadata(tableId, label, tableConfig));
         final MerkleDbDataSource dataSource =
-                new MerkleDbDataSource(this, label, tableId, tableConfig, dbCompactionEnabled);
+                new MerkleDbDataSource(this, configuration, label, tableId, tableConfig, dbCompactionEnabled, false);
         dataSources.set(tableId, dataSource);
         // New tables are always primary
         primaryTables.add(tableId);
@@ -384,12 +379,13 @@ public final class MerkleDb {
      * @return A copied data source
      * @throws IOException If an I/O error occurs
      */
-    public MerkleDbDataSource copyDataSource(final MerkleDbDataSource dataSource, final boolean makeCopyPrimary)
+    public MerkleDbDataSource copyDataSource(
+            final MerkleDbDataSource dataSource, final boolean makeCopyPrimary, final boolean offlineUse)
             throws IOException {
         final String label = dataSource.getTableName();
         final int tableId = getNextTableId();
         importDataSource(dataSource, tableId, !makeCopyPrimary, makeCopyPrimary); // import to itself == copy
-        return getDataSource(tableId, label, false);
+        return getDataSource(configuration, tableId, label, makeCopyPrimary, offlineUse);
     }
 
     private void importDataSource(
@@ -420,6 +416,10 @@ public final class MerkleDb {
         storeMetadata();
     }
 
+    public MerkleDbDataSource getDataSource(final String name, final boolean dbCompactionEnabled) throws IOException {
+        return getDataSource(configuration, name, dbCompactionEnabled);
+    }
+
     /**
      * Returns a data source with the given name. If the data source isn't opened yet (e.g. on
      * restore from a snapshot), opens it first. If there is no table configuration for the given
@@ -430,25 +430,35 @@ public final class MerkleDb {
      *     data source. If the data source was previously opened, this flag is ignored
      * @return The datasource
      */
-    public MerkleDbDataSource getDataSource(final String name, final boolean dbCompactionEnabled) throws IOException {
+    public MerkleDbDataSource getDataSource(
+            final Configuration config, final String name, final boolean dbCompactionEnabled) throws IOException {
         final TableMetadata metadata = getTableMetadata(name);
         if (metadata == null) {
             throw new IllegalStateException("Unknown table: " + name);
         }
         final int tableId = metadata.getTableId();
-        return getDataSource(tableId, name, dbCompactionEnabled);
+        return getDataSource(config, tableId, name, dbCompactionEnabled, false);
     }
 
     private MerkleDbDataSource getDataSource(
-            final int tableId, final String tableName, final boolean dbCompactionEnabled) throws IOException {
+            final Configuration config,
+            final int tableId,
+            final String tableName,
+            final boolean dbCompactionEnabled,
+            final boolean offlineUse)
+            throws IOException {
         final MerkleDbTableConfig tableConfig = getTableConfig(tableId);
+        if (tableConfig == null) {
+            throw new IllegalStateException("Unknown table: " + tableId);
+        }
         final AtomicReference<IOException> rethrowIO = new AtomicReference<>(null);
         final MerkleDbDataSource dataSource = dataSources.updateAndGet(tableId, ds -> {
             if (ds != null) {
                 return ds;
             }
             try {
-                return new MerkleDbDataSource(this, tableName, tableId, tableConfig, dbCompactionEnabled);
+                return new MerkleDbDataSource(
+                        this, config, tableName, tableId, tableConfig, dbCompactionEnabled, offlineUse);
             } catch (final IOException z) {
                 rethrowIO.set(z);
                 return null;
@@ -466,21 +476,24 @@ public final class MerkleDb {
      * {@link #getDataSource(String, boolean)} method.
      *
      * @param dataSource The closed data source
+     * @param deleteData Indicates whether to delete the data source directory
      */
-    public void closeDataSource(final MerkleDbDataSource dataSource) {
+    void closeDataSource(final MerkleDbDataSource dataSource, boolean deleteData) {
         if (this != dataSource.getDatabase()) {
             throw new IllegalStateException("Can't close table in a different database");
         }
         final int tableId = dataSource.getTableId();
         assert dataSources.get(tableId) != null;
         dataSources.set(tableId, null);
-        final TableMetadata metadata = tableConfigs.get(tableId);
-        if (metadata == null) {
-            throw new IllegalArgumentException("Unknown table ID: " + tableId);
+        if (deleteData) {
+            final TableMetadata metadata = tableConfigs.get(tableId);
+            if (metadata == null) {
+                throw new IllegalArgumentException("Unknown table ID: " + tableId);
+            }
+            final String label = metadata.getTableName();
+            tableConfigs.set(tableId, null);
+            DataFileCommon.deleteDirectoryAndContents(getTableDir(label, tableId));
         }
-        final String label = metadata.getTableName();
-        tableConfigs.set(tableId, null);
-        DataFileCommon.deleteDirectoryAndContents(getTableDir(label, tableId));
         storeMetadata();
     }
 
@@ -502,6 +515,18 @@ public final class MerkleDb {
         final TableMetadata metadata = tableConfigs.get(tableId);
         final MerkleDbTableConfig tableConfig = metadata != null ? metadata.getTableConfig() : null;
         return tableConfig;
+    }
+
+    public Map<String, MerkleDbTableConfig> getTableConfigs() {
+        final Map<String, MerkleDbTableConfig> result = new HashMap<>();
+        for (int i = 0; i < tableConfigs.length(); i++) {
+            final TableMetadata tableMetadata = tableConfigs.get(i);
+            if ((tableMetadata == null) || !primaryTables.contains(tableMetadata.getTableId())) {
+                continue;
+            }
+            result.put(tableMetadata.getTableName(), tableMetadata.getTableConfig());
+        }
+        return result;
     }
 
     /**
@@ -529,11 +554,11 @@ public final class MerkleDb {
                             + " during reconnect or ISS reporting. Table name={}",
                     tableName);
         }
-        final MerkleDb targetDb = getInstance(destination);
+        final MerkleDb targetDb = getInstance(destination, configuration);
         if (targetDb.tableExists(tableName)) {
             throw new IllegalStateException("Table already exists in the target database, " + tableName);
         }
-        targetDb.importDataSource(dataSource, dataSource.getTableId(), true, true);
+        targetDb.importDataSource(dataSource, targetDb.getNextTableId(), true, true);
         targetDb.storeMetadata();
     }
 
@@ -546,12 +571,15 @@ public final class MerkleDb {
      *
      * @param source Source folder
      * @param target Target folder, optional. If {@code null}, the default MerkleDb folder is used
+     * @param configuration platform configuration
      * @return Default database instance
      * @throws IOException If an I/O error occurs
      * @throws IllegalStateException If the default database instance is already created
      */
-    public static MerkleDb restore(final Path source, final Path target) throws IOException {
-        final Path defaultInstancePath = (target != null) ? target : getDefaultPath();
+    public static MerkleDb restore(final Path source, final Path target, final @NonNull Configuration configuration)
+            throws IOException {
+        requireNonNull(configuration);
+        final Path defaultInstancePath = (target != null) ? target : getDefaultPath(configuration);
         if (!Files.exists(defaultInstancePath.resolve(METADATA_FILENAME))) {
             Files.createDirectories(defaultInstancePath);
             // For all data files, it's enough to create hard-links from the source dir to the
@@ -573,7 +601,7 @@ public final class MerkleDb {
             //   * if it has the same set of tables as in the source, restore is a no-op
             //   * if tables are different, throw an error: can't restore into an existing database
         }
-        return getInstance(defaultInstancePath);
+        return getInstance(defaultInstancePath, configuration);
     }
 
     /**
@@ -745,7 +773,7 @@ public final class MerkleDb {
         }
 
         /**
-         * Creates a new table metadata object by reading it from an input strem.
+         * Creates a new table metadata object by reading it from an input stream.
          *
          * @param in Input stream to read table metadata from
          */
@@ -776,8 +804,8 @@ public final class MerkleDb {
                 }
             }
 
-            Objects.requireNonNull(tableName, "Null table name");
-            Objects.requireNonNull(tableConfig, "Null table config");
+            requireNonNull(tableName, "Null table name");
+            requireNonNull(tableConfig, "Null table config");
 
             this.tableId = tableId;
             this.tableName = tableName;

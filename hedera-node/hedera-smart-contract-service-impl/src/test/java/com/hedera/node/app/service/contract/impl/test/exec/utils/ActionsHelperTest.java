@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
@@ -52,8 +37,22 @@ class ActionsHelperTest {
 
     @Test
     void prettyPrintsAsExpected() {
-        final var expected =
-                "SolidityAction(callType: CALL, callOperationType: OP_CALL, value: 0, gas: 500000, gasUsed: 0, callDepth: 0, callingAccount: <null>, callingContract: ContractID[shardNum=0, realmNum=0, contract=OneOf[kind=CONTRACT_NUM, value=666]], recipientAccount: <null>, recipientContract: ContractID[shardNum=0, realmNum=0, contract=OneOf[kind=CONTRACT_NUM, value=666]], invalidSolidityAddress (aka targetedAddress): <null>, input: 010203040506070809, output: 090807060504030201, revertReason: <null>, error: <null>)";
+        final var expected = "SolidityAction("
+                + "callType: CALL, "
+                + "callOperationType: OP_CALL, "
+                + "value: 0, "
+                + "gas: 500000, "
+                + "gasUsed: 0, "
+                + "callDepth: 0, "
+                + "callingAccount: <null>, "
+                + "callingContract: " + CALL_ACTION.callingContract() + ", "
+                + "recipientAccount: <null>, "
+                + "recipientContract: " + CALL_ACTION.recipientContract() + ", "
+                + "invalidSolidityAddress (aka targetedAddress): <null>, "
+                + "input: 010203040506070809, "
+                + "output: 090807060504030201, "
+                + "revertReason: <null>, "
+                + "error: <null>)";
         final var actual = subject.prettyPrint(CALL_ACTION);
         assertEquals(expected, actual);
     }
@@ -116,6 +115,8 @@ class ActionsHelperTest {
         given(operation.getOpcode()).willReturn(0xF1);
         given(frame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(frame.getCurrentOperation()).willReturn(operation);
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var expectedAction = ContractAction.newBuilder()
                 .callType(ContractActionType.CALL)

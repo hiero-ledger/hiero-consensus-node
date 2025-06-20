@@ -1,28 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -45,7 +30,7 @@ public class ReturnTypes {
     // When no value is set for AccountID, ContractID or TokenId the return value is set to 0.
     public static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
-    public static final Address ZERO_ADDRESS = asHeadlongAddress(asEvmAddress(0L));
+    public static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
     public static final ContractID ZERO_CONTRACT_ID =
             ContractID.newBuilder().contractNum(0).build();
     public static final TokenID ZERO_TOKEN_ID = TokenID.newBuilder().tokenNum(0).build();
@@ -66,6 +51,10 @@ public class ReturnTypes {
     protected static final String EXPIRY_FIELDS =
             // second, autoRenewAccount, autoRenewPeriod
             "(uint32,address,uint32)";
+    // TODO: consider this expiry type for TokenV3. Might need to add another function to handle this.
+    protected static final String EXPIRY_FIELDS_V2 =
+            // second, autoRenewAccount, autoRenewPeriod
+            "(int64,address,int64)";
     protected static final String CUSTOM_FEES =
             // FixedFee array
             // amount, tokenId, useHbarsForPayment, useCurrentTokenForPayment, feeCollector
@@ -90,6 +79,7 @@ public class ReturnTypes {
     public static final String ADDRESS = "(address)";
 
     public static final String RESPONSE_CODE_BOOL = "(int32,bool)";
+    public static final String RESPONSE_CODE64_BOOL = "(int64,bool)";
     public static final String RESPONSE_CODE_INT32 = "(int32,int32)";
     public static final String RESPONSE_CODE_UINT256 = "(int64,uint256)";
     public static final String RESPONSE_CODE_INT256 = "(int64,int256)";
@@ -130,7 +120,7 @@ public class ReturnTypes {
                 + "("
                     + TOKEN_FIELDS
                     + TOKEN_KEYS
-                    + EXPIRY_FIELDS
+                    + EXPIRY_FIELDS_V2
                     + ",bytes" // metadata
                     + ")"
                     + STATUS_FIELDS // totalSupply, deleted, defaultKycStatus, pauseStatus
@@ -166,7 +156,7 @@ public class ReturnTypes {
                     + "("
                         + TOKEN_FIELDS
                         + TOKEN_KEYS
-                        + EXPIRY_FIELDS
+                        + EXPIRY_FIELDS_V2
                         + ",bytes" // metadata
                          + ")"
                         + STATUS_FIELDS
@@ -204,7 +194,7 @@ public class ReturnTypes {
                     + "("
                         + TOKEN_FIELDS
                         + TOKEN_KEYS
-                        + EXPIRY_FIELDS
+                        + EXPIRY_FIELDS_V2
                         + ",bytes" // metadata
                         + ")"
                         + STATUS_FIELDS // totalSupply, deleted, defaultKycStatus, pauseStatus
@@ -239,7 +229,7 @@ public class ReturnTypes {
      * @return the encoded status
      */
     public static ByteBuffer encodedRc(@NonNull final ResponseCodeEnum status) {
-        return RC_ENCODER.encodeElements((long) status.protoOrdinal());
+        return RC_ENCODER.encode(Tuple.singleton((long) status.protoOrdinal()));
     }
 
     public static ResponseCodeEnum standardized(@NonNull final ResponseCodeEnum status) {

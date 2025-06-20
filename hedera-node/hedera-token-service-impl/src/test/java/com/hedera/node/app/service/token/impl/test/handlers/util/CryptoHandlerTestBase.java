@@ -1,22 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
-import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ACCOUNTS;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.StateBuilderUtil.ALIASES;
 import static com.hedera.node.app.service.token.impl.test.util.SigReqAdapterUtils.UNSET_STAKED_ID;
@@ -32,19 +20,29 @@ import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.utility.CommonUtils;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
@@ -52,6 +50,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.function.Function;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -63,6 +62,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 public class CryptoHandlerTestBase {
+    protected static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+    protected static final long SHARD =
+            configuration.getConfigData(HederaConfig.class).shard();
+    protected static final long REALM =
+            configuration.getConfigData(HederaConfig.class).realm();
+    protected static final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
     private static final Function<String, Key.Builder> KEY_BUILDER =
             value -> Key.newBuilder().ed25519(Bytes.wrap(value.getBytes()));
     private static final String A_NAME = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -117,9 +122,8 @@ public class CryptoHandlerTestBase {
             .build();
     protected final Key key = A_COMPLEX_KEY;
     protected final Key otherKey = C_COMPLEX_KEY;
-    protected final AccountID id = AccountID.newBuilder().accountNum(3).build();
-    protected final AccountID invalidId =
-            AccountID.newBuilder().accountNum(Long.MAX_VALUE).build();
+    protected final AccountID id = idFactory.newAccountId(3);
+    protected final AccountID invalidId = idFactory.newAccountId(Long.MAX_VALUE);
     protected final Timestamp consensusTimestamp =
             Timestamp.newBuilder().seconds(1_234_567L).build();
     protected final Instant consensusInstant = Instant.ofEpochSecond(consensusTimestamp.seconds());
@@ -127,30 +131,33 @@ public class CryptoHandlerTestBase {
     protected final Long accountNum = id.accountNumOrThrow();
 
     protected static final Key aPrimitiveKey = Key.newBuilder()
-            .ed25519(Bytes.wrap("01234567890123456789012345678901"))
+            .ed25519(Bytes.fromHex("3a21030edcc130e13fb5102e7c883535af8c2b0a5a617231f77fd127ce5f3b9a620591"))
             .build();
+    protected static final Key aEcdsaKey = Key.newBuilder()
+            .ecdsaSecp256k1(Bytes.fromHex("3a210358d7847a8d9a1beb784e367318bad30e89b5d3f3fa1a67f259e40a63e45ad8e5"))
+            .build();
+
     protected static final ProtoBytes edKeyAlias = new ProtoBytes(aPrimitiveKey.ed25519());
-    protected final AccountID alias =
-            AccountID.newBuilder().alias(edKeyAlias.value()).build();
+    protected static final ProtoBytes ecdsaKeyAlias = new ProtoBytes(aEcdsaKey.ecdsaSecp256k1());
+    protected final AccountID alias = idFactory.newAccountIdWithAlias(edKeyAlias.value());
+    protected final AccountID ecdsaAlias = idFactory.newAccountIdWithAlias(ecdsaKeyAlias.value());
+    protected Bytes aliasEvmAddress = null;
     protected final byte[] evmAddress = CommonUtils.unhex("6aea3773ea468a814d954e6dec795bfee7d76e26");
     protected final ContractID contractAlias =
             ContractID.newBuilder().evmAddress(Bytes.wrap(evmAddress)).build();
     /*Contracts */
     protected final ContractID contract =
             ContractID.newBuilder().contractNum(1234).build();
-    protected final AccountID deleteAccountId =
-            AccountID.newBuilder().accountNum(3213).build();
-    protected final AccountID transferAccountId =
-            AccountID.newBuilder().accountNum(32134).build();
-    protected final Long deleteAccountNum = deleteAccountId.accountNum();
+    protected final AccountID deleteAccountId = idFactory.newAccountId(3213);
+    protected final AccountID transferAccountId = idFactory.newAccountId(32134);
+    protected final Long deleteAccountNum = deleteAccountId.accountNumOrThrow();
     protected final Long transferAccountNum = transferAccountId.accountNum();
 
     protected final TokenID nft = TokenID.newBuilder().tokenNum(56789).build();
     protected final TokenID token = TokenID.newBuilder().tokenNum(6789).build();
-    protected final AccountID spender = AccountID.newBuilder().accountNum(12345).build();
-    protected final AccountID delegatingSpender =
-            AccountID.newBuilder().accountNum(1234567).build();
-    protected final AccountID owner = AccountID.newBuilder().accountNum(123456).build();
+    protected final AccountID spender = idFactory.newAccountId(12345);
+    protected final AccountID delegatingSpender = idFactory.newAccountId(1234567);
+    protected final AccountID owner = idFactory.newAccountId(123456);
     protected final Key ownerKey = B_COMPLEX_KEY;
     protected final CryptoAllowance cryptoAllowance = CryptoAllowance.newBuilder()
             .spender(spender)
@@ -184,8 +191,8 @@ public class CryptoHandlerTestBase {
     @Mock(strictness = LENIENT)
     protected WritableStates writableStates;
 
-    @Mock
-    private StoreMetricsService storeMetricsService;
+    protected ReadableEntityCounters readableEntityCounters;
+    protected WritableEntityCounters writableEntityCounters;
 
     /**
      * Set up the test environment.
@@ -213,6 +220,7 @@ public class CryptoHandlerTestBase {
     }
 
     protected void resetStores() {
+        givenEntityCounters();
         readableAccounts = emptyReadableAccountStateBuilder().build();
         writableAccounts = emptyWritableAccountStateBuilder().build();
         readableAliases = emptyReadableAliasStateBuilder().build();
@@ -221,12 +229,13 @@ public class CryptoHandlerTestBase {
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableAccountStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 
     protected void refreshStoresWithCurrentTokenOnlyInReadable() {
+        givenEntityCounters();
         readableAccounts = readableAccountState();
         writableAccounts = emptyWritableAccountStateBuilder().build();
         readableAliases = readableAliasState();
@@ -235,9 +244,25 @@ public class CryptoHandlerTestBase {
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableAccountStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
+    }
+
+    private void givenEntityCounters() {
+        given(writableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}));
+        given(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+                .willReturn(new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT, c -> {}));
+        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                .willReturn(new ReadableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()));
+        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
+                .willReturn(new ReadableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT));
+        readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
+        writableEntityCounters = new WritableEntityIdStore(writableStates);
     }
 
     protected void refreshStoresWithCurrentTokenInWritable() {
@@ -249,9 +274,9 @@ public class CryptoHandlerTestBase {
         given(readableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(readableAliases);
         given(writableStates.<AccountID, Account>get(ACCOUNTS)).willReturn(writableAccounts);
         given(writableStates.<ProtoBytes, AccountID>get(ALIASES)).willReturn(writableAliases);
-        readableStore = new ReadableAccountStoreImpl(readableStates);
+        readableStore = new ReadableAccountStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableAccountStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableAccountStore(writableStates, writableEntityCounters);
     }
 
     @NonNull
@@ -275,16 +300,16 @@ public class CryptoHandlerTestBase {
     @NonNull
     protected MapWritableKVState<ProtoBytes, AccountID> writableAliasesStateWithOneKey() {
         return emptyWritableAliasStateBuilder()
-                .value(new ProtoBytes(alias.alias()), asAccount(accountNum))
-                .value(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()))
+                .value(new ProtoBytes(alias.alias()), idFactory.newAccountId(accountNum))
+                .value(new ProtoBytes(contractAlias.evmAddress()), idFactory.newAccountId(contract.contractNum()))
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<ProtoBytes, AccountID> readableAliasState() {
         return emptyReadableAliasStateBuilder()
-                .value(new ProtoBytes(alias.alias()), asAccount(accountNum))
-                .value(new ProtoBytes(contractAlias.evmAddress()), asAccount(contract.contractNum()))
+                .value(new ProtoBytes(alias.alias()), idFactory.newAccountId(accountNum))
+                .value(new ProtoBytes(contractAlias.evmAddress()), idFactory.newAccountId(contract.contractNum()))
                 .build();
     }
 
@@ -308,9 +333,26 @@ public class CryptoHandlerTestBase {
         return MapReadableKVState.builder(ALIASES);
     }
 
+    @NonNull
+    protected MapReadableKVState<ProtoBytes, AccountID> readableEcdsaKeyAliasState() {
+        return emptyReadableAliasStateBuilder()
+                .value(new ProtoBytes(ecdsaAlias.alias()), idFactory.newAccountId(accountNum))
+                .build();
+    }
+
+    @NonNull
+    protected MapWritableKVState<ProtoBytes, AccountID> writableAliasesStateWithEcdsaKey() {
+        final var aliaskey = asKeyFromAlias(ecdsaAlias.aliasOrThrow());
+        aliasEvmAddress = extractEvmAddress(aliaskey);
+        return emptyWritableAliasStateBuilder()
+                .value(new ProtoBytes(ecdsaAlias.alias()), idFactory.newAccountId(deleteAccountNum))
+                .value(new ProtoBytes(aliasEvmAddress), idFactory.newAccountId(deleteAccountNum))
+                .build();
+    }
+
     protected Account givenValidAccount(final long accountNum) {
         return new Account(
-                AccountID.newBuilder().accountNum(accountNum).build(),
+                idFactory.newAccountId(accountNum),
                 alias.alias(),
                 key,
                 1_234_567L,
@@ -333,7 +375,7 @@ public class CryptoHandlerTestBase {
                 2,
                 0,
                 1000L,
-                AccountID.newBuilder().accountNum(2L).build(),
+                idFactory.newAccountId(2L),
                 72000,
                 0,
                 Collections.emptyList(),
@@ -348,7 +390,7 @@ public class CryptoHandlerTestBase {
 
     protected void givenValidContract() {
         account = new Account(
-                AccountID.newBuilder().accountNum(accountNum).build(),
+                idFactory.newAccountId(accountNum),
                 alias.alias(),
                 key,
                 1_234_567L,
@@ -371,7 +413,7 @@ public class CryptoHandlerTestBase {
                 2,
                 0,
                 1000L,
-                AccountID.newBuilder().accountNum(2L).build(),
+                idFactory.newAccountId(2L),
                 72000,
                 0,
                 Collections.emptyList(),
@@ -384,7 +426,18 @@ public class CryptoHandlerTestBase {
                 0);
     }
 
-    protected AccountID accountID(final long num) {
-        return AccountID.newBuilder().accountNum(num).build();
+    /**
+     * Create an account ID with the given shard and realm.
+     * @param num the account number
+     * @param shard the shard number
+     * @param realm the realm number
+     * @return the account ID
+     */
+    protected AccountID accountIDWithShardAndRealm(final long num, final long shard, final long realm) {
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(num)
+                .build();
     }
 }

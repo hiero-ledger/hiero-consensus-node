@@ -1,0 +1,36 @@
+/**
+ * # Current and next TSS encryption keys
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.tss;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.node.state.tss.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.tss">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A message containing a node's current and next TSS encryption keys, where
+ * the next key (if present) will be switched to the node's current key during
+ * the first transaction at the beginning of a staking period.<br/>
+ */
+message TssEncryptionKeys {
+
+  /**
+   * If non-empty, a node's current TSS encryption key.
+   */
+  bytes current_encryption_key = 1;
+
+  /**
+   * If non-empty, the same node's next TSS encryption key.
+   */
+  bytes next_encryption_key = 2;
+}

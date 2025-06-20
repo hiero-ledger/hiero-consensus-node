@@ -1,0 +1,43 @@
+/**
+ * # Tss Vote Map Key
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.tss;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.node.state.tss.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.tss">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A key for use in the Threshold Signature Scheme (TSS) TssVoteMaps.
+ *
+ * This key SHALL be used to uniquely identify entries in the Vote Maps.
+ */
+message TssVoteMapKey {
+
+    /**
+     * A hash of the target roster for the associated value in the map. <br/>
+     * This hash uniquely identifies the target roster.
+     * <p>
+     * This value MUST be set.<br/>
+     * This value MUST contain a valid hash.
+     */
+    bytes roster_hash = 1;
+
+    /** The node id of the node that created the TssVote.<br/>
+     * This id uniquely identifies the node.
+     * <p>
+     * This value MUST be set.<br/>
+     * This value MUST be a valid node id.
+     */
+    uint64 node_id = 2;
+}

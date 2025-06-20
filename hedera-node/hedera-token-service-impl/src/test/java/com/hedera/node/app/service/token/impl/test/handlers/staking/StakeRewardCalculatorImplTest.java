@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager.ZONE_UTC;
@@ -22,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willCallRealMethod;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
@@ -31,7 +17,6 @@ import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeRewardCalculatorImpl;
 import java.time.Instant;
-import java.time.InstantSource;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,8 +50,6 @@ class StakeRewardCalculatorImplTest {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private Account account;
 
-    private final InstantSource instantSource = InstantSource.system();
-
     private List<Long> rewardHistory;
 
     private StakeRewardCalculatorImpl subject;
@@ -79,14 +62,16 @@ class StakeRewardCalculatorImplTest {
 
     @Test
     void zeroRewardsForMissingNodeStakeInfo() {
-        final var reward = subject.computeRewardFromDetails(Account.newBuilder().build(), null, 321, 123);
+        final var reward = StakeRewardCalculatorImpl.computeRewardFromDetails(
+                Account.newBuilder().build(), null, 321, 123);
         assertEquals(0, reward);
     }
 
     @Test
     void zeroRewardsForDeletedNodeStakeInfo() {
         final var stakingInfo = StakingNodeInfo.newBuilder().deleted(true).build();
-        final var reward = subject.computeRewardFromDetails(Account.newBuilder().build(), stakingInfo, 321, 123);
+        final var reward = StakeRewardCalculatorImpl.computeRewardFromDetails(
+                Account.newBuilder().build(), stakingInfo, 321, 123);
         assertEquals(0, reward);
     }
 
@@ -162,6 +147,39 @@ class StakeRewardCalculatorImplTest {
         given(stakePeriodManager.effectivePeriod(todayNum - 2)).willReturn(todayNum - 2);
 
         final long reward = subject.estimatePendingRewards(account, stakingNodeInfo, stakingRewardsStore);
+
+        assertEquals(0, reward);
+    }
+
+    @Test
+    void withDeletedStakingNodeInfo() {
+        setUpMocks();
+
+        var deletedStakingNodeInfo = mock(StakingNodeInfo.class);
+        given(deletedStakingNodeInfo.deleted()).willReturn(true);
+
+        given(stakingInfoStore.getOriginalValue(0L)).willReturn(deletedStakingNodeInfo);
+        var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
+
+        assertEquals(0, reward);
+    }
+
+    @Test
+    void withNullStakingNodeInfo() {
+        setUpMocks();
+
+        given(stakingInfoStore.getOriginalValue(0L)).willReturn(null);
+        var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
+
+        assertEquals(0, reward);
+    }
+
+    @Test
+    void withNonRewardableConsensusTime() {
+        given(stakePeriodManager.effectivePeriod(account.stakePeriodStart())).willReturn(1L);
+        given(stakePeriodManager.isRewardable(1L, stakingRewardsStore)).willReturn(false);
+
+        var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
 
         assertEquals(0, reward);
     }

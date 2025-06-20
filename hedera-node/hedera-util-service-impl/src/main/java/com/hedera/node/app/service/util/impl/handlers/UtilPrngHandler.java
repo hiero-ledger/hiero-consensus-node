@@ -1,33 +1,17 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.util.impl.handlers;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.UtilPrngConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
@@ -64,9 +48,9 @@ public class UtilPrngHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
         // Negative ranges are not allowed
-        if (txn.utilPrngOrThrow().range() < 0) {
+        if (context.body().utilPrngOrThrow().range() < 0) {
             throw new PreCheckException(ResponseCodeEnum.INVALID_PRNG_RANGE);
         }
     }
@@ -93,10 +77,6 @@ public class UtilPrngHandler implements TransactionHandler {
      */
     @Override
     public void handle(@NonNull final HandleContext context) {
-        if (!context.configuration().getConfigData(UtilPrngConfig.class).isEnabled()) {
-            // (FUTURE) Should this throw NOT_SUPPORTED instead? As written is the legacy behavior.
-            return;
-        }
         final var op = context.body().utilPrngOrThrow();
         final var range = op.range();
 

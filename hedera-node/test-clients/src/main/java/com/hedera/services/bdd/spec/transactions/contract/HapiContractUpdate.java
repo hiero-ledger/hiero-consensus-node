@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnFactory.expiryNowFor;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiContractCall.HEXED_EVM_ADDRESS_LEN;
@@ -29,6 +15,8 @@ import com.google.protobuf.Int32Value;
 import com.google.protobuf.StringValue;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
+import com.hedera.services.bdd.spec.keys.KeyRole;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -39,7 +27,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.swirlds.common.utility.CommonUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -48,6 +35,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
     static final Logger log = LogManager.getLogger(HapiContractUpdate.class);
@@ -72,6 +60,7 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
 
     public HapiContractUpdate(String contract) {
         this.contract = contract;
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     @Override
@@ -169,7 +158,7 @@ public class HapiContractUpdate extends HapiTxnOp<HapiContractUpdate> {
                     k -> spec.registry().saveKey(contract, spec.registry().getKey(k)));
         }
         if (useEmptyAdminKeyList) {
-            spec.registry().forgetAdminKey(contract);
+            spec.registry().forgetRoleKey(contract, KeyRole.ADMIN);
         }
     }
 

@@ -1,28 +1,13 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph.internal;
 
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A {@link HashgraphGuiSource} that retrieves events from a stream of events
@@ -58,8 +43,7 @@ public class StandardGuiSource implements HashgraphGuiSource {
     @NonNull
     public List<EventImpl> getEvents(final long startGeneration, final int numGenerations) {
         return eventStorage.getNonAncientEvents().stream()
-                .filter(e ->
-                        e.getGeneration() >= startGeneration && e.getGeneration() < startGeneration + numGenerations)
+                .filter(e -> e.getNGen() >= startGeneration && e.getNGen() < startGeneration + numGenerations)
                 .toList();
     }
 
@@ -78,5 +62,13 @@ public class StandardGuiSource implements HashgraphGuiSource {
     @Override
     public boolean isReady() {
         return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public GuiEventStorage getEventStorage() {
+        return eventStorage;
     }
 }

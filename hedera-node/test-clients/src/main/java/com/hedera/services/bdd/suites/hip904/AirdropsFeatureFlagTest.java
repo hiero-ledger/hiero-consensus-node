@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -36,15 +20,15 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.crypto.CryptoDeleteSuite.TREASURY;
 import static com.hedera.services.bdd.suites.regression.factories.IdFuzzingProviderFactory.FUNGIBLE_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
@@ -62,8 +46,8 @@ public class AirdropsFeatureFlagTest {
             overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaHBARTransferAndCompleteIt() {
         final var hollowAccountKey = "hollowAccountKey";
-        final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> hollowAccountAlias = new AtomicReference<>();
         final var transferHBARSToHollowAccountTxn = "transferHBARSToHollowAccountTxn";
         return hapiTest(
                 overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
@@ -72,20 +56,19 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
-                    treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                    treasuryAlias.set(asSolidityAddress(treasuryAccountId));
                     // Save the alias for the hollow account
                     final var ecdsaKey = spec.registry()
                             .getKey(hollowAccountKey)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    hollowAccountAlias.set(evmAddressBytes);
+                    hollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                 }),
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(treasuryAlias.get(), -3 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
@@ -119,8 +102,8 @@ public class AirdropsFeatureFlagTest {
 
                     // Create hollow account with the deleted account alias
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(treasuryAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(hollowAccountAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +2 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
@@ -154,8 +137,8 @@ public class AirdropsFeatureFlagTest {
     final Stream<DynamicTest> createHollowAccountOnDeletedAliasViaFtTransferAndCompleteIt() {
         final var hollowAccountKey = "hollowAccountKey";
         final AtomicReference<TokenID> fungibleTokenId = new AtomicReference<>();
-        final AtomicReference<ByteString> treasuryAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> hollowAccountAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> treasuryAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> hollowAccountAlias = new AtomicReference<>();
         final var transferFtToHollowAccountTxn = "transferFtToHollowAccountTxn";
         return hapiTest(
                 overriding("entities.unlimitedAutoAssociationsEnabled", "false"),
@@ -168,21 +151,20 @@ public class AirdropsFeatureFlagTest {
                 withOpContext((spec, opLog) -> {
                     final var registry = spec.registry();
                     final var treasuryAccountId = registry.getAccountID(TREASURY);
-                    treasuryAlias.set(ByteString.copyFrom(asSolidityAddress(treasuryAccountId)));
+                    treasuryAlias.set(asSolidityAddress(treasuryAccountId));
                     // Save the alias for the hollow account
                     final var ecdsaKey = spec.registry()
                             .getKey(hollowAccountKey)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddressBytes = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    hollowAccountAlias.set(evmAddressBytes);
+                    hollowAccountAlias.set(recoverAddressFromPubKey(ecdsaKey));
                     fungibleTokenId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                 }),
                 withOpContext((spec, opLog) -> {
                     // Create a hollow account
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(treasuryAlias.get(), -3 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(hollowAccountAlias.get(), +3 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferFtToHollowAccountTxn);
@@ -217,8 +199,8 @@ public class AirdropsFeatureFlagTest {
                     // Create hollow account with the deleted account alias
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                     .setToken(fungibleTokenId.get())
-                                    .addTransfers(aaWith(treasuryAlias.get(), -1))
-                                    .addTransfers(aaWith(hollowAccountAlias.get(), +1))))
+                                    .addTransfers(Utils.aaWith(s, treasuryAlias.get(), -1))
+                                    .addTransfers(Utils.aaWith(s, hollowAccountAlias.get(), +1))))
                             .payingWith(TREASURY)
                             .signedBy(TREASURY)
                             .via(transferFtToHollowAccountTxn);

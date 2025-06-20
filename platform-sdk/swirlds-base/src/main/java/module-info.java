@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.swirlds.base {
     exports com.swirlds.base;
     exports com.swirlds.base.function;
@@ -15,7 +16,6 @@ module com.swirlds.base {
             com.swirlds.config.api,
             com.swirlds.config.api.test.fixtures,
             com.swirlds.config.impl,
-            com.swirlds.config.exceptions,
             com.swirlds.config.extensions.test.fixtures,
             com.swirlds.logging,
             com.swirlds.logging.test.fixtures,
@@ -26,12 +26,13 @@ module com.swirlds.base {
             com.swirlds.common,
             com.swirlds.config.api,
             com.swirlds.config.api.test.fixtures,
-            com.swirlds.config.exceptions,
             com.swirlds.config.extensions.test.fixtures,
             com.swirlds.config.impl,
             com.swirlds.logging,
             com.swirlds.logging.test.fixtures,
             com.swirlds.metrics.api;
+    exports com.swirlds.base.time.internal to
+            org.hiero.consensus.event.creator.impl; // used in TransactionPoolNexusTest
 
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
@@ -26,7 +11,6 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
@@ -34,6 +18,7 @@ import com.swirlds.platform.stats.AverageAndMax;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Collection of metrics related to consensus
@@ -84,7 +69,7 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
 
     private static final RunningAverageMetric.Config AVG_CREATED_RECEIVED_CONSENSUS_TIME_CONFIG =
             new RunningAverageMetric.Config(PLATFORM_CATEGORY, "secC2RC")
-                    .withDescription("time from another member creating an event to it being received and and knowing "
+                    .withDescription("time from another member creating an event to it being received and knowing "
                             + "consensus for it (in seconds)")
                     .withFormat(FORMAT_10_3);
     private final RunningAverageMetric avgCreatedReceivedConsensusTime;

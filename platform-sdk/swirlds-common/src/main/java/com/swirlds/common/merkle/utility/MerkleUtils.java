@@ -1,32 +1,17 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.utility;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.exceptions.FailedRehashException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 
 public final class MerkleUtils {
 
@@ -59,10 +44,10 @@ public final class MerkleUtils {
      * 		the root of the tree to hash
      * @return the computed hash of the {@code root} parameter or null if the parameter was null
      */
-    public static Hash rehashTree(final MerkleNode root) {
+    public static Hash rehashTree(final MerkleCryptography merkleCryptography, final MerkleNode root) {
         if (root != null) {
             invalidateTree(root);
-            final Future<Hash> future = MerkleCryptoFactory.getInstance().digestTreeAsync(root);
+            final Future<Hash> future = merkleCryptography.digestTreeAsync(root);
             try {
                 return future.get();
             } catch (InterruptedException e) {

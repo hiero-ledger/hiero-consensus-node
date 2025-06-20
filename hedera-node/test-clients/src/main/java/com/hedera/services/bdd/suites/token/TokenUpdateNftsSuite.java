@@ -1,25 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
-import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
@@ -32,12 +16,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
@@ -453,79 +435,5 @@ public class TokenUpdateNftsSuite {
                                 .hasMetadata(ByteString.copyFromUtf8(NFT_TEST_METADATA)),
                         burnToken(NON_FUNGIBLE_TOKEN, List.of(7L)),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 6L));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> updateSingleNftFeeChargedAsExpected() {
-        final var expectedNftUpdatePriceUsd = 0.001;
-        final var nftUpdateTxn = "nftUpdateTxn";
-
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
-                newKeyNamed(WIPE_KEY),
-                newKeyNamed(METADATA_KEY),
-                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(12L)
-                        .wipeKey(WIPE_KEY)
-                        .supplyKey(SUPPLY_KEY)
-                        .metadataKey(METADATA_KEY)
-                        .initialSupply(0L),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                copyFromUtf8("a"),
-                                copyFromUtf8("b"),
-                                copyFromUtf8("c"),
-                                copyFromUtf8("d"),
-                                copyFromUtf8("e"),
-                                copyFromUtf8("f"),
-                                copyFromUtf8("g"))),
-                tokenUpdateNfts(NON_FUNGIBLE_TOKEN, NFT_TEST_METADATA, List.of(7L))
-                        .signedBy(TOKEN_TREASURY, METADATA_KEY)
-                        .payingWith(TOKEN_TREASURY)
-                        .fee(10 * ONE_HBAR)
-                        .via(nftUpdateTxn),
-                validateChargedUsdWithin(nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> updateMultipleNftsFeeChargedAsExpected() {
-        final var expectedNftUpdatePriceUsd = 0.005;
-        final var nftUpdateTxn = "nftUpdateTxn";
-
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
-                newKeyNamed(WIPE_KEY),
-                newKeyNamed(METADATA_KEY),
-                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
-                tokenCreate(NON_FUNGIBLE_TOKEN)
-                        .supplyType(TokenSupplyType.FINITE)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .treasury(TOKEN_TREASURY)
-                        .maxSupply(12L)
-                        .wipeKey(WIPE_KEY)
-                        .supplyKey(SUPPLY_KEY)
-                        .metadataKey(METADATA_KEY)
-                        .initialSupply(0L),
-                mintToken(
-                        NON_FUNGIBLE_TOKEN,
-                        List.of(
-                                copyFromUtf8("a"),
-                                copyFromUtf8("b"),
-                                copyFromUtf8("c"),
-                                copyFromUtf8("d"),
-                                copyFromUtf8("e"),
-                                copyFromUtf8("f"),
-                                copyFromUtf8("g"))),
-                tokenUpdateNfts(NON_FUNGIBLE_TOKEN, NFT_TEST_METADATA, List.of(1L, 2L, 3L, 4L, 5L))
-                        .signedBy(TOKEN_TREASURY, METADATA_KEY)
-                        .payingWith(TOKEN_TREASURY)
-                        .fee(10 * ONE_HBAR)
-                        .via(nftUpdateTxn),
-                validateChargedUsdWithin(nftUpdateTxn, expectedNftUpdatePriceUsd, 0.01));
     }
 }

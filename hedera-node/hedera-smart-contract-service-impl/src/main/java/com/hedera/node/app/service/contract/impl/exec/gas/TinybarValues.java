@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
@@ -23,7 +8,6 @@ import static com.hedera.node.app.spi.workflows.FunctionalityResourcePrices.PREP
 
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
-import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
@@ -33,8 +17,6 @@ import java.util.Objects;
  */
 public class TinybarValues {
     private final ExchangeRate exchangeRate;
-    private final boolean isGasPrecisionLossFixEnabled;
-    private final boolean isCanonicalViewGasEnabled;
     private final FunctionalityResourcePrices topLevelResourcePrices;
     // Only non-null for a top-level transaction, since queries cannot have child transactions
     @Nullable
@@ -49,9 +31,8 @@ public class TinybarValues {
      * @param exchangeRate the current exchange rate
      * @return a query-appropriate instance of {@link TinybarValues}
      */
-    public static TinybarValues forQueryWith(
-            @NonNull final ExchangeRate exchangeRate, @NonNull final ContractsConfig contractsConfig) {
-        return new TinybarValues(exchangeRate, contractsConfig, PREPAID_RESOURCE_PRICES, null);
+    public static TinybarValues forQueryWith(@NonNull final ExchangeRate exchangeRate) {
+        return new TinybarValues(exchangeRate, PREPAID_RESOURCE_PRICES, null);
     }
 
     /**
@@ -65,22 +46,18 @@ public class TinybarValues {
      */
     public static TinybarValues forTransactionWith(
             @NonNull final ExchangeRate exchangeRate,
-            @NonNull final ContractsConfig contractsConfig,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
-        return new TinybarValues(exchangeRate, contractsConfig, topLevelResourcePrices, childTransactionResourcePrices);
+        return new TinybarValues(exchangeRate, topLevelResourcePrices, childTransactionResourcePrices);
     }
 
     private TinybarValues(
             @NonNull final ExchangeRate exchangeRate,
-            @NonNull final ContractsConfig contractsConfig,
             @NonNull final FunctionalityResourcePrices topLevelResourcePrices,
             @Nullable final FunctionalityResourcePrices childTransactionResourcePrices) {
         this.exchangeRate = Objects.requireNonNull(exchangeRate);
         this.topLevelResourcePrices = Objects.requireNonNull(topLevelResourcePrices);
         this.childTransactionResourcePrices = childTransactionResourcePrices;
-        this.isGasPrecisionLossFixEnabled = contractsConfig.isGasPrecisionLossFixEnabled();
-        this.isCanonicalViewGasEnabled = contractsConfig.isCanonicalViewGasEnabled();
     }
 
     /**
@@ -128,9 +105,6 @@ public class TinybarValues {
      * @return the tinycents gas price
      */
     public long topLevelTinycentGasPrice() {
-        if (!isGasPrecisionLossFixEnabled) {
-            return topLevelTinybarGasPrice();
-        }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().gas()
                 * topLevelResourcePrices.congestionMultiplier();
     }
@@ -176,29 +150,7 @@ public class TinybarValues {
      * @return the tinybar/tinycent-denominated price of a rbh for the current operation
      */
     public long topLevelTinycentRbhPrice() {
-        if (!isGasPrecisionLossFixEnabled) {
-            return asTinybars(
-                    topLevelResourcePrices.basePrices().servicedataOrThrow().rbh()
-                            / FEE_SCHEDULE_UNITS_PER_TINYCENT
-                            * topLevelResourcePrices.congestionMultiplier());
-        }
         return topLevelResourcePrices.basePrices().servicedataOrThrow().rbh()
                 * topLevelResourcePrices.congestionMultiplier();
-    }
-
-    /**
-     * This can be removed after integrity of the fix is confirmed.
-     * We have it as a temporary measure to allow for easy rollback in case of issues.
-     */
-    public boolean isGasPrecisionLossFixEnabled() {
-        return isGasPrecisionLossFixEnabled;
-    }
-
-    /**
-     * This can be removed after the dynamic gas for view operations is confirmed.
-     * We have it as a temporary measure to allow for easy rollback in case of issues.
-     */
-    public boolean isCanonicalViewGasEnabled() {
-        return isCanonicalViewGasEnabled;
     }
 }

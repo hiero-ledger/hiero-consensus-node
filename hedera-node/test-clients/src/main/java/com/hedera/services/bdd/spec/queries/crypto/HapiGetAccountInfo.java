@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.crypto;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
@@ -43,7 +28,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -54,6 +38,7 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * Get the info of a account.
@@ -86,6 +71,7 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
     Optional<Integer> maxAutomaticAssociations = Optional.empty();
     Optional<Integer> alreadyUsedAutomaticAssociations = Optional.empty();
     private Optional<Consumer<AccountID>> idObserver = Optional.empty();
+    private Optional<Consumer<Long>> ethereumNonceObserver = Optional.empty();
 
     @Nullable
     private Consumer<Key> keyObserver = null;
@@ -158,6 +144,11 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
 
     public HapiGetAccountInfo exposingIdTo(Consumer<AccountID> obs) {
         this.idObserver = Optional.of(obs);
+        return this;
+    }
+
+    public HapiGetAccountInfo exposingEthereumNonceTo(Consumer<Long> obs) {
+        this.ethereumNonceObserver = Optional.of(obs);
         return this;
     }
 
@@ -252,8 +243,7 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
                 || !absentRelationships.isEmpty()
                 || (expectations.isPresent() && expectations.get().hasTokenAssociationExpectation())
                 || registryEntry.isPresent()) {
-            final var detailsLookup = QueryVerbs.getAccountDetails(
-                            "0.0." + actualInfo.getAccountID().getAccountNum())
+            final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(actualInfo.getAccountID()))
                     .payingWith(GENESIS);
             CustomSpecAssert.allRunFor(spec, detailsLookup);
             final var response = detailsLookup.getResponse();
@@ -317,6 +307,8 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
             exposingExpiryTo.ifPresent(cb ->
                     cb.accept(infoResponse.getAccountInfo().getExpirationTime().getSeconds()));
             idObserver.ifPresent(cb -> cb.accept(infoResponse.getAccountInfo().getAccountID()));
+            ethereumNonceObserver.ifPresent(
+                    cb -> cb.accept(infoResponse.getAccountInfo().getEthereumNonce()));
             Optional.ofNullable(keyObserver)
                     .ifPresent(cb -> cb.accept(infoResponse.getAccountInfo().getKey()));
             Optional.ofNullable(ledgerIdObserver)
@@ -390,5 +382,9 @@ public class HapiGetAccountInfo extends HapiQueryOp<HapiGetAccountInfo> {
         } else {
             observer.accept(key);
         }
+    }
+
+    private String toEntityId(AccountID accountID) {
+        return accountID.getShardNum() + "." + accountID.getRealmNum() + "." + accountID.getAccountNum();
     }
 }

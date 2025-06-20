@@ -1,35 +1,20 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.PublicStores;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A utility for generating a random address book.
@@ -129,7 +114,6 @@ public class RandomAddressBookBuilder {
     @NonNull
     public AddressBook build() {
         final AddressBook addressBook = new AddressBook();
-        addressBook.setNextNodeId(nextNodeId);
         addressBook.setRound(Math.abs(random.nextLong()));
 
         if (maximumWeight == null && size > 0) {
@@ -271,8 +255,8 @@ public class RandomAddressBookBuilder {
         final long unboundedWeight;
         switch (weightDistributionStrategy) {
             case BALANCED -> unboundedWeight = averageWeight;
-            case GAUSSIAN -> unboundedWeight =
-                    Math.max(0, (long) (averageWeight + random.nextGaussian() * weightStandardDeviation));
+            case GAUSSIAN ->
+                unboundedWeight = Math.max(0, (long) (averageWeight + random.nextGaussian() * weightStandardDeviation));
             default -> throw new IllegalStateException("Unexpected value: " + weightDistributionStrategy);
         }
 
@@ -286,21 +270,18 @@ public class RandomAddressBookBuilder {
         if (realKeys) {
             try {
                 final PublicStores publicStores = new PublicStores();
-                final String name = nodeId.toString();
 
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
                 final KeysAndCerts keysAndCerts =
-                        KeysAndCerts.generate(name, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                        KeysAndCertsGenerator.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
                 privateKeys.put(nodeId, keysAndCerts);
 
-                final String alias = nameToAlias(name);
-
                 final SerializableX509Certificate sigCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, alias));
+                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, nodeId));
                 final SerializableX509Certificate agrCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(AGREEMENT, alias));
+                        new SerializableX509Certificate(publicStores.getCertificate(AGREEMENT, nodeId));
 
                 addressBuilder.withSigCert(sigCert).withAgreeCert(agrCert);
 

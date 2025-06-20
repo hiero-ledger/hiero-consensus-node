@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
@@ -23,12 +8,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStreamGenerator;
 import com.swirlds.common.test.fixtures.stream.WriteToStreamConsumer;
@@ -37,6 +16,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Iterator;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,7 +40,7 @@ class QueueThreadObjectStreamTest {
     @BeforeAll
     static void init() {
         cryptography = mock(Cryptography.class);
-        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(RandomUtils.randomHash());
+        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(CryptoRandomUtils.randomHash());
     }
 
     @BeforeEach
@@ -66,8 +51,8 @@ class QueueThreadObjectStreamTest {
         queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
                 .setForwardTo(consumer)
                 .build();
-        runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread, cryptography);
-        hashCalculator = new HashCalculatorForStream<>(runningHashCalculator, cryptography);
+        runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread);
+        hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
         hashCalculator.setRunningHash(initialHash);
 
         iterator = new ObjectForTestStreamGenerator(totalNum, intervalMs, Instant.now()).getIterator();

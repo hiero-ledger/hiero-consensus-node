@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -50,7 +35,7 @@ public class DataFileCollectionBench extends BaseBench {
         String storeName = "compactionBench";
         beforeTest(storeName);
 
-        final LongListOffHeap index = new LongListOffHeap();
+        final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final BenchmarkRecordSerializer serializer = new BenchmarkRecordSerializer();
@@ -61,6 +46,7 @@ public class DataFileCollectionBench extends BaseBench {
                         return recordData != null ? serializer.deserialize(recordData) : null;
                     }
                 };
+        store.updateValidKeyRange(0, maxKey);
         final var compactor = new DataFileCompactor(dbConfig, storeName, store, index, null, null, null, null);
         System.out.println();
 
@@ -75,7 +61,7 @@ public class DataFileCollectionBench extends BaseBench {
                 index.put(id, store.storeDataItem(record::serialize, BenchmarkRecord.getSerializedSize()));
                 if (verify) map[(int) id] = record;
             }
-            store.endWriting(0, maxKey).setFileCompleted();
+            store.endWriting();
         }
         System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
 

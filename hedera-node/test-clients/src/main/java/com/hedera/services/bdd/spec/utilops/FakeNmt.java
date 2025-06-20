@@ -1,32 +1,17 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
-import com.hedera.services.bdd.junit.hedera.subprocess.UpgradeConfigTxt;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.ShutdownWithinOp;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.TryToStartNodesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.AddNodeOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.RemoveNodeOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.Map;
 
 /**
  * Contains operations that in a real environment could only be accomplished by the
@@ -46,10 +31,28 @@ public class FakeNmt {
      * Returns an operation that restarts the network with the given config version.
      *
      * @param configVersion the config version to use
+     * @param envOverrides the environment overrides to use
      * @return the operation that restarts the network
      */
-    public static TryToStartNodesOp restartNetwork(final int configVersion) {
-        return new TryToStartNodesOp(NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.YES);
+    public static TryToStartNodesOp restartNetwork(
+            final int configVersion, @NonNull final Map<String, String> envOverrides) {
+        requireNonNull(envOverrides);
+        return new TryToStartNodesOp(
+                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.YES, envOverrides);
+    }
+
+    /**
+     * Returns an operation that restarts the network with the given config version.
+     *
+     * @param configVersion the config version to use
+     * @return the operation that restarts the network
+     */
+    public static TryToStartNodesOp restartNetworkWithDisabledNodeOperatorPort(final int configVersion) {
+        return new TryToStartNodesOp(
+                NodeSelector.allNodes(),
+                configVersion,
+                SubProcessNode.ReassignPorts.YES,
+                Map.of("grpc.nodeOperatorPortEnabled", "false"));
     }
 
     /**
@@ -57,12 +60,10 @@ public class FakeNmt {
      * address books on all remaining nodes using the given <i>config.txt</i> source.
      *
      * @param selector the selector for the node to remove
-     * @param upgradeConfigTxt the source of the new <i>config.txt</i> file
      * @return the operation that removes the node
      */
-    public static RemoveNodeOp removeNode(
-            @NonNull final NodeSelector selector, @NonNull final UpgradeConfigTxt upgradeConfigTxt) {
-        return new RemoveNodeOp(selector, upgradeConfigTxt);
+    public static RemoveNodeOp removeNode(@NonNull final NodeSelector selector) {
+        return new RemoveNodeOp(selector);
     }
 
     /**
@@ -70,20 +71,10 @@ public class FakeNmt {
      * address books on all remaining nodes using the given <i>config.txt</i> source.
      *
      * @param nodeId id of the node to add
-     * @param upgradeConfigTxt the source of the new <i>config.txt</i> file
      * @return the operation that removes the node
      */
-    public static AddNodeOp addNode(final long nodeId, @NonNull final UpgradeConfigTxt upgradeConfigTxt) {
-        return new AddNodeOp(nodeId, upgradeConfigTxt);
-    }
-
-    /**
-     * Returns an operation that restarts the network.
-     *
-     * @return the operation that restarts the network
-     */
-    public static TryToStartNodesOp restartNetwork() {
-        return new TryToStartNodesOp(NodeSelector.allNodes(), 0, SubProcessNode.ReassignPorts.YES);
+    public static AddNodeOp addNode(final long nodeId) {
+        return new AddNodeOp(nodeId);
     }
 
     /**

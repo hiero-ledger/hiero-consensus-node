@@ -1,0 +1,672 @@
+/**
+ * # Transaction
+ * A (mostly legacy) wrapper around the bytes of a
+ * serialized `SignedTransaction` message.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+import "services/system_delete.proto";
+import "services/system_undelete.proto";
+import "services/freeze.proto";
+
+import "services/contract_call.proto";
+import "services/contract_create.proto";
+import "services/contract_update.proto";
+
+import "services/crypto_add_live_hash.proto";
+import "services/crypto_create.proto";
+import "services/crypto_delete.proto";
+import "services/crypto_delete_live_hash.proto";
+import "services/crypto_transfer.proto";
+import "services/crypto_update.proto";
+import "services/crypto_approve_allowance.proto";
+import "services/crypto_delete_allowance.proto";
+
+import "services/ethereum_transaction.proto";
+
+import "services/file_append.proto";
+import "services/file_create.proto";
+import "services/file_delete.proto";
+import "services/file_update.proto";
+
+import "services/duration.proto";
+import "services/contract_delete.proto";
+
+import "services/consensus_create_topic.proto";
+import "services/consensus_update_topic.proto";
+import "services/consensus_delete_topic.proto";
+import "services/consensus_submit_message.proto";
+
+import "services/unchecked_submit.proto";
+
+import "services/token_create.proto";
+import "services/token_freeze_account.proto";
+import "services/token_unfreeze_account.proto";
+import "services/token_grant_kyc.proto";
+import "services/token_revoke_kyc.proto";
+import "services/token_delete.proto";
+import "services/token_update.proto";
+import "services/token_mint.proto";
+import "services/token_burn.proto";
+import "services/token_wipe_account.proto";
+import "services/token_associate.proto";
+import "services/token_dissociate.proto";
+import "services/token_fee_schedule_update.proto";
+import "services/token_pause.proto";
+import "services/token_unpause.proto";
+import "services/token_update_nfts.proto";
+import "services/token_reject.proto";
+import "services/token_airdrop.proto";
+import "services/token_cancel_airdrop.proto";
+import "services/token_claim_airdrop.proto";
+
+import "services/schedule_create.proto";
+import "services/schedule_delete.proto";
+import "services/schedule_sign.proto";
+
+import "services/node_stake_update.proto";
+import "services/util_prng.proto";
+
+import "services/node_create.proto";
+import "services/node_update.proto";
+import "services/node_delete.proto";
+
+import "services/custom_fees.proto";
+import "platform/event/state_signature_transaction.proto";
+
+import "services/auxiliary/hints/hints_key_publication.proto";
+import "services/auxiliary/hints/hints_preprocessing_vote.proto";
+import "services/auxiliary/hints/hints_partial_signature.proto";
+import "services/auxiliary/hints/crs_publication.proto";
+
+import "services/auxiliary/history/history_proof_signature.proto";
+import "services/auxiliary/history/history_proof_key_publication.proto";
+import "services/auxiliary/history/history_proof_vote.proto";
+
+/**
+ * A wrapper around signed transaction bytes.<br/>
+ * This was originally a transaction with body, signatures, and/or bytes,
+ * but is not only a wrapper around a byte array containing signed transction
+ * bytes.
+ *
+ * The `signedTransactionBytes` field is REQUIRED and MUST contain a valid,
+ * serialized, `SignedTransaction` message.<br/>
+ * All other fields are deprecated and MUST NOT be set.
+ *
+ * #### Additional Notes
+ * The four deprecated fields will be removed and reserved in a future release.
+ */
+message Transaction {
+    // <<<pbj.java_package = "com.hedera.hapi.node.base">>> This comment is special code for setting PBJ Compiler java package
+    /**
+     * Replaced with `signedTransactionBytes`.<br/>
+     * The body of the transaction.
+     */
+    TransactionBody body = 1 [deprecated = true];
+
+    /**
+     * Replaced with `signedTransactionBytes`.<br/>
+     * The signatures on the body.
+     */
+    SignatureList sigs = 2 [deprecated = true];
+
+    /**
+     * Replaced with `signedTransactionBytes`.<br/>
+     * The signatures on the body with a newer format.
+     */
+    SignatureMap sigMap = 3 [deprecated = true];
+
+    /**
+     * Replaced with `signedTransactionBytes`.<br/>
+     * TransactionBody serialized into bytes.
+     */
+    bytes bodyBytes = 4 [deprecated = true];
+
+    /**
+     * A valid, serialized, `SignedTransaction` message.
+     * <p>
+     * This field MUST be present.
+     * This field MUST NOT exceed the current network transaction size limit
+     * (currently 6144 bytes).
+     */
+    bytes signedTransactionBytes = 5;
+}
+
+/**
+ * A transaction body.
+ *
+ * Every transaction is structured as a signed byte array. That byte array
+ * is a serialized `TransactionBody`.  The transaction body contains the full
+ * content of the transaction, while the `SignedTransaction` includes a
+ * signature map for signatures authenticating that byte array, and that is
+ * serialized and transmitted wrapped in a `Transaction` message.<br/>
+ * The bulk of this message is a `oneof` block which offers the option for
+ * any one of the transaction messages for the network.
+ * This message also includes several additional fields to specify
+ * various parameters required to process a transaction.
+ */
+message TransactionBody {
+    // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+    reserved 30, 61, 62, 63, 64;
+
+    reserved "tssMessage", "tssVote", "tssShareSignature", "tssEncryptionKey";
+
+    /**
+     * A transaction identifier.<br/>
+     * Each transaction is uniquely identified by its transaction
+     * identifier.
+     * <p>
+     * Each transaction identifier MUST be unique.<br/>
+     * Multiple transactions MAY be submitted with the same transaction
+     * identifier, but all except the first SHALL be rejected as duplicate
+     * transactions.<br/>
+     * This identifier MUST specify a `payer` account to be charged
+     * all fees associated with the transaction.<br/>
+     * This identifier MUST specify a "valid start time".<br/>
+     * The "valid start time" MUST be strictly _earlier_ than the current
+     * network consensus time.<br/>
+     * The "valid start time" MUST NOT be more than the current network
+     * configuration value for `transaction.maxValidDuration` seconds
+     * before the current network consensus time.<br/>
+     * This identifier MUST NOT set the `scheduled` flag.<br/>
+     * This identifier MUST NOT set a nonce value.
+     */
+    TransactionID transactionID = 1;
+
+    /**
+     * A node account identifier.
+     * <p>
+     * This MUST identify the account of the consensus node to which
+     * this transaction is submitted.
+     */
+    AccountID nodeAccountID = 2;
+
+    /**
+     * A maximum transaction fee, in tinybar.
+     * <p>
+     * The network SHALL NOT charge a transaction fee that exceeds this
+     * amount.<br/>
+     * The network MAY charge up to this amount, and reject the transaction,
+     * if the amount offered is insufficient to cover the required fees.<br/>
+     * The network MAY charge a minimum fee equal to 80% of the amount offered
+     * if the amount offered is much larger than the required fees.
+     */
+    uint64 transactionFee = 3;
+
+    /**
+     * A maximum duration in which to execute this transaction.
+     * <p>
+     * This transaction SHALL be rejected as expired if the valid start time,
+     * extended by this duration, is less than the current network consensus
+     * time when the transaction is submitted.<br/>
+     * This transaction SHALL be rejected with an invalid duration if this
+     * value is greater than the current network configuration value for
+     * `transaction.maxValidDuration`.
+     */
+    Duration transactionValidDuration = 4;
+
+    /**
+     * Records are always generated.<br/>
+     * Obsolete option to not generate a record.
+     * <p>
+     * This flag SHALL be ignored. Every transaction SHALL generate a record,
+     * or block stream equivalent.
+     */
+    bool generateRecord = 5 [deprecated = true];
+
+    /**
+     * A short description for this transaction.
+     * <p>
+     * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+     * (default 100) bytes when encoded as UTF-8.
+     */
+    string memo = 6;
+
+    /**
+     * The <b>public key</b> of the trusted batch assembler.
+     */
+    Key batch_key = 73;
+
+    // The fields here are ordered in strictly ascending field ordinal
+    // order due to limitations in PBJ.
+    oneof data {
+        /**
+         * Call a function defined on a smart contract.
+         */
+        ContractCallTransactionBody contractCall = 7;
+
+        /**
+         * Create a smart contract.
+         */
+        ContractCreateTransactionBody contractCreateInstance = 8;
+
+        /**
+         * Update a smart contract.
+         */
+        ContractUpdateTransactionBody contractUpdateInstance = 9;
+
+        /**
+         * An obsolete, and unsupported, operation to add a "live hash" to
+         * an account.
+         */
+        CryptoAddLiveHashTransactionBody cryptoAddLiveHash = 10 [deprecated = true];
+
+        /**
+         * Create a new Hedera account.
+         */
+        CryptoCreateTransactionBody cryptoCreateAccount = 11;
+
+        /**
+         * Delete an Hedera account.<br/>
+         * This will mark the account as deleted, and transfer all remaining
+         * HBAR to a receiver account.
+         */
+        CryptoDeleteTransactionBody cryptoDelete = 12;
+
+        /**
+         * An obsolete, and unsupported, operation to remove a "live hash" from
+         * an account.
+         */
+        CryptoDeleteLiveHashTransactionBody cryptoDeleteLiveHash = 13 [deprecated = true];
+
+        /**
+         * Transfer HBAR between accounts.
+         */
+        CryptoTransferTransactionBody cryptoTransfer = 14;
+
+        /**
+         * Modify an Hedera account.
+         */
+        CryptoUpdateTransactionBody cryptoUpdateAccount = 15;
+
+        /**
+         * Append data to the end of a file.
+         */
+        FileAppendTransactionBody fileAppend = 16;
+
+        /**
+         * Create a new file.
+         */
+        FileCreateTransactionBody fileCreate = 17;
+
+        /**
+         * Delete a file.<br/>
+         * This will remove the content of the file, and mark the file as
+         * deleted.
+         */
+        FileDeleteTransactionBody fileDelete = 18;
+
+        /**
+         * Modify a file.<br/>
+         * This may modify any metadata, and/or _replace_ the content.
+         */
+        FileUpdateTransactionBody fileUpdate = 19;
+
+        /**
+         * Delete a file as an Hedera administrative function.<br/>
+         * This is a privileged operation.
+         */
+        SystemDeleteTransactionBody systemDelete = 20;
+
+        /**
+         * Restore a file deleted via `systemDelete`.<br/>
+         * This is a privileged operation.
+         */
+        SystemUndeleteTransactionBody systemUndelete = 21;
+
+        /**
+         * Delete a smart contract and transfer remaining balance
+         * to a specified account.
+         */
+        ContractDeleteTransactionBody contractDeleteInstance = 22;
+
+        /**
+         * Freeze the network.<br/>
+         * This is actually several possible operations, and the caller
+         * should examine the "freeze service" for more detail.<br/>
+         * This is a privileged operation.
+         */
+        FreezeTransactionBody freeze = 23;
+
+        /**
+         * Create a topic.
+         */
+        ConsensusCreateTopicTransactionBody consensusCreateTopic = 24;
+
+        /**
+         * Update a topic.
+         */
+        ConsensusUpdateTopicTransactionBody consensusUpdateTopic = 25;
+
+        /**
+         * Delete a topic.
+         */
+        ConsensusDeleteTopicTransactionBody consensusDeleteTopic = 26;
+
+        /**
+         * Submit a message to a topic.<br/>
+         * A message may be "chunked", and submitted in parts, if the total
+         * message size exceeds the limit for a single transaction.
+         */
+        ConsensusSubmitMessageTransactionBody consensusSubmitMessage = 27;
+
+        /**
+         * Unsupported system transaction.
+         * <p>
+         * This transaction MAY be implemented in testing networks, but
+         * SHALL NOT be enabled or supported in production environments.<br/>
+         * Clients MUST NOT call this method, and any such transaction SHALL
+         * be rejected.<br/>
+         * A network MAY choose to charge punitive fees for attempting to
+         * execute an `uncheckedSubmit`.
+         */
+        UncheckedSubmitBody uncheckedSubmit = 28;
+
+        /**
+         * Create a new Hedera token.
+         */
+        TokenCreateTransactionBody tokenCreation = 29;
+
+        /**
+         * Freeze an account with respect to a token.<br/>
+         * A frozen account cannot transact in that token until unfrozen.
+         */
+        TokenFreezeAccountTransactionBody tokenFreeze = 31;
+
+        /**
+         * Unfreeze an account with respect to a token.
+         */
+        TokenUnfreezeAccountTransactionBody tokenUnfreeze = 32;
+
+        /**
+         * Grant KYC to an account with respect to a token.<br/>
+         * KYC is generally a "know your customer" assertion that a
+         * responsible entity has sufficient information to positively
+         * identify the account holder to relevant authorities.
+         */
+        TokenGrantKycTransactionBody tokenGrantKyc = 33;
+
+        /**
+         * Revoke KYC from an account with respect to a token.
+         */
+        TokenRevokeKycTransactionBody tokenRevokeKyc = 34;
+
+        /**
+         * Delete an Hedera token.<br/>
+         * The token will be marked deleted.
+         */
+        TokenDeleteTransactionBody tokenDeletion = 35;
+
+        /**
+         * Update an Hedera token.<br/>
+         * Depending on what fields are to be modified, the signature
+         * requirements will vary. See `TokenUpdateTransactionBody` for
+         * further detail.
+         */
+        TokenUpdateTransactionBody tokenUpdate = 36;
+
+        /**
+         * Mint new tokens.<br/>
+         * All minted tokens will be delivered to the treasury account for
+         * the token type. The "mint key" for the token must sign this
+         * transaction.
+         */
+        TokenMintTransactionBody tokenMint = 37;
+
+        /**
+         * Burn tokens from the treasury account.<br/>
+         * The "burn key" for the token must sign this transaction.
+         */
+        TokenBurnTransactionBody tokenBurn = 38;
+
+        /**
+         * Wipe tokens from an account.<br/>
+         * This will remove a specified amount of fungible/common tokens or
+         * a specified list of non-fungible/unique serial numbered tokens
+         * of a given token type from an Hedera account. The removed tokens
+         * are _burned_ as if by a `tokenBurn` transaction.<br/>
+         * The "wipe key" for the token must sign this transaction.
+         */
+        TokenWipeAccountTransactionBody tokenWipe = 39;
+
+        /**
+         * Associate tokens to an account.
+         */
+        TokenAssociateTransactionBody tokenAssociate = 40;
+
+        /**
+         * Dissociate tokens from an account.
+         */
+        TokenDissociateTransactionBody tokenDissociate = 41;
+
+        /**
+         * Create a schedule.<br/>
+         * A schedule is a request to execute a specific transaction, included
+         * in the create body, in the future. The scheduled transaction may
+         * execute as soon as all signature requirements are met with the
+         * schedule create or a subsequent schedule sign transaction.
+         * A schedule may, alternatively, execute on expiration if
+         * long-term schedules are enabled and the schedule meets signature
+         * requirements at that time.
+         */
+        ScheduleCreateTransactionBody scheduleCreate = 42;
+
+        /**
+         * Delete a schedule.<br/>
+         * The schedule will be marked as deleted.
+         */
+        ScheduleDeleteTransactionBody scheduleDelete = 43;
+
+        /**
+         * Sign a schedule.<br/>
+         * Add one or more cryptographic keys to the list of keys that have
+         * signed a schedule, and which may serve to meet the signature
+         * requirements for the scheduled transaction.
+         */
+        ScheduleSignTransactionBody scheduleSign = 44;
+
+        /**
+         * Update the custom fee schedule for a token.<br/>
+         * This transaction must be signed by the "fee schedule key"
+         * for the token.
+         */
+        TokenFeeScheduleUpdateTransactionBody token_fee_schedule_update = 45;
+
+        /**
+         * Pause a Token.
+         * <p>
+         * This transaction MUST be signed by the "pause key" for the token.
+         */
+        TokenPauseTransactionBody token_pause = 46;
+
+        /**
+         * Unpause a Token.
+         * <p>
+         * This transaction MUST be signed by the "pause key" for the token.
+         */
+        TokenUnpauseTransactionBody token_unpause = 47;
+
+        /**
+         * Add one or more approved allowances for spenders to transfer the
+         * paying account's hbar or tokens.
+         */
+        CryptoApproveAllowanceTransactionBody cryptoApproveAllowance = 48;
+
+        /**
+         * Delete one or more approvals for spenders to transfer the
+         * paying account's hbar or tokens.
+         */
+        CryptoDeleteAllowanceTransactionBody cryptoDeleteAllowance = 49;
+
+        /**
+         * Perform an Ethereum encoded transaction.
+         */
+        EthereumTransactionBody ethereumTransaction = 50;
+
+        /**
+         * Update the staking information.<br/>
+         * This internal transaction is performed at the end of a staking
+         * period to complete staking calculations and indicate that new
+         * staking period has started.
+         */
+        NodeStakeUpdateTransactionBody node_stake_update = 51;
+
+        /**
+         * Provide a deterministic pseudorandom number based on network state.
+         */
+        UtilPrngTransactionBody util_prng = 52;
+
+        /**
+         * Update one or more non-fungible/unique tokens.<br/>
+         * This will update metadata for one or more serial numbers within
+         * a collection (token type).
+         */
+        TokenUpdateNftsTransactionBody token_update_nfts = 53;
+
+        /**
+         * Create a new node in the network address book.<br/>
+         * This is a privileged operation.
+         * <p>
+         * This transaction SHALL create a new consensus node record and add
+         * that record to the network address book.
+         */
+        com.hedera.hapi.node.addressbook.NodeCreateTransactionBody nodeCreate = 54;
+
+        /**
+         * Update a node in the network address book.<br/>
+         * This is a privileged operation.
+         * <p>
+         * This transaction SHALL update an existing consensus node record in
+         * the network address book.
+         */
+        com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody nodeUpdate = 55;
+
+        /**
+         * Delete a node from the network address book.<br/>
+         * This is a privileged operation.
+         * <p>
+         * This transaction SHALL mark an existing consensus node record as
+         * deleted and remove that node from the network address book.
+         */
+        com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody nodeDelete = 56;
+
+        /**
+         * Reject and return a token to treasury.<br/>
+         * This transaction will transfer one or more tokens or token
+         * balances held by the requesting account to the treasury
+         * for each token type.
+         * <p>
+         * Each transfer MUST be one of the following:
+         * <ul>
+         *   <li>A single non-fungible/unique token.</li>
+         *   <li>The full balance held for a fungible/common
+         *       token type.</li>
+         * </ul>
+         * When complete, the requesting account SHALL NOT hold the
+         * rejected tokens.<br/>
+         * Custom fees and royalties defined for the tokens rejected
+         * SHALL NOT be charged for this transaction.
+         */
+        TokenRejectTransactionBody tokenReject = 57;
+
+        /**
+         * "Airdrop" tokens.<br/>
+         * This transaction sends tokens from one or more "sender" accounts
+         * to one or more "recipient" accounts.
+         * <p>
+         * If a recipient account cannot immediately receive the token(s) sent,
+         * a "pending" airdrop SHALL be created and MUST be claimed.
+         */
+        TokenAirdropTransactionBody tokenAirdrop = 58;
+
+        /**
+        * Cancel one or more "pending" airdrops that are not yet claimed.
+        */
+        TokenCancelAirdropTransactionBody tokenCancelAirdrop = 59;
+
+        /**
+        * Claim one or more "pending" airdrops.
+         */
+        TokenClaimAirdropTransactionBody tokenClaimAirdrop = 60;
+
+        /**
+         * A transaction body for signature of a state root hash gossiped to other nodes
+         */
+        com.hedera.hapi.platform.event.StateSignatureTransaction state_signature_transaction = 65;
+
+        /**
+         * A transaction body for voting on hinTS aggregation keys.
+         */
+        com.hedera.hapi.services.auxiliary.hints.HintsPreprocessingVoteTransactionBody hints_preprocessing_vote = 66;
+
+        /**
+         * A transaction body for publishing a node's hintTS key.
+         */
+        com.hedera.hapi.services.auxiliary.hints.HintsKeyPublicationTransactionBody hints_key_publication = 67;
+
+        /**
+         * A transaction body for broadcasting a node's hintTS partial signature on a message.
+         */
+        com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody hints_partial_signature = 68;
+
+        /**
+         * A transaction body for contributed a signature with a node's proof key to a history proof.
+         */
+        com.hedera.hapi.services.auxiliary.history.HistoryProofSignatureTransactionBody history_proof_signature = 69;
+
+        /**
+         * A transaction body for publishing a node's metadata proof key.
+         */
+        com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody history_proof_key_publication = 70;
+
+        /**
+         * A transaction body for voting on a metadata proof descending from the ledger id.
+         */
+        com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody history_proof_vote = 71;
+
+        /**
+         * A transaction body for broadcasting a node's crs publication
+         */
+        com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody crs_publication = 72;
+
+        /**
+         * A transaction body for handling a set of transactions atomically.
+         */
+        AtomicBatchTransactionBody atomic_batch = 74;
+    }
+
+    /**
+     * A list of maximum custom fees that the users are willing to pay.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * If left empty, the users are accepting to pay any custom fee.<br/>
+     * If used with a transaction type that does not support custom fee limits, the transaction will fail.
+     */
+    repeated CustomFeeLimit max_custom_fees = 1001;
+}
+
+/**
+ * A transaction body for handling a set of transactions atomically.
+ */
+message AtomicBatchTransactionBody {
+  // <<<pbj.java_package = "com.hedera.hapi.node.util">>> This comment is special code for setting PBJ Compiler java package
+    /**
+     * A list of signed bytes that represent the batch transactions.
+     */
+    repeated bytes transactions = 1;
+}

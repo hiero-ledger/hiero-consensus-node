@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -28,6 +13,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.swirlds.state.State;
 import java.time.InstantSource;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,25 +43,29 @@ class SynchronizedThrottleAccumulatorTest {
     void verifyCheckAndEnforceThrottleIsCalled() {
         // given
         final var state = mock(State.class);
+        final List<ThrottleUsage> usages = new ArrayList<>();
 
         // when
-        subject.shouldThrottle(transactionInfo, state);
+        subject.shouldThrottle(transactionInfo, state, usages);
 
         // then
-        verify(throttleAccumulator, times(1)).checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state));
+        verify(throttleAccumulator, times(1))
+                .checkAndEnforceThrottle(eq(transactionInfo), any(), eq(state), eq(usages));
     }
 
     @Test
     void verifyCheckAndEnforceThrottleQueryIsCalled() {
         // given
         final var query = mock(Query.class);
+        final var state = mock(State.class);
         final var accountID = mock(AccountID.class);
 
         // when
-        subject.shouldThrottle(HederaFunctionality.CONTRACT_CREATE, query, accountID);
+        subject.shouldThrottle(HederaFunctionality.CONTRACT_CREATE, query, state, accountID);
 
         // then
         verify(throttleAccumulator, times(1))
-                .checkAndEnforceThrottle(eq(HederaFunctionality.CONTRACT_CREATE), any(), eq(query), eq(accountID));
+                .checkAndEnforceThrottle(
+                        eq(HederaFunctionality.CONTRACT_CREATE), any(), eq(query), eq(state), eq(accountID));
     }
 }

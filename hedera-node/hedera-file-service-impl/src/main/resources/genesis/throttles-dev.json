@@ -39,7 +39,8 @@
 			"GetVersionInfo",
 			"NodeCreate",
 			"NodeUpdate",
-			"NodeDelete"
+			"NodeDelete",
+		  	"AtomicBatch"
 		  ]
 		},
 		{

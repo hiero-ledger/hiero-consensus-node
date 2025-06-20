@@ -1,12 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
 version: 2
 updates:
   - package-ecosystem: "gradle"
-    directory: "/hedera-dependency-versions"
+    directory: "/" # for 'plugins { }' in 'settings.gradle.kts'
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10
   - package-ecosystem: "gradle"
-    directory: "/gradle/plugins"
+    directory: "/hiero-dependency-versions"
     schedule:
       interval: "daily"
     open-pull-requests-limit: 10

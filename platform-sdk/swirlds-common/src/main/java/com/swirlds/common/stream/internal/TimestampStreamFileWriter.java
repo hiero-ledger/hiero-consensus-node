@@ -1,44 +1,18 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream.internal;
 
-import static com.swirlds.common.crypto.DigestType.SHA_384;
-import static com.swirlds.common.crypto.SignatureType.RSA;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateSigFilePath;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
-import static com.swirlds.common.stream.StreamAligned.NO_ALIGNMENT;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.FREEZE;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.OBJECT_STREAM_FILE;
+import static org.hiero.base.crypto.DigestType.SHA_384;
+import static org.hiero.base.crypto.SignatureType.RSA;
+import static org.hiero.consensus.model.stream.StreamAligned.NO_ALIGNMENT;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.RunningHash;
-import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.SerializableHashable;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.stream.Signer;
-import com.swirlds.common.stream.StreamAligned;
 import com.swirlds.common.stream.StreamType;
-import com.swirlds.common.stream.Timestamped;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -50,6 +24,17 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.RunningHash;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.SerializableHashable;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.crypto.Signer;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.stream.StreamAligned;
+import org.hiero.consensus.model.stream.Timestamped;
 
 /**
  * <p>
@@ -68,6 +53,12 @@ import org.apache.logging.log4j.Logger;
  */
 public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable & SerializableHashable & Timestamped>
         implements LinkedObjectStream<T> {
+
+    /** a unique class type identifier */
+    private static final long SIGNATURE_CLASS_ID = 0x13dc4b399b245c69L;
+
+    /** the current serialization version */
+    private static final int CLASS_VERSION = 1;
 
     /**
      * The serialization format of the stream files.
@@ -216,9 +207,9 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
 
             output.writeInt(OBJECT_STREAM_SIG_VERSION);
             output.writeSerializable(entireHash, true);
-            output.writeSerializable(entireSignature, true);
+            entireSignature.serialize(output, true);
             output.writeSerializable(metaHash, true);
-            output.writeSerializable(metaSignature, true);
+            metaSignature.serialize(output, true);
 
             logger.info(OBJECT_STREAM_FILE.getMarker(), "signature file saved: {}", sigFilePath);
         }
@@ -339,10 +330,10 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
 
             // generate signature for entire Hash
             final Signature entireSignature = new Signature(
-                    SIGNATURE_TYPE, signer.sign(entireHash.copyToByteArray()).getSignatureBytes());
+                    SIGNATURE_TYPE, signer.sign(entireHash.copyToByteArray()).getBytes());
             // generate signature for metaData Hash
             final Signature metaSignature = new Signature(
-                    SIGNATURE_TYPE, signer.sign(metaHash.copyToByteArray()).getSignatureBytes());
+                    SIGNATURE_TYPE, signer.sign(metaHash.copyToByteArray()).getBytes());
             try {
                 writeSignatureFile(
                         entireHash,

@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_KEYS;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -82,97 +66,77 @@ public class Issue2319Spec {
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> sysFileImmutabilityWaivedForMasterAndTreasury() {
-        return defaultHapiSpec("sysFileImmutabilityWaivedForMasterAndTreasury")
-                .given(
-                        cryptoCreate("civilian"),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, 1_000_000_000_000L)))
-                .when(fileUpdate(EXCHANGE_RATES)
+        return hapiTest(
+                cryptoCreate("civilian"),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, 1_000_000_000_000L)),
+                fileUpdate(EXCHANGE_RATES).payingWith(EXCHANGE_RATE_CONTROL).useEmptyWacl(),
+                fileUpdate(EXCHANGE_RATES)
                         .payingWith(EXCHANGE_RATE_CONTROL)
-                        .useEmptyWacl())
-                .then(
-                        fileUpdate(EXCHANGE_RATES)
-                                .payingWith(EXCHANGE_RATE_CONTROL)
-                                .wacl(GENESIS)
-                                .payingWith(SYSTEM_ADMIN)
-                                .signedBy(GENESIS),
-                        fileUpdate(EXCHANGE_RATES)
-                                .payingWith(EXCHANGE_RATE_CONTROL)
-                                .useEmptyWacl(),
-                        fileUpdate(EXCHANGE_RATES)
-                                .wacl(GENESIS)
-                                .payingWith(GENESIS)
-                                .signedBy(GENESIS));
+                        .wacl(GENESIS)
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(GENESIS),
+                fileUpdate(EXCHANGE_RATES).payingWith(EXCHANGE_RATE_CONTROL).useEmptyWacl(),
+                fileUpdate(EXCHANGE_RATES).wacl(GENESIS).payingWith(GENESIS).signedBy(GENESIS));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> sysAccountSigReqsWaivedForMasterAndTreasury() {
-        return defaultHapiSpec("SysAccountSigReqsWaivedForMasterAndTreasury")
-                .given(
-                        newKeyNamed(NON_TREASURY_KEY),
-                        newKeyListNamed(NON_TREASURY_ADMIN_KEY, List.of(NON_TREASURY_KEY)),
-                        newKeyListNamed(DEFAULT_ADMIN_KEY, List.of(GENESIS)),
-                        cryptoCreate("civilian"),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, 1_000_000_000_000L)))
-                .when(cryptoUpdate(EXCHANGE_RATE_CONTROL)
-                        .key(NON_TREASURY_ADMIN_KEY)
-                        .receiverSigRequired(true))
-                .then(
-                        cryptoUpdate(EXCHANGE_RATE_CONTROL)
-                                .payingWith(SYSTEM_ADMIN)
-                                .signedBy(GENESIS)
-                                .receiverSigRequired(true),
-                        cryptoUpdate(EXCHANGE_RATE_CONTROL)
-                                .payingWith(GENESIS)
-                                .signedBy(GENESIS)
-                                .receiverSigRequired(true),
-                        cryptoUpdate(EXCHANGE_RATE_CONTROL)
-                                .payingWith("civilian")
-                                .signedBy("civilian", GENESIS, NON_TREASURY_ADMIN_KEY)
-                                .receiverSigRequired(true),
+        return hapiTest(
+                newKeyNamed(NON_TREASURY_KEY),
+                newKeyListNamed(NON_TREASURY_ADMIN_KEY, List.of(NON_TREASURY_KEY)),
+                newKeyListNamed(DEFAULT_ADMIN_KEY, List.of(GENESIS)),
+                cryptoCreate("civilian"),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, 1_000_000_000_000L)),
+                cryptoUpdate(EXCHANGE_RATE_CONTROL).key(NON_TREASURY_ADMIN_KEY).receiverSigRequired(true),
+                cryptoUpdate(EXCHANGE_RATE_CONTROL)
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(GENESIS)
+                        .receiverSigRequired(true),
+                cryptoUpdate(EXCHANGE_RATE_CONTROL)
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS)
+                        .receiverSigRequired(true),
+                cryptoUpdate(EXCHANGE_RATE_CONTROL)
+                        .payingWith("civilian")
+                        .signedBy("civilian", GENESIS, NON_TREASURY_ADMIN_KEY)
+                        .receiverSigRequired(true),
 
-                        // reset EXCHANGE_RATE_CONTROL to default state
-                        cryptoUpdate(EXCHANGE_RATE_CONTROL)
-                                .key(DEFAULT_ADMIN_KEY)
-                                .receiverSigRequired(false)
-                                .payingWith(GENESIS)
-                                .signedBy(GENESIS));
+                // reset EXCHANGE_RATE_CONTROL to default state
+                cryptoUpdate(EXCHANGE_RATE_CONTROL)
+                        .key(DEFAULT_ADMIN_KEY)
+                        .receiverSigRequired(false)
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> sysFileSigReqsWaivedForMasterAndTreasury() {
         var validRates = new AtomicReference<ByteString>();
 
-        return defaultHapiSpec("SysFileSigReqsWaivedForMasterAndTreasury")
-                .given(
-                        cryptoCreate("civilian"),
-                        newKeyNamed(NON_TREASURY_KEY),
-                        newKeyListNamed(NON_TREASURY_ADMIN_KEY, List.of(NON_TREASURY_KEY)),
-                        withOpContext((spec, opLog) -> {
-                            var fetch = getFileContents(EXCHANGE_RATES);
-                            CustomSpecAssert.allRunFor(spec, fetch);
-                            validRates.set(fetch.getResponse()
-                                    .getFileGetContents()
-                                    .getFileContents()
-                                    .getContents());
-                        }),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, 1_000_000_000_000L)))
-                .when(fileUpdate(EXCHANGE_RATES)
-                        .payingWith(EXCHANGE_RATE_CONTROL)
-                        .wacl(NON_TREASURY_ADMIN_KEY))
-                .then(
-                        fileUpdate(EXCHANGE_RATES)
-                                .payingWith(SYSTEM_ADMIN)
-                                .signedBy(GENESIS)
-                                .contents(ignore -> validRates.get()),
-                        fileUpdate(EXCHANGE_RATES)
-                                .payingWith(GENESIS)
-                                .signedBy(GENESIS)
-                                .contents(ignore -> validRates.get()),
-                        fileUpdate(EXCHANGE_RATES)
-                                .payingWith("civilian")
-                                .signedBy("civilian", GENESIS, NON_TREASURY_ADMIN_KEY)
-                                .contents(ignore -> validRates.get())
-                                .hasPrecheck(AUTHORIZATION_FAILED),
-                        fileUpdate(EXCHANGE_RATES).payingWith(GENESIS).wacl(GENESIS));
+        return hapiTest(
+                cryptoCreate("civilian"),
+                newKeyNamed(NON_TREASURY_KEY),
+                newKeyListNamed(NON_TREASURY_ADMIN_KEY, List.of(NON_TREASURY_KEY)),
+                withOpContext((spec, opLog) -> {
+                    var fetch = getFileContents(EXCHANGE_RATES);
+                    CustomSpecAssert.allRunFor(spec, fetch);
+                    validRates.set(fetch.getResponse()
+                            .getFileGetContents()
+                            .getFileContents()
+                            .getContents());
+                }),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, SYSTEM_ADMIN, 1_000_000_000_000L)),
+                fileUpdate(EXCHANGE_RATES).payingWith(EXCHANGE_RATE_CONTROL).wacl(NON_TREASURY_ADMIN_KEY),
+                fileUpdate(EXCHANGE_RATES)
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(GENESIS)
+                        .contents(ignore -> validRates.get()),
+                fileUpdate(EXCHANGE_RATES).payingWith(GENESIS).signedBy(GENESIS).contents(ignore -> validRates.get()),
+                fileUpdate(EXCHANGE_RATES)
+                        .payingWith("civilian")
+                        .signedBy("civilian", GENESIS, NON_TREASURY_ADMIN_KEY)
+                        .contents(ignore -> validRates.get())
+                        .hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(EXCHANGE_RATES).payingWith(GENESIS).wacl(GENESIS));
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.system;
 
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
@@ -45,11 +30,11 @@ public class FreezeOnlyCommand implements Callable<Integer> {
         final var config = ConfigUtils.configFrom(yahcli);
 
         final var freezeStartTime = Utils.parseFormattedInstant(startTime);
-        final var delegate = new FreezeHelperSuite(config.asSpecConfig(), freezeStartTime, false);
+        final var delegate = new FreezeHelperSuite(config, freezeStartTime, false);
 
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - " + "freeze scheduled for " + startTime);
         } else {
             COMMON_MESSAGES.warn("FAILED - freeze is not scheduled for " + startTime);

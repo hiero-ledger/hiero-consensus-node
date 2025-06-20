@@ -1,12 +1,10 @@
 [
   {
     "inputs": [],
-    "payable": true,
     "stateMutability": "payable",
     "type": "constructor"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint32",
@@ -21,22 +19,19 @@
     ],
     "name": "receiveAndSend",
     "outputs": [],
-    "payable": true,
     "stateMutability": "payable",
     "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
-        "internalType": "uint64[]",
+        "internalType": "uint160[]",
         "name": "accounts",
-        "type": "uint64[]"
+        "type": "uint160[]"
       }
     ],
     "name": "setNodes",
     "outputs": [],
-    "payable": true,
     "stateMutability": "payable",
     "type": "function"
   }

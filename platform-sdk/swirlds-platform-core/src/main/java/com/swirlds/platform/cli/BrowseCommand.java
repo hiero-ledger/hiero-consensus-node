@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
 import static com.swirlds.platform.system.SystemExitCode.FATAL_ERROR;
@@ -22,7 +7,6 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,6 +15,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -57,7 +42,7 @@ public class BrowseCommand extends AbstractCommand {
                     + "specified by repeating the parameter `-l #1 -l #2 -l #3`.")
     private void setLocalNodes(@NonNull final Long... localNodes) {
         for (final Long nodeId : localNodes) {
-            this.localNodes.add(new NodeId(nodeId));
+            this.localNodes.add(NodeId.of(nodeId));
         }
     }
 
@@ -76,10 +61,10 @@ public class BrowseCommand extends AbstractCommand {
     @SuppressWarnings("InfiniteLoopStatement")
     @Override
     public Integer call() throws IOException, InterruptedException {
+        final Path sdkPath = Path.of(System.getProperty("user.dir"));
         if (clean) {
-            CleanCommand.clean(Path.of(System.getProperty("user.dir")));
+            CleanCommand.clean(sdkPath);
         }
-
         try {
             Browser.launch(new CommandLineArgs(new HashSet<>(localNodes)), false);
         } catch (final Exception e) {

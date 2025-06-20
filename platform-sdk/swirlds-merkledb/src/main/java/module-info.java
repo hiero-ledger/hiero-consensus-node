@@ -1,20 +1,4 @@
-/*
- * (c) 2016-2021 Swirlds, Inc.
- *
- * This software is the confidential and proprietary information of
- * Swirlds, Inc. ("Confidential Information"). You shall not
- * disclose such Confidential Information and shall use it only in
- * accordance with the terms of the license agreement you entered into
- * with Swirlds.
- *
- * SWIRLDS MAKES NO REPRESENTATIONS OR WARRANTIES ABOUT THE SUITABILITY OF
- * THE SOFTWARE, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
- * TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
- * PARTICULAR PURPOSE, OR NON-INFRINGEMENT. SWIRLDS SHALL NOT BE LIABLE FOR
- * ANY DAMAGES SUFFERED BY LICENSEE AS A RESULT OF USING, MODIFYING OR
- * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 /**
  * A disk-based VirtualDataSource implementation; complete module documentation to be assembled over time as the full
  * implementation is transplanted here.
@@ -27,12 +11,15 @@ open module com.swirlds.merkledb {
     exports com.swirlds.merkledb.files.hashmap;
     exports com.swirlds.merkledb.utilities;
 
-    requires transitive com.swirlds.common;
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
-    requires transitive com.hedera.pbj.runtime;
+    requires transitive org.hiero.base.concurrent;
+    requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.base.utility;
     requires com.swirlds.base;
+    requires com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires java.management;

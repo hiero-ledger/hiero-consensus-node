@@ -1,21 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -31,14 +20,43 @@ public interface BlockItemWriter {
     void openBlock(long blockNumber);
 
     /**
-     * Writes a serialized item to the destination stream.
+     * Writes an item and/or its serialized bytes to the destination stream.
      *
-     * @param serializedItem the serialized item to write
+     * @param item the item to write
+     * @param bytes the serialized item to write
      */
-    BlockItemWriter writeItem(@NonNull Bytes serializedItem);
+    default void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
+        requireNonNull(item);
+        requireNonNull(bytes);
+        writeItem(bytes.toByteArray());
+    }
 
     /**
-     * Closes the block.
+     * Writes a serialized item to the destination stream.
+     *
+     * @param bytes the serialized item to write
      */
-    void closeBlock();
+    void writeItem(@NonNull byte[] bytes);
+
+    /**
+     * Writes a PBJ item to the destination stream.
+     * @param item the item to write
+     */
+    void writePbjItem(@NonNull final BlockItem item);
+
+    /**
+     * Closes a block that is complete with a proof.
+     */
+    void closeCompleteBlock();
+
+    /**
+     * Flushes to disk a block that is still waiting for a complete proof.
+     * @param pendingProof the proof pending a signature
+     */
+    void flushPendingBlock(@NonNull PendingProof pendingProof);
+
+    /**
+     * Performs any actions that need to be done before the block proof is complete.
+     */
+    void writePreBlockProofItems();
 }

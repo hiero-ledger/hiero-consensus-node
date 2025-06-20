@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.utilities;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -21,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.exceptions.NotImplementedException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -34,6 +18,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import org.hiero.base.exceptions.NotImplementedException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -451,7 +436,7 @@ class MerkleDBFileUtilsTest {
             final int dstPosition,
             final int maxBytes,
             final String expected,
-            final int expectedWritten)
+            final long expectedWritten)
             throws IOException {
         final File outputFile = createTestFile(FILLER_STRING);
         final File inputFile = createTestFile(EXAMPLE_STRING);
@@ -462,7 +447,7 @@ class MerkleDBFileUtilsTest {
                         (FileChannel) Files.newByteChannel(inputFile.toPath(), StandardOpenOption.READ)) {
             inChannel.position(inChannelPosition);
             outChannel.position(3);
-            final int bytesWritten =
+            final long bytesWritten =
                     MerkleDbFileUtils.completelyTransferFrom(outChannel, inChannel, dstPosition, maxBytes);
             assertEquals(expectedWritten, bytesWritten);
             assertEquals(expectedWritten + inChannelPosition, inChannel.position());
@@ -493,7 +478,7 @@ class MerkleDBFileUtilsTest {
             final int dstPosition,
             final int maxBytes,
             final String expected,
-            final int expectedWritten)
+            final long expectedWritten)
             throws IOException {
         final File outputFile = createTestFile(FILLER_STRING);
         final File inputFile = createTestFile(EXAMPLE_STRING);
@@ -509,7 +494,7 @@ class MerkleDBFileUtilsTest {
                         (FileChannel) Files.newByteChannel(inputFile.toPath(), StandardOpenOption.READ)) {
             inChannel.position(inChannelPosition);
             outChannel.position(3);
-            final int bytesWritten =
+            final long bytesWritten =
                     MerkleDbFileUtils.completelyTransferFrom(outChannel, inChannel, dstPosition, maxBytes);
             assertEquals(expectedWritten, bytesWritten);
             assertEquals(expectedWritten + inChannelPosition, inChannel.position());

@@ -1,45 +1,35 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
-import static com.swirlds.platform.system.status.PlatformStatus.REPLAYING_EVENTS;
+import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.InOrderLinker;
-import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.AddedEventMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import com.swirlds.platform.metrics.ConsensusMetricsImpl;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
+import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface
@@ -51,42 +41,47 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     private final InOrderLinker linker;
 
+    /** Buffers events until needed by the consensus algorithm based on their birth round */
+    private final FutureEventBuffer futureEventBuffer;
+
     /**
      * Executes the hashgraph consensus algorithm.
      */
     private final Consensus consensus;
 
-    private final AncientMode ancientMode;
     private final int roundsNonAncient;
 
     private final AddedEventMetrics eventAddedMetrics;
+
+    private final FreezeRoundController freezeRoundController;
 
     /**
      * Constructor
      *
      * @param platformContext the platform context
-     * @param addressBook     the current address book
+     * @param roster          the current roster
      * @param selfId          the ID of the node
+     * @param freezeChecker   checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
             @NonNull final PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
-            @NonNull final NodeId selfId) {
+            @NonNull final Roster roster,
+            @NonNull final NodeId selfId,
+            @NonNull final FreezeCheckHolder freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(platformContext, consensusMetrics, addressBook);
+        consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(platformContext, selfId);
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
+        futureEventBuffer =
+                new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
         roundsNonAncient = platformContext
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
         eventAddedMetrics = new AddedEventMetrics(selfId, platformContext.getMetrics());
+        this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
     /**
@@ -105,22 +100,47 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     public List<ConsensusRound> addEvent(@NonNull final PlatformEvent event) {
         Objects.requireNonNull(event);
 
-        final EventImpl linkedEvent = linker.linkEvent(event);
-        if (linkedEvent == null) {
-            // linker discarded an ancient event
+        if (freezeRoundController.isFrozen()) {
+            // If we are frozen, ignore all events
             return List.of();
         }
 
-        final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-        eventAddedMetrics.eventAdded(linkedEvent);
-
-        if (!consensusRounds.isEmpty()) {
-            // If multiple rounds reach consensus at the same moment there is no need to pass in
-            // each event window. The latest event window is sufficient to keep event storage clean.
-            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
+        final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
+        if (consensusRelevantEvent == null) {
+            // The event is a future event and cannot be added to consensus yet.
+            return List.of();
         }
 
-        return consensusRounds;
+        final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();
+        eventsToAdd.add(consensusRelevantEvent);
+
+        final List<ConsensusRound> allConsensusRounds = new ArrayList<>();
+
+        while (!eventsToAdd.isEmpty()) {
+            final PlatformEvent eventToAdd = eventsToAdd.poll();
+            final EventImpl linkedEvent = linker.linkEvent(eventToAdd);
+            if (linkedEvent == null) {
+                // linker discarded an ancient event
+                continue;
+            }
+
+            allConsensusRounds.addAll(consensus.addEvent(linkedEvent));
+            eventAddedMetrics.eventAdded(linkedEvent);
+
+            if (allConsensusRounds.isEmpty()) {
+                continue;
+            }
+
+            // If consensus is reached, we need to process the last event window and add any events released
+            // from the future event buffer to the consensus algorithm.
+            final EventWindow eventWindow = allConsensusRounds.getLast().getEventWindow();
+            linker.setEventWindow(eventWindow);
+            eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
+        }
+
+        // If multiple rounds reach consensus and multiple rounds are in the freeze period,
+        // we need to freeze on the first one. this means discarding the rest of the rounds.
+        return freezeRoundController.filterAndModify(allConsensusRounds);
     }
 
     /**
@@ -128,12 +148,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshot snapshot) {
-        final long ancientThreshold = snapshot.getMinimumGenerationNonAncient(roundsNonAncient);
-        final EventWindow eventWindow =
-                new EventWindow(snapshot.round(), ancientThreshold, ancientThreshold, ancientMode);
-
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
         linker.clear();
         linker.setEventWindow(eventWindow);
+        futureEventBuffer.clear();
+        futureEventBuffer.updateEventWindow(eventWindow);
         consensus.loadSnapshot(snapshot);
     }
 }

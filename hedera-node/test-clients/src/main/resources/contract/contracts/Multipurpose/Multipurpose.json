@@ -1,7 +1,6 @@
 [
   {
     "inputs": [],
-    "payable": true,
     "stateMutability": "payable",
     "type": "constructor"
   },
@@ -19,12 +18,10 @@
     "type": "event"
   },
   {
-    "payable": true,
     "stateMutability": "payable",
     "type": "fallback"
   },
   {
-    "constant": false,
     "inputs": [
       {
         "internalType": "uint32",
@@ -34,17 +31,15 @@
     ],
     "name": "believeIn",
     "outputs": [],
-    "payable": false,
     "stateMutability": "nonpayable",
     "type": "function"
   },
   {
-    "constant": false,
     "inputs": [
       {
-        "internalType": "uint32",
+        "internalType": "uint160",
         "name": "toNum",
-        "type": "uint32"
+        "type": "uint160"
       },
       {
         "internalType": "string",
@@ -54,12 +49,10 @@
     ],
     "name": "donate",
     "outputs": [],
-    "payable": true,
     "stateMutability": "payable",
     "type": "function"
   },
   {
-    "constant": true,
     "inputs": [],
     "name": "pick",
     "outputs": [
@@ -69,8 +62,11 @@
         "type": "uint32"
       }
     ],
-    "payable": false,
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "stateMutability": "payable",
+    "type": "receive"
   }
 ]

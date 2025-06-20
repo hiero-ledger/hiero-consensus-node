@@ -1,47 +1,32 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
-import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.system.SwirldState;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.State;
 import java.time.Instant;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * A {@link com.swirlds.common.notification.Notification Notification} that a new signed state has been completed. Not
+ * A {@link Notification Notification} that a new signed state has been completed. Not
  * guaranteed to be called for every round, and not guaranteed to be called in order. State is guaranteed to hold a
  * reservation until callback completes.
  */
 public class NewSignedStateNotification extends AbstractNotification {
 
-    private final SwirldState swirldState;
+    private final MerkleNodeState state;
     private final long round;
     private final Instant consensusTimestamp;
 
     /**
      * Create a notification for a newly signed state.
      *
-     * @param swirldState        the swirld state from the round that is now fully signed
+     * @param state        the swirld state from the round that is now fully signed
      * @param round              the round that is now fully signed
      * @param consensusTimestamp the consensus timestamp of the round that is now fully signed
      */
-    public NewSignedStateNotification(
-            final SwirldState swirldState, final long round, final Instant consensusTimestamp) {
-
-        this.swirldState = swirldState;
+    public NewSignedStateNotification(final MerkleNodeState state, final long round, final Instant consensusTimestamp) {
+        this.state = state;
         this.round = round;
         this.consensusTimestamp = consensusTimestamp;
     }
@@ -51,8 +36,8 @@ public class NewSignedStateNotification extends AbstractNotification {
      * this notification.
      */
     @SuppressWarnings("unchecked")
-    public <T extends SwirldState> T getSwirldState() {
-        return (T) swirldState;
+    public <T extends State> T getState() {
+        return (T) state;
     }
 
     /**

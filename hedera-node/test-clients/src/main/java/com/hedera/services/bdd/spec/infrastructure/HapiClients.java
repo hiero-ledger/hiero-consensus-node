@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.infrastructure;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
@@ -45,6 +31,7 @@ import io.netty.handler.ssl.SupportedCipherSuiteFilter;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -53,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,7 +50,8 @@ public class HapiClients {
     // The deadline for the server to respond to a blocking unary call
     private static final long DEADLINE_SECS = 30L;
 
-    private final List<NodeConnectInfo> nodes;
+    private final List<HederaNode> nodes;
+    private final List<NodeConnectInfo> nodeInfos;
     /**
      * Id of node-{host, port} pairs to use for non-workflow operations
      */
@@ -71,6 +60,10 @@ public class HapiClients {
      * Id of node-{host, port} pairs to use for non-workflow operations using TLS ports
      */
     private final Map<AccountID, String> tlsStubIds;
+    /**
+     * Id of node-{host, port} pairs to use for node operator operations
+     */
+    private final Map<AccountID, String> nodeOperatorStubIds;
 
     /**
      * Maps from a node connection URI to a pool of {@link ChannelStubs} that have been created for that URI.
@@ -144,94 +137,260 @@ public class HapiClients {
         stubSequences.putIfAbsent(channelUri, new AtomicInteger());
     }
 
-    private HapiClients(final List<NodeConnectInfo> nodes) {
-        this.nodes = nodes;
-        stubIds = nodes.stream().collect(Collectors.toMap(NodeConnectInfo::getAccount, NodeConnectInfo::uri));
-        tlsStubIds = nodes.stream().collect(Collectors.toMap(NodeConnectInfo::getAccount, NodeConnectInfo::tlsUri));
-        nodes.forEach(node -> {
+    private void ensureNodeOperatorChannelStubsInPool(@NonNull final HederaNode node) {
+        requireNonNull(node);
+        final var channelUri = uri(node.getHost(), node.getGrpcNodeOperatorPort());
+        final var existingPool = channelPools.computeIfAbsent(channelUri, COPY_ON_WRITE_LIST_SUPPLIER);
+        if (existingPool.size() < MAX_DESIRED_CHANNELS_PER_NODE) {
+            final var channel = createNettyChannel(false, node.getHost(), node.getGrpcNodeOperatorPort(), -1);
+            requireNonNull(channel, "FATAL: Cannot continue without additional Netty channel");
+            existingPool.add(ChannelStubs.from(
+                    channel,
+                    new NodeConnectInfo(node.hapiSpecInfo(
+                            node.getAccountId().shardNum(), node.getAccountId().realmNum())),
+                    false));
+        }
+        stubSequences.putIfAbsent(channelUri, new AtomicInteger());
+    }
+
+    public HapiClients(@NonNull final Supplier<List<NodeConnectInfo>> nodeInfosSupplier) {
+        this.nodes = Collections.emptyList();
+        this.nodeInfos = nodeInfosSupplier.get();
+        stubIds = nodeInfos.stream().collect(Collectors.toMap(NodeConnectInfo::getAccount, NodeConnectInfo::uri));
+        tlsStubIds = nodeInfos.stream().collect(Collectors.toMap(NodeConnectInfo::getAccount, NodeConnectInfo::tlsUri));
+        nodeOperatorStubIds = Collections.emptyMap();
+        nodeInfos.forEach(node -> {
             ensureChannelStubsInPool(node, false);
             ensureChannelStubsInPool(node, true);
         });
     }
 
+    private HapiClients(final List<HederaNode> nodes) {
+        this.nodes = nodes;
+        this.nodeInfos = Collections.emptyList();
+        stubIds = nodes.stream()
+                .collect(Collectors.toMap(
+                        n -> pbjToProto(n.getAccountId(), com.hedera.hapi.node.base.AccountID.class, AccountID.class),
+                        n -> uri(n.getHost(), n.getGrpcPort())));
+        tlsStubIds = Collections.emptyMap();
+        nodeOperatorStubIds = nodes.stream()
+                .collect(Collectors.toMap(
+                        n -> pbjToProto(n.getAccountId(), com.hedera.hapi.node.base.AccountID.class, AccountID.class),
+                        n -> uri(n.getHost(), n.getGrpcNodeOperatorPort())));
+        nodes.forEach(node -> {
+            ensureChannelStubsInPool(new NodeConnectInfo(node.hapiSpecInfo()), false);
+            ensureChannelStubsInPool(new NodeConnectInfo(node.hapiSpecInfo()), true);
+            ensureNodeOperatorChannelStubsInPool(node);
+        });
+    }
+
+    private String uri(String host, int port) {
+        return String.format("%s:%d", host, port);
+    }
+
     public static HapiClients clientsFor(HapiSpecSetup setup) {
-        return new HapiClients(setup.nodes());
+        return new HapiClients(setup::nodes);
     }
 
     public static HapiClients clientsFor(@NonNull final HederaNetwork network) {
         requireNonNull(network);
-        return new HapiClients(network.nodes().stream()
-                .map(HederaNode::hapiSpecInfo)
-                .map(NodeConnectInfo::new)
-                .toList());
+        return new HapiClients(network.nodes());
     }
 
-    public FileServiceBlockingStub getFileSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the FileService based on the provided parameters.
+     *
+     * This method obtains a stub from the pool, identified by the given AccountID,
+     * TLS usage, and node operator status. It sets a deadline for the stub's
+     * operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the FileService with a specified deadline
+     */
+    public FileServiceBlockingStub getFileSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .fileSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public TokenServiceBlockingStub getTokenSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the TokenService based on the provided parameters.
+     *
+     * This method obtains a stub from the pool, identified by the given AccountID,
+     * TLS usage, and node operator status. It sets a deadline for the stub's
+     * operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the TokenService with a specified deadline
+     */
+    public TokenServiceBlockingStub getTokenSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .tokenSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public AddressBookServiceBlockingStub getAddressBookSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the AddressBookService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous AddressBookService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the AddressBookService with a specified deadline
+     */
+    public AddressBookServiceBlockingStub getAddressBookSvcStub(
+            AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .addressBookSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public CryptoServiceBlockingStub getCryptoSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the CryptoService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous CryptoService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the CryptoService with a specified deadline
+     */
+    public CryptoServiceBlockingStub getCryptoSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .cryptoSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public FreezeServiceBlockingStub getFreezeSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the FreezeService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous FreezeService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the FreezeService with a specified deadline
+     */
+    public FreezeServiceBlockingStub getFreezeSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .freezeSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public SmartContractServiceBlockingStub getScSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the SmartContractService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous SmartContractService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the SmartContractService with a specified deadline
+     */
+    public SmartContractServiceBlockingStub getScSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .scSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public ConsensusServiceBlockingStub getConsSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the ConsensusService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous ConsensusService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the ConsensusService with a specified deadline
+     */
+    public ConsensusServiceBlockingStub getConsSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .consSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public NetworkServiceBlockingStub getNetworkSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the NetworkService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous NetworkService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the NetworkService with a specified deadline
+     */
+    public NetworkServiceBlockingStub getNetworkSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .networkSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public ScheduleServiceBlockingStub getScheduleSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the ScheduleService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous ScheduleService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the ScheduleService with a specified deadline
+     */
+    public ScheduleServiceBlockingStub getScheduleSvcStub(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .scheduleSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    public UtilServiceGrpc.UtilServiceBlockingStub getUtilSvcStub(AccountID nodeId, boolean useTls) {
-        return nextStubsFromPool(stubId(nodeId, useTls))
+    /**
+     * Retrieves a blocking stub for the UtilService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous UtilService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the UtilService with a specified deadline
+     */
+    public UtilServiceGrpc.UtilServiceBlockingStub getUtilSvcStub(
+            AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
                 .utilSvcStubs()
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
-    private String stubId(AccountID nodeId, boolean useTls) {
-        return useTls ? tlsStubIds.get(nodeId) : stubIds.get(nodeId);
+    private String stubId(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        if (useTls) {
+            return tlsStubIds.get(nodeId);
+        } else if (asNodeOperator) {
+            return nodeOperatorStubIds.get(nodeId);
+        } else {
+            return stubIds.get(nodeId);
+        }
     }
 
     private static synchronized ChannelStubs nextStubsFromPool(@NonNull final String stubId) {
-        requireNonNull(stubId);
+        requireNonNull(stubId, "HapiClients has no matching stub!");
         final List<ChannelStubs> stubs = channelPools.get(stubId);
         if (stubs == null || stubs.isEmpty()) {
             throw new IllegalArgumentException("Should have ensured at least one channel in pool");

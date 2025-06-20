@@ -1,30 +1,17 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,21 +23,24 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
     private static final Logger logger = LogManager.getLogger(DefaultSignedStateValidator.class);
 
     private final int hashDepth;
+    private final PlatformStateFacade platformStateFacade;
 
-    public DefaultSignedStateValidator(@NonNull final PlatformContext platformContext) {
+    public DefaultSignedStateValidator(
+            @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
         hashDepth = platformContext
                 .getConfiguration()
                 .getConfigData(StateConfig.class)
                 .debugHashDepth();
+        this.platformStateFacade = platformStateFacade;
     }
 
     /**
      * {@inheritDoc}
      */
     public void validate(
-            final SignedState signedState, final AddressBook addressBook, SignedStateValidationData previousStateData) {
+            final SignedState signedState, final Roster roster, SignedStateValidationData previousStateData) {
         throwIfOld(signedState, previousStateData);
-        signedState.pruneInvalidSignatures(addressBook);
+        signedState.pruneInvalidSignatures(roster);
         signedState.throwIfNotVerifiable();
     }
 
@@ -67,12 +57,9 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
     private void throwIfOld(final SignedState signedState, final SignedStateValidationData previousStateData)
             throws SignedStateInvalidException {
 
-        if (signedState.getState().getReadablePlatformState().getRound() < previousStateData.round()
-                || signedState
-                        .getState()
-                        .getReadablePlatformState()
-                        .getConsensusTimestamp()
-                        .isBefore(previousStateData.consensusTimestamp())) {
+        State state = signedState.getState();
+        if (platformStateFacade.roundOf(state) < previousStateData.round()
+                || platformStateFacade.consensusTimestampOf(state).isBefore(previousStateData.consensusTimestamp())) {
             logger.error(
                     EXCEPTION.getMarker(),
                     """
@@ -80,7 +67,7 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
                             {}
                             Original reconnect state:
                             {}""",
-                    signedState.getState().getInfoString(hashDepth),
+                    platformStateFacade.getInfoString(state, hashDepth),
                     previousStateData.getInfoString());
             throw new SignedStateInvalidException(("Received signed state is for a round smaller than or a "
                             + "consensus earlier than what we started with. Original round %d, received round %d. "

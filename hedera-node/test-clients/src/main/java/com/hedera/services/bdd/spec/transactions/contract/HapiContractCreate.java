@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.equivAccount;
@@ -31,7 +17,6 @@ import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractGetInfoResponse;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -39,10 +24,11 @@ import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
+import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.InvocationTargetException;
@@ -56,13 +42,13 @@ import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import org.hiero.base.utility.CommonUtils;
 
 public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreate> {
     static final Key DEPRECATED_CID_ADMIN_KEY = Key.newBuilder()
-            .setContractID(ContractID.newBuilder().setContractNum(1_234L))
+            .setContractID(ContractID.newBuilder().setShardNum(0).setRealmNum(0).setContractNum(1_234L))
             .build();
 
     public HapiContractCreate(String contract) {
@@ -83,13 +69,14 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     private Optional<String> autoRenewAccount = Optional.empty();
     private Optional<Integer> maxAutomaticTokenAssociations = Optional.empty();
     private Optional<ByteString> inlineInitcode = Optional.empty();
+    Optional<Consumer<ContractID>> newIdObserver = Optional.empty();
     private boolean convertableToEthCreate = true;
 
     @Nullable
     private BiConsumer<HapiSpec, ContractCreateTransactionBody.Builder> spec;
 
-    public HapiContractCreate exposingNumTo(LongConsumer obs) {
-        newNumObserver = Optional.of(obs);
+    public HapiContractCreate exposingContractIdTo(Consumer<ContractID> obs) {
+        newIdObserver = Optional.of(obs);
         return this;
     }
 
@@ -269,6 +256,7 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
         }
         final var newId = lastReceipt.getContractID();
         newNumObserver.ifPresent(obs -> obs.accept(newId.getContractNum()));
+        newIdObserver.ifPresent(obs -> obs.accept(newId));
         if (shouldAlsoRegisterAsAccount) {
             spec.registry().saveAccountId(contract, equivAccount(lastReceipt.getContractID()));
         }
@@ -279,8 +267,8 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
         if (advertiseCreation) {
             String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created contract '%s' with id '0.0.%d'.",
-                            contract, lastReceipt.getContractID().getContractNum()));
+                            "Created contract '%s' with id '%s'.",
+                            contract, asContractString(lastReceipt.getContractID())));
             log.info(banner);
         }
         if (gasObserver.isPresent()) {
@@ -376,6 +364,11 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
                                 b.setStakedNodeId(stakedNodeId.get());
                             }
                             b.setDeclineReward(isDeclinedReward);
+
+                            b.setRealmID(RealmID.newBuilder()
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm()));
+                            b.setShardID(ShardID.newBuilder().setShardNum(spec.shard()));
                         });
         return b -> b.setContractCreateInstance(opBody);
     }
@@ -451,10 +444,6 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
 
     public Optional<String> getCustomTxnId() {
         return customTxnId;
-    }
-
-    public Optional<AccountID> getNode() {
-        return node;
     }
 
     public OptionalDouble getUsdFee() {

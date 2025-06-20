@@ -54,4 +54,16 @@ interface IHederaAccountService {
         address account,
         bytes memory messageHash,
         bytes memory signature) external returns (bool response);
+
+    /// Determines if the signature is valid for the given message  and account.
+    /// It is assumed that the signature is composed of a possibly complex cryptographic key.
+    /// @param account The account to check the signature against.
+    /// @param message The message to check the signature against.
+    /// @param signature The signature to check encoded as bytes.
+    /// @return responseCode The response code for the status of the request.  SUCCESS is 22.
+    /// @return response True if the signature is valid, false otherwise.
+    function isAuthorized(
+        address account,
+        bytes memory message,
+        bytes memory signature) external returns (int64 responseCode, bool response);
 }

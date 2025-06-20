@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -34,7 +19,7 @@ public interface NetworkUtilizationManager {
      * @param txnInfo       - the transaction to use for updating the network utilization.
      * @param consensusTime - the consensus time of the transaction.
      * @param state         - the state of the node.
-     * @return
+     * @return whether the transaction was throttled
      */
     boolean trackTxn(
             @NonNull final TransactionInfo txnInfo, @NonNull final Instant consensusTime, @NonNull final State state);
@@ -63,16 +48,13 @@ public interface NetworkUtilizationManager {
     void leakUnusedGasPreviouslyReserved(@NonNull final TransactionInfo txnInfo, final long value);
 
     /**
-     * Updates the throttle requirements for the given transaction and returns whether the transaction
-     * should be throttled for the current time(Instant.now).
+     * Determines if the transaction should be throttled during transaction handling based on ops duration.
      *
-     * @param txnInfo the transaction to update the throttle requirements for
-     * @param state the current state of the node
-     * @param consensusTime the consensus time
+     * @param currentOpsDuration - the ops duration consumed by the transaction so far
+     * @param consensusTime - the consensus time
      * @return whether the transaction should be throttled
      */
-    boolean shouldThrottle(
-            @NonNull final TransactionInfo txnInfo, @NonNull final State state, @NonNull final Instant consensusTime);
+    boolean shouldThrottleByOpsDuration(final long currentOpsDuration, @NonNull final Instant consensusTime);
 
     /**
      * Verifies if the throttle in this operation context has enough capacity to handle the given number of the

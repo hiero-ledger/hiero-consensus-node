@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -34,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -96,8 +83,7 @@ class ClassicTransfersCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(systemContractOperations.activeSignatureTestWith(verificationStrategy))
-                .willReturn(signatureTest);
+        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
                         CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
@@ -129,8 +115,7 @@ class ClassicTransfersCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(systemContractOperations.activeSignatureTestWith(verificationStrategy))
-                .willReturn(signatureTest);
+        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
                         CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
@@ -140,7 +125,9 @@ class ClassicTransfersCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(asBytesResult(INT64_ENCODER.encodeElements((long) SUCCESS.protoOrdinal())), result.getOutput());
+        assertEquals(
+                asBytesResult(INT64_ENCODER.encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))),
+                result.getOutput());
     }
 
     @Test
@@ -155,8 +142,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(recordBuilder.status())
                 .willReturn(INVALID_SIGNATURE)
                 .willReturn(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
-        given(systemContractOperations.activeSignatureTestWith(verificationStrategy))
-                .willReturn(signatureTest);
+        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
                         CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
@@ -176,7 +162,8 @@ class ClassicTransfersCallTest extends CallTestBase {
     @Test
     void unsupportedV2transferHaltsWithNotSupportedReason() {
         givenV2SubjectWithV2Disabled();
-        given(systemContractOperations.externalizePreemptedDispatch(any(TransactionBody.class), eq(NOT_SUPPORTED)))
+        given(systemContractOperations.externalizePreemptedDispatch(
+                        any(TransactionBody.class), eq(NOT_SUPPORTED), eq(CRYPTO_TRANSFER)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(NOT_SUPPORTED);
 
@@ -192,7 +179,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(systemAccountCreditScreen.creditsToSystemAccount(CryptoTransferTransactionBody.DEFAULT))
                 .willReturn(true);
         given(systemContractOperations.externalizePreemptedDispatch(
-                        any(TransactionBody.class), eq(INVALID_RECEIVING_NODE_ACCOUNT)))
+                        any(TransactionBody.class), eq(INVALID_RECEIVING_NODE_ACCOUNT), eq(CRYPTO_TRANSFER)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_RECEIVING_NODE_ACCOUNT);
 
@@ -217,7 +204,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(
-                asBytesResult(INT64_ENCODER.encodeElements((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal())),
+                asBytesResult(
+                        INT64_ENCODER.encode(Tuple.singleton((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal()))),
                 result.getOutput());
     }
 

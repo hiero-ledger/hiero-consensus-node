@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_DELETED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
@@ -27,14 +13,16 @@ import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.AccountsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -46,20 +34,39 @@ import javax.inject.Singleton;
 public class NodeDeleteHandler implements TransactionHandler {
 
     @Inject
-    public NodeDeleteHandler() {}
+    public NodeDeleteHandler() {
+        // exists for injection
+    }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
+
         requireNonNull(txn);
-        final NodeDeleteTransactionBody transactionBody = txn.nodeDeleteOrThrow();
-        final long nodeId = transactionBody.nodeId();
+        final var op = txn.nodeDeleteOrThrow();
+        final long nodeId = op.nodeId();
 
         validateFalsePreCheck(nodeId < 0, INVALID_NODE_ID);
     }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        // Empty method
+        final var op = context.body().nodeDeleteOrThrow();
+        final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
+        final var nodeStore = context.createStore(ReadableNodeStore.class);
+        final var payerNum = context.payer().accountNum();
+
+        final var existingNode = nodeStore.get(op.nodeId());
+        validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
+        validateFalsePreCheck(existingNode.deleted(), NODE_DELETED);
+
+        // if payer is not one of the system admin, treasury or address book admin, check the admin key signature
+        if (payerNum != accountConfig.treasury()
+                && payerNum != accountConfig.systemAdmin()
+                && payerNum != accountConfig.addressBookAdmin()) {
+            context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
+        }
     }
 
     /**

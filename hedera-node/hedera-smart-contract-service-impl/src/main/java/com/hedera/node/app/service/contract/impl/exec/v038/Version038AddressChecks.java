@@ -1,24 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.v038;
+
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 
 import com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.v030.Version030AddressChecks;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import javax.inject.Inject;
@@ -34,19 +23,29 @@ import org.hyperledger.besu.evm.processor.AbstractMessageProcessor;
 @Singleton
 public class Version038AddressChecks extends Version030AddressChecks {
     private static final int FIRST_USER_ACCOUNT = 1_001;
+    private final EntityIdFactory entityIdFactory;
 
     @Inject
-    public Version038AddressChecks(@NonNull Map<Address, HederaSystemContract> systemContracts) {
+    public Version038AddressChecks(
+            @NonNull Map<Address, HederaSystemContract> systemContracts,
+            @NonNull final EntityIdFactory entityIdFactory) {
         super(systemContracts);
+        this.entityIdFactory = entityIdFactory;
     }
 
     @Override
     public boolean isSystemAccount(@NonNull final Address address) {
-        return address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS;
+        if (address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS) {
+            return true;
+        }
+        return isLongZero(address) && numberOfLongZero(address.toArray()) <= ProcessorModule.NUM_SYSTEM_ACCOUNTS;
     }
 
     @Override
     public boolean isNonUserAccount(@NonNull final Address address) {
-        return address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) < FIRST_USER_ACCOUNT;
+        if (address.numberOfLeadingZeroBytes() >= 18 && address.getInt(16) < FIRST_USER_ACCOUNT) {
+            return true;
+        }
+        return isLongZero(address) && numberOfLongZero(address.toArray()) < FIRST_USER_ACCOUNT;
     }
 }

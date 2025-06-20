@@ -1,86 +1,24 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.protocol;
 
-import com.swirlds.platform.network.Connection;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * A network protocol that run over a provided connection. The decision to run the protocol is made outside it, it can
- * only communicate its willingness to run through the provided interface. An instance of this class must be created per
- * peer.
+ * API for building network protocols
  */
-public interface Protocol extends ProtocolRunnable {
+public interface Protocol {
 
     /**
-     * Used to ask the protocol if we should initiate it. If this method returns true, one of two things will
-     * always subsequently happen:
-     * <ul>
-     *     <li>The initiate will be successful and {@link #runProtocol(Connection)} will be called</li>
-     *     <li>The initiate will fail and {@link #initiateFailed()} will be called</li>
-     * </ul>
-     *
-     * @return true iff we should we try and initiate this protocol with our peer
+     * Constructs an instance of a network protocol using the provided peerId
+     * @return a network protocol for connectivity over the bidirectional network
      */
-    boolean shouldInitiate();
+    PeerProtocol createPeerInstance(@NonNull final NodeId peerId);
 
     /**
-     * If this protocol returns true for {@link #shouldInitiate()} but negotiation fails prior to
-     * {@link #runProtocol(Connection)} being called then this method is invoked.
+     * Called from the wiring when platform status is changing
+     * @param status new platform status
      */
-    default void initiateFailed() {
-        // Override if needed
-    }
-
-    /**
-     * Our peer initiated this protocol, should we accept? If this method returns true, one of two things will
-     * always subsequently happen:
-     *
-     * <ul>
-     *     <li>The initiate will be successful and {@link #runProtocol(Connection)} will be called</li>
-     *     <li>The initiate will fail and {@link #acceptFailed()} ()} will be called</li>
-     * </ul>
-     *
-     * @return true if we should accept, false if we should reject
-     */
-    boolean shouldAccept();
-
-    /**
-     * If this protocol returns true for {@link #shouldAccept()} but negotiation fails prior to
-     * {@link #runProtocol(Connection)} being called then this method is invoked.
-     */
-    default void acceptFailed() {
-        // Override if needed
-    }
-
-    /**
-     * <p>
-     * If both sides initiated this protocol simultaneously, should we proceed with running the protocol?
-     * </p>
-     * <p>
-     * IMPORTANT: the value returned should remain consistent for a protocol, it should never change depending on the
-     * state of the instance.
-     * </p>
-     *
-     * @return true if we should run, false otherwise
-     */
-    boolean acceptOnSimultaneousInitiate();
-
-    /** @return a string name representing this protocol */
-    default String getProtocolName() {
-        return this.getClass().getSimpleName();
-    }
+    void updatePlatformStatus(@NonNull final PlatformStatus status);
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.stress;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,13 +8,16 @@ import java.util.Random;
  * Provides pre-generated random transactions.
  */
 final class TransactionPool {
+
+    public static final byte APPLICATION_TRANSACTION_MARKER = 1;
+
     /**
      * the array of transactions
      */
     private final byte[][] transactions;
 
     /**
-     * the standard psuedo-random number generator
+     * the standard pseudo-random number generator
      */
     private final Random random;
 
@@ -58,6 +46,9 @@ final class TransactionPool {
         for (int i = 0; i < transactions.length; i++) {
             final byte[] data = new byte[transactionSize];
             random.nextBytes(data);
+            // Add byte with value of 1 as a marker to indicate the start of an application transaction. This is used
+            // to later differentiate between application transactions and system transactions.
+            data[0] = APPLICATION_TRANSACTION_MARKER;
             transactions[i] = data;
         }
     }

@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.permits;
 
 import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -36,7 +21,9 @@ public class SyncPermitProvider {
     /**
      * The total number of available permits.
      */
-    private final int totalPermits;
+    private int totalPermits;
+
+    private final SyncConfig syncConfig;
 
     /**
      * The number of permits that are currently held by a sync operation.
@@ -101,7 +88,7 @@ public class SyncPermitProvider {
     /**
      * The minimum number of non-revoked permits while healthy. While unhealthy, the minimum number is always 0.
      */
-    private final int minimumUnrevokedPermitCount;
+    private int minimumUnrevokedPermitCount;
 
     /**
      * The metrics for this class.
@@ -117,14 +104,14 @@ public class SyncPermitProvider {
     public SyncPermitProvider(@NonNull final PlatformContext platformContext, final int totalPermits) {
         this.metrics = new SyncPermitMetrics(platformContext);
 
-        this.totalPermits = totalPermits;
         this.time = platformContext.getTime();
 
-        final SyncConfig syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
+        this.syncConfig = platformContext.getConfiguration().getConfigData(SyncConfig.class);
         permitsRevokedPerSecond = syncConfig.permitsRevokedPerSecond();
         permitsReturnedPerSecond = syncConfig.permitsReturnedPerSecond();
         unhealthyGracePeriod = syncConfig.unhealthyGracePeriod();
-        minimumUnrevokedPermitCount = Math.min(totalPermits, syncConfig.minimumHealthyUnrevokedPermitCount());
+
+        setTotalPermits(totalPermits);
 
         // We are healthy at startup time
         healthy = true;
@@ -277,5 +264,23 @@ public class SyncPermitProvider {
      */
     private void updateMetrics() {
         metrics.reportPermits(getAvailablePermits(), revokedPermits, usedPermits);
+    }
+
+    /**
+     * Modify number of total permits
+     * @param totalPermits new number of total permits
+     */
+    public synchronized void setTotalPermits(int totalPermits) {
+        this.totalPermits = totalPermits;
+        this.minimumUnrevokedPermitCount =
+                Math.min(Math.max(totalPermits, 1), syncConfig.minimumHealthyUnrevokedPermitCount());
+    }
+
+    /**
+     * Set total number of permits to previous number + passed difference
+     * @param permitsDifference positive to add permits, negative to remove permits
+     */
+    public synchronized void adjustTotalPermits(int permitsDifference) {
+        setTotalPermits(Math.max(0, totalPermits + permitsDifference));
     }
 }

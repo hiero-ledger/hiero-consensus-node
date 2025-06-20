@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.keys;
 
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0039.randomMnemonic;
@@ -22,21 +7,22 @@ import static com.hedera.services.yahcli.config.ConfigUtils.YAHCLI_LOGGING_CLASS
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
+import com.hedera.node.app.hapi.utils.keys.KeyUtils;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.config.ConfigUtils;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.base.utility.CommonUtils;
 import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "gen-new",
         subcommands = {picocli.CommandLine.HelpCommand.class},
-        description = "Generates a new key")
+        description = "Generates a new ED25519 key")
 public class NewPemCommand implements Callable<Integer> {
     @CommandLine.ParentCommand
     private KeysCommand keysCommand;
@@ -76,7 +62,7 @@ public class NewPemCommand implements Callable<Integer> {
         if (passphrase == null) {
             passphrase = TxnUtils.randomAlphaNumeric(12);
         }
-        Ed25519Utils.writeKeyTo(privateKey, loc, passphrase);
+        KeyUtils.writeKeyTo(privateKey, loc, passphrase);
         final var passLoc = loc.replace(".pem", ".pass");
         Files.writeString(Paths.get(passLoc), passphrase + "\n");
         final var wordsLoc = loc.replace(".pem", ".words");

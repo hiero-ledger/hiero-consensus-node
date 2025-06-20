@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -22,10 +7,10 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.internal.ConsensusRound;
+import com.swirlds.platform.eventhandling.StateWithHashComplexity;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
-import com.swirlds.platform.wiring.components.StateAndRound;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,13 +29,13 @@ public class DefaultStateHasherTests {
 
         // mock a state
         final SignedState signedState = mock(SignedState.class);
+        final MerkleNodeState merkleNodeState = mock(MerkleNodeState.class);
         final ReservedSignedState reservedSignedState = mock(ReservedSignedState.class);
         when(reservedSignedState.get()).thenReturn(signedState);
-
-        final StateAndRound stateAndRound = new StateAndRound(reservedSignedState, mock(ConsensusRound.class));
+        when(signedState.getState()).thenReturn(merkleNodeState);
 
         // do the test
-        final StateAndRound result = hasher.hashState(stateAndRound);
+        final ReservedSignedState result = hasher.hashState(new StateWithHashComplexity(reservedSignedState, 1));
         assertNotEquals(null, result, "The hasher should return a new StateAndRound");
     }
 }

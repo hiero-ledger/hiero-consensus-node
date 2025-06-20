@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.castBuilder;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -53,30 +39,32 @@ import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
-import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
+import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.info.NetworkInfo;
-import com.swirlds.state.spi.info.NodeInfo;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 /**
  * The {@link HandleContext} implementation.
@@ -107,6 +95,13 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     private final ThrottleAdviser throttleAdviser;
     private final FeeAccumulator feeAccumulator;
     private Map<AccountID, Long> dispatchPaidRewards;
+    private final DispatchMetadata dispatchMetaData;
+    private final TransactionChecker transactionChecker;
+    private final TransactionCategory transactionCategory;
+    // This is used to store the pre-handle results for the inner transactions
+    // in an atomic batch, null otherwise
+    @Nullable
+    private final List<PreHandleResult> preHandleResults;
 
     public DispatchHandleContext(
             @NonNull final Instant consensusNow,
@@ -130,7 +125,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final ChildDispatchFactory childDispatchLogic,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final ThrottleAdviser throttleAdviser,
-            @NonNull final FeeAccumulator feeAccumulator) {
+            @NonNull final FeeAccumulator feeAccumulator,
+            @NonNull final DispatchMetadata handleMetaData,
+            @NonNull final TransactionChecker transactionChecker,
+            @Nullable final List<PreHandleResult> preHandleResults,
+            @NonNull final TransactionCategory transactionCategory) {
         this.consensusNow = requireNonNull(consensusNow);
         this.creatorInfo = requireNonNull(creatorInfo);
         this.txnInfo = requireNonNull(transactionInfo);
@@ -155,6 +154,10 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.expiryValidator = new ExpiryValidatorImpl(this);
         this.dispatcher = requireNonNull(dispatcher);
         this.networkInfo = requireNonNull(networkInfo);
+        this.dispatchMetaData = requireNonNull(handleMetaData);
+        this.transactionChecker = requireNonNull(transactionChecker);
+        this.preHandleResults = preHandleResults;
+        this.transactionCategory = requireNonNull(transactionCategory);
     }
 
     @NonNull
@@ -176,8 +179,21 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     }
 
     @Override
-    public boolean tryToChargePayer(final long amount) {
-        return feeAccumulator.chargeNetworkFee(payerId, amount);
+    public boolean tryToCharge(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        return feeAccumulator.chargeFee(accountId, amount, null).networkFee() == amount;
+    }
+
+    @Override
+    public void refundBestEffort(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot charge negative amount " + amount);
+        }
+        feeAccumulator.refundFee(accountId, amount);
     }
 
     @NonNull
@@ -265,9 +281,16 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public TransactionKeys allKeysForTransaction(
             @NonNull final TransactionBody nestedTxn, @NonNull final AccountID payerForNested)
             throws PreCheckException {
-        dispatcher.dispatchPureChecks(nestedTxn);
+        final var nestedPureChecksContext = new PureChecksContextImpl(nestedTxn, dispatcher);
+        dispatcher.dispatchPureChecks(nestedPureChecksContext);
         final var nestedContext = new PreHandleContextImpl(
-                storeFactory.asReadOnly(), nestedTxn, payerForNested, configuration(), dispatcher);
+                storeFactory.asReadOnly(),
+                nestedTxn,
+                payerForNested,
+                configuration(),
+                dispatcher,
+                transactionChecker,
+                creatorInfo);
         try {
             dispatcher.dispatchPreHandle(nestedContext);
         } catch (final PreCheckException ignored) {
@@ -321,7 +344,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -330,7 +352,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 computeDispatchFeesAsTopLevel == ComputeDispatchFeesAsTopLevel.NO,
                 authorizer,
                 storeFactory.asReadOnly(),
-                consensusNow));
+                consensusNow,
+                shouldChargeForSigVerification(txBody) ? verifier : null,
+                shouldChargeForSigVerification(txBody)
+                        ? txnInfo.signatureMap().sigPair().size()
+                        : 0));
+    }
+
+    private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
+        // Certain batch transactions can trigger child transactions inside the batch itself. Such child transactions
+        // must be verified with the parent transaction's context instead of the signatures on the child transaction.
+        // We therefore need to differentiate contextual child transactions from the batch's submitted inner transaction
+        // bodies themselves, which we'll do by checking the transaction body for an included batch key.
+        return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
     @NonNull
@@ -349,100 +383,39 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         return txBody;
     }
 
-    @NonNull
     @Override
-    public <T> T dispatchPrecedingTransaction(
-            @NonNull final TransactionBody childTxnBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @Nullable final Predicate<Key> childCallback,
-            @NonNull final AccountID childSyntheticPayerId) {
-        requireNonNull(childTxnBody, "childTxnBody must not be null");
-        requireNonNull(recordBuilderClass, "recordBuilderClass must not be null");
-        requireNonNull(childSyntheticPayerId, "childSyntheticPayerId must not be null");
-
-        return dispatchForRecord(
-                childTxnBody,
-                recordBuilderClass,
-                childCallback,
-                childSyntheticPayerId,
-                ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER,
-                TransactionCategory.PRECEDING,
-                StreamBuilder.ReversingBehavior.IRREVERSIBLE,
-                true,
-                ConsensusThrottling.ON);
-    }
-
-    @NonNull
-    @Override
-    public <T> T dispatchRemovablePrecedingTransaction(
-            @NonNull final TransactionBody childTxBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @Nullable final Predicate<Key> childCallback,
-            final AccountID childSyntheticPayer,
-            @NonNull final ConsensusThrottling consensusThrottling) {
-        return dispatchForRecord(
-                childTxBody,
-                recordBuilderClass,
-                childCallback,
-                childSyntheticPayer,
-                ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER,
-                TransactionCategory.PRECEDING,
-                StreamBuilder.ReversingBehavior.REMOVABLE,
-                false,
-                consensusThrottling);
-    }
-
-    @NonNull
-    @Override
-    public <T> T dispatchChildTransaction(
-            @NonNull final TransactionBody childTxBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @Nullable final Predicate<Key> childCallback,
-            @NonNull final AccountID childSyntheticPayerId,
-            @NonNull final TransactionCategory childCategory,
-            @NonNull final ConsensusThrottling consensusThrottling) {
-        requireNonNull(childTxBody, "childTxBody must not be null");
-        requireNonNull(recordBuilderClass, "recordBuilderClass must not be null");
-        requireNonNull(childSyntheticPayerId, "childSyntheticPayerId must not be null");
-        requireNonNull(childCategory, "childCategory must not be null");
-
-        return dispatchForRecord(
-                childTxBody,
-                recordBuilderClass,
-                childCallback,
-                childSyntheticPayerId,
-                ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER,
-                childCategory,
-                StreamBuilder.ReversingBehavior.REVERSIBLE,
-                false,
-                consensusThrottling);
-    }
-
-    @NonNull
-    @Override
-    public <T> T dispatchRemovableChildTransaction(
-            @NonNull final TransactionBody childTxBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @Nullable final Predicate<Key> childCallback,
-            @NonNull final AccountID childSyntheticPayerId,
-            @NonNull final ExternalizedRecordCustomizer customizer,
-            @NonNull final ConsensusThrottling throttleStrategy) {
-        requireNonNull(childTxBody, "childTxBody must not be null");
-        requireNonNull(recordBuilderClass, "recordBuilderClass must not be null");
-        requireNonNull(childSyntheticPayerId, "childSyntheticPayerId must not be null");
-        requireNonNull(customizer, "customizer must not be null");
-        requireNonNull(throttleStrategy, "throttleStrategy must not be null");
-
-        return dispatchForRecord(
-                childTxBody,
-                recordBuilderClass,
-                childCallback,
-                childSyntheticPayerId,
-                customizer,
-                TransactionCategory.CHILD,
-                StreamBuilder.ReversingBehavior.REMOVABLE,
-                false,
-                throttleStrategy);
+    public <T extends StreamBuilder> T dispatch(@NonNull final DispatchOptions<T> options) {
+        requireNonNull(options);
+        PreHandleResult childPreHandleResult = null;
+        // If we have pre-computed pre-handle results for the inner transactions, pass them to the child
+        // dispatch instead of computing a synthetic pre-handle result for child dispatch.
+        if (options.category() == BATCH_INNER && preHandleResults != null && !preHandleResults.isEmpty()) {
+            childPreHandleResult = preHandleResults.removeFirst();
+        }
+        final var childDispatch = childDispatchFactory.createChildDispatch(
+                config,
+                stack,
+                storeFactory.asReadOnly(),
+                creatorInfo,
+                topLevelFunction,
+                throttleAdviser,
+                consensusNow,
+                blockRecordInfo,
+                options,
+                childPreHandleResult);
+        dispatchProcessor.processDispatch(childDispatch);
+        if (options.commitImmediately()) {
+            stack.commitTransaction(childDispatch.streamBuilder());
+        }
+        // This can be non-empty for SCHEDULED dispatches, if rewards are paid for the triggered transaction
+        final var paidStakingRewards = childDispatch.streamBuilder().getPaidStakingRewards();
+        if (!paidStakingRewards.isEmpty()) {
+            if (dispatchPaidRewards == null) {
+                dispatchPaidRewards = new LinkedHashMap<>();
+            }
+            paidStakingRewards.forEach(aa -> dispatchPaidRewards.put(aa.accountIDOrThrow(), aa.amount()));
+        }
+        return castBuilder(childDispatch.streamBuilder(), options.streamBuilderType());
     }
 
     @NonNull
@@ -463,44 +436,14 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         return dispatchPaidRewards == null ? emptyMap() : dispatchPaidRewards;
     }
 
-    private <T> T dispatchForRecord(
-            @NonNull final TransactionBody childTxBody,
-            @NonNull final Class<T> recordBuilderClass,
-            @Nullable final Predicate<Key> childVerifier,
-            @NonNull final AccountID syntheticPayer,
-            @NonNull final ExternalizedRecordCustomizer customizer,
-            @NonNull final TransactionCategory category,
-            @NonNull final RecordStreamBuilder.ReversingBehavior reversingBehavior,
-            final boolean commitStack,
-            @NonNull final ConsensusThrottling throttleStrategy) {
-        final var childDispatch = childDispatchFactory.createChildDispatch(
-                childTxBody,
-                childVerifier,
-                syntheticPayer,
-                category,
-                customizer,
-                reversingBehavior,
-                config,
-                stack,
-                storeFactory.asReadOnly(),
-                creatorInfo,
-                topLevelFunction,
-                throttleAdviser,
-                consensusNow,
-                blockRecordInfo,
-                throttleStrategy);
-        dispatchProcessor.processDispatch(childDispatch);
-        if (commitStack) {
-            stack.commitTransaction(childDispatch.recordBuilder());
-        }
-        // This can be non-empty for SCHEDULED dispatches, if rewards are paid for the triggered transaction
-        final var paidStakingRewards = childDispatch.recordBuilder().getPaidStakingRewards();
-        if (!paidStakingRewards.isEmpty()) {
-            if (dispatchPaidRewards == null) {
-                dispatchPaidRewards = new LinkedHashMap<>();
-            }
-            paidStakingRewards.forEach(aa -> dispatchPaidRewards.put(aa.accountIDOrThrow(), aa.amount()));
-        }
-        return castBuilder(childDispatch.recordBuilder(), recordBuilderClass);
+    @Override
+    public NodeInfo creatorInfo() {
+        return creatorInfo;
+    }
+
+    @NonNull
+    @Override
+    public DispatchMetadata dispatchMetadata() {
+        return dispatchMetaData;
     }
 }

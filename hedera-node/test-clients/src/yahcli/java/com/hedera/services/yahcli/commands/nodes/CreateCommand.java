@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.nodes;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
@@ -30,6 +16,11 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -88,32 +79,50 @@ public class CreateCommand implements Callable<Integer> {
             paramLabel = "path to the admin key to use")
     String adminKeyPath;
 
+    @CommandLine.Option(
+            names = "--declineRewards",
+            paramLabel = "trigger indicating the node should decline reward payments; false otherwise",
+            arity = "0..1",
+            defaultValue = "true",
+            fallbackValue = "true")
+    Boolean declineRewards;
+
+    @CommandLine.Option(
+            names = {"--grpcProxyEndpoint"},
+            paramLabel = "a web proxy endpoint for gRPC from non-gRPC clients, e.g. 10.0.0.1:50051,my.fqdn.com:50051")
+    String grpcProxyEndpoint;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
 
         validateAdminKeyLoc(adminKeyPath);
-        final var accountId = validatedAccountId(accountNum);
-        final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + accountId.getAccountNum());
+        final var accountId = Long.parseLong(accountNum);
+        final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + accountId);
         final var maybeFeeAccountKeyPath = feeAccountKeyFile.map(File::getPath).orElse(null);
         if (maybeFeeAccountKeyPath == null) {
-            COMMON_MESSAGES.warn("No key on disk for account 0.0." + accountId.getAccountNum()
+            COMMON_MESSAGES.warn("No key on disk for account " + accountId
                     + ", payer and admin key signatures must meet its signing requirements");
         }
 
         final var gossipCert = validatedX509Cert(
                 gossipCaCertificatePath, gossipCaCertificatePfxPath, gossipCaCertificatePfxAlias, yahcli);
+        // Throws if the cert is not valid
+        validatedX509Cert(hapiCertificatePath, null, null, yahcli);
+        final boolean parsedDeclineRewards = declineRewards == null || declineRewards;
         final var delegate = new CreateNodeSuite(
-                config.asSpecConfig(),
+                config,
                 accountId,
                 Optional.ofNullable(description).orElse(""),
                 asCsServiceEndpoints(gossipEndpoints),
                 asCsServiceEndpoints(serviceEndpoints),
                 gossipCert,
-                noThrowSha384HashOf(validatedX509Cert(hapiCertificatePath, null, null, yahcli)),
+                noThrowSha384HashOf(allBytesAt(Paths.get(hapiCertificatePath))),
                 adminKeyPath,
-                maybeFeeAccountKeyPath);
+                maybeFeeAccountKeyPath,
+                parsedDeclineRewards,
+                grpcProxyEndpoint == null ? null : asTypedServiceEndpoint(grpcProxyEndpoint));
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
@@ -124,6 +133,14 @@ public class CreateCommand implements Callable<Integer> {
         }
 
         return 0;
+    }
+
+    static byte[] allBytesAt(@NonNull final Path path) {
+        try {
+            return Files.readAllBytes(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void validateAdminKeyLoc(@NonNull final String adminKeyPath) {

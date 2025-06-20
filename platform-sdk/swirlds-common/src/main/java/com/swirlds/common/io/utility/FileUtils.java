@@ -1,27 +1,14 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.utility;
 
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemporaryDirectory;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.nio.file.Files.exists;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedOutputStream;
@@ -214,10 +201,17 @@ public final class FileUtils {
      *
      * @param directory the name of directory after it is renamed
      * @param operation an operation that writes to a directory
+     * @param configuration platform configuration
      */
-    public static void executeAndRename(@NonNull final Path directory, @NonNull final IOConsumer<Path> operation)
+    public static void executeAndRename(
+            @NonNull final Path directory,
+            @NonNull final IOConsumer<Path> operation,
+            @NonNull final Configuration configuration)
             throws IOException {
-        executeAndRename(directory, buildTemporaryDirectory(), operation);
+        requireNonNull(directory);
+        // don't null check operation as FileUtilsTests#executeAndRename expects IOException
+        requireNonNull(configuration);
+        executeAndRename(directory, buildTemporaryDirectory(configuration), operation);
     }
 
     /**

@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hedera.node.app.service.token.AliasUtils.isSerializedProtoKey;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -33,8 +17,6 @@ import com.hedera.node.app.service.token.AliasUtils;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.AutoCreationConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,8 +36,6 @@ public class TransferContextImpl implements TransferContext {
     private int numAutoCreations;
     private int numLazyCreations;
     private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
-    private final AutoCreationConfig autoCreationConfig;
-    private final LazyCreationConfig lazyCreationConfig;
     private final TokensConfig tokensConfig;
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
     private final List<AssessedCustomFee> assessedCustomFees = new ArrayList<>();
@@ -81,8 +61,6 @@ public class TransferContextImpl implements TransferContext {
         this.context = context;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.autoCreationConfig = context.configuration().getConfigData(AutoCreationConfig.class);
-        this.lazyCreationConfig = context.configuration().getConfigData(LazyCreationConfig.class);
         this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
@@ -105,8 +83,6 @@ public class TransferContextImpl implements TransferContext {
         this.syntheticBody = syntheticBody;
         this.accountStore = context.storeFactory().writableStore(WritableAccountStore.class);
         this.autoAccountCreator = new AutoAccountCreator(context);
-        this.autoCreationConfig = context.configuration().getConfigData(AutoCreationConfig.class);
-        this.lazyCreationConfig = context.configuration().getConfigData(LazyCreationConfig.class);
         this.tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         this.enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments =
                 enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
@@ -129,19 +105,14 @@ public class TransferContextImpl implements TransferContext {
         // if it is a serialized proto key, auto-create account
         if (AliasUtils.isOfEvmAddressSize(alias)) {
             // if it is an evm address create a hollow account
-            validateTrue(lazyCreationConfig.enabled(), NOT_SUPPORTED);
             numLazyCreations++;
         } else if (isSerializedProtoKey(alias)) {
-            validateTrue(autoCreationConfig.enabled(), NOT_SUPPORTED);
             numAutoCreations++;
         } else {
             // Only EVM addresses and key aliases are supported when creating a new account.
             throw new HandleException(INVALID_ALIAS_KEY);
         }
-        // if this auto creation is from a token transfer, check if auto creation from tokens is enabled
-        if (reqMaxAutoAssociations > 0) {
-            validateTrue(tokensConfig.autoCreationsIsEnabled(), NOT_SUPPORTED);
-        }
+
         // Keep the created account in the resolutions map
         final var createdAccount = autoAccountCreator.create(alias, reqMaxAutoAssociations);
         resolutions.put(alias, createdAccount);

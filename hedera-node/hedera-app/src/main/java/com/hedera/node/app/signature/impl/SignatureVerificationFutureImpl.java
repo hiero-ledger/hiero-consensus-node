@@ -1,35 +1,20 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
-import static com.swirlds.common.crypto.VerificationStatus.VALID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.crypto.VerificationStatus.VALID;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.TransactionSignature;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.hiero.base.crypto.TransactionSignature;
 
 /**
  * A {@link Future} that waits on a {@link TransactionSignature} to complete signature checks, and yields a
@@ -112,11 +97,6 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
         // Try to cancel the underlying future, if it exists. If the underlying Future doesn't exist, then we just skip
         // it. Best effort.
         canceled = true;
-        final var future = txSig.getFuture();
-        if (future != null) {
-            return future.cancel(mayInterruptIfRunning);
-        }
-
         return true;
     }
 
@@ -135,12 +115,7 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
      */
     @Override
     public boolean isDone() {
-        if (canceled) {
-            return true;
-        }
-
-        final var future = txSig.getFuture();
-        return future != null && future.isDone();
+        return true;
     }
 
     /**
@@ -153,7 +128,6 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
     @NonNull
     @Override
     public SignatureVerification get() throws InterruptedException, ExecutionException {
-        txSig.waitForFuture().get(); // Wait for the future to be assigned and completed
         return new SignatureVerificationImpl(key, evmAlias, txSig.getSignatureStatus() == VALID);
     }
 
@@ -168,22 +142,6 @@ public final class SignatureVerificationFutureImpl implements SignatureVerificat
     @Override
     public SignatureVerification get(long timeout, TimeUnit unit)
             throws InterruptedException, ExecutionException, TimeoutException {
-        final var deadline = System.currentTimeMillis() + unit.toMillis(timeout);
-        while (txSig.getFuture() == null) {
-            if (System.currentTimeMillis() > deadline) {
-                // If there was no time left, then TimeoutException
-                throw new TimeoutException("Timed out waiting for signature verification to complete");
-            } else {
-                // If there was time left, but we didn't yet have a Future on the TransactionSignature, then
-                // rather than blocking in a tight loop (like we do for "get"), we have to just wait a bit and
-                // check for timeout and try again. That way, we can still time out.
-                //noinspection BusyWait
-                Thread.sleep(1);
-            }
-        }
-
-        // Wait for the future to complete
-        txSig.getFuture().get(deadline - System.currentTimeMillis(), TimeUnit.MILLISECONDS);
         return new SignatureVerificationImpl(key, evmAlias, txSig.getSignatureStatus() == VALID);
     }
 }

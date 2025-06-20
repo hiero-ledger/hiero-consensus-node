@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * This package contains the {@link com.swirlds.logging.api.extensions.provider.LogProvider} extension. This extension
  * allows to create custom logging providers that can be used to provide logging events to the logging system. Examples

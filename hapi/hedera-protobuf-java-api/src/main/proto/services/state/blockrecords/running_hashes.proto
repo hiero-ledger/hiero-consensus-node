@@ -1,0 +1,48 @@
+/**
+ * # Running Hashes
+ * The running hash values for the record stream, including current and
+ * three(3) previous values.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * The running hash of transaction records and the previous `3` running hashes.
+ *
+ * All hashes are 48 byte SHA384 hash values. If the running hashes do not
+ * exist yet (for example, at genesis) then each not-yet-available value SHALL
+ * be empty (zero-length) bytes.
+ */
+message RunningHashes {
+    /**
+     * A running hash of all record stream items.
+     */
+    bytes running_hash = 1;
+
+    /**
+     * The previous running hash of all record stream items.
+     */
+    bytes n_minus_1_running_hash = 2;
+
+    /**
+     * The previous, previous running hash of all record stream items.
+     */
+    bytes n_minus_2_running_hash = 3;
+
+    /**
+     * The previous, previous, previous running hash of all record stream items.
+     */
+    bytes n_minus_3_running_hash = 4;
+}

@@ -1,34 +1,16 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config.legacy;
 
+import static com.swirlds.base.utility.FileSystemUtils.waitForPathPresence;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.CommonUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.system.address.AddressBookUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.ParseException;
 import java.util.Arrays;
@@ -37,12 +19,14 @@ import java.util.Objects;
 import java.util.Scanner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Loader that load all properties form the config.txt file
  *
  * @deprecated will be replaced by the {@link com.swirlds.config.api.Configuration} API in near future once the
- * onfig.txt has been migrated to the regular config API. If you need to use this class please try to do as less static
+ * config.txt has been migrated to the regular config API. If you need to use this class please try to do as less static
  * access as possible.
  */
 @Deprecated(forRemoval = true)
@@ -50,8 +34,6 @@ public final class LegacyConfigPropertiesLoader {
 
     private static final String APP_PROPERTY_NAME = "app";
     private static final String ADDRESS_PROPERTY_NAME = "address";
-    private static final String NEXT_NODE_ID_PROPERTY_NAME = "nextNodeId";
-    private static final String NEXT_NODE_ID_PROPERTY_NAME_LOWERCASE = "nextnodeid";
     private static final String SWIRLD_PROPERTY_NAME = "swirld";
 
     public static final String ERROR_CONFIG_TXT_NOT_FOUND_BUT_EXISTS =
@@ -59,7 +41,7 @@ public final class LegacyConfigPropertiesLoader {
     public static final String ERROR_MORE_THAN_ONE_APP =
             "config.txt had more than one line starting with 'app'. All but the last will be ignored.";
     public static final String ERROR_NO_PARAMETER = "%s needs a parameter";
-    public static final String ERROR_ADDRESS_NOT_ENOUGH_PARAMETERS = "'address' needs a minimum of 7 parameters";
+    public static final String ERROR_ADDRESS_COULD_NOT_BE_PARSED = "'address' could not be parsed";
     public static final String ERROR_PROPERTY_NOT_KNOWN =
             "'%s' in config.txt isn't a recognized first parameter for a line";
     public static final String ERROR_NEXT_NODE_NOT_GREATER_THAN_HIGHEST_ADDRESS =
@@ -69,14 +51,14 @@ public final class LegacyConfigPropertiesLoader {
     private LegacyConfigPropertiesLoader() {}
 
     /**
-     * @throws NullPointerException in case {@code configPath} parameter is {@code null}
+     * @throws NullPointerException   in case {@code configPath} parameter is {@code null}
      * @throws ConfigurationException in case {@code configPath} cannot be found in the system
      */
     public static LegacyConfigProperties loadConfigFile(@NonNull final Path configPath) throws ConfigurationException {
         Objects.requireNonNull(configPath, "configPath must not be null");
 
         // Load config.txt file, parse application jar file name, main class name, address book, and parameters
-        if (!Files.exists(configPath)) {
+        if (!waitForPathPresence(configPath)) {
             throw new ConfigurationException(
                     "ERROR: Configuration file not found: %s".formatted(configPath.toString()));
         }
@@ -85,7 +67,6 @@ public final class LegacyConfigPropertiesLoader {
 
         try (final Scanner scanner = new Scanner(configPath, StandardCharsets.UTF_8)) {
             final AddressBook addressBook = new AddressBook();
-            boolean nextNodeIdParsed = false;
             long lineNumber = 0;
             while (scanner.hasNextLine()) {
                 final String line = readNextLine(scanner);
@@ -102,8 +83,8 @@ public final class LegacyConfigPropertiesLoader {
                         pars[i] = parsOriginalCase[i].toLowerCase(Locale.ENGLISH);
                     }
                     switch (pars[0]) {
-                        case SWIRLD_PROPERTY_NAME -> setSwirldName(
-                                configurationProperties, lineParameters.length, parsOriginalCase[1]);
+                        case SWIRLD_PROPERTY_NAME ->
+                            setSwirldName(configurationProperties, lineParameters.length, parsOriginalCase[1]);
                         case APP_PROPERTY_NAME -> {
                             if (configurationProperties.appConfig().isPresent()) {
                                 onError(ERROR_MORE_THAN_ONE_APP);
@@ -119,39 +100,23 @@ public final class LegacyConfigPropertiesLoader {
                                     addressBook.add(address);
                                 }
                             } catch (final ParseException ex) {
-                                logger.error(
-                                        EXCEPTION.getMarker(),
-                                        "file {}, line {}, offset {}: {}",
-                                        configPath,
-                                        lineNumber,
-                                        ex.getErrorOffset(),
-                                        ex.getMessage());
-                                onError(ERROR_ADDRESS_NOT_ENOUGH_PARAMETERS);
+                                // if we fail to parse address, we must abort since otherwise node starts with subset
+                                // of node keys and fails to join the network eventually.
+                                throw new ConfigurationException(
+                                        String.format(
+                                                "%s [line: %d]: %s",
+                                                ERROR_ADDRESS_COULD_NOT_BE_PARSED, lineNumber, line),
+                                        ex);
                             }
                         }
-                        case NEXT_NODE_ID_PROPERTY_NAME_LOWERCASE -> {
-                            try {
-                                if (!parsOriginalCase[0].equals(AddressBookUtils.NEXT_NODE_ID_KEYWORD)) {
-                                    onError(ERROR_PROPERTY_NOT_KNOWN.formatted(pars[0]));
-                                } else {
-                                    final NodeId nextNodeId = new NodeId(Long.parseLong(pars[1]));
-                                    if (nextNodeId.compareTo(addressBook.getNextNodeId()) < 0) {
-                                        onError(ERROR_NEXT_NODE_NOT_GREATER_THAN_HIGHEST_ADDRESS);
-                                    }
-                                    addressBook.setNextNodeId(nextNodeId);
-                                    nextNodeIdParsed = true;
-                                }
-                            } catch (final NumberFormatException ex) {
-                                onError(ERROR_NO_PARAMETER.formatted(NEXT_NODE_ID_PROPERTY_NAME));
-                            }
+                        case "nextnodeid" -> {
+                            // As of release 0.56, nextNodeId is not used and ignored.
+                            // CI/CD pipelines need to be updated to remove this field from files.
+                            // Future Work: remove this case when nextNodeId is no longer present in CI/CD pipelines.
                         }
                         default -> onError(ERROR_PROPERTY_NOT_KNOWN.formatted(pars[0]));
                     }
                 }
-            }
-            if (!nextNodeIdParsed) {
-                onError(ERROR_NO_PARAMETER.formatted(NEXT_NODE_ID_PROPERTY_NAME));
-                throw new ConfigurationException("config.txt did not have a `nextNodeId` property. (Case Sensitive)");
             }
             if (addressBook.getSize() > 0) {
                 configurationProperties.setAddressBook(addressBook);

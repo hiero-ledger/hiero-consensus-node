@@ -181,8 +181,21 @@
           "opsPerSec": 0,
           "milliOpsPerSec": 1000000000,
           "operations": [
-            "CryptoGetAccountBalance",
             "TransactionGetReceipt"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "BalanceQueryLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000000,
+          "operations": [
+            "CryptoGetAccountBalance"
           ]
         }
       ]

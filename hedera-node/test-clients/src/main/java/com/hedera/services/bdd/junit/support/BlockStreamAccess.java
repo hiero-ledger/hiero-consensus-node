@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
+import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
 import static java.util.Comparator.comparing;
 
 import com.hedera.hapi.block.stream.Block;
@@ -56,9 +42,6 @@ public enum BlockStreamAccess {
     BLOCK_STREAM_ACCESS;
 
     private static final Logger log = LogManager.getLogger(BlockStreamAccess.class);
-
-    private static final String UNCOMPRESSED_FILE_EXT = ".blk";
-    private static final String COMPRESSED_FILE_EXT = UNCOMPRESSED_FILE_EXT + ".gz";
 
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
@@ -206,7 +189,7 @@ public enum BlockStreamAccess {
     private Block blockFrom(@NonNull final Path path) {
         final var fileName = path.getFileName().toString();
         try {
-            if (fileName.endsWith(COMPRESSED_FILE_EXT)) {
+            if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
                     return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
                 }
@@ -227,23 +210,74 @@ public enum BlockStreamAccess {
     }
 
     private static boolean isBlockFile(@NonNull final Path path) {
-        return path.toFile().isFile() && extractBlockNumber(path) != -1;
+        if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
+            return false;
+        }
+        final var name = path.getFileName().toString();
+        if (name.endsWith(".pnd.json")) {
+            return false;
+        }
+        // Check for marker file
+        final var markerFile =
+                path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf"));
+        if (Files.exists(markerFile)) {
+            return true;
+        }
+        if (name.endsWith(".pnd")) {
+            return Files.exists(path.resolveSibling(name + ".json"));
+        } else if (name.endsWith(".pnd.gz")) {
+            return Files.exists(path.resolveSibling(name.replace(".gz", ".json")));
+        }
+        return false;
     }
 
-    private static long extractBlockNumber(@NonNull final Path path) {
+    /**
+     * Extracts the block number from the given path.
+     *
+     * @param path the path
+     * @return the block number
+     */
+    public static long extractBlockNumber(@NonNull final Path path) {
         return extractBlockNumber(path.getFileName().toString());
     }
 
+    /**
+     * Checks if the given file is a block file.
+     *
+     * @param file the file
+     * @return true if the file is a block file, false otherwise
+     */
     public static boolean isBlockFile(@NonNull final File file) {
         return file.isFile() && extractBlockNumber(file.getName()) != -1;
     }
 
-    private static long extractBlockNumber(@NonNull final String fileName) {
+    /**
+     * Extracts the block number from the given file name.
+     *
+     * @param fileName the file name
+     * @return the block number, or -1 if it cannot be extracted
+     */
+    public static long extractBlockNumber(@NonNull final String fileName) {
         try {
-            final var blockNumber = fileName.substring(0, fileName.indexOf(UNCOMPRESSED_FILE_EXT));
-            return Long.parseLong(blockNumber);
+            int i = fileName.indexOf(".blk");
+            if (i == -1) {
+                i = fileName.indexOf(".pnd");
+            }
+            return Long.parseLong(fileName.substring(0, i));
         } catch (Exception ignore) {
         }
         return -1;
+    }
+
+    /**
+     * Checks if the given file is a block marker file.
+     *
+     * @param file the file
+     * @return true if the file is a block marker file, false otherwise
+     */
+    public static boolean isBlockMarkerFile(@NonNull final File file) {
+        return file.isFile()
+                && file.getName().endsWith(".mf")
+                && !file.getName().contains(SIDECAR_ONLY_TOKEN);
     }
 }

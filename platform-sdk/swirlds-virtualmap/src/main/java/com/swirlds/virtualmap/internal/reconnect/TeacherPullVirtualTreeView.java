@@ -1,29 +1,12 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -41,8 +24,11 @@ import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
@@ -75,7 +61,12 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * This latch counts down when the view is fully initialized and ready for use.
      */
-    private final CountDownLatch ready = new CountDownLatch(1);
+    private final CountDownLatch readyLatch = new CountDownLatch(1);
+
+    /**
+     * Indicates whether this teacher view is ready after {@link #readyLatch} is released.
+     */
+    private final AtomicBoolean ready = new AtomicBoolean(false);
 
     /**
      * Create a new {@link TeacherPullVirtualTreeView}.
@@ -94,14 +85,18 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
             final ReconnectConfig reconnectConfig,
             final VirtualRootNode<K, V> root,
             final VirtualStateAccessor state,
-            final VirtualPipeline pipeline) {
+            final VirtualPipeline<K, V> pipeline) {
         // There is no distinction between originalState and reconnectState in this implementation
         super(root, state, state);
         this.reconnectConfig = reconnectConfig;
         new ThreadConfiguration(threadManager)
                 .setRunnable(() -> {
-                    records = pipeline.detachCopy(root);
-                    ready.countDown();
+                    try {
+                        records = pipeline.pausePipelineAndRun("copy", root::detach);
+                        ready.set(true);
+                    } finally {
+                        readyLatch.countDown();
+                    }
                 })
                 .setComponent("virtualmap")
                 .setThreadName("detacher")
@@ -171,7 +166,10 @@ public final class TeacherPullVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public void waitUntilReady() throws InterruptedException {
-        ready.await();
+        readyLatch.await();
+        if (!ready.get()) {
+            throw new RuntimeException("Failed to wait until teacher view is ready");
+        }
     }
 
     /**

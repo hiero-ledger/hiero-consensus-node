@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
@@ -24,6 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE;
@@ -36,6 +23,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
@@ -72,6 +65,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
@@ -118,7 +112,7 @@ public class BlockTransactionalUnitTranslator {
     /**
      * The base translator used to create the {@link SingleTransactionRecord}s.
      */
-    private final BaseTranslator baseTranslator = new BaseTranslator();
+    private final BaseTranslator baseTranslator;
     /**
      * The translators used to translate the block transaction parts for a logical HAPI transaction.
      */
@@ -175,8 +169,23 @@ public class BlockTransactionalUnitTranslator {
                     put(TOKEN_UNPAUSE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_UPDATE, new TokenUpdateTranslator());
                     put(UTIL_PRNG, new UtilPrngTranslator());
+                    put(ATOMIC_BATCH, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HINTS_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CRS_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HINTS_PARTIAL_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HINTS_PREPROCESSING_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HISTORY_PROOF_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HISTORY_ASSEMBLY_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HISTORY_PROOF_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
+
+    /**
+     * Constructs a new {@link BlockTransactionalUnitTranslator}.
+     */
+    public BlockTransactionalUnitTranslator() {
+        baseTranslator = new BaseTranslator();
+    }
 
     /**
      * Scans a block for genesis information and returns true if found.
@@ -195,6 +204,7 @@ public class BlockTransactionalUnitTranslator {
     public List<SingleTransactionRecord> translate(@NonNull final BlockTransactionalUnit unit) {
         requireNonNull(unit);
         baseTranslator.prepareForUnit(unit);
+        final List<TraceData> followingTraces = new LinkedList<>(unit.allTraces());
         final List<StateChange> remainingStateChanges = new LinkedList<>(unit.stateChanges());
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
@@ -202,11 +212,16 @@ public class BlockTransactionalUnitTranslator {
             if (translator == null) {
                 log.warn("No translator found for functionality {}, skipping", blockTransactionParts.functionality());
             } else {
-                final var translation =
-                        translator.translate(blockTransactionParts, baseTranslator, remainingStateChanges);
+                if (blockTransactionParts.hasTraces()) {
+                    // Remove the traces that are part of this transaction from the following traces
+                    followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
+                }
+                final var translation = translator.translate(
+                        blockTransactionParts, baseTranslator, remainingStateChanges, followingTraces);
                 translatedRecords.add(translation);
             }
         }
+        baseTranslator.finishLastUnit();
         return translatedRecords;
     }
 }

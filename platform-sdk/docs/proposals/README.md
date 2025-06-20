@@ -128,7 +128,7 @@ to `Withdrawn` and closed.
 
 ## Delivery of A Proposal
 
-Once an accepted proposal has been completely implemented, tested, the code merged into `develop`, and the feature is
+Once an accepted proposal has been completely implemented, tested, the code merged into `main`, and the feature is
 planned to be enabled for production, the proposal's content should be merged with the documentation of the platform
 in `platform-sdk/docs` (or other relevant location such as `module-info.java`), as applicable, and removed
 from `platform-sdk/docs/proposals`. Once the feature is live on mainnet, the status of the proposal PR in the proposal

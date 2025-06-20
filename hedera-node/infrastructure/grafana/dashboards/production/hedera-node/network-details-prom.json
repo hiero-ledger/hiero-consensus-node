@@ -943,7 +943,7 @@
         "type": "prometheus",
         "uid": "${Datasource}"
       },
-      "description": "Average CPU utlization",
+      "description": "Average CPU utilization",
       "fieldConfig": {
         "defaults": {
           "color": {

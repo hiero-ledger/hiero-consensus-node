@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -146,7 +131,7 @@ public class TokenAirdropBase {
      *
      * @return array of operations
      */
-    protected static SpecOperation[] setUpTokensAndAllReceivers() {
+    public static SpecOperation[] setUpTokensAndAllReceivers() {
         var nftSupplyKey = "nftSupplyKey";
         final var t = new ArrayList<SpecOperation>(List.of(
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
@@ -281,8 +266,8 @@ public class TokenAirdropBase {
 
                 // all collectors exempt setup
                 cryptoCreate(NFT_ALL_COLLECTORS_EXEMPT_OWNER),
-                cryptoCreate(NFT_ALL_COLLECTORS_EXEMPT_RECEIVER),
-                cryptoCreate(NFT_ALL_COLLECTORS_EXEMPT_COLLECTOR),
+                cryptoCreate(NFT_ALL_COLLECTORS_EXEMPT_RECEIVER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(NFT_ALL_COLLECTORS_EXEMPT_COLLECTOR).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(NFT_ALL_COLLECTORS_EXEMPT_KEY),
                 tokenCreate(NFT_ALL_COLLECTORS_EXEMPT_TOKEN)
                         .maxSupply(100L)
@@ -302,8 +287,9 @@ public class TokenAirdropBase {
                         .withCustom(royaltyFeeWithFallback(
                                 1, 2, fixedHbarFeeInheritingRoyaltyCollector(1), NFT_ALL_COLLECTORS_EXEMPT_RECEIVER)),
                 tokenAssociate(NFT_ALL_COLLECTORS_EXEMPT_OWNER, NFT_ALL_COLLECTORS_EXEMPT_TOKEN),
+                tokenAssociate(NFT_ALL_COLLECTORS_EXEMPT_RECEIVER, NFT_ALL_COLLECTORS_EXEMPT_TOKEN),
                 cryptoCreate(FT_ALL_COLLECTORS_EXEMPT_OWNER),
-                cryptoCreate(FT_ALL_COLLECTORS_EXEMPT_RECEIVER),
+                cryptoCreate(FT_ALL_COLLECTORS_EXEMPT_RECEIVER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(FT_ALL_COLLECTORS_EXEMPT_COLLECTOR).balance(0L),
                 tokenCreate(FT_ALL_COLLECTORS_EXEMPT_TOKEN)
                         .initialSupply(100L)
@@ -313,7 +299,8 @@ public class TokenAirdropBase {
                         .withCustom(fixedHbarFee(100, FT_ALL_COLLECTORS_EXEMPT_COLLECTOR, true))
                         // set the receiver as a custom fee collector
                         .withCustom(fixedHbarFee(100, FT_ALL_COLLECTORS_EXEMPT_RECEIVER)),
-                tokenAssociate(FT_ALL_COLLECTORS_EXEMPT_OWNER, FT_ALL_COLLECTORS_EXEMPT_TOKEN)));
+                tokenAssociate(FT_ALL_COLLECTORS_EXEMPT_OWNER, FT_ALL_COLLECTORS_EXEMPT_TOKEN),
+                tokenAssociate(FT_ALL_COLLECTORS_EXEMPT_RECEIVER, FT_ALL_COLLECTORS_EXEMPT_TOKEN)));
 
         // mint 99 NFTs
         for (int i = 0; i < 99; i++) {

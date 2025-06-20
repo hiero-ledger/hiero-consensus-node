@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -43,32 +28,30 @@ public class FeeScheduleUpdateWaiverTest {
     final Stream<DynamicTest> feeScheduleControlAccountIsntCharged() {
         ResponseCodeEnum[] acceptable = {SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED};
 
-        return defaultHapiSpec("FeeScheduleControlAccountIsntCharged")
-                .given(
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, FEE_SCHEDULE_CONTROL, 1_000_000_000_000L)),
-                        balanceSnapshot("pre", FEE_SCHEDULE_CONTROL),
-                        getFileContents(FEE_SCHEDULE).in4kChunks(true).saveTo("feeSchedule.bin"))
-                .when(
-                        fileUpdate(FEE_SCHEDULE)
-                                .hasKnownStatusFrom(acceptable)
-                                .payingWith(FEE_SCHEDULE_CONTROL)
-                                .path(Path.of("./", "part0-feeSchedule.bin").toString()),
-                        fileAppend(FEE_SCHEDULE)
-                                .hasKnownStatusFrom(acceptable)
-                                .payingWith(FEE_SCHEDULE_CONTROL)
-                                .path(Path.of("./", "part1-feeSchedule.bin").toString()),
-                        fileAppend(FEE_SCHEDULE)
-                                .hasKnownStatusFrom(acceptable)
-                                .payingWith(FEE_SCHEDULE_CONTROL)
-                                .path(Path.of("./", "part2-feeSchedule.bin").toString()),
-                        fileAppend(FEE_SCHEDULE)
-                                .hasKnownStatusFrom(acceptable)
-                                .payingWith(FEE_SCHEDULE_CONTROL)
-                                .path(Path.of("./", "part3-feeSchedule.bin").toString()),
-                        fileAppend(FEE_SCHEDULE)
-                                .hasKnownStatusFrom(acceptable)
-                                .payingWith(FEE_SCHEDULE_CONTROL)
-                                .path(Path.of("./", "part4-feeSchedule.bin").toString()))
-                .then(getAccountBalance(FEE_SCHEDULE_CONTROL).hasTinyBars(changeFromSnapshot("pre", 0)));
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FEE_SCHEDULE_CONTROL, 1_000_000_000_000L)),
+                balanceSnapshot("pre", FEE_SCHEDULE_CONTROL),
+                getFileContents(FEE_SCHEDULE).in4kChunks(true).saveTo("feeSchedule.bin"),
+                fileUpdate(FEE_SCHEDULE)
+                        .hasKnownStatusFrom(acceptable)
+                        .payingWith(FEE_SCHEDULE_CONTROL)
+                        .path(Path.of("./", "part0-feeSchedule.bin").toString()),
+                fileAppend(FEE_SCHEDULE)
+                        .hasKnownStatusFrom(acceptable)
+                        .payingWith(FEE_SCHEDULE_CONTROL)
+                        .path(Path.of("./", "part1-feeSchedule.bin").toString()),
+                fileAppend(FEE_SCHEDULE)
+                        .hasKnownStatusFrom(acceptable)
+                        .payingWith(FEE_SCHEDULE_CONTROL)
+                        .path(Path.of("./", "part2-feeSchedule.bin").toString()),
+                fileAppend(FEE_SCHEDULE)
+                        .hasKnownStatusFrom(acceptable)
+                        .payingWith(FEE_SCHEDULE_CONTROL)
+                        .path(Path.of("./", "part3-feeSchedule.bin").toString()),
+                fileAppend(FEE_SCHEDULE)
+                        .hasKnownStatusFrom(acceptable)
+                        .payingWith(FEE_SCHEDULE_CONTROL)
+                        .path(Path.of("./", "part4-feeSchedule.bin").toString()),
+                getAccountBalance(FEE_SCHEDULE_CONTROL).hasTinyBars(changeFromSnapshot("pre", 0)));
     }
 }

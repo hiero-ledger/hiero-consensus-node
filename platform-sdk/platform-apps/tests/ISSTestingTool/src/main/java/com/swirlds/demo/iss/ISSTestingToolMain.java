@@ -1,37 +1,28 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.iss;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.State;
-import com.swirlds.platform.system.BasicSoftwareVersion;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.IssListener;
-import com.swirlds.platform.system.state.notifications.IssNotification;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.notification.IssNotification;
 
 /**
  * An application that can be made to ISS in controllable ways.
@@ -41,11 +32,28 @@ import org.apache.logging.log4j.Logger;
  * peers stop gossiping. Therefore, we can validate that a scheduled log error doesn't occur, due to consensus coming to
  * a halt, even if an ISS isn't detected.
  */
-public class ISSTestingToolMain implements SwirldMain {
+public class ISSTestingToolMain implements SwirldMain<ISSTestingToolState> {
 
     private static final Logger logger = LogManager.getLogger(ISSTestingToolMain.class);
 
-    private static final BasicSoftwareVersion softwareVersion = new BasicSoftwareVersion(1);
+    private static final SemanticVersion semanticVersion =
+            SemanticVersion.newBuilder().major(1).build();
+
+    static {
+        try {
+            logger.info(STARTUP.getMarker(), "Registering ISSTestingToolState with ConstructableRegistry");
+            ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
+            constructableRegistry.registerConstructable(new ClassConstructorPair(ISSTestingToolState.class, () -> {
+                ISSTestingToolState issTestingToolState = new ISSTestingToolState();
+                return issTestingToolState;
+            }));
+            registerMerkleStateRootClassIds();
+            logger.info(STARTUP.getMarker(), "ISSTestingToolState is registered with ConstructableRegistry");
+        } catch (ConstructableRegistryException e) {
+            logger.error(STARTUP.getMarker(), "Failed to register ISSTestingToolState", e);
+            throw new RuntimeException(e);
+        }
+    }
 
     private Platform platform;
 
@@ -89,18 +97,23 @@ public class ISSTestingToolMain implements SwirldMain {
      */
     @Override
     @NonNull
-    public MerkleRoot newMerkleStateRoot() {
-        final State state = new State();
-        state.setSwirldState(new ISSTestingToolState());
+    public ISSTestingToolState newStateRoot() {
+        final ISSTestingToolState state = new ISSTestingToolState();
+        TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
+    }
+
+    @Override
+    public ConsensusStateEventHandler<ISSTestingToolState> newConsensusStateEvenHandler() {
+        return new ISSTestingToolConsensusStateEventHandler();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public BasicSoftwareVersion getSoftwareVersion() {
-        return softwareVersion;
+    public SemanticVersion getSemanticVersion() {
+        return semanticVersion;
     }
 
     /**
@@ -110,5 +123,10 @@ public class ISSTestingToolMain implements SwirldMain {
     @Override
     public List<Class<? extends Record>> getConfigDataTypes() {
         return List.of(ISSTestingToolConfig.class);
+    }
+
+    @Override
+    public Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction transaction) {
+        return StateSignatureTransaction.PROTOBUF.toBytes(transaction);
     }
 }

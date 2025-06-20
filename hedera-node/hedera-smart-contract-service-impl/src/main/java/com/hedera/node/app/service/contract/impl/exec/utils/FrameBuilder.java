@@ -1,26 +1,17 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.streams.SidecarType.CONTRACT_ACTION;
+import static com.hedera.hapi.streams.SidecarType.CONTRACT_BYTECODE;
 import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VALIDATION_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_OPS_DURATION;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE;
@@ -64,6 +55,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class FrameBuilder {
     private static final int MAX_STACK_SIZE = 1024;
 
+    /**
+     * Default constructor for injection.
+     */
     @Inject
     public FrameBuilder() {
         // Dagger2
@@ -76,6 +70,7 @@ public class FrameBuilder {
      * @param worldUpdater the world updater for the transaction
      * @param context the Hedera EVM context (gas price, block values, etc.)
      * @param config the active Hedera configuration
+     * @param featureFlags the feature flag currently used
      * @param from the sender of the transaction
      * @param to the recipient of the transaction
      * @param intrinsicGas the intrinsic gas cost, needed to calculate remaining gas
@@ -94,13 +89,14 @@ public class FrameBuilder {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
-        final var contextVariables = contextVariablesFrom(config, context);
+        final var contextVariables = contextVariablesFrom(config, context, intrinsicGas);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
                 .initialGas(transaction.gasAvailable(intrinsicGas))
                 .originator(from)
                 .gasPrice(Wei.of(context.gasPrice()))
+                .blobGasPrice(Wei.ONE) // Per Hedera CANCUN adaptation
                 .sender(from)
                 .value(value)
                 .apparentValue(value)
@@ -119,19 +115,31 @@ public class FrameBuilder {
     }
 
     private Map<String, Object> contextVariablesFrom(
-            @NonNull final Configuration config, @NonNull final HederaEvmContext context) {
+            @NonNull final Configuration config, @NonNull final HederaEvmContext context, final long intrinsicGas) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
         contextEntries.put(SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE, context.systemContractGasCalculator());
         contextEntries.put(PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE, new PropagatedCallFailureRef());
-        if (config.getConfigData(ContractsConfig.class).sidecars().contains(CONTRACT_STATE_CHANGE)) {
+        final var contractConfig = config.getConfigData(ContractsConfig.class);
+        final var sidecars = contractConfig.sidecars();
+        if (sidecars.contains(CONTRACT_STATE_CHANGE)) {
             contextEntries.put(TRACKER_CONTEXT_VARIABLE, new StorageAccessTracker());
         }
+        if (sidecars.contains(CONTRACT_ACTION)) {
+            contextEntries.put(ACTION_SIDECARS_VARIABLE, true);
+            if (contractConfig.sidecarValidationEnabled()) {
+                contextEntries.put(ACTION_SIDECARS_VALIDATION_VARIABLE, true);
+            }
+        }
+        if (sidecars.contains(CONTRACT_BYTECODE)) {
+            contextEntries.put(BYTECODE_SIDECARS_VARIABLE, true);
+        }
         if (context.isTransaction()) {
-            contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.recordBuilder());
+            contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.streamBuilder());
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
+            contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(0L));
         }
         return contextEntries;
     }

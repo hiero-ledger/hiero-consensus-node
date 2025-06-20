@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.config;
 
 import static com.swirlds.virtualmap.config.VirtualMapReconnectMode.PUSH;
@@ -35,9 +20,6 @@ import java.time.Duration;
  * @param percentHashThreads
  * 		Gets the percentage (from 0.0 to 100.0) of available processors to devote to hashing
  * 		threads. Ignored if an explicit number of threads is given via {@code virtualMap.numHashThreads}.
- * @param numHashThreads
- * 		The number of threads to devote to hashing. If not set, defaults to the number of threads implied by
- *        {@code virtualMap.percentHashThreads} and {@link Runtime#availableProcessors()}.
  * @param virtualHasherChunkHeight
  *      The number of ranks minus one to handle in a single virtual hasher task. That is, when height is
  *      1, every task takes 2 inputs. Height 2 corresponds to tasks with 4 inputs. And so on.
@@ -92,7 +74,6 @@ import java.time.Duration;
 public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0")
                 double percentHashThreads, // FUTURE WORK: We need to add min/max support for double values
-        @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @Min(1) @Max(64) @ConfigProperty(defaultValue = "3") int virtualHasherChunkHeight,
         @ConfigProperty(defaultValue = PUSH) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
@@ -141,14 +122,6 @@ public record VirtualMapConfig(
                     "virtualMapWarningThreshold must be <=  maximumVirtualMapSize");
         }
         return null;
-    }
-
-    public int getNumHashThreads() {
-        final int threads = (numHashThreads() == -1)
-                ? (int) (Runtime.getRuntime().availableProcessors() * (percentHashThreads() / UNIT_FRACTION_PERCENT))
-                : numHashThreads();
-
-        return Math.max(1, threads);
     }
 
     public int getNumCleanerThreads() {

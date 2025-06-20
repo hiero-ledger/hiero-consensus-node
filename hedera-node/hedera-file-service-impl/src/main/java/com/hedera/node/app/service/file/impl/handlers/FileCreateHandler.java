@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
@@ -30,7 +15,6 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -43,6 +27,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -70,11 +55,11 @@ public class FileCreateHandler implements TransactionHandler {
     /**
      * Performs checks independent of state or context.
      *
-     * @param txn the transaction to check
+     * @param context the {@link PureChecksContext} which collects all information
      */
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        final FileCreateTransactionBody transactionBody = txn.fileCreateOrThrow();
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        final FileCreateTransactionBody transactionBody = context.body().fileCreateOrThrow();
 
         if (!transactionBody.hasExpirationTime()) {
             throw new PreCheckException(INVALID_EXPIRATION_TIME);
@@ -92,7 +77,6 @@ public class FileCreateHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-
         final var transactionBody = context.body().fileCreateOrThrow();
 
         validateAndAddRequiredKeys(null, transactionBody.keys(), context);
@@ -154,7 +138,7 @@ public class FileCreateHandler implements TransactionHandler {
             builder.contents(fileCreateTransactionBody.contents());
 
             final var file = builder.build();
-            fileStore.put(file);
+            fileStore.putAndIncrementCount(file);
 
             handleContext
                     .savepointStack()

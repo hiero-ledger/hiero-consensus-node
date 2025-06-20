@@ -1,24 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtual.merkle.reconnect;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
@@ -31,6 +14,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 public final class BreakableDataSource implements VirtualDataSource {
 
@@ -54,24 +39,30 @@ public final class BreakableDataSource implements VirtualDataSource {
         final List<VirtualLeafBytes> leaves = leafRecordsToAddOrUpdate.toList();
 
         if (builder.numTimesBroken < builder.numTimesToBreak) {
-            // Syncronization block is not required here, as this code is never called in parallel
-            // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
-            builder.numCalls += leaves.size();
-            if (builder.numCalls > builder.numCallsBeforeThrow) {
-                builder.numCalls = 0;
-                builder.numTimesBroken++;
-                delegate.close();
-                throw new IOException("Something bad on the DB!");
+            if (builder.numCalls <= builder.numCallsBeforeThrow) {
+                // Synchronization block is not required here, as this code is never called in parallel
+                // (though from different threads). `volatile` modifier is sufficient to ensure visibility.
+                builder.numCalls += leaves.size();
+                if (builder.numCalls > builder.numCallsBeforeThrow) {
+                    builder.numTimesBroken++;
+                    delegate.close();
+                    throw new IOException("Something bad on the DB!");
+                }
             }
         }
 
         delegate.saveRecords(
-                firstLeafPath, lastLeafPath, pathHashRecordsToUpdate, leaves.stream(), leafRecordsToDelete);
+                firstLeafPath,
+                lastLeafPath,
+                pathHashRecordsToUpdate,
+                leaves.stream(),
+                leafRecordsToDelete,
+                isReconnectContext);
     }
 
     @Override
-    public void close() throws IOException {
-        delegate.close();
+    public void close(final boolean keepData) throws IOException {
+        delegate.close(keepData);
     }
 
     @Override

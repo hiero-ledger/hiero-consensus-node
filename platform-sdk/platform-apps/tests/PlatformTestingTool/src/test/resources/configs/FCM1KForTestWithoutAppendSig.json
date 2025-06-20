@@ -1,0 +1,87 @@
+{
+  "payloadConfig": {
+    "appendSig": false,
+    "insertSeq": true,
+    "variedSize": false,
+    "_comment": "payload type TYPE_RANDOM_BYTES for random bytes",
+    "type": "TYPE_RANDOM_BYTES",
+    "payloadByteSize": 100,
+    "maxByteSize": 100,
+    "distribution": {
+      "sizeDistribution": [
+        100
+      ],
+      "ratioDistribution": [
+        100
+      ],
+      "typeDistribution": [
+        "TYPE_FCM_TEST"
+      ]
+    }
+  },
+  "submitConfig": {
+    "_comment0": [
+      "0,  BYTES_PER_SECOND_PER_NODE",
+      "1,  TRANS_PER_SECOND_PER_NODE",
+      "2,  EVENTS_PER_SECOND_WHOLE_NETWORK",
+      "hard to control and achieve",
+      "3,  ROUNDS_PER_SECOND_WHOLE_NETWORK",
+      "4,  TRANS_PER_EVENT_WHOLE_NETWORK",
+      "more like low bound",
+      "5,  C2C_LATENCY"
+    ],
+    "systemMetric": "TRANS_PER_SECOND_PER_NODE",
+    "metricThreshold": 2500.0,
+    "_comment1": "pause after submit defined amount of transactions",
+    "pauseAfter": 0,
+    "pauseSeconds": 30,
+    "allowRunSubmit": true,
+    "C2CDelayThreshold": 6
+  },
+  "fcmConfig": {
+    "sequentialTest": true,
+    "_comment": "if sequentialTest is true, generate payload according to sequentialType, sequentialAmoutn, sequentialSize, this override typeDistribution defined in payloadConfig",
+    "sequentials": [
+      {
+        "sequentialType": "TYPE_FCM_CREATE",
+        "sequentialAmount": 1000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "TYPE_FCM_UPDATE",
+        "sequentialAmount": 400000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "TYPE_FCM_CREATE",
+        "sequentialAmount": 2000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "TYPE_FCM_TRANSFER",
+        "sequentialAmount": 400000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "TYPE_FCM_CREATE",
+        "sequentialAmount": 3000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "TYPE_FCM_CREATE",
+        "sequentialAmount": 1000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "TYPE_FCM_DELETE",
+        "sequentialAmount": 100000,
+        "sequentialSize": 100
+      },
+      {
+        "sequentialType": "SAVE_EXPECTED_MAP",
+        "sequentialAmount": 1,
+        "sequentialSize": 100
+      }
+    ]
+  }
+}

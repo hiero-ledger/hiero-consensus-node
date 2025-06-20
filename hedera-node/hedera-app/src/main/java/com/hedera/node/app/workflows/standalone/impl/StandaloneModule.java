@@ -1,49 +1,45 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone.impl;
 
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
+
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.node.app.Hedera;
-import com.hedera.node.app.annotations.MaxSignedTxnSize;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.annotations.NodeSelfId;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.platform.state.PlatformState;
+import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleMetrics;
+import com.hedera.node.app.throttle.annotations.BackendThrottle;
+import com.hedera.node.config.ConfigProvider;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.state.spi.info.NetworkInfo;
+import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
 
 @Module
 public interface StandaloneModule {
-    @Binds
+    @Provides
+    @Nullable
     @Singleton
-    NetworkInfo bindNetworkInfo(@NonNull StateNetworkInfo simulatedNetworkInfo);
+    static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag() {
+        return null;
+    }
 
     @Binds
     @Singleton
-    StoreMetricsService bindStoreMetricsService(@NonNull StoreMetricsServiceImpl storeMetricsServiceImpl);
+    NetworkInfo bindNetworkInfo(@NonNull StandaloneNetworkInfo simulatedNetworkInfo);
 
     @Provides
     @Singleton
@@ -53,8 +49,24 @@ public interface StandaloneModule {
 
     @Provides
     @Singleton
+    @BackendThrottle
+    static ThrottleAccumulator provideBackendThrottleAccumulator(
+            @NonNull final ConfigProvider configProvider,
+            final boolean disableThrottling,
+            @NonNull final Metrics metrics) {
+        final var throttleMetrics = new ThrottleMetrics(metrics, BACKEND_THROTTLE);
+        return new ThrottleAccumulator(
+                () -> 1,
+                configProvider::getConfiguration,
+                disableThrottling ? NOOP_THROTTLE : BACKEND_THROTTLE,
+                throttleMetrics,
+                ThrottleAccumulator.Verbose.YES);
+    }
+
+    @Provides
+    @Singleton
     static PlatformStateAccessor providePlatformState() {
-        return new PlatformState();
+        return new SnapshotPlatformStateAccessor(PlatformState.DEFAULT);
     }
 
     @Provides
@@ -65,22 +77,15 @@ public interface StandaloneModule {
 
     @Provides
     @Singleton
-    @MaxSignedTxnSize
-    static int maxSignedTxnSize() {
-        return Hedera.MAX_SIGNED_TXN_SIZE;
-    }
-
-    @Provides
-    @Singleton
     @NodeSelfId
-    static AccountID provideNodeSelfId() {
+    static AccountID provideNodeSelfId(EntityIdFactory entityIdFactory) {
         // This is only used to check the shard and realm of account ids
-        return AccountID.DEFAULT;
+        return entityIdFactory.newDefaultAccountId();
     }
 
     @Provides
     @Singleton
-    static Cryptography provideCryptography() {
-        return CryptographyHolder.get();
+    static StoreMetricsService provideStoreMetricsService(Metrics metrics) {
+        return new StoreMetricsServiceImpl(metrics);
     }
 }

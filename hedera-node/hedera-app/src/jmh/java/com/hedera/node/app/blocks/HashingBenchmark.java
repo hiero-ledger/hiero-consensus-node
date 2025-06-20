@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
-import static com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher.hashNaively;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
@@ -29,8 +14,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher;
+import com.hedera.node.app.blocks.impl.NaiveStreamingTreeHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,28 +52,31 @@ public class HashingBenchmark {
     }
 
     @Param({"10000"})
-    private int numLeaves;
+    private int numLeafHashes;
 
-    private List<Bytes> leaves;
+    private List<byte[]> leafHashes;
     private Bytes expectedAnswer;
 
     @Setup(Level.Trial)
-    public void setup() {
-        leaves = new ArrayList<>(numLeaves);
-        for (int i = 0; i < numLeaves; i++) {
-            leaves.add(BlockItem.PROTOBUF.toBytes(randomBlockItem()));
+    public void setup() throws IOException {
+        final var digest = sha384DigestOrThrow();
+        leafHashes = new ArrayList<>(numLeafHashes);
+        for (int i = 0; i < numLeafHashes; i++) {
+            final var item = randomBlockItem();
+            final var hash = digest.digest(BlockItem.PROTOBUF.toBytes(item).toByteArray());
+            leafHashes.add(hash);
         }
-        expectedAnswer = hashNaively(leaves);
+        expectedAnswer = NaiveStreamingTreeHasher.computeRootHash(leafHashes);
     }
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     @OutputTimeUnit(TimeUnit.SECONDS)
     public void hashItemTree(@NonNull final Blackhole blackhole) {
-        //        final var subject = new NaiveStreamingTreeHasher();
+        //                final var subject = new NaiveStreamingTreeHasher();
         final var subject = new ConcurrentStreamingTreeHasher(ForkJoinPool.commonPool());
-        for (final var item : leaves) {
-            subject.addLeaf(item);
+        for (final var hash : leafHashes) {
+            subject.addLeaf(ByteBuffer.wrap(hash));
         }
         final var rootHash = subject.rootHash().join();
         if (!rootHash.equals(expectedAnswer)) {

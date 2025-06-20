@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
 
 import com.google.common.base.MoreObjects;
@@ -23,7 +8,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.deterministic.Bip0032;
 import com.hedera.services.bdd.spec.keys.deterministic.Ed25519Factory;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -34,6 +18,7 @@ import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 
 public class SpecKeyFromMnemonic extends UtilOp {
     private static final Logger log = LogManager.getLogger(SpecKeyFromMnemonic.class);
@@ -63,10 +48,10 @@ public class SpecKeyFromMnemonic extends UtilOp {
             throws ShortBufferException, NoSuchAlgorithmException, InvalidKeyException {
         byte[] seed = Bip0032.seedFrom(mnemonic);
         byte[] privateKey = Bip0032.privateKeyFrom(seed);
-        createAndLinkSimpleKey(spec, privateKey, name, linkedId, logToUse);
+        createAndLinkSimpleEdKey(spec, privateKey, name, linkedId, logToUse);
     }
 
-    static void createAndLinkSimpleKey(
+    static void createAndLinkSimpleEdKey(
             HapiSpec spec, byte[] privateKey, String name, Optional<String> linkedId, @Nullable Logger logToUse) {
         var params = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
         var privateKeySpec = new EdDSAPrivateKeySpec(privateKey, params);

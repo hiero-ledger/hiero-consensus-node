@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.utilities.HashTools.HASH_SIZE_BYTES;
@@ -21,20 +6,25 @@ import static com.swirlds.merkledb.utilities.HashTools.byteBufferToHash;
 import static com.swirlds.merkledb.utilities.HashTools.hashToByteBuffer;
 import static java.nio.ByteBuffer.allocate;
 import static java.nio.ByteBuffer.allocateDirect;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.crypto.Hash;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.HashTools;
-import com.swirlds.merkledb.utilities.MemoryUtils;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * An implementation of {@link HashList} which makes use of an expanding, dynamic list of {@link ByteBuffer}s
@@ -55,65 +45,66 @@ import java.util.concurrent.atomic.AtomicLong;
  * </pre>
  */
 public final class HashListByteBuffer implements HashList, OffHeapUser {
-    /**
-     * The version number for format of current data files
-     */
-    private static final int FILE_FORMAT_VERSION = 1;
-    /**
-     * The number of bytes to read for header
-     */
-    private static final int FILE_HEADER_SIZE =
-            Integer.BYTES + Integer.BYTES + Long.BYTES + 1 + Long.BYTES + Long.BYTES + Integer.BYTES;
-    /**
-     * A suitable default value for the number of hashes to store per {@link ByteBuffer}.
-     */
-    private static final int DEFAULT_NUM_HASHES_PER_BUFFER = 1_000_000;
 
     /**
-     * A suitable default value for the maximum number of hashes to store in a single instance
-     * of {@link HashListByteBuffer}. This is to prevent a bug from creating off-heap stores that
-     * are ridiculously large.
+     * File format version 1. File structure: version (int), hashes per buffer (int),
+     * max hashes (long), off/on-heap (byte), max index (long), num hashes (long),
+     * num buffers (int).
      */
-    private static final long DEFAULT_MAX_HASHES_TO_STORE = 10_000_000_000L;
+    static final int FILE_FORMAT_VERSION_V1 = 1;
+
+    /**
+     * File format version 2. File structure: version (int), size (aka num hashes, long),
+     * capacity (max size, long).
+     */
+    static final int FILE_FORMAT_VERSION_V2 = 2;
+
+    /**
+     * Number of bytes in header v1. The header doesn't include the version number.
+     */
+    static final int FILE_HEADER_SIZE_V1 = Integer.BYTES // hashes per buffer
+            + Long.BYTES // max hashes
+            + 1 // off/on heap
+            + Long.BYTES // max index
+            + Long.BYTES // num hashes
+            + Integer.BYTES; // num buffers
+
+    /**
+     * Number of bytes in header v2. The header doesn't include the version number.
+     */
+    static final int FILE_HEADER_SIZE_V2 = Long.BYTES // size (num hashes)
+            + Long.BYTES; // capacity
 
     /**
      * A copy-on-write list of buffers of data. Expands as needed to store buffers of hashes.
+     * All buffers stored in this list have position 0 and limit == memoryBufferSize.
      */
     private final List<ByteBuffer> data = new CopyOnWriteArrayList<>();
-
-    /**
-     * The current maximum index that can be stored. This is determined dynamically based on the
-     * actual indexes used. It will grow, but never shrinks. Ultimately it would be nice to have
-     * some way to shrink this based on knowledge other parts of the system have about how many
-     * hashes need to be stored, but in the real system, this isn't important because we don't
-     * shrink the state size that dramatically, and on a reboot, this would be reset anyway.
-     */
-    private final AtomicLong maxIndexThatCanBeStored = new AtomicLong(-1);
-
-    /**
-     * The size of this HashList, ie number of hashes stored
-     */
-    private final AtomicLong numberOfHashesStored = new AtomicLong(0);
-
-    /**
-     * The number of hashes to store in each allocated buffer. Must be a positive integer.
-     * If the value is small, then we will end up allocating a very large number of buffers.
-     * If the value is large, then we will waste a lot of memory in the unfilled buffer.
-     */
-    private final int numHashesPerBuffer;
-
-    /**
-     * The amount of RAM needed to store one buffer of hashes. This will be computed based on the number of
-     * bytes to store for the hash, and the {@link #numHashesPerBuffer}.
-     */
-    private final int memoryBufferSize;
 
     /**
      * The maximum number of hashes to be able to store in this data structure. This is used as a safety
      * measure to make sure no bug causes an out of memory issue by causing us to allocate more buffers
      * than the system can handle.
      */
-    private final long maxHashes;
+    private final long capacity;
+
+    /**
+     * The number of hashes stored in this hash list.
+     */
+    private final AtomicLong size = new AtomicLong(0);
+
+    /**
+     * The number of hashes to store in each allocated buffer. Must be a positive integer.
+     * If the value is small, then we will end up allocating a very large number of buffers.
+     * If the value is large, then we will waste a lot of memory in the unfilled buffer.
+     */
+    private final int hashesPerBuffer;
+
+    /**
+     * The amount of RAM needed to store one buffer of hashes. This will be computed based on the number of
+     * bytes to store for the hash, and the {@link #hashesPerBuffer}.
+     */
+    private final int memoryBufferSize;
 
     /**
      * Whether to store the data on-heap or off-heap.
@@ -121,81 +112,120 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
     private final boolean offHeap;
 
     /**
-     * Create a new off-heap {@link HashListByteBuffer} with default number of hashes per buffer and max capacity.
-     */
-    public HashListByteBuffer() {
-        this(DEFAULT_NUM_HASHES_PER_BUFFER, DEFAULT_MAX_HASHES_TO_STORE, true);
-    }
-
-    /**
      * Create a {@link HashListByteBuffer} from a file that was saved.
      *
-     * @throws IOException
-     * 		If there was a problem reading the file
+     * @param file The file to load the hash list from
+     * @param capacity The max number of hashes to store in this hash list. Must be non-negative
+     * @param configuration Platform configuration
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public HashListByteBuffer(Path file) throws IOException {
+    public HashListByteBuffer(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        requireNonNull(file);
+        requireNonNull(configuration);
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        if (!Files.exists(file)) {
+            throw new IOException("Cannot load hash list, file doesn't exist: " + file.toAbsolutePath());
+        }
         try (FileChannel fc = FileChannel.open(file, StandardOpenOption.READ)) {
-            // read header
-            ByteBuffer headerBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
-            MerkleDbFileUtils.completelyRead(fc, headerBuffer);
-            headerBuffer.rewind();
-            final int formatVersion = headerBuffer.getInt();
-            if (formatVersion != FILE_FORMAT_VERSION) {
-                throw new IOException("Tried to read a file with incompatible file format version [" + formatVersion
-                        + "], expected [" + FILE_FORMAT_VERSION + "].");
+            final ByteBuffer versionBuffer = ByteBuffer.allocate(Integer.BYTES);
+            if (MerkleDbFileUtils.completelyRead(fc, versionBuffer) != Integer.BYTES) {
+                throw new IOException("Failed to read hash list file version");
             }
-            numHashesPerBuffer = headerBuffer.getInt();
-            memoryBufferSize = numHashesPerBuffer * HASH_SIZE_BYTES;
-            maxHashes = headerBuffer.getLong();
-            offHeap = headerBuffer.get() == 1;
-            maxIndexThatCanBeStored.set(headerBuffer.getLong());
-            numberOfHashesStored.set(headerBuffer.getLong());
-            final int numOfBuffers = headerBuffer.getInt();
+            final int formatVersion = versionBuffer.getInt(0);
+            // Always use the provided capacity. If loaded from V1 file, the value is checked against
+            // numHashes from V1 header. If loaded from V2 file, the value is checked against capacity
+            // from V2 header
+            this.capacity = capacity;
+            this.hashesPerBuffer = merkleDbConfig.hashStoreRamBufferSize();
+            this.memoryBufferSize = hashesPerBuffer * HASH_SIZE_BYTES;
+            this.offHeap = merkleDbConfig.hashStoreRamOffHeapBuffers();
+            if (formatVersion == FILE_FORMAT_VERSION_V1) {
+                final ByteBuffer headerBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE_V1);
+                MerkleDbFileUtils.completelyRead(fc, headerBuffer);
+                headerBuffer.flip();
+                // hashesPerBuffer from file is ignored, initialized from the config instead
+                headerBuffer.getInt();
+                // capacity from file is ignored, the provided capacity is used instead
+                headerBuffer.getLong();
+                // offHeap from file is ignored, initialized from the config instead
+                headerBuffer.get();
+                // maxIndexThatCanBeStored from file is ignored, initialized from the config instead
+                headerBuffer.getLong();
+                size.set(headerBuffer.getLong());
+                if (size.get() > capacity) {
+                    throw new IllegalArgumentException(
+                            "Hash list in the file is too large, size=" + size.get() + ", capacity=" + capacity);
+                }
+                // numOfBuffers from file is ignored, initialized from capacity + hashesPerBuffer
+                headerBuffer.getInt();
+            } else if (formatVersion == FILE_FORMAT_VERSION_V2) {
+                final ByteBuffer headerBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE_V2);
+                if (MerkleDbFileUtils.completelyRead(fc, headerBuffer) != FILE_HEADER_SIZE_V2) {
+                    throw new IOException("Failed to read hash list file header");
+                }
+                headerBuffer.clear();
+                size.set(headerBuffer.getLong());
+                final long capacityFromFile = headerBuffer.getLong();
+                if (capacityFromFile != capacity) {
+                    throw new IllegalArgumentException(
+                            "Hash list capacity mismatch, expected=" + capacity + ", loaded=" + capacityFromFile);
+                }
+            } else {
+                throw new UnsupportedOperationException(
+                        "Hash list file version " + formatVersion + " is not supported");
+            }
+            int numOfBuffers = Math.toIntExact(size.get() / hashesPerBuffer);
+            if (size.get() % hashesPerBuffer != 0) {
+                numOfBuffers++;
+            }
             // read data
             for (int i = 0; i < numOfBuffers; i++) {
-                ByteBuffer buffer = offHeap ? allocateDirect(memoryBufferSize) : allocate(memoryBufferSize);
-                MerkleDbFileUtils.completelyRead(fc, buffer);
+                final ByteBuffer buffer = offHeap ? allocateDirect(memoryBufferSize) : allocate(memoryBufferSize);
                 buffer.position(0);
+                int toRead = memoryBufferSize;
+                // The last buffer may not be read in full
+                if ((i == numOfBuffers - 1) && (size.get() % hashesPerBuffer != 0)) {
+                    toRead = Math.toIntExact(size.get() % hashesPerBuffer * HASH_SIZE_BYTES);
+                }
+                buffer.limit(toRead);
+                final int read = MerkleDbFileUtils.completelyRead(fc, buffer);
+                if (read != toRead) {
+                    throw new IOException("Failed to read hashes, buffer=" + i + " toRead=" + toRead + " read=" + read);
+                }
+                // Buffers are always stored with position=0 and limit=memoryBufferSize, even if
+                // this is the last buffer with size() in the middle of it
+                buffer.clear();
                 data.add(buffer);
             }
         }
     }
 
     /**
-     * Create a new {@link HashListByteBuffer}.
+     * Create a new {@link HashListByteBuffer}. Number of hashes per buffer and on/off-heap flag
+     * are read from the provided platform configuration.
      *
-     * @param numHashesPerBuffer
-     * 		The number of hashes to store in each buffer. If the number of too large, then
-     * 		the last buffer will have wasted space. If the number is too small, then an
-     * 		excessive number of buffers will be created. Must be a positive number.
-     * @param maxHashes
-     * 		The maximum number of hashes to store in the data structure. Must be a non-negative integer
-     * 		value.
-     * @param offHeap
-     * 		Whether to store the buffer off the Java heap.
+     * @param capacity The number of hashes to store in this hash list. Must be non-negative
+     * @param configuration Platform configuration
      */
-    public HashListByteBuffer(final int numHashesPerBuffer, final long maxHashes, final boolean offHeap) {
-        if (numHashesPerBuffer < 1) {
-            throw new IllegalArgumentException("The number of hashes per buffer must be positive");
-        }
-
-        if (maxHashes < 0) {
+    public HashListByteBuffer(final long capacity, @NonNull final Configuration configuration) {
+        requireNonNull(configuration);
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+        if (capacity < 0) {
             throw new IllegalArgumentException("The maximum number of hashes must be non-negative");
         }
-
-        this.numHashesPerBuffer = numHashesPerBuffer;
-        this.memoryBufferSize = numHashesPerBuffer * HASH_SIZE_BYTES;
-        this.maxHashes = maxHashes;
-        this.offHeap = offHeap;
+        this.capacity = capacity;
+        this.hashesPerBuffer = merkleDbConfig.hashStoreRamBufferSize();
+        this.memoryBufferSize = hashesPerBuffer * HASH_SIZE_BYTES;
+        this.offHeap = merkleDbConfig.hashStoreRamOffHeapBuffers();
     }
 
     /**
      * Closes this HashList and wrapped HashList freeing any resources used
      */
     @Override
-    public void close() throws IOException {
-        maxIndexThatCanBeStored.set(0);
-        numberOfHashesStored.set(0);
+    public void close() {
+        size.set(0);
         if (offHeap) {
             for (final ByteBuffer directBuffer : data) {
                 MemoryUtils.closeDirectByteBuffer(directBuffer);
@@ -210,13 +240,13 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
     @Override
     public Hash get(final long index) throws IOException {
         // Range-check on the index
-        if (index < 0 || index >= maxHashes) {
+        if (index < 0 || index >= capacity) {
             throw new IndexOutOfBoundsException();
         }
 
         // Note: if there is a race between the reader and a writer, such that the writer is
-        // writing to a higher index than `maxIndexThatCanBeStored`, this is OK.
-        if (index <= maxIndexThatCanBeStored.get()) {
+        // writing to a higher index than `size`, this is OK
+        if (index < size.get()) {
             return byteBufferToHash(getBuffer(index), HashTools.getSerializationVersion());
         } else {
             return null;
@@ -229,21 +259,24 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
     @Override
     public void put(final long index, final Hash hash) {
         // Range-check on the index
-        if (index < 0 || index >= maxHashes) {
+        if (index < 0 || index >= capacity) {
             throw new IndexOutOfBoundsException(
-                    "Cannot put a hash at index " + index + " given " + maxHashes + " capacity");
+                    "Cannot put a hash at index " + index + " given " + capacity + " capacity");
         }
 
         // Expand data if needed
-        maxIndexThatCanBeStored.updateAndGet(currentValue -> {
-            while (index > currentValue) { // need to expand
-                data.add(offHeap ? allocateDirect(memoryBufferSize) : allocate(memoryBufferSize));
-                currentValue += numHashesPerBuffer;
+        long currentMaxIndex = (long) data.size() * hashesPerBuffer - 1;
+        if (currentMaxIndex < index) {
+            synchronized (this) {
+                currentMaxIndex = (long) data.size() * hashesPerBuffer - 1;
+                while (currentMaxIndex < index) { // need to expand
+                    data.add(offHeap ? allocateDirect(memoryBufferSize) : allocate(memoryBufferSize));
+                    currentMaxIndex += hashesPerBuffer;
+                }
             }
-            return currentValue;
-        });
+        }
         // update number of hashes stored
-        numberOfHashesStored.updateAndGet(currentValue -> Math.max(currentValue, index + 1));
+        size.updateAndGet(currentValue -> Math.max(currentValue, index + 1));
         // Get the right buffer
         hashToByteBuffer(hash, getBuffer(index));
     }
@@ -253,7 +286,7 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      */
     @Override
     public long capacity() {
-        return maxHashes;
+        return capacity;
     }
 
     /**
@@ -263,17 +296,7 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      */
     @Override
     public long size() {
-        return numberOfHashesStored.get();
-    }
-
-    /**
-     * Get the maximum number of hashes this HashList can store, this is the maximum value capacity can grow to.
-     *
-     * @return maximum number of hashes this HashList can store
-     */
-    @Override
-    public long maxHashes() {
-        return maxHashes;
+        return size.get();
     }
 
     /**
@@ -289,30 +312,32 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
         final int numOfBuffers = data.size();
         try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
             // write header
-            ByteBuffer headerBuffer = ByteBuffer.allocate(FILE_HEADER_SIZE);
-            headerBuffer.rewind();
-            headerBuffer.putInt(FILE_FORMAT_VERSION);
-            headerBuffer.putInt(numHashesPerBuffer);
-            headerBuffer.putLong(maxHashes);
-            headerBuffer.put((byte) (offHeap ? 1 : 0));
-            headerBuffer.putLong(maxIndexThatCanBeStored.get());
-            headerBuffer.putLong(numberOfHashesStored.get());
-            headerBuffer.putInt(numOfBuffers);
+            final ByteBuffer headerBuffer = ByteBuffer.allocate(Integer.BYTES + FILE_HEADER_SIZE_V2);
+            headerBuffer.putInt(FILE_FORMAT_VERSION_V2);
+            headerBuffer.putLong(size.get());
+            headerBuffer.putLong(capacity);
             headerBuffer.flip();
-            MerkleDbFileUtils.completelyWrite(fc, headerBuffer);
+            assert headerBuffer.remaining() == Integer.BYTES + FILE_HEADER_SIZE_V2;
+            if (MerkleDbFileUtils.completelyWrite(fc, headerBuffer) != headerBuffer.limit()) {
+                throw new IOException("Failed to write hash list header to file");
+            }
             // write data
             for (int i = 0; i < numOfBuffers; i++) {
-                ByteBuffer buf = data.get(i).slice(); // slice so we don't mess with state of stored buffer
-                buf.position(0);
+                final ByteBuffer dataBuffer = data.get(i).slice(); // slice so we don't mess with state of stored buffer
+                dataBuffer.position(0);
                 if (i == (numOfBuffers - 1)) {
                     // last array, so set limit to only the data needed
-                    long bytesWrittenSoFar = (long) memoryBufferSize * (long) i;
-                    long remainingBytes = (size() * HASH_SIZE_BYTES) - bytesWrittenSoFar;
-                    buf.limit((int) remainingBytes);
+                    final long bytesWrittenSoFar = (long) memoryBufferSize * i;
+                    final int remainingBytes = Math.toIntExact(size() * HASH_SIZE_BYTES - bytesWrittenSoFar);
+                    dataBuffer.limit(remainingBytes);
                 } else {
-                    buf.limit(buf.capacity());
+                    dataBuffer.limit(memoryBufferSize);
                 }
-                MerkleDbFileUtils.completelyWrite(fc, buf);
+                final int toWrite = dataBuffer.limit();
+                final int written = MerkleDbFileUtils.completelyWrite(fc, dataBuffer);
+                if (written != toWrite) {
+                    throw new IOException("Failed to write hash list data buffer to file");
+                }
             }
         }
     }
@@ -329,12 +354,12 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      */
     @Override
     public long getOffHeapConsumption() {
-        return offHeap ? (long) data.size() * numHashesPerBuffer * HASH_SIZE_BYTES : 0;
+        return offHeap ? (long) data.size() * hashesPerBuffer * HASH_SIZE_BYTES : 0;
     }
 
     /**
      * Get the ByteBuffer for a given index. Assumes the buffer is already created.
-     * For example, if the {@code index} is 13, and the {@link #numHashesPerBuffer} is 10,
+     * For example, if the {@code index} is 13, and the {@link #hashesPerBuffer} is 10,
      * then the 2nd buffer would be returned.
      *
      * @param index
@@ -343,21 +368,25 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
      */
     private ByteBuffer getBuffer(final long index) {
         // This should never happen, because it is checked and validated by the callers to this method
-        assert index >= 0 && index < numHashesPerBuffer * (long) data.size()
-                : "The index " + index + " was out of range";
+        assert index >= 0 && index < hashesPerBuffer * (long) data.size() : "The index " + index + " was out of range";
 
         // Figure out which buffer in `data` will contain the index
-        final int bufferIndex = (int) (index / numHashesPerBuffer);
+        final int bufferIndex = Math.toIntExact(index / hashesPerBuffer);
         // Create a new sub-buffer (slice). This is necessary for threading. In Java versions < 13, you must
         // have a unique buffer for each thread, because each buffer has its own position and limit state.
         // Once we have the buffer, compute the index within the buffer and the offset and then set the
         // position and limit appropriately.
         final ByteBuffer buffer = data.get(bufferIndex).slice(); // for threading
-        final int subIndex = (int) (index % numHashesPerBuffer);
+        final int subIndex = Math.toIntExact(index % hashesPerBuffer);
         final int offset = HASH_SIZE_BYTES * subIndex;
         buffer.position(offset);
         buffer.limit(offset + HASH_SIZE_BYTES);
         return buffer;
+    }
+
+    // For testing purposes. Not thread safe, don't use it in parallel with put()
+    int getCurrentBufferCount() {
+        return data.size();
     }
 
     /**
@@ -366,8 +395,10 @@ public final class HashListByteBuffer implements HashList, OffHeapUser {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
+                .append("size", size.get())
+                .append("capacity", capacity)
+                .append("hashesPerBuffer", hashesPerBuffer)
                 .append("num of buffers", data.size())
-                .append("maxIndexThatCanBeStored", maxIndexThatCanBeStored)
                 .toString();
     }
 }

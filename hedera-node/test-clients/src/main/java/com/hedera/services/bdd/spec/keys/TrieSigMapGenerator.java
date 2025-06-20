@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.keys;
 
 import static java.util.stream.Collectors.collectingAndThen;
@@ -24,7 +9,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.SignatureMap;
 import com.hederahashgraph.api.proto.java.SignaturePair;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -39,6 +23,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class TrieSigMapGenerator implements SigMapGenerator {
@@ -56,25 +41,25 @@ public class TrieSigMapGenerator implements SigMapGenerator {
         this.fullPrefixKeys = fullPrefixKeys;
     }
 
+    private static final TrieSigMapGenerator fullInstance;
     private static final TrieSigMapGenerator uniqueInstance;
     private static final TrieSigMapGenerator ambiguousInstance;
     private static final TrieSigMapGenerator confusedInstance;
 
     static {
+        fullInstance = new TrieSigMapGenerator(Nature.FULL_PREFIXES);
         uniqueInstance = new TrieSigMapGenerator(Nature.UNIQUE_PREFIXES);
         ambiguousInstance = new TrieSigMapGenerator(Nature.AMBIGUOUS_PREFIXES);
         confusedInstance = new TrieSigMapGenerator(Nature.CONFUSED_PREFIXES);
     }
 
     public static SigMapGenerator withNature(Nature nature) {
-        switch (nature) {
-            default:
-                return uniqueInstance;
-            case AMBIGUOUS_PREFIXES:
-                return ambiguousInstance;
-            case CONFUSED_PREFIXES:
-                return confusedInstance;
-        }
+        return switch (nature) {
+            case AMBIGUOUS_PREFIXES -> ambiguousInstance;
+            case CONFUSED_PREFIXES -> confusedInstance;
+            case FULL_PREFIXES -> fullInstance;
+            case UNIQUE_PREFIXES, UNIQUE_WITH_SOME_FULL_PREFIXES -> uniqueInstance;
+        };
     }
 
     public static SigMapGenerator uniqueWithFullPrefixesFor(String... fullPrefixKeys) {
@@ -104,7 +89,7 @@ public class TrieSigMapGenerator implements SigMapGenerator {
                 .map(keySig -> {
                     final var key = keySig.getKey();
                     final var wrappedKey = ByteString.copyFrom(key);
-                    final var effPrefix = alwaysFullPrefixes.contains(wrappedKey)
+                    final var effPrefix = (nature == Nature.FULL_PREFIXES || alwaysFullPrefixes.contains(wrappedKey))
                             ? wrappedKey
                             : ByteString.copyFrom(prefixCalc.apply(key));
                     if (key.length == 32) {

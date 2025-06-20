@@ -1,59 +1,47 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.RandomUtils;
+import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.MerkleDb;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.SocketConnection;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidator;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.state.FakeMerkleStateLifecycles;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.io.IOException;
-import java.security.PublicKey;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.node.NodeId;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -85,7 +73,14 @@ final class ReconnectTest {
         registry.registerConstructables("com.swirlds.platform.state");
         registry.registerConstructables("com.swirlds.platform.state.signed");
         registry.registerConstructables("com.swirlds.platform.system");
-        FakeMerkleStateLifecycles.registerMerkleStateRootClassIds();
+        registry.registerConstructables("com.swirlds.state.merkle");
+        registerMerkleStateRootClassIds();
+    }
+
+    @AfterAll
+    static void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 
     @Test
@@ -96,6 +91,8 @@ final class ReconnectTest {
         final ReconnectMetrics reconnectMetrics = mock(ReconnectMetrics.class);
 
         for (int index = 1; index <= numberOfReconnects; index++) {
+            MerkleDb.resetDefaultInstancePath();
+
             executeReconnect(reconnectMetrics);
             verify(reconnectMetrics, times(index)).incrementReceiverStartTimes();
             verify(reconnectMetrics, times(index)).incrementSenderStartTimes();
@@ -109,37 +106,40 @@ final class ReconnectTest {
         final long weightPerNode = 100L;
         final int numNodes = 4;
         final List<NodeId> nodeIds =
-                IntStream.range(0, numNodes).mapToObj(NodeId::new).toList();
+                IntStream.range(0, numNodes).mapToObj(NodeId::of).toList();
         final Random random = RandomUtils.getRandomPrintSeed();
 
-        final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+        final Roster roster = RandomRosterBuilder.create(random)
                 .withSize(numNodes)
-                .withAverageWeight(weightPerNode)
-                .withWeightDistributionStrategy(RandomAddressBookBuilder.WeightDistributionStrategy.BALANCED)
+                .withWeightGenerator((l, i) -> WeightGenerators.balancedNodeWeights(numNodes, weightPerNode * numNodes))
                 .build();
 
         try (final PairedStreams pairedStreams = new PairedStreams()) {
-            final SignedState signedState = new RandomSignedStateGenerator()
-                    .setAddressBook(addressBook)
+            final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
+                    .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .build();
+                    .buildWithFacade();
+            final SignedState signedState = signedStateFacadePair.left();
+            final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
 
-            final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
-            cryptography.digestSync(signedState.getState());
+            final MerkleCryptography cryptography = TestMerkleCryptoFactory.getInstance();
+            cryptography.digestSync(signedState.getState().getRoot());
 
             final ReconnectLearner receiver = buildReceiver(
                     signedState.getState(),
                     new DummyConnection(
                             platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
-                    reconnectMetrics);
+                    reconnectMetrics,
+                    platformStateFacade);
 
             final Thread thread = new Thread(() -> {
                 try {
+                    signedState.reserve("test");
                     final ReconnectTeacher sender = buildSender(
-                            signedState.reserve("test"),
                             new DummyConnection(
                                     platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
-                            reconnectMetrics);
+                            reconnectMetrics,
+                            platformStateFacade);
                     sender.execute(signedState);
                 } catch (final IOException ex) {
                     ex.printStackTrace();
@@ -152,29 +152,17 @@ final class ReconnectTest {
         }
     }
 
-    private AddressBook buildAddressBook(final int numAddresses) {
-        final PublicKey publicKey = mock(PublicKey.class);
-        final List<Address> addresses = new ArrayList<>();
-        for (int i = 0; i < numAddresses; i++) {
-            final Address address = mock(Address.class);
-            when(address.getSigPublicKey()).thenReturn(publicKey);
-            when(address.getNodeId()).thenReturn(new NodeId(i));
-            addresses.add(address);
-        }
-        return new AddressBook(addresses);
-    }
-
     private ReconnectTeacher buildSender(
-            final ReservedSignedState signedState,
             final SocketConnection connection,
-            final ReconnectMetrics reconnectMetrics)
+            final ReconnectMetrics reconnectMetrics,
+            final PlatformStateFacade platformStateFacade)
             throws IOException {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        final NodeId selfId = new NodeId(0);
-        final NodeId otherId = new NodeId(3);
+        final NodeId selfId = NodeId.of(0);
+        final NodeId otherId = NodeId.of(3);
         final long lastRoundReceived = 100;
         return new ReconnectTeacher(
                 platformContext,
@@ -186,20 +174,25 @@ final class ReconnectTest {
                 otherId,
                 lastRoundReceived,
                 reconnectMetrics,
-                platformContext.getConfiguration());
+                platformStateFacade);
     }
 
     private ReconnectLearner buildReceiver(
-            final MerkleRoot state, final Connection connection, final ReconnectMetrics reconnectMetrics) {
-        final AddressBook addressBook = buildAddressBook(5);
+            final MerkleNodeState state,
+            final Connection connection,
+            final ReconnectMetrics reconnectMetrics,
+            final PlatformStateFacade platformStateFacade) {
+        final Roster roster =
+                RandomRosterBuilder.create(getRandomPrintSeed()).withSize(5).build();
 
         return new ReconnectLearner(
                 TestPlatformContextBuilder.create().build(),
                 getStaticThreadManager(),
                 connection,
-                addressBook,
+                roster,
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
-                reconnectMetrics);
+                reconnectMetrics,
+                platformStateFacade);
     }
 }

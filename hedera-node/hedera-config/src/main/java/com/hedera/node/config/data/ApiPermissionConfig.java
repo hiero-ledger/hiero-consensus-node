@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.data;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -29,6 +15,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_GET_BYTECOD
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_GET_RECORDS;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE;
@@ -48,6 +35,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.FILE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_VERSION_INFO;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
@@ -56,6 +49,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ACCOUNT_WIPE;
@@ -118,6 +112,7 @@ import java.util.function.Function;
  * @param deleteAllowances           the permission for {@link HederaFunctionality#CRYPTO_DELETE_ALLOWANCE}
  *                                   functionality
  * @param utilPrng                   the permission for {@link HederaFunctionality#UTIL_PRNG} functionality
+ * @param atomicBatch                the permission for {@link HederaFunctionality#ATOMIC_BATCH} functionality
  * @param createFile                 the permission for {@link HederaFunctionality#FILE_CREATE} functionality
  * @param updateFile                 the permission for {@link HederaFunctionality#FILE_UPDATE} functionality
  * @param deleteFile                 the permission for {@link HederaFunctionality#FILE_DELETE} functionality
@@ -203,6 +198,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange approveAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange utilPrng,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange atomicBatch,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange createFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteFile,
@@ -259,7 +255,19 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange tokenClaimAirdrop,
         @ConfigProperty(defaultValue = "2-55") PermissionedAccountsRange createNode,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateNode,
-        @ConfigProperty(defaultValue = "2-55") PermissionedAccountsRange deleteNode) {
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteNode,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hintsKeyPublication,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hintsPreprocessingVote,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hintsPartialSignature,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange tssMessage,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange tssVote,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange tssShareSignature,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange tssEncryptionKey,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange stateSignature,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofKeyPublication,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyAssemblySignature,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange historyProofVote,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -334,9 +342,18 @@ public record ApiPermissionConfig(
         permissionKeys.put(TOKEN_GET_ACCOUNT_NFT_INFOS, c -> c.tokenGetAccountNftInfos);
         permissionKeys.put(TOKEN_FEE_SCHEDULE_UPDATE, c -> c.tokenFeeScheduleUpdate);
         permissionKeys.put(UTIL_PRNG, c -> c.utilPrng);
+        permissionKeys.put(ATOMIC_BATCH, c -> c.atomicBatch);
         permissionKeys.put(NODE_CREATE, c -> c.createNode);
         permissionKeys.put(NODE_UPDATE, c -> c.updateNode);
         permissionKeys.put(NODE_DELETE, c -> c.deleteNode);
+        permissionKeys.put(STATE_SIGNATURE_TRANSACTION, c -> c.stateSignature);
+        permissionKeys.put(HINTS_KEY_PUBLICATION, c -> c.hintsKeyPublication);
+        permissionKeys.put(HINTS_PREPROCESSING_VOTE, c -> c.hintsPreprocessingVote);
+        permissionKeys.put(HINTS_PARTIAL_SIGNATURE, c -> c.hintsPartialSignature);
+        permissionKeys.put(HISTORY_PROOF_KEY_PUBLICATION, c -> c.historyProofKeyPublication);
+        permissionKeys.put(HISTORY_ASSEMBLY_SIGNATURE, c -> c.historyAssemblySignature);
+        permissionKeys.put(HISTORY_PROOF_VOTE, c -> c.historyProofVote);
+        permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
     }
 
     /**

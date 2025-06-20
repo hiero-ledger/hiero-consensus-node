@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.dsl.operations.transactions;
 
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.allRequiredCallEntities;
@@ -26,6 +11,8 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Represents a call to a smart contract.
@@ -34,12 +21,13 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
         implements SpecOperation {
     private static final long DEFAULT_GAS = 100_000;
 
-    private final SpecContract target;
+    private SpecContract target;
     private final String function;
     private final Object[] parameters;
     private long gas = DEFAULT_GAS;
     private long sendValue;
     private String txnName;
+    private Consumer<Object[]> resultObserver;
 
     public CallContractOperation(
             @NonNull final SpecContract target, @NonNull final String function, @NonNull final Object... parameters) {
@@ -53,9 +41,13 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
     @Override
     protected SpecOperation computeDelegate(@NonNull final HapiSpec spec) {
         final var op = contractCall(
-                        target.name(), function, withSubstitutedTypes(spec.targetNetworkOrThrow(), parameters))
+                        Optional.of(target.variant()),
+                        target.name(),
+                        function,
+                        withSubstitutedTypes(spec.targetNetworkOrThrow(), parameters))
                 .sending(sendValue)
                 .via(txnName)
+                .exposingResultTo(resultObserver)
                 .gas(gas);
         maybeAssertions().ifPresent(a -> a.accept(op));
         return op;
@@ -83,6 +75,11 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
 
     public CallContractOperation via(final String txnName) {
         this.txnName = txnName;
+        return this;
+    }
+
+    public CallContractOperation exposingResultTo(final Consumer<Object[]> observer) {
+        this.resultObserver = observer;
         return this;
     }
 

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
@@ -29,6 +14,8 @@ import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.StakingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -53,12 +40,18 @@ public class StakingRewardsHelper {
      */
     public static final long MAX_PENDING_REWARDS = 50_000_000_000L * HBARS_TO_TINYBARS;
 
+    private final boolean assumeContiguousPeriods;
+
     /**
      * Default constructor for injection.
      */
     @Inject
-    public StakingRewardsHelper() {
-        // Exists for Dagger injection
+    public StakingRewardsHelper(@NonNull final ConfigProvider configProvider) {
+        requireNonNull(configProvider);
+        this.assumeContiguousPeriods = configProvider
+                .getConfiguration()
+                .getConfigData(StakingConfig.class)
+                .assumeContiguousPeriods();
     }
 
     /**
@@ -171,11 +164,14 @@ public class StakingRewardsHelper {
         final var currentPendingRewards = stakingRewardsStore.pendingRewards();
         var newPendingRewards = currentPendingRewards - amount;
         if (newPendingRewards < 0) {
-            log.error(
-                    "Pending rewards decreased by {} to a meaningless {}, fixing to zero hbar",
-                    amount,
-                    newPendingRewards,
-                    nodeId);
+            // If staking periods have been skipped in an environment, it is no longer
+            // guaranteed that pending rewards are maintained accurately
+            if (assumeContiguousPeriods) {
+                log.error(
+                        "Pending rewards decreased by {} to a meaningless {}, fixing to zero hbar",
+                        amount,
+                        newPendingRewards);
+            }
             newPendingRewards = 0;
         }
         final var stakingRewards = stakingRewardsStore.get();
@@ -187,11 +183,15 @@ public class StakingRewardsHelper {
         final var currentNodePendingRewards = stakingInfo.pendingRewards();
         var newNodePendingRewards = currentNodePendingRewards - amount;
         if (newNodePendingRewards < 0) {
-            log.error(
-                    "Pending rewards decreased by {} to a meaningless {} for node {}, fixing to zero hbar",
-                    amount,
-                    newNodePendingRewards,
-                    nodeId);
+            // If staking periods have been skipped in an environment, it is no longer
+            // guaranteed that pending rewards are maintained accurately
+            if (assumeContiguousPeriods) {
+                log.error(
+                        "Pending rewards decreased by {} to a meaningless {} for node {}, fixing to zero hbar",
+                        amount,
+                        newNodePendingRewards,
+                        nodeId);
+            }
             newNodePendingRewards = 0;
         }
         final var stakingInfoCopy =
@@ -211,9 +211,11 @@ public class StakingRewardsHelper {
      * @return The clamped pending rewards
      */
     public StakingNodeInfo increasePendingRewardsBy(
-            final WritableNetworkStakingRewardsStore stakingRewardsStore,
-            long amount,
-            final StakingNodeInfo currStakingInfo) {
+            @NonNull final WritableNetworkStakingRewardsStore stakingRewardsStore,
+            final long amount,
+            @NonNull final StakingNodeInfo currStakingInfo) {
+        requireNonNull(stakingRewardsStore);
+        requireNonNull(currStakingInfo);
         // increment the total pending rewards being tracked for the network
         final var currentPendingRewards = stakingRewardsStore.pendingRewards();
         long nodePendingRewards = currStakingInfo.pendingRewards();

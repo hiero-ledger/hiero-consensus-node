@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
@@ -245,7 +230,7 @@ public class SolvencyPreCheck {
             @NonNull final HederaFunctionality functionality, @NonNull final Instant consensusTime) {
         final var feeData = feeManager.getFeeData(functionality, consensusTime, SubType.DEFAULT);
         final long priceInTinyCents = feeData.servicedataOrThrow().gas() / FEE_DIVISOR_FACTOR;
-        final long priceInTinyBars = exchangeRateManager.getTinybarsFromTinyCents(priceInTinyCents, consensusTime);
+        final long priceInTinyBars = exchangeRateManager.getTinybarsFromTinycents(priceInTinyCents, consensusTime);
         return Math.max(priceInTinyBars, 1L);
     }
 }

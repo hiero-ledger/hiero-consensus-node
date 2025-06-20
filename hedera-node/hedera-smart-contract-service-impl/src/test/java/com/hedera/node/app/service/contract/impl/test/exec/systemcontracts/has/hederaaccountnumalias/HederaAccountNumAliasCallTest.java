@@ -1,31 +1,22 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has.hederaaccountnumalias;
 
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hederaaccountnumalias.HederaAccountNumAliasTranslator.HEDERA_ACCOUNT_NUM_ALIAS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hederaaccountnumalias.HederaAccountNumAliasCall;
@@ -52,9 +43,12 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
         // Arrange to use an account that has an alias
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
-        given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(ALIASED_RECEIVER);
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_RECEIVER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(DEFAULT_CONFIG);
 
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
@@ -63,9 +57,9 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
-                        .encodeElements(
+                        .encode(Tuple.of(
                                 (long) ResponseCodeEnum.SUCCESS.protoOrdinal(),
-                                asHeadlongAddress(RECEIVER_ID.accountNumOrThrow()))
+                                asHeadlongAddress(RECEIVER_ID.accountNumOrThrow())))
                         .array()),
                 result.getOutput());
     }
@@ -75,10 +69,12 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS))
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), RECEIVER_ADDRESS))
                 .willReturn(ALIASED_RECEIVER.accountId().accountNumOrThrow());
-        given(nativeOperations.getAccount(RECEIVER_ID.accountNumOrThrow())).willReturn(null);
-
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(null);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        given(nativeOperations.configuration()).willReturn(DEFAULT_CONFIG);
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
@@ -86,7 +82,7 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
-                        .encodeElements((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS)
+                        .encode(Tuple.of((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }
@@ -96,8 +92,10 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
 
-        given(nativeOperations.resolveAlias(RECEIVER_ADDRESS)).willReturn(MISSING_ENTITY_NUMBER);
-
+        given(nativeOperations.resolveAlias(
+                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), RECEIVER_ADDRESS))
+                .willReturn(MISSING_ENTITY_NUMBER);
+        given(nativeOperations.configuration()).willReturn(DEFAULT_CONFIG);
         subject = new HederaAccountNumAliasCall(attempt, asHeadlongAddress(RECEIVER_ADDRESS.toByteArray()));
         final var result = subject.execute(frame).fullResult().result();
 
@@ -105,7 +103,7 @@ public class HederaAccountNumAliasCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(HEDERA_ACCOUNT_NUM_ALIAS
                         .getOutputs()
-                        .encodeElements((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS)
+                        .encode(Tuple.of((long) ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS.protoOrdinal(), ZERO_ADDRESS))
                         .array()),
                 result.getOutput());
     }

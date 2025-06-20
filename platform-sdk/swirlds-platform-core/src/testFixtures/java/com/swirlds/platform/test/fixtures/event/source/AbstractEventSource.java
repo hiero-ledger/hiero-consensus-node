@@ -1,26 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.source;
 
-import static com.swirlds.platform.system.events.EventConstants.FIRST_GENERATION;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
@@ -33,11 +16,12 @@ import java.time.Instant;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A source of events.
  */
-public abstract class AbstractEventSource<T extends AbstractEventSource<T>> implements EventSource<T> {
+public abstract class AbstractEventSource implements EventSource {
 
     /**
      * The unique ID of this source/node. Is set by the StandardEventGenerator.
@@ -48,9 +32,6 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
      * Influences the probability that this node create a new event.
      */
     private DynamicValueGenerator<Double> newEventWeight;
-
-    /** The amount of weight this node has. */
-    private final long weight;
 
     /**
      * The average size of a transaction, in bytes.
@@ -71,9 +52,6 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
      * The standard deviation of the number of transactions.
      */
     private static final double DEFAULT_TX_COUNT_STD_DEV = 3;
-
-    /** The default amount of weight to allocate this node is no value is provided. */
-    protected static final long DEFAULT_WEIGHT = 1;
 
     /** The default transaction generator used to create transaction for generated events. */
     protected static final TransactionGenerator DEFAULT_TRANSACTION_GENERATOR =
@@ -112,13 +90,10 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
      *
      * @param useFakeHashes        indicates if fake hashes should be used instead of real ones
      * @param transactionGenerator a transaction generator to use when creating events
-     * @param weight               the weight allocated to this event source
      */
-    protected AbstractEventSource(
-            final boolean useFakeHashes, final TransactionGenerator transactionGenerator, final long weight) {
+    protected AbstractEventSource(final boolean useFakeHashes, final TransactionGenerator transactionGenerator) {
         this.useFakeHashes = useFakeHashes;
         this.transactionGenerator = transactionGenerator;
-        this.weight = weight;
         nodeId = NodeId.UNDEFINED_NODE_ID;
         setNewEventWeight(1.0);
 
@@ -133,10 +108,9 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
         recentEventRetentionSize = 100;
     }
 
-    protected AbstractEventSource(final AbstractEventSource<T> that) {
+    protected AbstractEventSource(final AbstractEventSource that) {
         this.useFakeHashes = that.useFakeHashes;
         this.transactionGenerator = that.transactionGenerator;
-        this.weight = that.weight;
         this.nodeId = that.nodeId;
         this.newEventWeight = that.newEventWeight.cleanCopy();
 
@@ -177,17 +151,11 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     @Override
-    public T setNodeId(@NonNull final NodeId nodeId) {
+    public EventSource setNodeId(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, "nodeId must not be null");
         this.nodeId = nodeId;
-        return (T) this;
-    }
-
-    @Override
-    public long getWeight() {
-        return weight;
+        return this;
     }
 
     /**
@@ -201,11 +169,9 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     @Override
-    public T setNewEventWeight(final DynamicValue<Double> dynamicWeight) {
+    public void setNewEventWeight(final DynamicValue<Double> dynamicWeight) {
         this.newEventWeight = new DynamicValueGenerator<>(dynamicWeight);
-        return (T) this;
     }
 
     /**
@@ -215,7 +181,7 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
     public EventImpl generateEvent(
             @NonNull final Random random,
             final long eventIndex,
-            @Nullable final EventSource<?> otherParent,
+            @Nullable final EventSource otherParent,
             @NonNull final Instant timestamp,
             final long birthRound) {
         Objects.requireNonNull(random);
@@ -232,10 +198,6 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
         final EventImpl otherParentEvent =
                 otherParent == null ? null : otherParent.getRecentEvent(random, otherParentIndex);
         final EventImpl latestSelfEvent = getLatestEvent(random);
-        final long generation = Math.max(
-                        otherParentEvent == null ? (FIRST_GENERATION - 1) : otherParentEvent.getGeneration(),
-                        latestSelfEvent == null ? (FIRST_GENERATION - 1) : latestSelfEvent.getGeneration())
-                + 1;
 
         event = RandomEventUtils.randomEventWithTimestamp(
                 random,
@@ -261,9 +223,9 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
      *
      * @param transactionGenerator
      */
-    public T setTransactionGenerator(final TransactionGenerator transactionGenerator) {
+    public EventSource setTransactionGenerator(final TransactionGenerator transactionGenerator) {
         this.transactionGenerator = transactionGenerator;
-        return (T) this;
+        return this;
     }
 
     /**
@@ -277,11 +239,10 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     @Override
-    public T setRequestedOtherParentAgeDistribution(final DynamicValue<Integer> otherParentIndex) {
+    public EventSource setRequestedOtherParentAgeDistribution(final DynamicValue<Integer> otherParentIndex) {
         otherParentRequestIndex = new DynamicValueGenerator<>(otherParentIndex);
-        return (T) this;
+        return this;
     }
 
     /**
@@ -295,11 +256,10 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     @Override
-    public T setProvidedOtherParentAgeDistribution(final DynamicValue<Integer> otherParentIndex) {
+    public EventSource setProvidedOtherParentAgeDistribution(final DynamicValue<Integer> otherParentIndex) {
         this.otherParentProviderIndex = new DynamicValueGenerator<>(otherParentIndex);
-        return (T) this;
+        return this;
     }
 
     /**
@@ -313,10 +273,9 @@ public abstract class AbstractEventSource<T extends AbstractEventSource<T>> impl
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     @Override
-    public T setRecentEventRetentionSize(final int recentEventRetentionSize) {
+    public EventSource setRecentEventRetentionSize(final int recentEventRetentionSize) {
         this.recentEventRetentionSize = recentEventRetentionSize;
-        return (T) this;
+        return this;
     }
 }

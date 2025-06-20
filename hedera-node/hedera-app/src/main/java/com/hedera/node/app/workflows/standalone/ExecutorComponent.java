@@ -1,46 +1,40 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone;
 
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
+import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.schedule.ScheduleService;
+import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
+import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.throttle.Throttle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
+import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.throttle.ThrottleServiceModule;
 import com.hedera.node.app.workflows.FacilityInitModule;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflowInjectionModule;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneDispatchFactory;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneModule;
-import com.hedera.node.app.workflows.standalone.impl.StateNetworkInfo;
+import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import dagger.BindsInstance;
 import dagger.Component;
-import java.util.function.Consumer;
 import javax.inject.Singleton;
 
 /**
- * A component that provides DI for construction of {@link StandaloneDispatchFactory}, {@link StateNetworkInfo}, and
+ * A component that provides DI for construction of {@link StandaloneDispatchFactory}, {@link StandaloneNetworkInfo}, and
  * {@link DispatchProcessor} instances needed to execute standalone transactions against a {@link State}.
  */
 @Singleton
@@ -53,7 +47,7 @@ import javax.inject.Singleton;
             ServicesInjectionModule.class,
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
-            FacilityInitModule.class
+            FacilityInitModule.class,
         })
 public interface ExecutorComponent {
     @Component.Builder
@@ -62,10 +56,28 @@ public interface ExecutorComponent {
         Builder fileServiceImpl(FileServiceImpl fileService);
 
         @BindsInstance
+        Builder scheduleService(ScheduleService scheduleService);
+
+        @BindsInstance
         Builder contractServiceImpl(ContractServiceImpl contractService);
 
         @BindsInstance
+        Builder utilServiceImpl(UtilServiceImpl utilService);
+
+        @BindsInstance
+        Builder scheduleServiceImpl(ScheduleServiceImpl scheduleService);
+
+        @BindsInstance
+        Builder hintsService(HintsService hintsService);
+
+        @BindsInstance
+        Builder historyService(HistoryService historyService);
+
+        @BindsInstance
         Builder configProviderImpl(ConfigProviderImpl configProvider);
+
+        @BindsInstance
+        Builder disableThrottles(boolean disableThrottles);
 
         @BindsInstance
         Builder bootstrapConfigProviderImpl(BootstrapConfigProviderImpl bootstrapConfigProvider);
@@ -73,16 +85,28 @@ public interface ExecutorComponent {
         @BindsInstance
         Builder metrics(Metrics metrics);
 
+        @BindsInstance
+        Builder throttleFactory(Throttle.Factory throttleFactory);
+
+        @BindsInstance
+        Builder appContext(AppContext appContext);
+
         ExecutorComponent build();
     }
 
-    Consumer<State> initializer();
+    FacilityInitModule.FacilityInitializer initializer();
+
+    AppFeeCharging appFeeCharging();
 
     DispatchProcessor dispatchProcessor();
 
-    StateNetworkInfo stateNetworkInfo();
+    StandaloneNetworkInfo stateNetworkInfo();
 
     ExchangeRateManager exchangeRateManager();
 
+    ThrottleServiceManager throttleServiceManager();
+
     StandaloneDispatchFactory standaloneDispatchFactory();
+
+    TransactionChecker transactionChecker();
 }

@@ -1,29 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNED_STATE_FILE_NAME;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.platform.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,8 +16,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility methods for determining the path of signed states on disk.
@@ -194,43 +180,48 @@ public class SignedStateFilePath {
                 return List.of();
             }
 
-            final List<Path> dirs = Files.list(dir).filter(Files::isDirectory).toList();
+            try (final Stream<Path> list = Files.list(dir)) {
 
-            final TreeMap<Long, SavedStateInfo> savedStates = new TreeMap<>();
-            for (final Path subDir : dirs) {
-                try {
-                    final long round = Long.parseLong(subDir.getFileName().toString());
-                    final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
-                    if (!exists(stateFile)) {
+                final List<Path> dirs = list.filter(Files::isDirectory).toList();
+
+                final TreeMap<Long, SavedStateInfo> savedStates = new TreeMap<>();
+                for (final Path subDir : dirs) {
+                    try {
+                        final long round = Long.parseLong(subDir.getFileName().toString());
+                        final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
+                        if (!exists(stateFile)) {
+                            logger.warn(
+                                    EXCEPTION.getMarker(),
+                                    "Saved state file ({}) not found, but directory exists '{}'",
+                                    stateFile.getFileName(),
+                                    subDir.toAbsolutePath());
+                            continue;
+                        }
+
+                        final Path metdataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
+                        final SavedStateMetadata metadata;
+                        try {
+                            metadata = SavedStateMetadata.parse(metdataPath);
+                        } catch (final IOException e) {
+                            logger.error(
+                                    EXCEPTION.getMarker(),
+                                    "Unable to read saved state metadata file '{}'",
+                                    metdataPath);
+                            continue;
+                        }
+
+                        savedStates.put(round, new SavedStateInfo(stateFile, metadata));
+
+                    } catch (final NumberFormatException e) {
                         logger.warn(
                                 EXCEPTION.getMarker(),
-                                "Saved state file ({}) not found, but directory exists '{}'",
-                                stateFile.getFileName(),
-                                subDir.toAbsolutePath());
-                        continue;
+                                "Unexpected directory '{}' in '{}'",
+                                subDir.getFileName(),
+                                dir.toAbsolutePath());
                     }
-
-                    final Path metdataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
-                    final SavedStateMetadata metadata;
-                    try {
-                        metadata = SavedStateMetadata.parse(metdataPath);
-                    } catch (final IOException e) {
-                        logger.error(
-                                EXCEPTION.getMarker(), "Unable to read saved state metadata file '{}'", metdataPath);
-                        continue;
-                    }
-
-                    savedStates.put(round, new SavedStateInfo(stateFile, metadata));
-
-                } catch (final NumberFormatException e) {
-                    logger.warn(
-                            EXCEPTION.getMarker(),
-                            "Unexpected directory '{}' in '{}'",
-                            subDir.getFileName(),
-                            dir.toAbsolutePath());
                 }
+                return new ArrayList<>(savedStates.descendingMap().values());
             }
-            return new ArrayList<>(savedStates.descendingMap().values());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

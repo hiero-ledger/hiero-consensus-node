@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlobalMetrics;
@@ -21,8 +6,10 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
+import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
@@ -30,35 +17,21 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.creation.DefaultEventCreationManager;
-import com.swirlds.platform.event.creation.EventCreationManager;
-import com.swirlds.platform.event.creation.EventCreator;
-import com.swirlds.platform.event.creation.tipset.TipsetEventCreator;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
-import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.event.hashing.EventHasher;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.event.preconsensus.DefaultPcesSequencer;
-import com.swirlds.platform.event.preconsensus.DefaultPcesWriter;
+import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
+import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesSequencer;
-import com.swirlds.platform.event.preconsensus.PcesWriter;
-import com.swirlds.platform.event.preconsensus.durability.DefaultRoundDurabilityBuffer;
-import com.swirlds.platform.event.preconsensus.durability.RoundDurabilityBuffer;
+import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
-import com.swirlds.platform.event.signing.DefaultSelfEventSigner;
-import com.swirlds.platform.event.signing.SelfEventSigner;
-import com.swirlds.platform.event.stale.DefaultStaleEventDetector;
-import com.swirlds.platform.event.stale.StaleEventDetector;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
@@ -69,9 +42,7 @@ import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.gossip.SyncGossip;
-import com.swirlds.platform.pool.DefaultTransactionPool;
-import com.swirlds.platform.pool.TransactionPool;
+import com.swirlds.platform.gossip.SyncGossipModular;
 import com.swirlds.platform.state.hasher.DefaultStateHasher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.DefaultHashLogger;
@@ -92,8 +63,6 @@ import com.swirlds.platform.state.snapshot.DefaultStateSnapshotManager;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.events.CesEvent;
 import com.swirlds.platform.system.status.DefaultStatusStateMachine;
 import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.util.MetricsDocUtils;
@@ -102,6 +71,21 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.pool.DefaultTransactionPool;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
+import org.hiero.consensus.event.creator.impl.signing.DefaultSelfEventSigner;
+import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
+import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
+import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
+import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -115,7 +99,7 @@ import java.util.Objects;
  *     <li>A component must not communicate with other components except through the wiring framework
  *         (with a very small number of exceptions due to tech debt that has not yet been paid off).</li>
  *     <li>A component should have an interface and at default implementation.</li>
- *     <li>A component should use {@link com.swirlds.common.wiring.component.ComponentWiring ComponentWiring} to define
+ *     <li>A component should use {@link ComponentWiring ComponentWiring} to define
  *         wiring API.</li>
  *     <li>The order in which components are constructed should not matter.</li>
  *     <li>A component must not be a static singleton or use static stateful variables in any way.</li>
@@ -136,11 +120,9 @@ public class PlatformComponentBuilder {
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
-    private PcesSequencer pcesSequencer;
-    private RoundDurabilityBuffer roundDurabilityBuffer;
     private StatusStateMachine statusStateMachine;
     private TransactionPrehandler transactionPrehandler;
-    private PcesWriter pcesWriter;
+    private InlinePcesWriter inlinePcesWriter;
     private IssDetector issDetector;
     private IssHandler issHandler;
     private Gossip gossip;
@@ -155,6 +137,9 @@ public class PlatformComponentBuilder {
     private StateSigner stateSigner;
     private TransactionHandler transactionHandler;
     private LatestCompleteStateNotifier latestCompleteStateNotifier;
+    private FutureEventBuffer futureEventBuffer;
+
+    private SwirldsPlatform swirldsPlatform;
 
     private boolean metricsDocumentationEnabled = true;
 
@@ -203,7 +188,8 @@ public class PlatformComponentBuilder {
         used = true;
 
         try (final ReservedSignedState initialState = blocks.initialState()) {
-            return new SwirldsPlatform(this);
+            swirldsPlatform = new SwirldsPlatform(this);
+            return swirldsPlatform;
         } finally {
             if (metricsDocumentationEnabled) {
                 // Future work: eliminate the static variables that require this code to exist
@@ -290,7 +276,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public InternalEventValidator buildInternalEventValidator() {
         if (internalEventValidator == null) {
-            final boolean singleNodeNetwork = blocks.initialAddressBook().getSize() == 1;
+            final boolean singleNodeNetwork =
+                    blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
                     blocks.platformContext(), singleNodeNetwork, blocks.intakeEventCounter());
         }
@@ -359,13 +346,7 @@ public class PlatformComponentBuilder {
             eventSignatureValidator = new DefaultEventSignatureValidator(
                     blocks.platformContext(),
                     CryptoStatic::verifySignature,
-                    blocks.appVersion().getPbjSemanticVersion(),
-                    blocks.initialState()
-                            .get()
-                            .getState()
-                            .getReadablePlatformState()
-                            .getPreviousAddressBook(),
-                    blocks.initialAddressBook(),
+                    blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }
         return eventSignatureValidator;
@@ -499,16 +480,13 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.randomBuilder().buildNonCryptographicRandom(),
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    blocks.initialAddressBook(),
+                    blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.appVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext(),
-                    blocks.transactionPoolNexus(),
-                    blocks.intakeQueueSizeSupplierSupplier().get(),
-                    eventCreator);
+                    blocks.platformContext(), blocks.transactionPoolNexus(), eventCreator);
         }
         return eventCreationManager;
     }
@@ -540,7 +518,10 @@ public class PlatformComponentBuilder {
     public ConsensusEngine buildConsensusEngine() {
         if (consensusEngine == null) {
             consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext(), blocks.initialState().get().getAddressBook(), blocks.selfId());
+                    blocks.platformContext(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.selfId(),
+                    blocks.freezeCheckHolder());
         }
         return consensusEngine;
     }
@@ -572,94 +553,16 @@ public class PlatformComponentBuilder {
     @NonNull
     public ConsensusEventStream buildConsensusEventStream() {
         if (consensusEventStream == null) {
-
-            // Required for conformity with legacy behavior. This sort of funky logic is normally something
-            // we'd try to move away from, but since we will be removing the CES entirely, it's simpler
-            // to just wait until the entire component disappears.
-            final Address address = blocks.initialAddressBook().getAddress(blocks.selfId());
-            final String consensusEventStreamName;
-            if (!address.getMemo().isEmpty()) {
-                consensusEventStreamName = address.getMemo();
-            } else {
-                consensusEventStreamName = String.valueOf(blocks.selfId());
-            }
-
             consensusEventStream = new DefaultConsensusEventStream(
                     blocks.platformContext(),
                     blocks.selfId(),
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
-                    consensusEventStreamName,
+                    blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.isInFreezePeriodReference()
-                                    .get()
-                                    .test(event.getPlatformEvent().getConsensusTimestamp()));
+                            && blocks.freezeCheckHolder()
+                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
-    }
-
-    /**
-     * Provide a PCES sequencer in place of the platform's default PCES sequencer.
-     *
-     * @param pcesSequencer the PCES sequencer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withPcesSequencer(@NonNull final PcesSequencer pcesSequencer) {
-        throwIfAlreadyUsed();
-        if (this.pcesSequencer != null) {
-            throw new IllegalStateException("PCES sequencer has already been set");
-        }
-        this.pcesSequencer = Objects.requireNonNull(pcesSequencer);
-        return this;
-    }
-
-    /**
-     * Build the PCES sequencer if it has not yet been built. If one has been provided via
-     * {@link #withPcesSequencer(PcesSequencer)}, that sequencer will be used. If this method is called more than once,
-     * only the first call will build the PCES sequencer. Otherwise, the default sequencer will be created and
-     * returned.
-     *
-     * @return the PCES sequencer
-     */
-    @NonNull
-    public PcesSequencer buildPcesSequencer() {
-        if (pcesSequencer == null) {
-            pcesSequencer = new DefaultPcesSequencer();
-        }
-        return pcesSequencer;
-    }
-
-    /**
-     * Provide a round durability buffer in place of the platform's default round durability buffer.
-     *
-     * @param roundDurabilityBuffer the RoundDurabilityBuffer to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withRoundDurabilityBuffer(
-            @NonNull final RoundDurabilityBuffer roundDurabilityBuffer) {
-        throwIfAlreadyUsed();
-        if (this.roundDurabilityBuffer != null) {
-            throw new IllegalStateException("RoundDurabilityBuffer has already been set");
-        }
-        this.roundDurabilityBuffer = Objects.requireNonNull(roundDurabilityBuffer);
-        return this;
-    }
-
-    /**
-     * Build the round durability buffer if it has not yet been built. If one has been provided via
-     * {@link #withRoundDurabilityBuffer(RoundDurabilityBuffer)}, that round durability buffer will be used. If this
-     * method is called more than once, only the first call will build the round durability buffer. Otherwise, the
-     * default round durability buffer will be created and returned.
-     *
-     * @return the RoundDurabilityBuffer
-     */
-    @NonNull
-    public RoundDurabilityBuffer buildRoundDurabilityBuffer() {
-        if (roundDurabilityBuffer == null) {
-            roundDurabilityBuffer = new DefaultRoundDurabilityBuffer(blocks.platformContext());
-        }
-        return roundDurabilityBuffer;
     }
 
     /**
@@ -756,50 +659,53 @@ public class PlatformComponentBuilder {
         if (transactionPrehandler == null) {
             transactionPrehandler = new DefaultTransactionPrehandler(
                     blocks.platformContext(),
-                    () -> blocks.latestImmutableStateProviderReference().get().apply("transaction prehandle"));
+                    () -> blocks.latestImmutableStateProviderReference().get().apply("transaction prehandle"),
+                    blocks.consensusStateEventHandler());
         }
         return transactionPrehandler;
     }
 
     /**
-     * Provide a PCES writer in place of the platform's default PCES writer.
+     * Provide an Inline PCES writer in place of the platform's default Inline PCES writer.
      *
-     * @param pcesWriter the PCES writer to use
+     * @param inlinePcesWriter the PCES writer to use
      * @return this builder
      */
     @NonNull
-    public PlatformComponentBuilder withPcesWriter(@NonNull final PcesWriter pcesWriter) {
+    public PlatformComponentBuilder withInlinePcesWriter(@NonNull final InlinePcesWriter inlinePcesWriter) {
         throwIfAlreadyUsed();
-        if (this.pcesWriter != null) {
-            throw new IllegalStateException("PCES writer has already been set");
+        if (this.inlinePcesWriter != null) {
+            throw new IllegalStateException("Inline PCES writer has already been set");
         }
-        this.pcesWriter = Objects.requireNonNull(pcesWriter);
+        this.inlinePcesWriter = Objects.requireNonNull(inlinePcesWriter);
         return this;
     }
 
     /**
-     * Build the PCES writer if it has not yet been built. If one has been provided via
-     * {@link #withPcesWriter(PcesWriter)}, that writer will be used. If this method is called more than once, only the
-     * first call will build the PCES writer. Otherwise, the default writer will be created and returned.
+     * Build the Inline PCES writer if it has not yet been built. If one has been provided via
+     * {@link #withInlinePcesWriter(InlinePcesWriter)}, that writer will be used. If this method is called more than
+     * once, only the first call will build the Inline PCES writer. Otherwise, the default writer will be created and
+     * returned.
      *
-     * @return the PCES writer
+     * @return the Inline PCES writer
      */
     @NonNull
-    public PcesWriter buildPcesWriter() {
-        if (pcesWriter == null) {
+    public InlinePcesWriter buildInlinePcesWriter() {
+        if (inlinePcesWriter == null) {
             try {
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
                         blocks.platformContext(),
                         blocks.initialPcesFiles(),
-                        blocks.selfId(),
+                        PcesUtilities.getDatabaseDirectory(blocks.platformContext(), blocks.selfId()),
                         blocks.initialState().get().getRound());
-                pcesWriter = new DefaultPcesWriter(blocks.platformContext(), preconsensusEventFileManager);
+                inlinePcesWriter = new DefaultInlinePcesWriter(
+                        blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
 
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
-        return pcesWriter;
+        return inlinePcesWriter;
     }
 
     /**
@@ -863,12 +769,8 @@ public class PlatformComponentBuilder {
 
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
-                    blocks.initialState()
-                            .get()
-                            .getState()
-                            .getReadablePlatformState()
-                            .getAddressBook(),
-                    blocks.appVersion().getPbjSemanticVersion(),
+                    blocks.rosterHistory().getCurrentRoster(),
+                    blocks.appVersion(),
                     ignorePreconsensusSignatures,
                     roundToIgnore);
         }
@@ -941,7 +843,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public StaleEventDetector buildStaleEventDetector() {
         if (staleEventDetector == null) {
-            staleEventDetector = new DefaultStaleEventDetector(blocks.platformContext(), blocks.selfId());
+            final PlatformContext context = blocks.platformContext();
+            staleEventDetector = new DefaultStaleEventDetector(context.getMetrics(), blocks.selfId());
         }
         return staleEventDetector;
     }
@@ -1036,20 +939,20 @@ public class PlatformComponentBuilder {
     @NonNull
     public Gossip buildGossip() {
         if (gossip == null) {
-            gossip = new SyncGossip(
+            gossip = new SyncGossipModular(
                     blocks.platformContext(),
                     AdHocThreadManager.getStaticThreadManager(),
                     blocks.keysAndCerts(),
-                    blocks.initialAddressBook(),
+                    blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.appVersion(),
-                    () -> blocks.intakeQueueSizeSupplierSupplier().get().getAsLong(),
                     blocks.swirldStateManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     x -> blocks.statusActionSubmitterReference().get().submitStatusAction(x),
                     state -> blocks.loadReconnectStateReference().get().accept(state),
                     () -> blocks.clearAllPipelinesForReconnectReference().get().run(),
-                    blocks.intakeEventCounter());
+                    blocks.intakeEventCounter(),
+                    blocks.platformStateFacade());
         }
         return gossip;
     }
@@ -1117,7 +1020,11 @@ public class PlatformComponentBuilder {
             final String actualMainClassName = stateConfig.getMainClassName(blocks.mainClassName());
 
             stateSnapshotManager = new DefaultStateSnapshotManager(
-                    blocks.platformContext(), actualMainClassName, blocks.selfId(), blocks.swirldName());
+                    blocks.platformContext(),
+                    actualMainClassName,
+                    blocks.selfId(),
+                    blocks.swirldName(),
+                    blocks.platformStateFacade());
         }
         return stateSnapshotManager;
     }
@@ -1148,7 +1055,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public HashLogger buildHashLogger() {
         if (hashLogger == null) {
-            hashLogger = new DefaultHashLogger(blocks.platformContext());
+            hashLogger = new DefaultHashLogger(blocks.platformContext(), blocks.platformStateFacade());
         }
         return hashLogger;
     }
@@ -1180,7 +1087,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public BranchDetector buildBranchDetector() {
         if (branchDetector == null) {
-            branchDetector = new DefaultBranchDetector(blocks.initialAddressBook());
+            branchDetector = new DefaultBranchDetector(blocks.rosterHistory().getCurrentRoster());
         }
         return branchDetector;
     }
@@ -1212,7 +1119,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public BranchReporter buildBranchReporter() {
         if (branchReporter == null) {
-            branchReporter = new DefaultBranchReporter(blocks.platformContext(), blocks.initialAddressBook());
+            branchReporter = new DefaultBranchReporter(
+                    blocks.platformContext(), blocks.rosterHistory().getCurrentRoster());
         }
         return branchReporter;
     }
@@ -1278,7 +1186,8 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.swirldStateManager(),
                     blocks.statusActionSubmitterReference().get(),
-                    blocks.appVersion());
+                    blocks.appVersion(),
+                    blocks.platformStateFacade());
         }
         return transactionHandler;
     }
@@ -1314,5 +1223,21 @@ public class PlatformComponentBuilder {
             latestCompleteStateNotifier = new DefaultLatestCompleteStateNotifier();
         }
         return latestCompleteStateNotifier;
+    }
+
+    /**
+     * Provide a future event buffer in place of the platform's default future event buffer.
+     *
+     * @param futureEventBuffer the future event buffer to use
+     * @return this builder
+     */
+    @NonNull
+    public PlatformComponentBuilder withFutureEventBuffer(@NonNull final FutureEventBuffer futureEventBuffer) {
+        throwIfAlreadyUsed();
+        if (this.futureEventBuffer != null) {
+            throw new IllegalStateException("Future event buffer has already been set");
+        }
+        this.futureEventBuffer = Objects.requireNonNull(futureEventBuffer);
+        return this;
     }
 }

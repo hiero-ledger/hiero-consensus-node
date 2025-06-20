@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.crypto;
 
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
@@ -40,7 +25,6 @@ import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.TokenBalance;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.Transaction;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.AbstractMap;
@@ -58,6 +42,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -106,7 +91,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             repr = "KeyAlias(" + aliasKeySource + ")";
         } else if (type == ReferenceType.HEXED_CONTRACT_ALIAS) {
             literalHexedAlias = reference;
-            repr = "0.0." + reference;
+            repr = reference;
         } else {
             account = reference;
             repr = account;
@@ -230,9 +215,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
 
         // Since we don't support token balances from getAccountBalance query, for internal testing
         // we are using getAccountDetails query to get token balances.
-        if (!expectedTokenBalances.isEmpty() || !tokenBalanceObservers.isEmpty()) {
-            final var detailsLookup = QueryVerbs.getAccountDetails(
-                            "0.0." + balanceResponse.getAccountID().getAccountNum())
+        if (!expectedTokenBalances.isEmpty() || tokenBalanceObservers.isPresent()) {
+            final var detailsLookup = QueryVerbs.getAccountDetails(toEntityId(balanceResponse.getAccountID()))
                     .payingWith(GENESIS);
             allRunFor(spec, detailsLookup);
             final var response = detailsLookup.getResponse();
@@ -257,7 +241,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                             String.format("Wrong balance for token '%s'!", HapiPropertySource.asTokenString(tokenId)));
                 } catch (AssertionError e) {
                     if (includeTokenMemoOnError) {
-                        final var lookup = QueryVerbs.getTokenInfo("0.0." + tokenId.getTokenNum());
+                        final var lookup = QueryVerbs.getTokenInfo(
+                                tokenId.getShardNum() + "." + tokenId.getRealmNum() + "." + tokenId.getTokenNum());
                         allRunFor(spec, lookup);
                         final var memo = lookup.getResponse()
                                 .getTokenGetInfo()
@@ -332,6 +317,8 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             config = b -> b.setContractID(TxnUtils.asContractId(account, spec));
         } else if (referenceType == ReferenceType.HEXED_CONTRACT_ALIAS) {
             final var cid = ContractID.newBuilder()
+                    .setShardNum(spec.shard())
+                    .setRealmNum(spec.realm())
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(literalHexedAlias)))
                     .build();
             config = b -> b.setContractID(cid);
@@ -340,9 +327,13 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
             if (referenceType == ReferenceType.REGISTRY_NAME) {
                 id = TxnUtils.asId(account, spec);
             } else if (referenceType == ReferenceType.LITERAL_ACCOUNT_ALIAS) {
-                id = AccountID.newBuilder().setAlias(rawAlias).build();
+                id = AccountID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setAlias(rawAlias)
+                        .build();
             } else {
-                id = spec.registry().keyAliasIdFor(aliasKeySource);
+                id = spec.registry().keyAliasIdFor(spec, aliasKeySource);
             }
             config = b -> b.setAccountID(id);
         }
@@ -360,5 +351,9 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
     @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         return super.toStringHelper().add("account", account);
+    }
+
+    private String toEntityId(AccountID accountID) {
+        return accountID.getShardNum() + "." + accountID.getRealmNum() + "." + accountID.getAccountNum();
     }
 }

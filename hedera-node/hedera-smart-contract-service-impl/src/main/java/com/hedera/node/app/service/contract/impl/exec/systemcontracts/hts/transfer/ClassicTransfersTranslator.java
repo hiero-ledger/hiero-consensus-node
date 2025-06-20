@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ApprovalSwitchHelper.APPROVAL_SWITCH_HELPER;
@@ -21,13 +6,18 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SpecialRewardReceivers.SPECIAL_REWARD_RECEIVERS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SystemAccountCreditScreen.SYSTEM_ACCOUNT_CREDIT_SCREEN;
 
-import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Variant;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -36,37 +26,100 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAttempt> {
-    public static final Function CRYPTO_TRANSFER =
-            new Function("cryptoTransfer((address,(address,int64)[],(address,address,int64)[])[])", ReturnTypes.INT_64);
-    public static final Function CRYPTO_TRANSFER_V2 = new Function(
-            "cryptoTransfer(((address,int64,bool)[]),(address,(address,int64,bool)[],(address,address,int64,bool)[])[])",
-            ReturnTypes.INT_64);
-    public static final Function TRANSFER_TOKENS =
-            new Function("transferTokens(address,address[],int64[])", ReturnTypes.INT_64);
-    public static final Function TRANSFER_TOKEN =
-            new Function("transferToken(address,address,address,int64)", ReturnTypes.INT_64);
-    public static final Function TRANSFER_NFTS =
-            new Function("transferNFTs(address,address[],address[],int64[])", ReturnTypes.INT_64);
-    public static final Function TRANSFER_NFT =
-            new Function("transferNFT(address,address,address,int64)", ReturnTypes.INT_64);
-    public static final Function TRANSFER_FROM =
-            new Function("transferFrom(address,address,address,uint256)", ReturnTypes.INT_64);
-    public static final Function TRANSFER_NFT_FROM =
-            new Function("transferFromNFT(address,address,address,uint256)", ReturnTypes.INT_64);
+    /**
+     * Selector for cryptoTransfer((address,(address,int64)[],(address,address,int64)[])[]) method.
+     */
+    public static final SystemContractMethod CRYPTO_TRANSFER = SystemContractMethod.declare(
+                    "cryptoTransfer((address,(address,int64)[],(address,address,int64)[])[])", ReturnTypes.INT_64)
+            .withVariants(Variant.V1)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for cryptoTransfer(((address,int64,bool)[]),(address,(address,int64,bool)[],(address,address,int64,bool)[])[]) method.
+     */
+    public static final SystemContractMethod CRYPTO_TRANSFER_V2 = SystemContractMethod.declare(
+                    "cryptoTransfer(((address,int64,bool)[]),(address,(address,int64,bool)[],(address,address,int64,bool)[])[])",
+                    ReturnTypes.INT_64)
+            .withVariants(Variant.V2)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for transferTokens(address,address[],int64[]) method.
+     */
+    public static final SystemContractMethod TRANSFER_TOKENS = SystemContractMethod.declare(
+                    "transferTokens(address,address[],int64[])", ReturnTypes.INT_64)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for transferToken(address,address,address,int64) method.
+     */
+    public static final SystemContractMethod TRANSFER_TOKEN = SystemContractMethod.declare(
+                    "transferToken(address,address,address,int64)", ReturnTypes.INT_64)
+            .withVariants(Variant.FT)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for transferNFTs(address,address[],address[],int64[]) method.
+     */
+    public static final SystemContractMethod TRANSFER_NFTS = SystemContractMethod.declare(
+                    "transferNFTs(address,address[],address[],int64[])", ReturnTypes.INT_64)
+            .withVariants(Variant.NFT)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for transferNFT(address,address,address,int64) method.
+     */
+    public static final SystemContractMethod TRANSFER_NFT = SystemContractMethod.declare(
+                    "transferNFT(address,address,address,int64)", ReturnTypes.INT_64)
+            .withVariants(Variant.NFT)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for transferFrom(address,address,address,uint256) method.
+     */
+    public static final SystemContractMethod TRANSFER_FROM = SystemContractMethod.declare(
+                    "transferFrom(address,address,address,uint256)", ReturnTypes.INT_64)
+            .withVariants(Variant.FT)
+            .withCategories(Category.TRANSFER);
+    /**
+     * Selector for transferFromNFT(address,address,address,uint256) method.
+     */
+    public static final SystemContractMethod TRANSFER_NFT_FROM = SystemContractMethod.declare(
+                    "transferFromNFT(address,address,address,uint256)", ReturnTypes.INT_64)
+            .withVariants(Variant.NFT)
+            .withCategories(Category.TRANSFER);
+
     private final ClassicTransfersDecoder decoder;
 
+    /**
+     * Constructor for injection.
+     * @param decoder the decoder used to decode transfer calls
+     */
     @Inject
-    public ClassicTransfersTranslator(ClassicTransfersDecoder decoder) {
+    public ClassicTransfersTranslator(
+            ClassicTransfersDecoder decoder,
+            @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
+            @NonNull final ContractMetrics contractMetrics) {
+        super(SystemContractMethod.SystemContract.HTS, systemContractMethodRegistry, contractMetrics);
         this.decoder = decoder;
+
+        registerMethods(
+                CRYPTO_TRANSFER,
+                CRYPTO_TRANSFER_V2,
+                TRANSFER_TOKENS,
+                TRANSFER_TOKEN,
+                TRANSFER_NFTS,
+                TRANSFER_NFT,
+                TRANSFER_FROM,
+                TRANSFER_NFT_FROM);
     }
 
     @Override
-    public boolean matches(@NonNull final HtsCallAttempt attempt) {
-        return !attempt.isTokenRedirect()
-                && (attempt.isSelector(CRYPTO_TRANSFER, CRYPTO_TRANSFER_V2)
-                        || attempt.isSelector(TRANSFER_TOKENS, TRANSFER_TOKEN)
-                        || attempt.isSelector(TRANSFER_NFTS, TRANSFER_NFT)
-                        || attempt.isSelector(TRANSFER_FROM, TRANSFER_NFT_FROM));
+    public @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final HtsCallAttempt attempt) {
+        if (attempt.isRedirect()) return Optional.empty();
+        return attempt.isMethod(
+                CRYPTO_TRANSFER,
+                CRYPTO_TRANSFER_V2,
+                TRANSFER_TOKENS,
+                TRANSFER_TOKEN,
+                TRANSFER_NFTS,
+                TRANSFER_NFT,
+                TRANSFER_FROM,
+                TRANSFER_NFT_FROM);
     }
 
     @Override
@@ -95,30 +148,37 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
 
     private @Nullable TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
         if (attempt.isSelector(CRYPTO_TRANSFER)) {
-            return decoder.decodeCryptoTransfer(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeCryptoTransfer(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(CRYPTO_TRANSFER_V2)) {
-            return decoder.decodeCryptoTransferV2(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeCryptoTransferV2(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_TOKENS)) {
-            return decoder.decodeTransferTokens(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferTokens(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_TOKEN)) {
-            return decoder.decodeTransferToken(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferToken(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_NFTS)) {
-            return decoder.decodeTransferNfts(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferNfts(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_NFT)) {
-            return decoder.decodeTransferNft(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferNft(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_FROM)) {
-            return decoder.decodeHrcTransferFrom(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeHrcTransferFrom(attempt.inputBytes(), attempt);
         } else {
-            return decoder.decodeHrcTransferNftFrom(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeHrcTransferNftFrom(attempt.inputBytes(), attempt);
         }
     }
 
     private boolean isClassicCall(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isSelector(
-                CRYPTO_TRANSFER, CRYPTO_TRANSFER_V2, TRANSFER_TOKENS, TRANSFER_TOKEN, TRANSFER_NFTS, TRANSFER_NFT);
+        return attempt.isMethod(
+                        CRYPTO_TRANSFER,
+                        CRYPTO_TRANSFER_V2,
+                        TRANSFER_TOKENS,
+                        TRANSFER_TOKEN,
+                        TRANSFER_NFTS,
+                        TRANSFER_NFT)
+                .isPresent();
     }
 
     private boolean isClassicCallSupportingQualifiedDelegate(@NonNull final HtsCallAttempt attempt) {
-        return attempt.isSelector(TRANSFER_TOKENS, TRANSFER_TOKEN, TRANSFER_NFTS, TRANSFER_NFT);
+        return attempt.isMethod(TRANSFER_TOKENS, TRANSFER_TOKEN, TRANSFER_NFTS, TRANSFER_NFT)
+                .isPresent();
     }
 }

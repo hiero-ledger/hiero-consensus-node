@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
@@ -23,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_NODES_CREATED;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.getNextNodeID;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -34,7 +19,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -44,6 +28,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -61,6 +46,7 @@ public class NodeCreateHandler implements TransactionHandler {
 
     /**
      * Constructs a {@link NodeCreateHandler} with the given {@link AddressBookValidator}.
+     *
      * @param addressBookValidator the validator for the crypto create transaction
      */
     @Inject
@@ -70,9 +56,11 @@ public class NodeCreateHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         requireNonNull(txn);
-        final var op = txn.nodeCreate();
+        final var op = txn.nodeCreateOrThrow();
         addressBookValidator.validateAccountId(op.accountId());
         validateFalsePreCheck(op.gossipEndpoint().isEmpty(), INVALID_GOSSIP_ENDPOINT);
         validateFalsePreCheck(op.serviceEndpoint().isEmpty(), INVALID_SERVICE_ENDPOINT);
@@ -95,7 +83,7 @@ public class NodeCreateHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
         requireNonNull(handleContext);
-        final var op = handleContext.body().nodeCreate();
+        final var op = handleContext.body().nodeCreateOrThrow();
         final var nodeConfig = handleContext.configuration().getConfigData(NodesConfig.class);
         final var storeFactory = handleContext.storeFactory();
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
@@ -107,6 +95,10 @@ public class NodeCreateHandler implements TransactionHandler {
         addressBookValidator.validateDescription(op.description(), nodeConfig);
         addressBookValidator.validateGossipEndpoint(op.gossipEndpoint(), nodeConfig);
         addressBookValidator.validateServiceEndpoint(op.serviceEndpoint(), nodeConfig);
+        if (op.hasGrpcProxyEndpoint()) {
+            validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
+            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+        }
         handleContext.attributeValidator().validateKey(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
 
         final var nodeBuilder = new Node.Builder()
@@ -116,10 +108,17 @@ public class NodeCreateHandler implements TransactionHandler {
                 .serviceEndpoint(op.serviceEndpoint())
                 .gossipCaCertificate(op.gossipCaCertificate())
                 .grpcCertificateHash(op.grpcCertificateHash())
+                .declineReward(op.declineReward())
                 .adminKey(op.adminKey());
-        final var node = nodeBuilder.nodeId(getNextNodeID(nodeStore)).build();
+        if (op.hasGrpcProxyEndpoint()) {
+            nodeBuilder.grpcProxyEndpoint(op.grpcProxyEndpoint());
+        }
 
-        nodeStore.put(node);
+        // Since nodes won't be removed from state, we can set the nodeId to the next available id
+        // in the state based on the size of the state.
+        final var node = nodeBuilder.nodeId(nodeStore.sizeOfState()).build();
+
+        nodeStore.putAndIncrementCount(node);
 
         final var recordBuilder = handleContext.savepointStack().getBaseBuilder(NodeCreateStreamBuilder.class);
 

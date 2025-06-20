@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
@@ -30,6 +14,8 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrParamFunction;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.evm.Evm46ValidationSuite.systemAccounts;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -105,13 +91,14 @@ public class ExtCodeCopyOperationSuite {
 
         for (int i = 0; i < systemAccounts.size(); i++) {
             // add contract call for all accounts in the list
-            opsArray[i] = contractCall(contract, codeCopyOf, mirrorAddrWith(systemAccounts.get(i)))
+            final var index = i;
+            opsArray[i] = contractCall(contract, codeCopyOf, mirrorAddrParamFunction(systemAccounts.get(index)))
                     .hasKnownStatus(SUCCESS);
 
             // add contract call local for all accounts in the list
             int finalI = i;
             opsArray[systemAccounts.size() + i] = withOpContext((spec, opLog) -> {
-                final var accountSolidityAddress = mirrorAddrWith(systemAccounts.get(finalI));
+                final var accountSolidityAddress = mirrorAddrWith(spec, systemAccounts.get(finalI));
 
                 final var accountCodeCallLocal = contractCallLocal(contract, codeCopyOf, accountSolidityAddress)
                         .saveResultTo("accountCode");

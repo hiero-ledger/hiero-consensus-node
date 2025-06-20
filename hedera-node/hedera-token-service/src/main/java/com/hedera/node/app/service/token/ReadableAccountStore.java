@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -55,23 +40,27 @@ public interface ReadableAccountStore {
      * Fetches an {@link Account} object from state with the given alias. If the account could not be
      * fetched because the given account doesn't exist, returns {@code null}.
      *
-     * @param alias alias
+     * @param alias    alias
+     * @param shardNum the shard number
+     * @param realmNum the realm number
      * @return AccountID object if successfully fetched or {@code null} if the account doesn't exist
      */
     @Nullable
-    AccountID getAccountIDByAlias(@NonNull Bytes alias);
+    AccountID getAccountIDByAlias(final long shardNum, final long realmNum, @NonNull Bytes alias);
 
     /**
      * Gets whether the given alias is known to this store. It is known if it is present in the alias-to-accountID
      * map.
-     *
+     * @param shardNum the shard number
+     * @param realmNum the realm number
      * @param alias The alias to check.
      * @return true if the given alias has a mapping to an AccountID in this store
      */
-    boolean containsAlias(@NonNull Bytes alias);
+    boolean containsAlias(final long shardNum, final long realmNum, @NonNull Bytes alias);
 
     /**
      * Returns true if the given account ID exists in state.
+     *
      * @param accountID the ID to check
      * @return true if the account exists in state
      */
@@ -80,6 +69,7 @@ public interface ReadableAccountStore {
     /**
      * Returns true if the given account ID exists in state, or if the given account ID is an alias that exists in
      * state.
+     *
      * @param accountID the ID to check
      * @return true if the account exists in state
      */
@@ -122,6 +112,7 @@ public interface ReadableAccountStore {
 
     /**
      * Returns the number of entities in the account state.
+     *
      * @return the size of the account state
      */
     long sizeOfAccountState();

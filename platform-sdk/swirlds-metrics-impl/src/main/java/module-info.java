@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 module com.swirlds.metrics.impl {
     exports com.swirlds.metrics.impl;
 

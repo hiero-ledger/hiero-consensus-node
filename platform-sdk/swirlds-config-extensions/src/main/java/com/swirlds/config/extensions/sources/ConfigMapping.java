@@ -1,26 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.extensions.sources;
 
 import com.swirlds.base.ArgumentUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Represents a mapping between an original name and a mapped name. This class is used to hold the mapping configuration
@@ -30,8 +13,6 @@ import org.apache.logging.log4j.Logger;
  * @param originalName original property name
  */
 public record ConfigMapping(@NonNull String mappedName, @NonNull String originalName) {
-
-    private static final Logger logger = LogManager.getLogger(MappedConfigSource.class);
 
     /**
      * Creates a new {@code ConfigMapping}.

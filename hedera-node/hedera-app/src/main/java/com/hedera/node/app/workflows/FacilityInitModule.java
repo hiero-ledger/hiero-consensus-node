@@ -1,32 +1,21 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.util.FileUtilities.getFileContent;
 import static com.hedera.node.app.util.FileUtilities.observePropertiesAndPermissions;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -40,6 +29,7 @@ import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import dagger.Binds;
@@ -48,7 +38,6 @@ import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
-import java.util.function.Consumer;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,6 +49,11 @@ import org.apache.logging.log4j.Logger;
 @Module
 public interface FacilityInitModule {
     Logger log = LogManager.getLogger(FacilityInitModule.class);
+
+    @FunctionalInterface
+    interface FacilityInitializer {
+        void initialize(@NonNull State state, @NonNull StreamMode streamMode);
+    }
 
     @Binds
     @Singleton
@@ -76,7 +70,7 @@ public interface FacilityInitModule {
      */
     @Provides
     @Singleton
-    static Consumer<State> initFacilities(
+    static FacilityInitializer initFacilities(
             @NonNull final FeeManager feeManager,
             @NonNull final FileServiceImpl fileService,
             @NonNull final ConfigProviderImpl configProvider,
@@ -84,11 +78,17 @@ public interface FacilityInitModule {
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final ThrottleServiceManager throttleServiceManager,
             @NonNull final WorkingStateAccessor workingStateAccessor) {
-        return state -> {
-            if (hasHandledGenesisTxn(state)) {
+        return (state, streamMode) -> {
+            requireNonNull(state);
+            requireNonNull(streamMode);
+            if (hasHandledGenesisTxn(state, streamMode)) {
                 initializeExchangeRateManager(state, configProvider, exchangeRateManager);
                 initializeFeeManager(state, configProvider, feeManager);
-                observePropertiesAndPermissions(state, configProvider.getConfiguration(), configProvider::update);
+                observePropertiesAndPermissions(state, configProvider.getConfiguration(), (properties, permissions) -> {
+                    if (!Bytes.EMPTY.equals(properties) || !Bytes.EMPTY.equals(permissions)) {
+                        configProvider.update(properties, permissions);
+                    }
+                });
                 throttleServiceManager.init(state, throttleDefinitionsFrom(state, configProvider));
             } else {
                 final var schema = fileService.fileSchema();
@@ -132,13 +132,22 @@ public interface FacilityInitModule {
         }
     }
 
-    private static boolean hasHandledGenesisTxn(@NonNull final State state) {
-        final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
-                .get();
-        return !EPOCH.equals(Optional.ofNullable(blockInfo)
-                .map(BlockInfo::consTimeOfLastHandledTxn)
-                .orElse(EPOCH));
+    private static boolean hasHandledGenesisTxn(@NonNull final State state, @NonNull final StreamMode streamMode) {
+        if (streamMode == RECORDS) {
+            final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCK_INFO_STATE_KEY)
+                    .get();
+            return !EPOCH.equals(Optional.ofNullable(blockInfo)
+                    .map(BlockInfo::consTimeOfLastHandledTxn)
+                    .orElse(EPOCH));
+        } else {
+            final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
+                    .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_KEY)
+                    .get();
+            return !EPOCH.equals(Optional.ofNullable(blockStreamInfo)
+                    .map(BlockStreamInfo::lastHandleTime)
+                    .orElse(EPOCH));
+        }
     }
 
     private static @Nullable File getFileFromStorage(

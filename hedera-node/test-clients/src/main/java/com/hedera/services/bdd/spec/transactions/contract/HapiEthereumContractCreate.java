@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
@@ -67,6 +52,7 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
     private Long maxGasAllowance = ONE_HUNDRED_HBARS;
     private String privateKeyRef = SECP_256K1_SOURCE_KEY;
     private Integer chainId = CHAIN_ID;
+    private boolean isJumboTxn = false;
 
     @Nullable
     private BiConsumer<HapiSpec, EthereumTransactionBody.Builder> spec;
@@ -307,7 +293,7 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
         final var senderAddress = ByteString.copyFrom(extractedSignatures.address());
         spec.registry().saveBytes(ETH_SENDER_ADDRESS, senderAddress);
 
-        if (fileContents.toByteArray().length > MAX_CALL_DATA_SIZE) {
+        if (!isJumboTxn && fileContents.toByteArray().length > MAX_CALL_DATA_SIZE) {
             ethFileID = Optional.of(TxnUtils.asFileId(bytecodeFile.get(), spec));
             signedEthTxData = signedEthTxData.replaceCallData(new byte[] {});
         }
@@ -359,5 +345,10 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
                 .<EthereumTransactionBody, EthereumTransactionBody.Builder>body(
                         EthereumTransactionBody.class,
                         b -> Objects.requireNonNull(this.spec).accept(spec, b));
+    }
+
+    public HapiEthereumContractCreate markAsJumboTxn() {
+        isJumboTxn = true;
+        return this;
     }
 }

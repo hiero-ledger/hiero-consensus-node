@@ -1,43 +1,33 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.randomHash;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
+import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,8 +39,7 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
     // the class file with other tests.
     // DO NOT ADD ADDITIONAL UNIT TESTS TO THIS CLASS!
 
-    private final AddressBook addressBook =
-            RandomAddressBookBuilder.create(random).withSize(4).build();
+    private final Roster roster = RandomRosterBuilder.create(random).withSize(4).build();
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.
@@ -71,6 +60,16 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
         return ss -> highestCompleteRound.accumulateAndGet(ss.getRound(), Math::max);
     }
 
+    @BeforeEach
+    void setUp() {
+        MerkleDb.resetDefaultInstancePath();
+    }
+
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+    }
+
     /**
      * Keep adding new states to the manager but never sign any of them (other than self signatures).
      */
@@ -88,13 +87,15 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
 
         final Hash stateHash = randomHash(random);
         final Map<NodeId, Signature> signatures = new HashMap<>();
-        for (final Address address : addressBook) {
-            signatures.put(address.getNodeId(), buildFakeSignature(address.getSigPublicKey(), stateHash));
+        for (final RosterEntry node : roster.rosterEntries()) {
+            final PublicKey publicKey =
+                    RosterUtils.fetchGossipCaCertificate(node).getPublicKey();
+            signatures.put(NodeId.of(node.nodeId()), buildFakeSignature(publicKey, stateHash));
         }
 
         // Add a complete signed state. Eventually this will get released.
         final SignedState stateFromDisk = new RandomSignedStateGenerator(random)
-                .setAddressBook(addressBook)
+                .setRoster(roster)
                 .setRound(0)
                 .setSignatures(signatures)
                 .build();
@@ -105,10 +106,16 @@ class OldCompleteStateEventuallyReleasedTest extends AbstractStateSignatureColle
         manager.addReservedState(stateFromDisk.reserve("test"));
 
         // Create a series of signed states. Don't add any signatures. Self signatures will be automatically added.
-        final int count = roundsToKeepForSigning * 100;
+        // Note: the multiplier should be reasonably low because each reserved state includes a virtual map (the
+        // RosterMap),
+        // and that consumes a lot of RAM. If the multiplier is too high (e.g. 100 as it used to be), then tests
+        // will eventually run into an OOM. The multiplier of 5 seems high enough for the purpose of the test
+        // and doesn't produce OOMs.
+        final int count = roundsToKeepForSigning * 5;
         for (int round = 1; round < count; round++) {
+            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
-                    .setAddressBook(addressBook)
+                    .setRoster(roster)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
                     .build();

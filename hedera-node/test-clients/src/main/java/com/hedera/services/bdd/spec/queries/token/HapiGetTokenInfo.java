@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.token;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -26,6 +11,7 @@ import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
+import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.CustomFee;
@@ -491,7 +477,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getFreezeKey(),
                     expectedFreezeKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getFreezeKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.FREEZE),
                     "Wrong token freeze key!",
                     registry);
         }
@@ -504,7 +490,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getAdminKey(),
                     expectedAdminKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getAdminKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.ADMIN),
                     "Wrong token admin key!",
                     registry);
         }
@@ -517,7 +503,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getWipeKey(),
                     expectedWipeKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getWipeKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.WIPE),
                     "Wrong token wipe key!",
                     registry);
         }
@@ -530,7 +516,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getKycKey(),
                     expectedKycKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getKycKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.KYC),
                     "Wrong token KYC key!",
                     registry);
         }
@@ -543,7 +529,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getSupplyKey(),
                     expectedSupplyKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getSupplyKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.SUPPLY),
                     "Wrong token supply key!",
                     registry);
         }
@@ -557,7 +543,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getFeeScheduleKey(),
                     expectedFeeScheduleKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getFeeScheduleKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.FEE_SCHEDULE),
                     "Wrong token fee schedule key!",
                     registry);
         }
@@ -570,7 +556,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getPauseKey(),
                     expectedPauseKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getPauseKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.PAUSE),
                     "Wrong token pause key!",
                     registry);
         }
@@ -581,7 +567,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
             assertFor(
                     actualInfo.getMetadataKey(),
                     expectedMetadataKey,
-                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getMetadataKey(n),
+                    (n, r) -> searchKeysGlobally ? r.getKey(n) : r.getRoleKey(n, KeyRole.METADATA),
                     "Wrong token metadata key!",
                     registry);
         }

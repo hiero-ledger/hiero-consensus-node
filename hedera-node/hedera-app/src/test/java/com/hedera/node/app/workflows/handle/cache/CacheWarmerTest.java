@@ -1,25 +1,15 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.HederaConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,10 +25,23 @@ class CacheWarmerTest {
     @Mock
     TransactionDispatcher dispatcher;
 
+    @Mock
+    ConfigProvider configProvider;
+
+    @Mock
+    VersionedConfiguration versionedConfiguration;
+
+    @Mock
+    HederaConfig hederaConfig;
+
     @Test
     @DisplayName("Instantiation test")
     void testInstantiation() {
-        final var cacheWarmer = new CacheWarmer(checker, dispatcher, Runnable::run);
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
+
+        final var cacheWarmer =
+                new CacheWarmer(checker, dispatcher, Runnable::run, SemanticVersion.DEFAULT, configProvider);
         assertThat(cacheWarmer).isInstanceOf(CacheWarmer.class);
     }
 }

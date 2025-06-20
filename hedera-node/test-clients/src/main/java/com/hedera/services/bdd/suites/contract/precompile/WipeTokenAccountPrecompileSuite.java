@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto.RandomAccount.INITIAL_BALANCE;
@@ -92,26 +77,25 @@ public class WipeTokenAccountPrecompileSuite {
         final AtomicReference<AccountID> secondAccountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec("wipeFungibleTokenScenarios")
-                .given(
-                        newKeyNamed(WIPE_KEY),
-                        cryptoCreate(ADMIN_ACCOUNT).exposingCreatedIdTo(adminAccountID::set),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(SECOND_ACCOUNT).exposingCreatedIdTo(secondAccountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .wipeKey(WIPE_KEY)
-                                .adminKey(WIPE_KEY)
-                                .initialSupply(1_000)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(WIPE_CONTRACT),
-                        contractCreate(WIPE_CONTRACT),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(WIPE_KEY),
+                cryptoCreate(ADMIN_ACCOUNT).exposingCreatedIdTo(adminAccountID::set),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(SECOND_ACCOUNT).exposingCreatedIdTo(secondAccountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .wipeKey(WIPE_KEY)
+                        .adminKey(WIPE_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(WIPE_CONTRACT),
+                contractCreate(WIPE_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                tokenAssociate(SECOND_ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         WIPE_CONTRACT,
@@ -166,43 +150,42 @@ public class WipeTokenAccountPrecompileSuite {
                                 .signedBy(GENESIS, ADMIN_ACCOUNT)
                                 .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
                                 .via("wipeFungibleTxnWithZeroAmount")
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "accountDoesNotOwnWipeKeyTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_SIGNATURE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                        childRecordsCheck(
-                                "amountLargerThanBalanceTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_WIPING_AMOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(INVALID_WIPING_AMOUNT)))),
-                        childRecordsCheck(
-                                "accountDoesNotOwnTokensTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_WIPING_AMOUNT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(INVALID_WIPING_AMOUNT)))),
-                        childRecordsCheck(
-                                "wipeFungibleTxnWithZeroAmount",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS))
-                                                .gasUsed(15284L))),
-                        getTokenInfo(VANILLA_TOKEN).hasTotalSupply(990),
-                        getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 490));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "accountDoesNotOwnWipeKeyTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_SIGNATURE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
+                childRecordsCheck(
+                        "amountLargerThanBalanceTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_WIPING_AMOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_WIPING_AMOUNT)))),
+                childRecordsCheck(
+                        "accountDoesNotOwnTokensTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_WIPING_AMOUNT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_WIPING_AMOUNT)))),
+                childRecordsCheck(
+                        "wipeFungibleTxnWithZeroAmount",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS))
+                                        .gasUsed(15284L))),
+                getTokenInfo(VANILLA_TOKEN).hasTotalSupply(990),
+                getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 490));
     }
 
     @HapiTest
@@ -211,28 +194,27 @@ public class WipeTokenAccountPrecompileSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec("wipeNonFungibleTokenScenarios")
-                .given(
-                        newKeyNamed(WIPE_KEY),
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(ADMIN_ACCOUNT).exposingCreatedIdTo(adminAccountID::set),
-                        cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .wipeKey(WIPE_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(WIPE_KEY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
-                        mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("Second!"))),
-                        uploadInitCode(WIPE_CONTRACT),
-                        contractCreate(WIPE_CONTRACT),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT)))
-                .when(withOpContext((spec, opLog) -> {
+        return hapiTest(
+                newKeyNamed(WIPE_KEY),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ADMIN_ACCOUNT).exposingCreatedIdTo(adminAccountID::set),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .wipeKey(WIPE_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(WIPE_KEY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("First!"))),
+                mintToken(VANILLA_TOKEN, List.of(copyFromUtf8("Second!"))),
+                uploadInitCode(WIPE_CONTRACT),
+                contractCreate(WIPE_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> {
                     final var serialNumbers = new long[] {1L};
                     allRunFor(
                             spec,
@@ -293,50 +275,49 @@ public class WipeTokenAccountPrecompileSuite {
                                     .alsoSigningWithFullPrefix(ADMIN_ACCOUNT)
                                     .via("wipeNonFungibleTxn")
                                     .gas(GAS_TO_OFFER));
-                }))
-                .then(
-                        childRecordsCheck(
-                                "wipeNonFungibleAccountDoesNotOwnWipeKeyTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_SIGNATURE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
-                        childRecordsCheck(
-                                "wipeNonFungibleAccountDoesNotOwnTheSerialTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(ACCOUNT_DOES_NOT_OWN_WIPED_NFT)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(ACCOUNT_DOES_NOT_OWN_WIPED_NFT)))),
-                        childRecordsCheck(
-                                "wipeNonFungibleNegativeSerialTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_NFT_ID)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(INVALID_NFT_ID)))),
-                        childRecordsCheck(
-                                "wipeNonFungibleSerialDoesNotExistsTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_NFT_ID)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(INVALID_NFT_ID)))),
-                        childRecordsCheck(
-                                "wipeNonFungibleTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS))
-                                                .gasUsed(15284L))),
-                        getTokenInfo(VANILLA_TOKEN).hasTotalSupply(1),
-                        getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 0));
+                }),
+                childRecordsCheck(
+                        "wipeNonFungibleAccountDoesNotOwnWipeKeyTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_SIGNATURE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
+                childRecordsCheck(
+                        "wipeNonFungibleAccountDoesNotOwnTheSerialTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(ACCOUNT_DOES_NOT_OWN_WIPED_NFT)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(ACCOUNT_DOES_NOT_OWN_WIPED_NFT)))),
+                childRecordsCheck(
+                        "wipeNonFungibleNegativeSerialTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_NFT_ID)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_NFT_ID)))),
+                childRecordsCheck(
+                        "wipeNonFungibleSerialDoesNotExistsTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_NFT_ID)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_NFT_ID)))),
+                childRecordsCheck(
+                        "wipeNonFungibleTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS))
+                                        .gasUsed(15284L))),
+                getTokenInfo(VANILLA_TOKEN).hasTotalSupply(1),
+                getAccountBalance(ACCOUNT).hasTokenBalance(VANILLA_TOKEN, 0));
     }
 }

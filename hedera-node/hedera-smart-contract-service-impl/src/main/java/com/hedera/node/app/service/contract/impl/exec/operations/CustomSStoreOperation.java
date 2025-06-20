@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.operations;
 
 import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
@@ -36,6 +21,10 @@ import org.hyperledger.besu.evm.operation.SStoreOperation;
 public class CustomSStoreOperation extends DelegatingOperation {
     private final FeatureFlags featureFlags;
 
+    /**
+     * @param featureFlags current evm module feature flags
+     * @param delegate the delegate operation
+     */
     public CustomSStoreOperation(@NonNull final FeatureFlags featureFlags, @NonNull final SStoreOperation delegate) {
         super(delegate);
         this.featureFlags = featureFlags;

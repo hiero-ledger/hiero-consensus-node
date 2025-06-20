@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
@@ -23,8 +8,10 @@ import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AssessmentResult.HBAR_TOKEN_ID;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.TokenValidations.PERMIT_PAUSED;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.TRANSACTION_FIXED_FEE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -34,6 +21,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
+import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
@@ -134,7 +122,24 @@ public class CustomFeeAssessmentStep {
         } else {
             autoCreationTest = accountId -> false;
         }
+        // assess custom fees
         final var result = assessFees(tokenStore, tokenRelStore, config, accountStore, autoCreationTest);
+
+        // check if the current operation is a dispatch for paying a transaction fixed fee
+        final var txnFeeMetadata = transferContext
+                .getHandleContext()
+                .dispatchMetadata()
+                .getMetadata(TRANSACTION_FIXED_FEE, FixedCustomFee.class);
+        if (txnFeeMetadata.isPresent()) {
+            final var transactionFixedFee = txnFeeMetadata.get();
+            final var payer = transferContext.getHandleContext().payer();
+            final var assessmentResult = new AssessmentResult(emptyList(), emptyList());
+
+            // when dispatching crypto transfer for charging custom fees,
+            // we still need to set the transfer as assessed
+            customFeeAssessor.setTransactionFeesAsAssessed(payer, transactionFixedFee, assessmentResult);
+            result.assessedCustomFees.addAll(assessmentResult.getAssessedCustomFees());
+        }
 
         result.assessedCustomFees().forEach(transferContext::addToAssessedCustomFee);
         customFeeAssessor.resetInitialNftChanges();

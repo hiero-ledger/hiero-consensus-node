@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.aliasFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
@@ -26,14 +12,13 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.is
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
+import static com.hedera.node.app.spi.workflows.ResourceExhaustedException.validateResource;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
@@ -149,7 +134,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             address = pbjToBesuAddress(accountId.aliasOrThrow());
         } else {
             try {
-                address = evmFrameState.getAddress(accountId.accountNumOrElse(0L));
+                address = evmFrameState.getAddress(accountId);
             } catch (IllegalArgumentException ignore) {
                 return null;
             }
@@ -167,12 +152,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (account == null) {
             // Also return ids for pending creations
             if (pendingCreation != null && pendingCreation.address().equals(address)) {
-                return ContractID.newBuilder()
-                        .contractNum(pendingCreation.number())
-                        .build();
+                return entityIdFactory().newContractId(pendingCreation.number());
             } else {
                 if (!contractMustBePresent) {
-                    return isLongZero(address) ? asNumberedContractId(address) : asEvmContractId(address);
+                    return isLongZero(address)
+                            ? asNumberedContractId(entityIdFactory(), address)
+                            : asEvmContractId(entityIdFactory(), address);
                 }
                 throw new IllegalArgumentException("No contract pending or extant at " + address);
             }
@@ -203,15 +188,15 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public void collectFee(@NonNull final AccountID payerId, final long amount) {
+    public void collectGasFee(@NonNull final AccountID payerId, final long amount, final boolean withNonceIncrement) {
         requireNonNull(payerId);
-        enhancement.operations().collectFee(payerId, amount);
+        enhancement.operations().collectGasFee(payerId, amount, withNonceIncrement);
     }
 
     @Override
-    public void refundFee(@NonNull final AccountID payerId, final long amount) {
+    public void refundGasFee(@NonNull final AccountID payerId, final long amount) {
         requireNonNull(payerId);
-        enhancement.operations().refundFee(payerId, amount);
+        enhancement.operations().refundGasFee(payerId, amount);
     }
 
     /**
@@ -316,6 +301,16 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
         return evmFrameState.tryTrackingSelfDestructBeneficiary(deleted, beneficiary, frame);
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void trackSelfDestructBeneficiary(
+            @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
+        evmFrameState.trackSelfDestructBeneficiary(deleted, beneficiary, frame);
+    }
+    ;
 
     /**
      * {@inheritDoc}
@@ -443,7 +438,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      *
      * <p>We may not actually need this, as Besu only uses it in
      * {@code AbstractMessageProcessor.clearAccumulatedStateBesidesGasAndOutput()}, which seems to deal
-     * with side-effects of an Ethereum consensus bug.
+     * with side effects of an Ethereum consensus bug.
      *
      * @return the accounts that have been touched
      */
@@ -467,15 +462,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @Override
     public @NonNull Collection<Address> getDeletedAccountAddresses() {
         throw new UnsupportedOperationException();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void externalizeSystemContractResults(
-            @NonNull final ContractFunctionResult result, @NonNull ResponseCodeEnum responseStatus) {
-        enhancement.systemOperations().externalizeResult(result, responseStatus);
     }
 
     /**
@@ -516,5 +502,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 number,
                 origin != null ? evmFrameState.getIdNumber(origin) : MISSING_ENTITY_NUMBER,
                 body);
+    }
+
+    public void checkOpsDurationThrottle(final long currentOpsDuration) {
+        final var throttleAdviser = enhancement.operations().getThrottleAdviser();
+        if (throttleAdviser != null) {
+            validateResource(!throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration), THROTTLED_AT_CONSENSUS);
+        }
     }
 }

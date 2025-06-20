@@ -1,29 +1,15 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAnyLogAfter;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static java.lang.Integer.MAX_VALUE;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -51,8 +37,9 @@ public class ContractStateSuite {
     final Stream<DynamicTest> netZeroSlotUsageUpdateLogsNoErrors() {
         final var contract = "ThreeSlots";
         return hapiTest(
+                overriding("contracts.maxGasPerSec", "15_000_000_000"),
                 uploadInitCode(contract),
-                contractCreate(contract),
+                contractCreate(contract).gas(500_000),
                 // Use slot 'b' only
                 contractCall(contract, "setAB", BigInteger.ZERO, BigInteger.ONE),
                 // Clear slot 'b', use slot 'a' (net-zero slot usage but first key impact)
@@ -60,7 +47,7 @@ public class ContractStateSuite {
                 // And now use slot 'c' (will trigger ERROR log unless first key is 'a')
                 contractCall(contract, "setC", BigInteger.ONE),
                 // Ensure there are still no problems in the logs
-                validateAnyLogAfter(Duration.ofMillis(250)));
+                validateAnyLogAfter(Duration.ofMillis(450)));
     }
 
     @HapiTest
@@ -80,9 +67,10 @@ public class ContractStateSuite {
                 Map.entry("Int128", BigInteger.valueOf(5)),
                 Map.entry("Int256", BigInteger.valueOf(6)));
 
-        return defaultHapiSpec("stateChangesSpec")
-                .given(uploadInitCode(CONTRACT), contractCreate(CONTRACT))
-                .when(IntStream.range(0, iterations)
+        return hapiTest(flattened(
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT),
+                IntStream.range(0, iterations)
                         .boxed()
                         .flatMap(i -> Stream.of(
                                         Stream.of(contractCall(CONTRACT, "setVarBool", RANDOM.nextBoolean())),
@@ -90,7 +78,8 @@ public class ContractStateSuite {
                                                 .map(type -> contractCall(
                                                         CONTRACT, "setVar" + type, integralTypes.get(type))),
                                         Stream.of(contractCall(CONTRACT, "setVarAddress", randomHeadlongAddress())),
-                                        Stream.of(contractCall(CONTRACT, "setVarContractType")),
+                                        Stream.of(contractCall(CONTRACT, "setVarContractType")
+                                                .gas(5_000_000)),
                                         Stream.of(contractCall(CONTRACT, "setVarBytes32", randomBytes32())),
                                         Stream.of(contractCall(CONTRACT, "setVarString", randomString())),
                                         Stream.of(contractCall(CONTRACT, "setVarEnum", randomEnum())),
@@ -98,8 +87,7 @@ public class ContractStateSuite {
                                         randomSetAndDeleteString(),
                                         randomSetAndDeleteStruct())
                                 .flatMap(s -> s))
-                        .toArray(HapiSpecOperation[]::new))
-                .then();
+                        .toArray(HapiSpecOperation[]::new)));
     }
 
     private Stream<HapiSpecOperation> randomSetAndDeleteVarInt() {
@@ -135,7 +123,7 @@ public class ContractStateSuite {
     }
 
     private Tuple randomContractStruct() {
-        return Tuple.of(
+        return Tuple.from(
                 BigInteger.valueOf(RANDOM.nextInt(MAX_VALUE)),
                 randomHeadlongAddress(),
                 randomBytes32(),

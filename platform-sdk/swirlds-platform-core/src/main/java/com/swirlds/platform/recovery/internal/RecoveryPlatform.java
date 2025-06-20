@@ -1,41 +1,29 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery.internal;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 
-import com.swirlds.common.AutoCloseableNonThrowing;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.utility.AutoCloseableNonThrowing;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateReference;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldState;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.Objects;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A simplified version of the platform to be used during the recovery workflow.
@@ -43,6 +31,7 @@ import java.util.Objects;
 public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
 
     private final NodeId selfId;
+    private final Roster roster;
 
     private final AddressBook addressBook;
     private final KeysAndCerts keysAndCerts;
@@ -71,10 +60,12 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
         Objects.requireNonNull(initialState, "initialState must not be null");
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
 
-        this.addressBook = initialState.getAddressBook();
+        this.roster = initialState.getRoster();
+        this.addressBook = RosterUtils.buildAddressBook(this.roster);
 
         if (loadSigningKeys) {
-            keysAndCerts = initNodeSecurity(addressBook, configuration).get(selfId);
+            keysAndCerts = initNodeSecurity(addressBook, configuration, Collections.singleton(selfId))
+                    .get(selfId);
         } else {
             keysAndCerts = null;
         }
@@ -130,8 +121,8 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
      */
     @Override
     @NonNull
-    public AddressBook getAddressBook() {
-        return addressBook;
+    public Roster getRoster() {
+        return roster;
     }
 
     /**
@@ -149,13 +140,12 @@ public class RecoveryPlatform implements Platform, AutoCloseableNonThrowing {
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public synchronized <T extends SwirldState> AutoCloseableWrapper<T> getLatestImmutableState(
-            @NonNull final String reason) {
+    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull String reason) {
         final ReservedSignedState reservedSignedState = immutableState.getAndReserve(reason);
         return new AutoCloseableWrapper<>(
                 reservedSignedState.isNull()
                         ? null
-                        : (T) reservedSignedState.get().getSwirldState(),
+                        : (T) reservedSignedState.get().getState(),
                 reservedSignedState::close);
     }
 

@@ -1,46 +1,45 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.List;
 
 /** Sorts consensus events into their consensus order */
-public class ConsensusSorter implements Comparator<EventImpl> {
-    /** an XOR of the signatures of unique famous witnesses in a round, used during sorting */
-    final byte[] whitening;
+public class ConsensusSorter {
+    /** an XOR of the hashes of unique famous witnesses in a round, used during sorting */
+    private final byte[] whitening;
 
     /**
-     * @param whitening an XOR of the signatures of unique famous witnesses in a round
+     * @param whitening an XOR of the hashes of unique famous witnesses in a round
      */
-    public ConsensusSorter(@NonNull final byte[] whitening) {
+    private ConsensusSorter(@NonNull final byte[] whitening) {
         this.whitening = whitening;
+    }
+
+    /**
+     * Sorts the events into consensus order. The events are sorted by their consensus timestamp, then by their
+     * extended median timestamp, then by their generation, and finally by their whitened signature.
+     *
+     * @param events the list of events to sort
+     * @param whitening an XOR of the hashes of unique famous witnesses in a round
+     */
+    public static void sort(@NonNull final List<EventImpl> events, @NonNull final byte[] whitening) {
+        // assign cGen to the events, which is needed for sorting
+        LocalConsensusGeneration.assignCGen(events);
+        // sort the events into consensus order
+        events.sort(new ConsensusSorter(whitening)::compare);
+        // clear cGen from the events, which is no longer needed
+        LocalConsensusGeneration.clearCGen(events);
     }
 
     /**
      * consensus order is to sort by roundReceived, then consensusTimestamp, then generation, then
      * whitened signature.
      */
-    @Override
-    public int compare(@NonNull final EventImpl e1, @NonNull final EventImpl e2) {
+    private int compare(@NonNull final EventImpl e1, @NonNull final EventImpl e2) {
         int c;
 
         // sort by consensus timestamp
@@ -65,13 +64,13 @@ public class ConsensusSorter implements Comparator<EventImpl> {
         }
 
         // subsort ties by generation
-        c = Long.compare(e1.getGeneration(), e2.getGeneration());
+        c = Long.compare(e1.getCGen(), e2.getCGen());
         if (c != 0) {
             return c;
         }
 
-        // subsort ties by whitened signature
+        // subsort ties by whitened hashes
         return Utilities.arrayCompare(
-                e1.getBaseEvent().getSignature(), e2.getBaseEvent().getSignature(), whitening);
+                e1.getBaseHash().getBytes(), e2.getBaseHash().getBytes(), whitening);
     }
 }

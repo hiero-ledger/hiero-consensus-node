@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -29,15 +14,12 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
-import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
-import java.util.Map;
-import java.util.function.Supplier;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -66,33 +48,24 @@ class ContextQueryProcessorTest {
     private HevmStaticTransactionFactory hevmStaticTransactionFactory;
 
     @Mock
-    private Supplier<HederaWorldUpdater> feesOnlyUpdater;
-
-    @Mock
-    private Map<HederaEvmVersion, TransactionProcessor> processors;
+    private EntityIdFactory entityIdFactory;
 
     @Test
     void callsComponentInfraAsExpectedForValidQuery() {
         final var processors = processorsForAllCurrentEvmVersions(processor);
 
         final var subject = new ContextQueryProcessor(
-                context,
-                hederaEvmContext,
-                tracer,
-                proxyWorldUpdater,
-                hevmStaticTransactionFactory,
-                feesOnlyUpdater,
-                processors);
+                context, hederaEvmContext, tracer, proxyWorldUpdater, hevmStaticTransactionFactory, processors);
 
         given(context.configuration()).willReturn(CONFIGURATION);
         given(context.query()).willReturn(Query.DEFAULT);
         given(hevmStaticTransactionFactory.fromHapiQuery(Query.DEFAULT)).willReturn(HEVM_CREATION);
-        given(processor.processTransaction(
-                        HEVM_CREATION, proxyWorldUpdater, feesOnlyUpdater, hederaEvmContext, tracer, CONFIGURATION))
+        given(processor.processTransaction(HEVM_CREATION, proxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
                 .willReturn(SUCCESS_RESULT);
-        final var protoResult = SUCCESS_RESULT.asQueryResult();
-        final var expectedResult = new CallOutcome(
-                protoResult, SUCCESS, HEVM_CREATION.contractId(), SUCCESS_RESULT.gasPrice(), null, null);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
+        final var expectedResult =
+                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, null, null);
         assertEquals(expectedResult, subject.call());
     }
 }

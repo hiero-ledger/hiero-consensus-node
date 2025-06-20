@@ -1,26 +1,14 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.suites.Utils.isSpecialFile;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
@@ -28,20 +16,21 @@ import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.yahcli.commands.files.SysFileUploadCommand;
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.output.CommonMessages;
-import com.swirlds.common.utility.CommonUtils;
+import com.hedera.services.yahcli.util.HapiSpecUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 public class SysFileUploadSuite extends HapiSuite {
@@ -55,13 +44,13 @@ public class SysFileUploadSuite extends HapiSuite {
     private final long sysFileId;
     private final String srcDir;
     private final boolean isDryRun;
-    private final Map<String, String> specConfig;
+    private final ConfigManager configManager;
 
     private ByteString uploadData;
 
     public SysFileUploadSuite(
-            final String srcDir, final Map<String, String> specConfig, final String sysFile, final boolean isDryRun) {
-        this(NOT_APPLICABLE, NOT_APPLICABLE, false, srcDir, specConfig, sysFile, isDryRun);
+            final String srcDir, ConfigManager configManager, final String sysFile, final boolean isDryRun) {
+        this(NOT_APPLICABLE, NOT_APPLICABLE, false, srcDir, configManager, sysFile, isDryRun);
     }
 
     public SysFileUploadSuite(
@@ -69,7 +58,7 @@ public class SysFileUploadSuite extends HapiSuite {
             final int appendsPerBurst,
             final boolean restartFromFailure,
             final String srcDir,
-            final Map<String, String> specConfig,
+            final ConfigManager configManager,
             final String sysFile,
             final boolean isDryRun) {
         this.bytesPerOp = bytesPerOp;
@@ -77,7 +66,7 @@ public class SysFileUploadSuite extends HapiSuite {
         this.restartFromFailure = restartFromFailure;
         this.srcDir = srcDir;
         this.isDryRun = isDryRun;
-        this.specConfig = specConfig;
+        this.configManager = configManager;
         this.sysFileId = Utils.rationalized(sysFile);
     }
 
@@ -94,43 +83,47 @@ public class SysFileUploadSuite extends HapiSuite {
 
     final Stream<DynamicTest> uploadSysFiles() {
         final var name = String.format("UploadSystemFile-%s", sysFileId);
-        final var fileId = String.format("0.0.%d", sysFileId);
+        final var fileId = asEntityString(
+                configManager.shard().getShardNum(), configManager.realm().getRealmNum(), sysFileId);
         final var isSpecial = isSpecialFile(sysFileId);
         final AtomicInteger wrappedAppendsToSkip = new AtomicInteger();
 
-        return HapiSpec.customHapiSpec(name)
-                .withProperties(specConfig)
-                .given(UtilVerbs.withOpContext((spec, opLog) -> {
-                    if (!restartFromFailure) {
-                        return;
-                    }
-                    final var lookup = QueryVerbs.getFileInfo("0.0." + sysFileId);
-                    CustomSpecAssert.allRunFor(spec, lookup);
-                    final var currentHash =
-                            lookup.getResponse().getFileGetInfo().getFileInfo().getMemo();
-                    wrappedAppendsToSkip.set(skippedAppendsFor(currentHash));
-                }))
-                .when()
-                .then(UtilVerbs.sourcing(() -> isSpecial
-                        ? UtilVerbs.updateSpecialFile(
-                                HapiSuite.DEFAULT_PAYER,
-                                fileId,
-                                uploadData,
-                                bytesPerOp,
-                                appendsPerBurst,
-                                wrappedAppendsToSkip.get())
-                        : UtilVerbs.updateLargeFile(
-                                HapiSuite.DEFAULT_PAYER,
-                                fileId,
-                                uploadData,
-                                true,
-                                OptionalLong.of(10_000_000_000L),
-                                updateOp -> updateOp.alertingPre(CommonMessages.COMMON_MESSAGES::uploadBeginning)
-                                        .alertingPost(CommonMessages.COMMON_MESSAGES::uploadEnding),
-                                (appendOp, appendsLeft) -> appendOp.alertingPre(
-                                                CommonMessages.COMMON_MESSAGES::appendBeginning)
-                                        .alertingPost(code ->
-                                                CommonMessages.COMMON_MESSAGES.appendEnding(code, appendsLeft)))));
+        final var sysFileSpec =
+                new HapiSpec(name, new MapPropertySource(configManager.asSpecConfig()), new SpecOperation[] {
+                    UtilVerbs.withOpContext((spec, opLog) -> {
+                        if (!restartFromFailure) {
+                            return;
+                        }
+                        final var lookup = QueryVerbs.getFileInfo(fileId);
+                        CustomSpecAssert.allRunFor(spec, lookup);
+                        final var currentHash = lookup.getResponse()
+                                .getFileGetInfo()
+                                .getFileInfo()
+                                .getMemo();
+                        wrappedAppendsToSkip.set(skippedAppendsFor(currentHash));
+                    }),
+                    UtilVerbs.sourcing(() -> isSpecial
+                            ? UtilVerbs.updateSpecialFile(
+                                    HapiSuite.DEFAULT_PAYER,
+                                    fileId,
+                                    uploadData,
+                                    bytesPerOp,
+                                    appendsPerBurst,
+                                    wrappedAppendsToSkip.get())
+                            : UtilVerbs.updateLargeFile(
+                                    HapiSuite.DEFAULT_PAYER,
+                                    fileId,
+                                    uploadData,
+                                    true,
+                                    OptionalLong.of(10_000_000_000L),
+                                    updateOp -> updateOp.alertingPre(CommonMessages.COMMON_MESSAGES::uploadBeginning)
+                                            .alertingPost(CommonMessages.COMMON_MESSAGES::uploadEnding),
+                                    (appendOp, appendsLeft) -> appendOp.alertingPre(
+                                                    CommonMessages.COMMON_MESSAGES::appendBeginning)
+                                            .alertingPost(code ->
+                                                    CommonMessages.COMMON_MESSAGES.appendEnding(code, appendsLeft))))
+                });
+        return HapiSpecUtils.targeted(sysFileSpec, configManager);
     }
 
     private ByteString appropriateContents(final Long fileNum) {

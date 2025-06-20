@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.networkadmin.impl.test.handlers;
 
 import static com.hedera.node.app.service.networkadmin.impl.handlers.FreezeUpgradeActions.EXEC_IMMEDIATE_MARKER;
@@ -36,7 +21,9 @@ import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
 import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
 import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.config.data.NodesConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -89,21 +76,34 @@ class FreezeUpgradeActionsTest {
     private ReadableStakingInfoStore stakingInfoStore;
 
     @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
     private Configuration configuration;
 
     @Mock
     private NetworkAdminConfig adminServiceConfig;
 
+    @Mock
+    private NodesConfig nodesConfig;
+
     @BeforeEach
     void setUp() throws IOException {
         given(configuration.getConfigData(NetworkAdminConfig.class)).willReturn(adminServiceConfig);
+        given(configuration.getConfigData(NodesConfig.class)).willReturn(nodesConfig);
 
         noiseSubFileLoc = zipOutputDir.toPath().resolve("edargpu");
 
         final Executor freezeExectuor = new ForkJoinPool(
                 1, ForkJoinPool.defaultForkJoinWorkerThreadFactory, Thread.getDefaultUncaughtExceptionHandler(), true);
         subject = new FreezeUpgradeActions(
-                configuration, freezeStore, freezeExectuor, upgradeFileStore, nodeStore, stakingInfoStore);
+                configuration,
+                freezeStore,
+                freezeExectuor,
+                upgradeFileStore,
+                nodeStore,
+                stakingInfoStore,
+                entityIdFactory);
 
         // set up test zip
         zipSourceDir = Files.createTempDirectory("zipSourceDir");

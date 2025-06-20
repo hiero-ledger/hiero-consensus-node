@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import static com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordWriterV6.COMPRESSION_ALGORITHM_EXTENSION;
@@ -35,10 +20,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.crypto.SignatureType;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -56,6 +37,10 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPInputStream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 @SuppressWarnings({"DataFlowIssue", "removal"})
 public class RecordStreamV6Verifier {
@@ -113,9 +98,8 @@ public class RecordStreamV6Verifier {
             final List<List<SingleTransactionRecord>> expectedDataBlocks,
             final long firstBlockNumber)
             throws Exception {
-        final boolean compressed = recordStreamConfig.compressFilesOnCreation();
         final Path sidecarsDir = recordsDir.resolve(recordStreamConfig.sidecarDir());
-        final String extension = compressed ? RECORD_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION : RECORD_EXTENSION;
+        final String extension = RECORD_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
         List<RecordFileSet> recordFileSets = scanForRecordFiles(recordsDir, sidecarsDir, extension);
         // start running hashes
         Bytes runningHash = null;

@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.config.singleton.ConfigurationHolder;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
@@ -40,7 +25,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-@Disabled("This test needs to be investigated")
+@Disabled("This test needs to be updated to use protobuf data")
 public class DataFileReaderHammerTest {
 
     @Test
@@ -52,7 +37,8 @@ public class DataFileReaderHammerTest {
         final int readerThreads = 32;
         final int readIterations = 10_000;
 
-        final Path tempFile = LegacyTemporaryFileBuilder.buildTemporaryFile("interruptedReadsHammerTest");
+        final Path tempFile =
+                LegacyTemporaryFileBuilder.buildTemporaryFile("interruptedReadsHammerTest", CONFIGURATION);
         final ByteBuffer writeBuf = ByteBuffer.allocate(itemSize);
         for (int i = 0; i < itemSize; i++) {
             writeBuf.put((byte) (i % 100));
@@ -67,8 +53,8 @@ public class DataFileReaderHammerTest {
 
         final ExecutorService exec = Executors.newFixedThreadPool(readerThreads);
         final Random rand = new Random();
-        final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
-        final DataFileMetadata metadata = new DataFileMetadata(itemCount, 0, Instant.now(), INITIAL_COMPACTION_LEVEL);
+        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final DataFileMetadata metadata = new DataFileMetadata(0, Instant.now(), INITIAL_COMPACTION_LEVEL);
         final DataFileReader dataReader = new DataFileReader(dbConfig, tempFile, metadata);
         final AtomicInteger activeReaders = new AtomicInteger(readerThreads);
         final AtomicReferenceArray<Thread> threads = new AtomicReferenceArray<>(readerThreads);

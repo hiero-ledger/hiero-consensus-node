@@ -1,41 +1,26 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.hash;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LoggingUtils.plural;
 
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.SerializableHashable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SerializableHashable;
 
 public final class MerkleHashChecker {
 
     private static final Logger logger = LogManager.getLogger(MerkleHashChecker.class);
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private MerkleHashChecker() {}
 
@@ -48,17 +33,21 @@ public final class MerkleHashChecker {
      * @param mismatchCallback
      * 		the method to call if a mismatch is found. May be called many times.
      */
-    public static void findInvalidHashes(final MerkleNode root, final Consumer<MerkleNode> mismatchCallback) {
+    public static void findInvalidHashes(
+            final MerkleCryptography merkleCryptography,
+            final MerkleNode root,
+            final Consumer<MerkleNode> mismatchCallback) {
         if (root == null) {
             return;
         }
 
-        root.forEachNode(node -> findInvalidHash(node, mismatchCallback));
+        root.forEachNode(node -> findInvalidHash(merkleCryptography, node, mismatchCallback));
     }
 
-    private static void findInvalidHash(final MerkleNode node, final Consumer<MerkleNode> mismatchCallback) {
-        final MerkleCryptography cryptography = MerkleCryptoFactory.getInstance();
-
+    private static void findInvalidHash(
+            final MerkleCryptography merkleCryptography,
+            final MerkleNode node,
+            final Consumer<MerkleNode> mismatchCallback) {
         // some nodes calculate their own hash, we could potentially check these if we serialize and deserialize
         // them and then check their hash
         if (node == null || node.isSelfHashing()) {
@@ -73,8 +62,7 @@ public final class MerkleHashChecker {
 
         final Hash recalculated;
         if (node.isLeaf()) {
-            recalculated = CryptographyHolder.get()
-                    .digestSync((SerializableHashable) node, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated = CRYPTOGRAPHY.digestSync((SerializableHashable) node, false);
         } else {
             final MerkleInternal internal = node.asInternal();
             for (int childIndex = 0; childIndex < internal.getNumberOfChildren(); childIndex++) {
@@ -84,7 +72,7 @@ public final class MerkleHashChecker {
                     return;
                 }
             }
-            recalculated = cryptography.digestSync(internal, Cryptography.DEFAULT_DIGEST_TYPE, false);
+            recalculated = merkleCryptography.digestSync(internal, false);
         }
 
         if (!old.equals(recalculated)) {
@@ -96,13 +84,16 @@ public final class MerkleHashChecker {
      * Get a list of all nodes in a tree that have an invalid hash.
      * Returns an empty list if the entire tree has valid hashes.
      *
+     * @param merkleCryptography
+     *      the cryptography provider to use for hashing
      * @param root
      * 		the root of the tree in question
      * @return a list of nodes with invalid hashes (if there are any)
      */
-    public static List<MerkleNode> getNodesWithInvalidHashes(final MerkleNode root) {
+    public static List<MerkleNode> getNodesWithInvalidHashes(
+            final MerkleCryptography merkleCryptography, final MerkleNode root) {
         final List<MerkleNode> nodesWithInvalidHashes = new LinkedList<>();
-        findInvalidHashes(root, nodesWithInvalidHashes::add);
+        findInvalidHashes(merkleCryptography, root, nodesWithInvalidHashes::add);
         return nodesWithInvalidHashes;
     }
 
@@ -119,9 +110,10 @@ public final class MerkleHashChecker {
      * 		spammed. A sane limit reduces the amount logged in that situation.
      * @return true if the tree is valid, false if it is not valid
      */
-    public static boolean checkHashAndLog(final MerkleNode root, final String context, final int limit) {
+    public static boolean checkHashAndLog(
+            final MerkleCryptography merkleCryptography, final MerkleNode root, final String context, final int limit) {
 
-        final List<MerkleNode> nodesWithInvalidHashes = getNodesWithInvalidHashes(root);
+        final List<MerkleNode> nodesWithInvalidHashes = getNodesWithInvalidHashes(merkleCryptography, root);
 
         if (nodesWithInvalidHashes.isEmpty()) {
             return true;

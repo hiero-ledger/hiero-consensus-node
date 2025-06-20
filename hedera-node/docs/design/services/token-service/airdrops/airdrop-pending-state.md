@@ -7,6 +7,7 @@ In order for the `TokenAirdropTransaction` to work we should define a new sectio
 The additional new `TokenClaimAirdrop` and `TokenCancelAirdrop` transactions would operate tightly with the pending state. These operations would trigger a removal of entities from the pending state. The `claim` operation would create a synthetic crypto transfer operation and remove the airdrop information, that is being claimed from the pending state and the `cancel` would directly remove the airdrop from the pending state.
 
 ## Prerequisite reading
+
 * [HIP-904](https://hips.hedera.com/hip/hip-904)
 
 ## Goals
@@ -55,12 +56,12 @@ message AccountAirdrop {
      * The airdrop involved in the relation between a sender account and the airdrop initiated by them
      */
     PendingAirdropId pending_airdrop_id;
-    
+
     /**
      * The previous airdrop id of sender account's airdrops linked list
      */
     PendingAirdropId previous_airdrop;
-    
+
     /**
      * The next airdrop id of sender account's airdrops linked list
      */
@@ -95,7 +96,7 @@ public interface ReadableAirdropStore {
     * @return true if the airdrop exists, false otherwise
     */
    boolean exists(@NonNull final PendingAirdropId tokenAirdropId);
-   
+
    /**
     * Returns the number of airdrops in the state.
     * @return the number of airdrops in the state.
@@ -134,16 +135,6 @@ public class WritableAirdropStore {
     * @param airdropId the {@code PendingAirdropId} to be removed
     */
    void remove(@NonNull PendingAirdropId airdropId) {}
-
-   /**
-    * Returns the {@link PendingAirdropValue} with the given airdrop id.
-    * If no such airdrop exists, returns {@code Optional.empty()}
-    *
-    * @param airdropId - the id of the airdrop, which value should be retrieved
-    * @return the fungible airdrop value, or {@code Optional.empty()} if no such
-    * airdrop exists
-    */
-   PendingAirdropValue getForModify(@NonNull final PendingAirdropId airdropId) {}
 }
 ```
 

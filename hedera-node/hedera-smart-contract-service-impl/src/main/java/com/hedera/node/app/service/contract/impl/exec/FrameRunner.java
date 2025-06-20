@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS;
@@ -38,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
@@ -55,10 +41,16 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 @Singleton
 public class FrameRunner {
     private final CustomGasCalculator gasCalculator;
+    private final EntityIdFactory entityIdFactory;
 
+    /**
+     * @param gasCalculator the gas calculator to be used
+     */
     @Inject
-    public FrameRunner(@NonNull final CustomGasCalculator gasCalculator) {
+    public FrameRunner(
+            @NonNull final CustomGasCalculator gasCalculator, @NonNull final EntityIdFactory entityIdFactory) {
         this.gasCalculator = gasCalculator;
+        this.entityIdFactory = entityIdFactory;
     }
 
     /**
@@ -103,7 +95,13 @@ public class FrameRunner {
         final var gasUsed = effectiveGasUsed(gasLimit, frame);
         if (frame.getState() == COMPLETED_SUCCESS) {
             return successFrom(
-                    gasUsed, senderId, recipientMetadata.hederaId(), asEvmContractId(recipientAddress), frame, tracer);
+                    gasUsed,
+                    senderId,
+                    recipientMetadata.hederaId(),
+                    asEvmContractId(entityIdFactory, recipientAddress),
+                    frame,
+                    tracer,
+                    entityIdFactory);
         } else {
             return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }
@@ -122,7 +120,7 @@ public class FrameRunner {
     private RecipientMetadata computeRecipientMetadata(
             @NonNull final MessageFrame frame, @NonNull final Address address) {
         if (isLongZero(address)) {
-            return new RecipientMetadata(false, asNumberedContractId(address));
+            return new RecipientMetadata(false, asNumberedContractId(entityIdFactory, address));
         } else {
             final var updater = proxyUpdaterFor(frame);
             return new RecipientMetadata(updater.getPendingCreation() != null, updater.getHederaContractId(address));

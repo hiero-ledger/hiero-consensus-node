@@ -1,23 +1,6 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
-import static com.hedera.hapi.streams.SidecarType.CONTRACT_ACTION;
-import static com.hedera.hapi.streams.SidecarType.CONTRACT_BYTECODE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -35,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -44,12 +28,21 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class FrameUtils {
     public static final String CONFIG_CONTEXT_VARIABLE = "contractsConfig";
     public static final String TRACKER_CONTEXT_VARIABLE = "storageAccessTracker";
+    public static final String ACTION_SIDECARS_VARIABLE = "actionSidecars";
+    public static final String ACTION_SIDECARS_VALIDATION_VARIABLE = "actionSidecarsValidation";
+    public static final String BYTECODE_SIDECARS_VARIABLE = "bytecodeSidecars";
     public static final String TINYBAR_VALUES_CONTEXT_VARIABLE = "tinybarValues";
     public static final String HAPI_RECORD_BUILDER_CONTEXT_VARIABLE = "hapiRecordBuilder";
     public static final String PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE = "propagatedCallFailure";
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
-    private static final long TOKEN_PROXY_ACCOUNT_NONCE = -1;
+    public static final String HEDERA_OPS_DURATION = "hederaOpsDuration";
+
+    public enum EntityType {
+        TOKEN,
+        SCHEDULE_TXN,
+        REGULAR_ACCOUNT
+    }
 
     private FrameUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -64,20 +57,21 @@ public class FrameUtils {
     }
 
     public static boolean hasBytecodeSidecarsEnabled(@NonNull final MessageFrame frame) {
-        return contractsConfigOf(frame).sidecars().contains(CONTRACT_BYTECODE);
+        return initialFrameOf(frame).hasContextVariable(BYTECODE_SIDECARS_VARIABLE);
     }
 
     public static boolean hasActionSidecarsEnabled(@NonNull final MessageFrame frame) {
-        return contractsConfigOf(frame).sidecars().contains(CONTRACT_ACTION);
+        return initialFrameOf(frame).hasContextVariable(ACTION_SIDECARS_VARIABLE);
     }
 
     public static boolean hasActionValidationEnabled(@NonNull final MessageFrame frame) {
-        return contractsConfigOf(frame).sidecarValidationEnabled();
+        return initialFrameOf(frame).hasContextVariable(ACTION_SIDECARS_VALIDATION_VARIABLE);
     }
 
     public static boolean hasValidatedActionSidecarsEnabled(@NonNull final MessageFrame frame) {
-        final var contractsConfig = contractsConfigOf(frame);
-        return contractsConfig.sidecars().contains(CONTRACT_ACTION) && contractsConfig.sidecarValidationEnabled();
+        final var initialFrame = initialFrameOf(frame);
+        return initialFrame.hasContextVariable(ACTION_SIDECARS_VARIABLE)
+                && initialFrame.hasContextVariable(ACTION_SIDECARS_VALIDATION_VARIABLE);
     }
 
     public static @Nullable StorageAccessTracker accessTrackerFor(@NonNull final MessageFrame frame) {
@@ -260,16 +254,16 @@ public class FrameUtils {
         DIRECT_OR_PROXY_REDIRECT,
     }
 
-    public static CallType callTypeOf(final MessageFrame frame) {
+    public static CallType callTypeOf(final MessageFrame frame, final EntityType expectedEntityType) {
         if (!isDelegateCall(frame)) {
             return CallType.DIRECT_OR_PROXY_REDIRECT;
         }
         final var recipient = frame.getRecipientAddress();
         // Evaluate whether the recipient is either a token or on the permitted callers list.
         // This determines if we should treat this as a delegate call.
-        // We accept delegates if the token redirect contract calls us.
+        // We accept delegates if the entity redirect contract calls us.
         final CallType viableType;
-        if (isToken(frame, recipient)) {
+        if (isExpectedEntityType(frame, recipient, expectedEntityType)) {
             viableType = CallType.DIRECT_OR_PROXY_REDIRECT;
         } else if (isQualifiedDelegate(recipient, frame)) {
             viableType = CallType.QUALIFIED_DELEGATE;
@@ -278,23 +272,6 @@ public class FrameUtils {
         }
         // make sure we have a parent calling context
         return validateParentCallType(frame, viableType);
-    }
-
-    public static CallType callTypeForAccountOf(final MessageFrame frame) {
-        if (!isDelegateCall(frame)) {
-            return CallType.DIRECT_OR_PROXY_REDIRECT;
-        }
-        final var recipient = frame.getRecipientAddress();
-        // Evaluate whether the recipient is a regular account.
-        // This determines if we should treat this as a delegate call.
-        // We accept delegates if the account redirect contract calls us.
-        final CallType viableType;
-        if (isRegularAccount(frame, recipient)) {
-            viableType = CallType.DIRECT_OR_PROXY_REDIRECT;
-            return validateParentCallType(frame, viableType);
-        } else {
-            return CallType.UNQUALIFIED_DELEGATE;
-        }
     }
 
     private static CallType validateParentCallType(@NonNull MessageFrame frame, @NonNull CallType viableType) {
@@ -332,7 +309,8 @@ public class FrameUtils {
         Long maybeGrandfatheredNumber = null;
         if (isLongZero(address)) {
             try {
-                maybeGrandfatheredNumber = asNumberedContractId(address).contractNum();
+                maybeGrandfatheredNumber =
+                        asNumberedContractId(entityIdFactory(frame), address).contractNum();
             } catch (final ArithmeticException ignore) {
                 // Not a valid numbered contract id
             }
@@ -341,22 +319,26 @@ public class FrameUtils {
                 contractsConfigOf(frame), maybeGrandfatheredNumber);
     }
 
-    private static boolean isToken(final MessageFrame frame, final Address address) {
-        final var account = frame.getWorldUpdater().get(address);
-        if (account != null) {
-            return account.getNonce() == TOKEN_PROXY_ACCOUNT_NONCE;
-        }
-        return false;
-    }
-
-    private static boolean isRegularAccount(@NonNull final MessageFrame frame, @NonNull final Address address) {
+    /**
+     * Returns true if the given recipient address to the frame is of the expected entity type.
+     * @param frame current message frame
+     * @param address address to check
+     * @param expectedEntity expected entity type
+     * @return true if the address is of the expected entity type
+     */
+    private static boolean isExpectedEntityType(
+            final MessageFrame frame, final Address address, final EntityType expectedEntity) {
         requireNonNull(frame);
         requireNonNull(address);
 
         final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
         final var recipient = updater.getHederaAccount(address);
         if (recipient != null) {
-            return recipient.isRegularAccount();
+            return switch (expectedEntity) {
+                case TOKEN -> recipient.isTokenFacade();
+                case SCHEDULE_TXN -> recipient.isScheduleTxnFacade();
+                case REGULAR_ACCOUNT -> recipient.isRegularAccount();
+            };
         }
         return false;
     }
@@ -377,5 +359,55 @@ public class FrameUtils {
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
         return isLongZero(recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
+    }
+
+    public static boolean isPrecompileEnabled(
+            @NonNull final Address precompileAddress, @NonNull final MessageFrame frame) {
+        return contractsConfigOf(frame).disabledPrecompiles().stream()
+                .map(Address::precompiled)
+                .filter(precompileAddress::equals)
+                .findAny()
+                .isEmpty();
+    }
+
+    /**
+     * Returns the {@link com.swirlds.state.lifecycle.EntityIdFactory}
+     *
+     * @param frame the current frame
+     * @return the entity id factory
+     */
+    public static EntityIdFactory entityIdFactory(@NonNull final MessageFrame frame) {
+        return proxyUpdaterFor(frame).entityIdFactory();
+    }
+
+    /**
+     * Increments the Hedera ops duration in the top level frame by the given amount.
+     *
+     * @param frame the current frame
+     * @param opsDuration the amount ops duration to increment by
+     */
+    public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
+        final HederaOpsDurationCounter opsDurationCounter =
+                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
+        if (opsDurationCounter != null) {
+            opsDurationCounter.incrementOpsDuration(opsDuration);
+            checkHederaOpsDuration(frame, opsDuration);
+        }
+    }
+
+    /**
+     * Returns the Hedera ops duration usage in the top level frame.
+     *
+     * @param frame the current frame
+     * @return the total Hedera ops duration
+     */
+    public static long getHederaOpsDuration(@NonNull final MessageFrame frame) {
+        final HederaOpsDurationCounter opsDurationCounter =
+                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
+        return opsDurationCounter == null ? 0L : opsDurationCounter.getOpsDurationCounter();
+    }
+
+    public static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
+        proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
     }
 }

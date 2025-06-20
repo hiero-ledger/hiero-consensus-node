@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -24,17 +10,15 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.swirlds.common.config.singleton.ConfigurationHolder;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.io.SelfSerializable;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Virtual database table configuration. It describes how to store virtual keys and values
@@ -51,6 +35,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
 
     private static final FieldDefinition FIELD_TABLECONFIG_HASHVERSION =
             new FieldDefinition("hashVersion", FieldType.UINT32, false, true, false, 1);
+
     private static final FieldDefinition FIELD_TABLECONFIG_DIGESTTYPEID =
             new FieldDefinition("digestTypeId", FieldType.UINT32, false, false, false, 2);
 
@@ -70,10 +55,13 @@ public final class MerkleDbTableConfig implements SelfSerializable {
     private static final FieldDefinition FIELD_TABLECONFIG_VALUESERIALIZERCLSID =
             new FieldDefinition("valueSerializerClassId", FieldType.UINT64, false, false, false, 6);
 
+    @Deprecated
     private static final FieldDefinition FIELD_TABLECONFIG_PREFERDISKINDICES =
             new FieldDefinition("preferDiskIndices", FieldType.UINT32, false, true, false, 7);
-    private static final FieldDefinition FIELD_TABLECONFIG_MAXNUMBEROFKEYS =
-            new FieldDefinition("maxNumberOfKeys", FieldType.UINT64, false, true, false, 8);
+
+    private static final FieldDefinition FIELD_TABLECONFIG_INITIALCAPACITY =
+            new FieldDefinition("initialCapacity", FieldType.UINT64, false, true, false, 8);
+
     private static final FieldDefinition FIELD_TABLECONFIG_HASHRAMTODISKTHRESHOLD =
             new FieldDefinition("hashesRamToDiskThreshold", FieldType.UINT64, false, true, false, 9);
 
@@ -94,7 +82,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      * typed objects. Previously, key and value serializers were the part of MerkleDbTableConfig.
      * The config objects were stored in MerkleDb metadata. Now these serializers are moved to the
      * VirtualMap level, but in the existing state snapshots they are still a part of MerkleDb.
-     * This is why the serializers are still read in {@link #deserialize(SerializableDataInputStream, int)}
+     * This is why the serializers are still read in {@link SelfSerializable#deserialize(SerializableDataInputStream, int)}
      * and later queried by VirtualMap / VirtualRootNode. When this object is serialized again, the
      * serializers are ignored, assuming they are saved at the VirtualMap level.
      */
@@ -108,7 +96,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      * typed objects. Previously, key and value serializers were the part of MerkleDbTableConfig.
      * The config objects were stored in MerkleDb metadata. Now these serializers are moved to the
      * VirtualMap level, but in the existing state snapshots they are still a part of MerkleDb.
-     * This is why the serializers are still read in {@link #deserialize(SerializableDataInputStream, int)}
+     * This is why the serializers are still read in {@link SelfSerializable#deserialize(SerializableDataInputStream, int)}
      * and later queried by VirtualMap / VirtualRootNode. When this object is serialized again, the
      * serializers are ignored, assuming they are saved at the VirtualMap level.
      */
@@ -118,7 +106,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
     /**
      * Max number of keys that can be stored in a table.
      */
-    private long maxNumberOfKeys = 0;
+    private long initialCapacity;
 
     /**
      * Threshold where we switch from storing internal hashes in ram to storing them on disk. If it is 0 then everything
@@ -126,12 +114,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      * we swap from ram to disk. This allows a tree where the lower levels of the tree nodes hashes are in ram and the
      * upper larger less changing layers are on disk.
      */
-    private long hashesRamToDiskThreshold = 0;
-
-    /**
-     * Indicates whether to store indexes on disk or in Java heap/off-heap memory.
-     */
-    private boolean preferDiskBasedIndices = false;
+    private long hashesRamToDiskThreshold;
 
     /**
      * Creates a new virtual table config with default values. This constructor should only be used
@@ -148,17 +131,30 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      *      Hash version
      * @param hashType
      *      Hash type
+     * @param initialCapacity
+     *      Initial database capacity. May be used to calculate index sizes
+     * @param hashesRamToDiskThreshold
+     *      Threshold where we switch from storing internal hashes in ram to storing them on disk.
      */
-    public MerkleDbTableConfig(final short hashVersion, final DigestType hashType) {
+    public MerkleDbTableConfig(
+            final short hashVersion,
+            final DigestType hashType,
+            final long initialCapacity,
+            final long hashesRamToDiskThreshold) {
         // Mandatory fields
         this.hashVersion = hashVersion;
         this.hashType = hashType;
 
         // Optional hints, may be set explicitly using setters later. Defaults are loaded from
         // MerkleDb configuration
-        final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
-        maxNumberOfKeys = dbConfig.maxNumOfKeys();
-        hashesRamToDiskThreshold = dbConfig.hashesRamToDiskThreshold();
+        if (initialCapacity <= 0) {
+            throw new IllegalArgumentException("Initial capacity must be greater than 0");
+        }
+        this.initialCapacity = initialCapacity;
+        if (hashesRamToDiskThreshold < 0) {
+            throw new IllegalArgumentException("Hashes RAM/disk threshold must be greater or equal to 0");
+        }
+        this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
     }
 
     public MerkleDbTableConfig(final ReadableSequentialData in) {
@@ -169,8 +165,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
         // of them are protobuf default and aren't present)
         hashVersion = 0;
         hashType = DigestType.SHA_384;
-        preferDiskBasedIndices = false;
-        maxNumberOfKeys = 0;
+        initialCapacity = 0;
         hashesRamToDiskThreshold = 0;
 
         while (in.hasRemaining()) {
@@ -194,9 +189,10 @@ public final class MerkleDbTableConfig implements SelfSerializable {
                 final long classId = in.readVarLong(false);
                 valueSerializer = ConstructableRegistry.getInstance().createObject(classId);
             } else if (fieldNum == FIELD_TABLECONFIG_PREFERDISKINDICES.number()) {
-                preferDiskBasedIndices = in.readVarInt(false) != 0;
-            } else if (fieldNum == FIELD_TABLECONFIG_MAXNUMBEROFKEYS.number()) {
-                maxNumberOfKeys = in.readVarLong(false);
+                // Skip preferDiskIndices
+                in.readVarInt(false);
+            } else if (fieldNum == FIELD_TABLECONFIG_INITIALCAPACITY.number()) {
+                initialCapacity = in.readVarLong(false);
             } else if (fieldNum == FIELD_TABLECONFIG_HASHRAMTODISKTHRESHOLD.number()) {
                 hashesRamToDiskThreshold = in.readVarLong(false);
             } else {
@@ -205,9 +201,9 @@ public final class MerkleDbTableConfig implements SelfSerializable {
         }
 
         // Check that all mandatory fields have been loaded from the stream
-        Objects.requireNonNull(hashType, "Null or wrong hash type");
-        if (maxNumberOfKeys <= 0) {
-            throw new IllegalArgumentException("Missing or wrong max number of keys");
+        requireNonNull(hashType, "Null or wrong hash type");
+        if (initialCapacity <= 0) {
+            throw new IllegalArgumentException("Missing or wrong initial capacity");
         }
     }
 
@@ -220,15 +216,10 @@ public final class MerkleDbTableConfig implements SelfSerializable {
         }
         size += ProtoWriterTools.sizeOfTag(FIELD_TABLECONFIG_DIGESTTYPEID, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
         size += ProtoWriterTools.sizeOfVarInt32(hashType.id());
-        if (preferDiskBasedIndices) {
-            size += ProtoWriterTools.sizeOfTag(
-                    FIELD_TABLECONFIG_PREFERDISKINDICES, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
-            size += ProtoWriterTools.sizeOfVarInt32(1);
-        }
-        assert maxNumberOfKeys != 0;
+        assert initialCapacity != 0;
         size += ProtoWriterTools.sizeOfTag(
-                FIELD_TABLECONFIG_MAXNUMBEROFKEYS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
-        size += ProtoWriterTools.sizeOfVarInt64(maxNumberOfKeys);
+                FIELD_TABLECONFIG_INITIALCAPACITY, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+        size += ProtoWriterTools.sizeOfVarInt64(initialCapacity);
         if (hashesRamToDiskThreshold != 0) {
             size += ProtoWriterTools.sizeOfTag(
                     FIELD_TABLECONFIG_HASHRAMTODISKTHRESHOLD, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
@@ -244,13 +235,9 @@ public final class MerkleDbTableConfig implements SelfSerializable {
         }
         ProtoWriterTools.writeTag(out, FIELD_TABLECONFIG_DIGESTTYPEID);
         out.writeVarInt(hashType.id(), false);
-        if (preferDiskBasedIndices) {
-            ProtoWriterTools.writeTag(out, FIELD_TABLECONFIG_PREFERDISKINDICES);
-            out.writeVarInt(1, false);
-        }
-        assert maxNumberOfKeys != 0;
-        ProtoWriterTools.writeTag(out, FIELD_TABLECONFIG_MAXNUMBEROFKEYS);
-        out.writeVarLong(maxNumberOfKeys, false);
+        assert initialCapacity != 0;
+        ProtoWriterTools.writeTag(out, FIELD_TABLECONFIG_INITIALCAPACITY);
+        out.writeVarLong(initialCapacity, false);
         if (hashesRamToDiskThreshold != 0) {
             ProtoWriterTools.writeTag(out, FIELD_TABLECONFIG_HASHRAMTODISKTHRESHOLD);
             out.writeVarLong(hashesRamToDiskThreshold, false);
@@ -300,29 +287,13 @@ public final class MerkleDbTableConfig implements SelfSerializable {
     }
 
     /**
-     * Max number of keys that can be stored in the table.
+     * Initial database capacity.
      *
      * @return
-     *      Max number of keys
+     *      Initial database capacity
      */
-    public long getMaxNumberOfKeys() {
-        return maxNumberOfKeys;
-    }
-
-    /**
-     * Specifies the max number of keys that can be stored in the table. Must be greater than zero.
-     *
-     * @param maxNumberOfKeys
-     *      Max number of keys
-     * @return
-     *      This table config object
-     */
-    public MerkleDbTableConfig maxNumberOfKeys(final long maxNumberOfKeys) {
-        if (maxNumberOfKeys <= 0) {
-            throw new IllegalArgumentException("Max number of keys must be greater than 0");
-        }
-        this.maxNumberOfKeys = maxNumberOfKeys;
-        return this;
+    public long getInitialCapacity() {
+        return initialCapacity;
     }
 
     /**
@@ -334,45 +305,6 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      */
     public long getHashesRamToDiskThreshold() {
         return hashesRamToDiskThreshold;
-    }
-
-    /**
-     * Specifies internal hashes RAM/disk threshold. Must be greater or equal to zero.
-     *
-     * @param hashesRamToDiskThreshold
-     *      Internal hashes RAM/disk threshold
-     * @return
-     *      This table config object
-     */
-    public MerkleDbTableConfig hashesRamToDiskThreshold(final long hashesRamToDiskThreshold) {
-        if (hashesRamToDiskThreshold < 0) {
-            throw new IllegalArgumentException("Hashes RAM/disk threshold must be greater or equal to 0");
-        }
-        this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
-        return this;
-    }
-
-    /**
-     * Whether indexes are stored on disk or in Java heap/off-heap memory.
-     *
-     * @return
-     *      Whether disk based indexes are preferred
-     */
-    public boolean isPreferDiskBasedIndices() {
-        return preferDiskBasedIndices;
-    }
-
-    /**
-     * Specifies whether indexes are to be stored on disk or in Java heap/off-heap memory.
-     *
-     * @param preferDiskBasedIndices
-     *      Whether disk based indexes are preferred
-     * @return
-     *      This table config object
-     */
-    public MerkleDbTableConfig preferDiskIndices(final boolean preferDiskBasedIndices) {
-        this.preferDiskBasedIndices = preferDiskBasedIndices;
-        return this;
     }
 
     /**
@@ -396,8 +328,8 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      */
     @Override
     public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeBoolean(preferDiskBasedIndices);
-        out.writeLong(maxNumberOfKeys);
+        out.writeBoolean(false); // prefer disk indices
+        out.writeLong(initialCapacity);
         out.writeLong(hashesRamToDiskThreshold);
         out.writeShort(hashVersion);
         out.writeInt(hashType.id());
@@ -412,8 +344,8 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      */
     @Override
     public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        preferDiskBasedIndices = in.readBoolean();
-        maxNumberOfKeys = in.readLong();
+        in.readBoolean(); // prefer disk indices
+        initialCapacity = in.readLong();
         hashesRamToDiskThreshold = in.readLong();
         hashVersion = in.readShort();
         hashType = DigestType.valueOf(in.readInt());
@@ -429,11 +361,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      * @return Table config copy
      */
     public MerkleDbTableConfig copy() {
-        final MerkleDbTableConfig copy = new MerkleDbTableConfig(hashVersion, hashType);
-        copy.preferDiskIndices(preferDiskBasedIndices);
-        copy.hashesRamToDiskThreshold(hashesRamToDiskThreshold);
-        copy.maxNumberOfKeys(maxNumberOfKeys);
-        return copy;
+        return new MerkleDbTableConfig(hashVersion, hashType, initialCapacity, hashesRamToDiskThreshold);
     }
 
     /**
@@ -441,7 +369,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(hashVersion, hashType, preferDiskBasedIndices, maxNumberOfKeys, hashesRamToDiskThreshold);
+        return Objects.hash(hashVersion, hashType, initialCapacity, hashesRamToDiskThreshold);
     }
 
     /**
@@ -452,8 +380,7 @@ public final class MerkleDbTableConfig implements SelfSerializable {
         if (!(o instanceof MerkleDbTableConfig other)) {
             return false;
         }
-        return (preferDiskBasedIndices == other.preferDiskBasedIndices)
-                && (maxNumberOfKeys == other.maxNumberOfKeys)
+        return (initialCapacity == other.initialCapacity)
                 && (hashesRamToDiskThreshold == other.hashesRamToDiskThreshold)
                 && (hashVersion == other.hashVersion)
                 && Objects.equals(hashType, other.hashType);

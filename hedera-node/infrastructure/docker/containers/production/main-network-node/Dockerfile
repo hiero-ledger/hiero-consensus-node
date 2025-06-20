@@ -15,6 +15,9 @@ ENV JAVA_OPTS=""
 ENV JAVA_MAIN_CLASS=""
 ENV JAVA_CLASS_PATH=""
 
+## Consensus Node Configuration
+ENV CONSENSUS_NODE_ID=""
+
 # Performance Tuning for Malloc
 ENV MALLOC_ARENA_MAX=4
 

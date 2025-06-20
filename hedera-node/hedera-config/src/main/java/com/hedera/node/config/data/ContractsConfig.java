@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config.data;
 
 import com.hedera.hapi.streams.SidecarType;
@@ -38,6 +23,9 @@ public record ContractsConfig(
                 boolean noncesExternalizationEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean enforceCreationThrottle,
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSec,
+        @ConfigProperty(defaultValue = "15000000") @NetworkProperty long maxGasPerSecBackend,
+        @ConfigProperty(defaultValue = "500000000") @NetworkProperty long maxOpsDuration,
+        @ConfigProperty(defaultValue = "1") @NetworkProperty int gasThrottleBurstSeconds,
         @ConfigProperty(value = "maxKvPairs.aggregate", defaultValue = "500000000") @NetworkProperty
                 long maxKvPairsAggregate,
         @ConfigProperty(value = "maxKvPairs.individual", defaultValue = "16384000") @NetworkProperty
@@ -51,6 +39,8 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean sidecarValidationEnabled,
         @ConfigProperty(value = "throttle.throttleByGas", defaultValue = "true") @NetworkProperty
                 boolean throttleThrottleByGas,
+        @ConfigProperty(value = "throttle.throttleByOpsDuration", defaultValue = "false") @NetworkProperty
+                boolean throttleThrottleByOpsDuration,
         @ConfigProperty(defaultValue = "20") @NetworkProperty int maxRefundPercentOfGasLimit,
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty long scheduleThrottleMaxGasLimit,
         @ConfigProperty(value = "precompile.exchangeRateGasCost", defaultValue = "100") @NetworkProperty
@@ -59,27 +49,57 @@ public record ContractsConfig(
                 long precompileHtsDefaultGasCost,
         @ConfigProperty(value = "precompile.atomicCryptoTransfer.enabled", defaultValue = "true") @NetworkProperty
                 boolean precompileAtomicCryptoTransferEnabled,
+        @ConfigProperty(value = "precompile.disabled", defaultValue = "") @NetworkProperty
+                Set<Integer> disabledPrecompiles,
         @ConfigProperty(value = "systemContract.accountService.enabled", defaultValue = "true") @NetworkProperty
                 boolean systemContractAccountServiceEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.enabled", defaultValue = "true") @NetworkProperty
+                boolean systemContractScheduleServiceEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.signSchedule.enabled", defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractSignScheduleEnabled,
+        @ConfigProperty(
+                        value = "systemContract.scheduleService.signSchedule.from.contract.enabled",
+                        defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractSignScheduleFromContractEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.authorizeSchedule.enabled", defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractAuthorizeScheduleEnabled,
+        @ConfigProperty(value = "systemContract.scheduleService.scheduleNative.enabled", defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractScheduleNativeEnabled,
         @ConfigProperty(value = "systemContract.accountService.isAuthorizedRawEnabled", defaultValue = "true")
                 @NetworkProperty
                 boolean systemContractAccountServiceIsAuthorizedRawEnabled,
+        @ConfigProperty(value = "systemContract.accountService.isAuthorizedEnabled", defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractAccountServiceIsAuthorizedEnabled,
         @ConfigProperty(value = "systemContract.updateCustomFees.enabled", defaultValue = "true") @NetworkProperty
                 boolean systemContractUpdateCustomFeesEnabled,
-        @ConfigProperty(value = "systemContract.tokenInfo.v2.enabled", defaultValue = "false") @NetworkProperty
-                boolean systemContractTokenInfoV2Enabled,
-        @ConfigProperty(value = "systemContract.precisionLossFixForGas.enabled", defaultValue = "true") @NetworkProperty
-                boolean isGasPrecisionLossFixEnabled,
-        @ConfigProperty(value = "systemContract.canonicalViewGas.enabled", defaultValue = "true") @NetworkProperty
-                boolean isCanonicalViewGasEnabled,
-        @ConfigProperty(value = "systemContract.updateNFTsMetadata.enabled", defaultValue = "false") @NetworkProperty
-                boolean systemContractUpdateNFTsMetadataEnabled,
-        @ConfigProperty(value = "evm.version.dynamic", defaultValue = "false") @NetworkProperty
-                boolean evmVersionDynamic,
+        @ConfigProperty(value = "systemContract.airdropTokens.enabled", defaultValue = "true") @NetworkProperty
+                boolean systemContractAirdropTokensEnabled,
+        @ConfigProperty(value = "systemContract.cancelAirdrops.enabled", defaultValue = "true") @NetworkProperty
+                boolean systemContractCancelAirdropsEnabled,
+        @ConfigProperty(value = "systemContract.claimAirdrops.enabled", defaultValue = "true") @NetworkProperty
+                boolean systemContractClaimAirdropsEnabled,
+        @ConfigProperty(value = "systemContract.rejectTokens.enabled", defaultValue = "true") @NetworkProperty
+                boolean systemContractRejectTokensEnabled,
+        @ConfigProperty(value = "systemContract.setUnlimitedAutoAssociations.enabled", defaultValue = "true")
+                @NetworkProperty
+                boolean systemContractSetUnlimitedAutoAssociationsEnabled,
+        @ConfigProperty(value = "systemContract.hts.addresses", defaultValue = "359") // 359 = 0x167, 364 = 0x16C
+                Set<Long> callableHTSAddresses,
+        @ConfigProperty(value = "evm.ethTransaction.zeroHapiFees.enabled", defaultValue = "true") @NetworkProperty
+                boolean evmEthTransactionZeroHapiFeesEnabled,
         @ConfigProperty(value = "evm.allowCallsToNonContractAccounts", defaultValue = "true") @NetworkProperty
                 boolean evmAllowCallsToNonContractAccounts,
         @ConfigProperty(value = "evm.chargeGasOnEvmHandleException", defaultValue = "true") @NetworkProperty
                 boolean chargeGasOnEvmHandleException,
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
                 Set<Long> evmNonExtantContractsFail,
-        @ConfigProperty(value = "evm.version", defaultValue = "v0.50") @NetworkProperty String evmVersion) {}
+        @ConfigProperty(value = "evm.version", defaultValue = "v0.51") @NetworkProperty String evmVersion,
+        @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
+                boolean metricsSmartContractPrimaryEnabled,
+        @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty
+                boolean metricsSmartContractSecondaryEnabled) {}

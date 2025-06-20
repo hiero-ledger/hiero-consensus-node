@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.schemas;
 
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFO_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_KEY;
@@ -32,32 +18,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
-import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.services.MigrationContextImpl;
-import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
-import com.hedera.node.app.spi.fixtures.state.MapWritableStates;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.StateDefinition;
+import com.swirlds.state.lifecycle.StartupNetworks;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.Comparator;
 import java.util.HashMap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class V0530TokenSchemaTest {
 
     private final V0530TokenSchema subject = new V0530TokenSchema();
+
+    @Mock
+    private StartupNetworks startupNetworks;
 
     @Test
     @DisplayName("verify states to create")
@@ -88,20 +78,21 @@ class V0530TokenSchemaTest {
                 accounts,
                 MapWritableKVState.<Bytes, AccountID>builder(ALIASES_KEY).build(),
                 entityIdState,
-                stakingInfosState);
+                stakingInfosState,
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}));
         final var newStates = newStatesInstance(
                 accounts,
                 MapWritableKVState.<Bytes, AccountID>builder(ALIASES_KEY).build(),
                 entityIdState,
-                stakingInfosState);
-        final var entityIdStore = new WritableEntityIdStore(newStates);
-
-        final var networkInfo = new FakeNetworkInfo();
+                stakingInfosState,
+                new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY, () -> EntityCounts.newBuilder().build(), c -> {}));
         final var config = buildConfig(DEFAULT_NUM_SYSTEM_ACCOUNTS, true);
 
         final var schema = new V0530TokenSchema();
         schema.migrate(new MigrationContextImpl(
-                previousStates, newStates, config, networkInfo, entityIdStore, null, new HashMap<>()));
+                previousStates, newStates, config, config, null, 0L, new HashMap<>(), startupNetworks));
 
         final var updatedStates = newStates.get(STAKING_INFO_KEY);
         // sets minStake on all nodes to 0
@@ -120,7 +111,8 @@ class V0530TokenSchemaTest {
             final MapWritableKVState<AccountID, Account> accts,
             final MapWritableKVState<Bytes, AccountID> aliases,
             final WritableSingletonState<EntityNumber> entityIdState,
-            final MapWritableKVState<EntityNumber, StakingNodeInfo> stakingInfo) {
+            final MapWritableKVState<EntityNumber, StakingNodeInfo> stakingInfo,
+            final WritableSingletonState<EntityCounts> entityCounts) {
         //noinspection ReturnOfNull
         return MapWritableStates.builder()
                 .state(accts)
@@ -128,6 +120,7 @@ class V0530TokenSchemaTest {
                 .state(stakingInfo)
                 .state(new WritableSingletonStateBase<>(STAKING_NETWORK_REWARDS_KEY, () -> null, c -> {}))
                 .state(entityIdState)
+                .state(entityCounts)
                 .build();
     }
 }

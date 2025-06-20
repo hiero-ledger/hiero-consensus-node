@@ -1,0 +1,81 @@
+/**
+ * # Crypto Get Account Records
+ * Messages for a query to retrieve recent transaction records involving a
+ * specified account as effective `payer`.<br/>
+ * A "recent" transaction is typically one that reached consensus within
+ * the previous three(`3`) minutes of _consensus_ time. Additionally, the
+  * network only stores records in state when
+ * `ledger.keepRecordsInState=true` was true during transaction handling.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/transaction_record.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+
+/**
+ * Request records of all "recent" transactions for which the specified
+ * account is the effective payer.
+ */
+message CryptoGetAccountRecordsQuery {
+    /**
+     * Standard information sent with every query operation.<br/>
+     * This includes the signed payment and what kind of response is requested
+     * (cost, state proof, both, or neither).
+     */
+    QueryHeader header = 1;
+
+    /**
+     * An account identifier.<br/>
+     * This identifies the account to use when filtering the
+     * transaction record lists.
+     * <p>
+     * This field is REQUIRED.
+     */
+    AccountID accountID = 2;
+}
+
+/**
+ * Return records of all "recent" transactions for which the specified
+ * account is the effective payer.
+ */
+message CryptoGetAccountRecordsResponse {
+    /**
+     * The standard response information for queries.<br/>
+     * This includes the values requested in the `QueryHeader`
+     * (cost, state proof, both, or neither).
+     */
+    ResponseHeader header = 1;
+
+    /**
+     * An account identifier.<br/>
+     * This identifies the account used when filtering the
+     * transaction record lists.
+     * <p>
+     * This field SHALL match the requested account identifier.
+     */
+    AccountID accountID = 2;
+
+    /**
+     * A list of records.
+     * <p>
+     * This list SHALL contain all available and "recent" records in which
+     * the account identified in the `accountID` field acted as effective payer.
+     */
+    repeated TransactionRecord records = 3;
+}

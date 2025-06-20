@@ -1,26 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.exports;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.hedera.services.stream.proto.RecordStreamFile;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -35,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 
 /**
  * This is a standalone utility tool to read record stream file and check if block number is
@@ -63,6 +48,7 @@ public class RecordBlockNumberTool {
     public static void prepare() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
 
         LOGGER.info(MARKER, "registering Constructables for parsing record stream files");
         // if we are parsing new record stream files,
@@ -100,7 +86,7 @@ public class RecordBlockNumberTool {
         if (currentBlockNumber <= prevBlockNumber) {
             LOGGER.error(
                     MARKER,
-                    "Found new block number is equal or less than the prevous one, current {} vs" + " prev {}",
+                    "Found new block number is equal or less than the previous one, current {} vs" + " prev {}",
                     currentBlockNumber,
                     prevBlockNumber);
         }

@@ -1,28 +1,14 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.NODES_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
+import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.catchThrowable;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -31,11 +17,14 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
@@ -44,12 +33,13 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.io.IOException;
@@ -77,10 +67,10 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     private HandleContext handleContext;
 
     @Mock
-    private NodeDeleteHandler subject;
+    private PureChecksContext pureChecksContext;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private NodeDeleteHandler subject;
 
     protected Configuration testConfig;
 
@@ -92,7 +82,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         writableNodeState = writableNodeStateWithOneKey();
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
         testConfig = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableNodeStore(writableStates, testConfig, storeMetricsService);
+        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         lenient().when(handleContext.configuration()).thenReturn(testConfig);
     }
 
@@ -101,21 +91,21 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     void testPureChecksThrowsExceptionWhenFileIdIsNull() {
         NodeDeleteTransactionBody transactionBody = mock(NodeDeleteTransactionBody.class);
         TransactionBody transaction = mock(TransactionBody.class);
-        given(handleContext.body()).willReturn(transaction);
+        given(pureChecksContext.body()).willReturn(transaction);
         given(transaction.nodeDeleteOrThrow()).willReturn(transactionBody);
         given(transactionBody.nodeId()).willReturn(-1L);
 
-        assertThatThrownBy(() -> subject.pureChecks(handleContext.body())).isInstanceOf(PreCheckException.class);
-        var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(handleContext.body()));
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).isInstanceOf(PreCheckException.class);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ID);
     }
 
     @Test
     @DisplayName("pureChecks does not throw exception when node id is not null")
     void testPureChecksDoesNotThrowExceptionWhenNodeIdIsNotNull() {
-        given(handleContext.body()).willReturn(newDeleteTxn());
+        given(pureChecksContext.body()).willReturn(newDeleteTxn());
 
-        assertThatCode(() -> subject.pureChecks(handleContext.body())).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -145,7 +135,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         writableNodeState = emptyWritableNodeState();
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
-        writableStore = new WritableNodeStore(writableStates, testConfig, storeMetricsService);
+        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 
         given(handleContext.body())
@@ -166,7 +156,7 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         writableNodeState = writableNodeStateWithOneKey();
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(writableNodeState);
-        writableStore = new WritableNodeStore(writableStates, testConfig, storeMetricsService);
+        writableStore = new WritableNodeStore(writableStates, writableEntityCounters);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
 
         given(handleContext.body())
@@ -219,8 +209,57 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void preHandleDoesNothing() {
-        assertDoesNotThrow(() -> subject.preHandle(mock(PreHandleContext.class)));
+    void preHandleWorksWhenExistingAdminKeyValid() throws PreCheckException {
+        givenValidNodeWithAdminKey(anotherKey);
+        refreshStoresWithCurrentNodeInReadable();
+
+        final var txn = newDeleteTxnWithNodeId(nodeId.number());
+        final var context = setupPreHandlePayerKey(txn, accountId, key);
+        subject.preHandle(context);
+        assertThat(txn).isEqualTo(context.body());
+        assertThat(context.payerKey()).isEqualTo(key);
+        assertThat(context.requiredNonPayerKeys()).contains(anotherKey);
+    }
+
+    @Test
+    void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
+        givenValidNodeWithAdminKey(invalidKey);
+        refreshStoresWithCurrentNodeInReadable();
+        final var txn = newDeleteTxnWithNodeId(nodeId.number());
+        final var context = setupPreHandlePayerKey(txn, accountId, anotherKey);
+        assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
+    }
+
+    @Test
+    void preHandleWorksWhenTreasureSign() throws PreCheckException {
+        final var txn = newDeleteTxn();
+        final var context = setupPreHandlePayerKey(txn, payerId, anotherKey);
+        subject.preHandle(context);
+        assertThat(txn).isEqualTo(context.body());
+        assertThat(context.payerKey()).isEqualTo(anotherKey);
+        assertThat(context.requiredNonPayerKeys()).isEmpty();
+    }
+
+    @Test
+    void preHandleWorksWhenSysAdminSign() throws PreCheckException {
+        final var accountID = AccountID.newBuilder().accountNum(50).build();
+        final var txn = newDeleteTxnWithPayerId(accountID);
+        final var context = setupPreHandlePayerKey(txn, accountID, anotherKey);
+        subject.preHandle(context);
+        assertThat(txn).isEqualTo(context.body());
+        assertThat(context.payerKey()).isEqualTo(anotherKey);
+        assertThat(context.requiredNonPayerKeys()).isEmpty();
+    }
+
+    @Test
+    void preHandleWorksWhenAddressBookAdminSign() throws PreCheckException {
+        final var accountID = AccountID.newBuilder().accountNum(55).build();
+        final var txn = newDeleteTxnWithPayerId(accountID);
+        final var context = setupPreHandlePayerKey(txn, accountID, anotherKey);
+        subject.preHandle(context);
+        assertThat(txn).isEqualTo(context.body());
+        assertThat(context.payerKey()).isEqualTo(anotherKey);
+        assertThat(context.requiredNonPayerKeys()).isEmpty();
     }
 
     private TransactionBody newDeleteTxn() {
@@ -230,6 +269,37 @@ class NodeDeleteHandlerTest extends AddressBookTestBase {
                 .transactionID(txnId)
                 .nodeDelete(deleteFileBuilder.build())
                 .build();
+    }
+
+    private TransactionBody newDeleteTxnWithPayerId(AccountID accountID) {
+        final var txnId = TransactionID.newBuilder().accountID(accountID).build();
+        final var deleteFileBuilder = NodeDeleteTransactionBody.newBuilder().nodeId(WELL_KNOWN_NODE_ID);
+        return TransactionBody.newBuilder()
+                .transactionID(txnId)
+                .nodeDelete(deleteFileBuilder.build())
+                .build();
+    }
+
+    private TransactionBody newDeleteTxnWithNodeId(long nodeId) {
+        final var txnId = TransactionID.newBuilder().accountID(accountId).build();
+        final var deleteFileBuilder = NodeDeleteTransactionBody.newBuilder().nodeId(nodeId);
+        return TransactionBody.newBuilder()
+                .transactionID(txnId)
+                .nodeDelete(deleteFileBuilder.build())
+                .build();
+    }
+
+    private PreHandleContext setupPreHandlePayerKey(TransactionBody txn, AccountID contextPayerId, Key key)
+            throws PreCheckException {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("accounts.treasury", 2)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("accounts.addressBookAdmin", 55)
+                .getOrCreateConfig();
+        mockPayerLookup(key, contextPayerId, accountStore);
+        final var context = new FakePreHandleContext(accountStore, txn, config);
+        context.registerStore(ReadableNodeStore.class, readableStore);
+        return context;
     }
 
     private static void assertFailsWith(final Runnable something, final ResponseCodeEnum status) {

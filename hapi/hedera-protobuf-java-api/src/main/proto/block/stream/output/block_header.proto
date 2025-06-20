@@ -1,0 +1,96 @@
+/**
+ * # Block Header
+ * The block header reports information required to correctly process a block.
+ * This includes versions, block number, and algorithms used.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream.output;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.output.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream.output">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+
+/**
+ * A Block Header.
+ *
+ * Each block in the block stream SHALL begin with a block header.<br/>
+ * The block header SHALL provide the base minimum information needed to
+ * correctly interpret and process that block, or stop processing
+ * if appropriate.<br/>
+ * The block header MUST describe, at minimum, the following items.
+ *  - The version of the block stream data
+ *  - The block number
+ *  - The hash of the previous block
+ *  - The hash algorithm used to generate the block hash
+ *
+ * All fields of this message are REQUIRED, with the exception that
+ * `hash_algorithm` MAY be _transmitted_ as a default value to improve
+ * data efficiency.
+ */
+message BlockHeader {
+
+    /**
+     * A version of the HAPI specification.<br/>
+     * This is the API version that was used to serialize the block.
+     */
+    proto.SemanticVersion hapi_proto_version = 1;
+
+    /**
+     * A version of the consensus node software.<br/>
+     * This is the software version that executed the transactions
+     * within this block.
+     */
+    proto.SemanticVersion software_version = 2;
+
+    /**
+     * A block number for this block.
+     * <p>
+     * This value MUST be exactly `1` more than the previous block.<br/>
+     * Client systems SHOULD optimistically reject any block with a gap or
+     * reverse in `number` sequence, and MAY assume the block stream has
+     * encountered data loss, data corruption, or unauthorized modification.
+     */
+    uint64 number = 3;
+
+    /**
+     * The timestamp for this block.<br/>
+     * The block timestamp is the consensus time stamp of the first round
+     * in the block.
+     * <p>
+     * This SHALL be a timestamp for the block, determined as follows:<br/>
+     * Given the first round within a block
+     * <ul>
+     *  <li>If the round contains events and transactions, the
+     *       timestamp SHALL be the timestamp of the last transaction in
+     *       the round.</li>
+     *  <li>If the round has events but no transactions the timestamp
+     *      SHALL be the timestamp of the last event in the round.</li>
+     *  <li>If the round contains no events or transactions, the
+     *      timestamp SHALL be the timestamp of the previous round plus
+     *      1000 nanoseconds.</li>
+     *  <li>If the round contains no events or transactions and there
+     *      is no previous round, the timestamp SHALL be the median of
+     *      the judge created timestamps for this round.</li>
+     * </ul>
+     */
+    proto.Timestamp block_timestamp = 4;
+
+    /**
+     * A hash algorithm used for this block, including the block proof.
+     * <p>
+     * This SHOULD always be `SHA2_384`, currently.
+     */
+    proto.BlockHashAlgorithm hash_algorithm = 5;
+}

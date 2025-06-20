@@ -1,27 +1,11 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static org.assertj.core.api.BDDAssertions.assertThat;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -31,17 +15,43 @@ import java.security.InvalidKeyException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
-import org.assertj.core.api.BDDAssertions;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class HandlerUtilityTest extends ScheduleHandlerTestBase {
+    private static final AccountID PAYER_ID =
+            AccountID.newBuilder().accountNum(666L).build();
+    private static final Timestamp VALID_START = new Timestamp(1_234_567L, 890);
 
     @BeforeEach
     void setUp() throws PreCheckException, InvalidKeyException {
         setUpBase();
+    }
+
+    @Test
+    void scheduledTxnIdIsSchedulingIdWithTrueIfNotAlreadySet() {
+        final var schedulingId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var scheduledId = HandlerUtility.scheduledTxnIdFrom(schedulingId);
+        assertThat(scheduledId)
+                .isEqualTo(schedulingId.copyBuilder().scheduled(true).build());
+    }
+
+    @Test
+    void scheduledTxnIdIsSchedulingIdWithIncrementedNonceIfNotAlreadySet() {
+        final var nonce = 123;
+        final var schedulingId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .nonce(nonce)
+                .scheduled(true)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var scheduledId = HandlerUtility.scheduledTxnIdFrom(schedulingId);
+        assertThat(scheduledId)
+                .isEqualTo(scheduledId.copyBuilder().nonce(nonce + 1).build());
     }
 
     @Test
@@ -67,77 +77,6 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void markExecutedModifiesSchedule() {
-        // The utility method call should modify the return only by marking it executed, and
-        // setting resolution time.
-        // No other value should change, and the original Schedule should not change.
-        for (final Schedule expected : listOfScheduledOptions) {
-            final Schedule marked = HandlerUtility.markExecuted(expected, testConsensusTime);
-            assertThat(expected.executed()).isFalse();
-            assertThat(marked.executed()).isTrue();
-            assertThat(expected.hasResolutionTime()).isFalse();
-            assertThat(marked.hasResolutionTime()).isTrue();
-            assertThat(marked.resolutionTime()).isEqualTo(timestampFromInstant(testConsensusTime));
-
-            assertThat(marked.deleted()).isEqualTo(expected.deleted());
-            assertThat(marked.signatories()).containsExactlyElementsOf(expected.signatories());
-
-            verifyPartialEquality(marked, expected);
-            assertThat(marked.scheduleId()).isEqualTo(expected.scheduleId());
-        }
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    @Test
-    void replaceSignatoriesModifiesSchedule() {
-        // The utility method call should modify the return only by replacing signatories.
-        // No other value should change, and the original Schedule should not change.
-        final Set<Key> fakeSignatories = Set.of(schedulerKey, adminKey);
-        for (final Schedule expected : listOfScheduledOptions) {
-            final Schedule modified = HandlerUtility.replaceSignatories(expected, fakeSignatories);
-            // AssertJ is terrible at inverse conditions, and the condition definitions are REALLY bad
-            // Too much effort and confusing syntax for something that should be
-            // "assertThat(modified.signatories()).not().containsExactlyInAnyOrderElementsOf(expected.signatories())"
-            final var signatoryCondition = new ContainsAllElements(expected.signatories());
-            assertThat(modified.signatories()).is(BDDAssertions.not(signatoryCondition));
-            assertThat(modified.signatories()).containsExactlyInAnyOrderElementsOf(fakeSignatories);
-
-            assertThat(modified.executed()).isEqualTo(expected.executed());
-            assertThat(modified.resolutionTime()).isEqualTo(expected.resolutionTime());
-            assertThat(modified.deleted()).isEqualTo(expected.deleted());
-
-            verifyPartialEquality(modified, expected);
-            assertThat(modified.scheduleId()).isEqualTo(expected.scheduleId());
-        }
-    }
-
-    @Test
-    void replaceSignatoriesAndMarkExecutedMakesBothModifications() {
-        // The utility method call should modify the return only by replacing signatories and setting executed to true.
-        // No other value should change, and the original Schedule should not change.
-        final Set<Key> fakeSignatories = Set.of(payerKey, adminKey);
-        for (final Schedule expected : listOfScheduledOptions) {
-            final Schedule modified =
-                    HandlerUtility.replaceSignatoriesAndMarkExecuted(expected, fakeSignatories, testConsensusTime);
-
-            // AssertJ is terrible at inverse conditions, and the condition definitions are REALLY bad
-            // Too much effort and confusing syntax for something that should be as simple as
-            // "assertThat(modified.signatories()).not().containsExactlyInAnyOrderElementsOf(expected.signatories())"
-            final ContainsAllElements<Key> signatoryCondition = new ContainsAllElements<>(expected.signatories());
-            assertThat(modified.signatories()).is(BDDAssertions.not(signatoryCondition));
-            assertThat(modified.signatories()).containsExactlyInAnyOrderElementsOf(fakeSignatories);
-
-            assertThat(modified.executed()).isTrue();
-            assertThat(modified.resolutionTime()).isNotEqualTo(expected.resolutionTime());
-            assertThat(modified.resolutionTime()).isEqualTo(timestampFromInstant(testConsensusTime));
-            assertThat(modified.deleted()).isEqualTo(expected.deleted());
-
-            verifyPartialEquality(modified, expected);
-            assertThat(modified.scheduleId()).isEqualTo(expected.scheduleId());
-        }
-    }
-
-    @Test
     void createProvisionalScheduleCreatesCorrectSchedule() {
         // Creating a provisional schedule should produce the expected Schedule except for Schedule ID.
         for (final Schedule next : listOfScheduledOptions) {
@@ -147,8 +86,8 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
             final Schedule.Builder build = next.copyBuilder().memo(createMemo);
             final Schedule expected = build.waitForExpiry(createWait).build();
             final long maxLifeSeconds = scheduleConfig.maxExpirationFutureSeconds();
-            final Schedule modified =
-                    HandlerUtility.createProvisionalSchedule(createTransaction, testConsensusTime, maxLifeSeconds);
+            final Schedule modified = HandlerUtility.createProvisionalSchedule(
+                    createTransaction, testConsensusTime, maxLifeSeconds, true);
 
             assertThat(modified.executed()).isEqualTo(expected.executed());
             assertThat(modified.deleted()).isEqualTo(expected.deleted());
@@ -157,32 +96,6 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
 
             verifyPartialEquality(modified, expected);
             assertThat(modified.hasScheduleId()).isFalse();
-        }
-    }
-
-    @Test
-    void completeProvisionalScheduleModifiesWithNewId() {
-        final Set<Key> fakeSignatories = Set.of(payerKey, adminKey, schedulerKey);
-        final long testEntityNumber = 1791L;
-        // Completing a provisional schedule should produce the exact same Schedule except for Schedule ID.
-        for (final Schedule expected : listOfScheduledOptions) {
-            final TransactionBody createTransaction = expected.originalCreateTransaction();
-            final AccountID baseId = createTransaction.transactionID().accountID();
-            final ScheduleID expectedId = new ScheduleID(baseId.shardNum(), baseId.realmNum(), testEntityNumber);
-            final long maxLifeSeconds = scheduleConfig.maxExpirationFutureSeconds();
-            final Schedule provisional =
-                    HandlerUtility.createProvisionalSchedule(createTransaction, testConsensusTime, maxLifeSeconds);
-            final Schedule completed =
-                    HandlerUtility.completeProvisionalSchedule(provisional, testEntityNumber, fakeSignatories);
-
-            assertThat(completed.scheduleId()).isNotEqualTo(provisional.scheduleId());
-            assertThat(completed.scheduleId()).isEqualTo(expectedId);
-            assertThat(completed.executed()).isEqualTo(provisional.executed());
-            assertThat(completed.deleted()).isEqualTo(provisional.deleted());
-            assertThat(completed.resolutionTime()).isEqualTo(provisional.resolutionTime());
-            assertThat(completed.signatories()).containsExactlyElementsOf(fakeSignatories);
-
-            verifyPartialEquality(completed, provisional);
         }
     }
 

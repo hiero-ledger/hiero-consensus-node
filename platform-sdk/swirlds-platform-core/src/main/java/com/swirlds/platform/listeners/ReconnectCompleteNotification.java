@@ -1,43 +1,30 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.listeners;
 
-import com.swirlds.common.notification.AbstractNotification;
-import com.swirlds.platform.system.SwirldState;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.state.State;
 import java.time.Instant;
+import org.hiero.consensus.model.notification.AbstractNotification;
+import org.hiero.consensus.model.notification.Notification;
 
 /**
- * Class that provides {@link com.swirlds.common.notification.Notification} when reconnect completes
+ * Class that provides {@link Notification} when reconnect completes
  */
 public class ReconnectCompleteNotification extends AbstractNotification {
 
     private long roundNumber;
     private Instant consensusTimestamp;
-    private SwirldState state;
+    private MerkleNodeState state;
 
     public ReconnectCompleteNotification(
-            final long roundNumber, final Instant consensusTimestamp, final SwirldState state) {
+            final long roundNumber, final Instant consensusTimestamp, final MerkleNodeState state) {
         this.roundNumber = roundNumber;
         this.consensusTimestamp = consensusTimestamp;
         this.state = state;
     }
 
     /**
-     * get round number from the {@link SwirldState}
+     * get round number from the {@link State}
      *
      * @return round number
      */
@@ -55,11 +42,11 @@ public class ReconnectCompleteNotification extends AbstractNotification {
     }
 
     /**
-     * get the {@link SwirldState} instance
+     * get the {@link State} instance
      *
-     * @return SwirldState
+     * @return State
      */
-    public SwirldState getState() {
+    public State getState() {
         return state;
     }
 }

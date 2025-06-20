@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.metrics.impl.test;
 
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
@@ -80,6 +65,35 @@ class DefaultLongGaugeTest {
         // then
         assertEquals(-3L, gauge.get(), "Value should be -3");
         assertEquals(-3L, gauge.get(VALUE), "Value should be -3");
+    }
+
+    @Test
+    @DisplayName("Test of get() and add()-operation")
+    void testGetAndAdd() {
+        // given
+        final LongGauge.Config config = new LongGauge.Config(CATEGORY, NAME).withInitialValue(2L);
+        final LongGauge gauge = new DefaultLongGauge(config);
+
+        // when
+        gauge.set(5);
+
+        // then
+        assertEquals(5, gauge.get(), "Value should be 5");
+        assertEquals(5, gauge.get(VALUE), "Value should be 5");
+
+        // when
+        gauge.add(3);
+
+        // then
+        assertEquals(8, gauge.get(), "Value should be 8");
+        assertEquals(8, gauge.get(VALUE), "Value should be 8");
+
+        // when
+        gauge.add(-12);
+
+        // then
+        assertEquals(-4, gauge.get(), "Value should be -4");
+        assertEquals(-4, gauge.get(VALUE), "Value should be -4");
     }
 
     @Test

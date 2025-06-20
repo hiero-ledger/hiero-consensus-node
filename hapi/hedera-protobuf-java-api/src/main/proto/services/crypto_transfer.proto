@@ -1,0 +1,81 @@
+/**
+ * # Crypto Transfer
+ * Transaction to transfer HBAR between accounts, or between accounts and
+ * smart contracts.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.token">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Transfer HBAR and/or other tokens among two or more accounts and/or smart
+ * contracts.
+ *
+ * Transfers of HBAR or fungible/common tokens in this transaction are
+ * structured as a "double-entry" transfer list which debits one or more
+ * accounts, and separately credits one or more accounts. Each such transfer
+ * list may specify up to 10 individual credits or debits.<br/>
+ * Transfers of non-fungible/unique tokens in this transaction are
+ * structured as a "single-entry" transfer list, which both debits one account
+ * and credits another account in a single entry.
+ *
+ * At least one transfer MUST be present, this MAY be an HBAR transfer in
+ * `transfers`, or MAY be a token transfer in `tokenTransfers`.<br/>
+ * Either `transfers` or `tokenTransfers` MAY be unset, provided the other
+ * is set and not empty.<br/>
+ * If any one account with a debit in any transfer list holds insufficient
+ * balance to complete the transfer, the entire transaction SHALL fail, and
+ * all transfers SHALL NOT be completed.<br/>
+ * If any one account that is _sending_ an individual non-fungible/unique (NFT)
+ * token does not currently hold that unique NFT, the entire transaction SHALL
+ * FAIL, and all transfers SHALL NOT be completed.
+ * The transaction fee SHALL be charged for a transaction that fails due to
+ * insufficient balance or not holding the NFT to be transferred.<br/>
+ * Each account with any debit amounts in any transfer list MUST sign this
+ * transaction.<br/>
+ * Each account with any credit amounts in any transfer list that also has the
+ * `receiverSigRequired` flag set MUST sign this transaction.
+ *
+ * ### Block Stream Effects
+ * All debits and credits completed by this transaction SHALL be included in
+ * the transaction result transfer list.<br/>
+ * Multiple fungible/common debits from one account, or credits to one account,
+ * MAY be consolidated to a single debit or credit entry in the
+ * transaction result.<br/>
+ * Multiple non-fungible/unique transfers SHALL NOT be consolidated in the
+ * transaction result.
+ */
+message CryptoTransferTransactionBody {
+    /**
+     * A list of HBAR transfers.
+     * <p>
+     * Each transfer in this list MUST be denominated in tinybar.
+     */
+    TransferList transfers = 1;
+
+    /**
+     * One or more lists of token transfers.
+     * <p>
+     * This list MUST NOT contain more than 10 entries.<br/>
+     * If custom fees must be charged, the fee SHALL be assessed against the
+     * effective "payer" for this transaction.<br/>
+     * If the effective "payer" for this transaction lacks sufficient balance
+     * to pay custom fees assessed, the entire transaction SHALL fail with a
+     * response code `INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE`.
+     */
+    repeated TokenTransferList tokenTransfers = 2;
+}

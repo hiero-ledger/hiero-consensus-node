@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
@@ -21,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.METADATA_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -147,24 +131,18 @@ public class TokenSupplyChangeOpsValidator {
             @NonNull final ToIntFunction<TokensConfig> batchSizeGetter,
             final TokensConfig tokensConfig) {
         // Get needed configurations
-        final var nftsAreEnabled = tokensConfig.nftsAreEnabled();
         final var maxNftBatchOpSize = batchSizeGetter.applyAsInt(tokensConfig);
         // Validate the NFT count and fungible count are valid
-        validateCounts(nftCount, fungibleCount, nftsAreEnabled, maxNftBatchOpSize);
+        validateCounts(nftCount, fungibleCount, maxNftBatchOpSize);
     }
 
     /**
      * Validate the fungible amount and metadata size for a token mint or burn operation.
      * @param nftCount  The number of nfts to mint/burn.
      * @param fungibleCount The amount of fungible common token to mint/burn.
-     * @param nftsAreEnabled Whether nfts are enabled (based on config).
      * @param maxBatchSize The max batch size for the nft operation (based on config).
      */
-    private void validateCounts(
-            final int nftCount, final long fungibleCount, final boolean nftsAreEnabled, final long maxBatchSize) {
-        if (nftCount > 0) {
-            validateTrue(nftsAreEnabled, NOT_SUPPORTED);
-        }
+    private void validateCounts(final int nftCount, final long fungibleCount, final long maxBatchSize) {
         if (fungibleCount <= 0 && nftCount > 0) {
             validateTrue(nftCount <= maxBatchSize, BATCH_SIZE_LIMIT_EXCEEDED);
         }

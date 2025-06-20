@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.contracts;
 
 import com.esaulpaugh.headlong.abi.TupleType;
@@ -60,8 +45,9 @@ public final class ParsingConstants {
             "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY + ")";
     public static final String HEDERA_TOKEN_V3 =
             "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY_V2 + ")";
-    public static final String HEDERA_TOKEN_V4 = "(" + "string,string,address,string,bool,uint32,bool," + TOKEN_KEY
-            + ARRAY_BRACKETS + "," + EXPIRY + ",bytes" + ")";
+    public static final String HEDERA_TOKEN_WITH_METADATA = "(" + "string,string,address,string,bool,int64,bool,"
+            + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY_V2 + ",bytes)";
+
     public static final String TOKEN_INFO = "("
             + HEDERA_TOKEN_V2
             + ",int64,bool,bool,bool,"

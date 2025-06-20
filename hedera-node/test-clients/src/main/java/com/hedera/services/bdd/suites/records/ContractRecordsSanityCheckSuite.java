@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithTuple;
@@ -32,12 +17,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static java.util.function.Function.identity;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -62,51 +49,42 @@ public class ContractRecordsSanityCheckSuite {
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> contractDeleteRecordSanityChecks() {
-        return defaultHapiSpec("ContractDeleteRecordSanityChecks")
-                .given(flattened(
-                        uploadInitCode(BALANCE_LOOKUP),
-                        contractCreate(BALANCE_LOOKUP).balance(1_000L),
-                        takeBalanceSnapshots(
-                                BALANCE_LOOKUP, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)))
-                .when(contractDelete(BALANCE_LOOKUP).via("txn").transferAccount(DEFAULT_PAYER))
-                .then(
-                        validateTransferListForBalances(
-                                "txn",
-                                List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP),
-                                Set.of(BALANCE_LOOKUP)),
-                        validateRecordTransactionFees("txn"));
+        return hapiTest(flattened(
+                uploadInitCode(BALANCE_LOOKUP),
+                contractCreate(BALANCE_LOOKUP).balance(1_000L),
+                takeBalanceSnapshots(BALANCE_LOOKUP, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                contractDelete(BALANCE_LOOKUP).via("txn").transferAccount(DEFAULT_PAYER),
+                validateTransferListForBalances(
+                        "txn",
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP),
+                        Set.of(BALANCE_LOOKUP)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> contractCreateRecordSanityChecks() {
-        return defaultHapiSpec("ContractCreateRecordSanityChecks")
-                .given(flattened(
-                        uploadInitCode(BALANCE_LOOKUP),
-                        takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)))
-                .when(contractCreate(BALANCE_LOOKUP).balance(1_000L).via("txn"))
-                .then(
-                        validateTransferListForBalances(
-                                "txn",
-                                List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP)),
-                        validateRecordTransactionFees("txn"));
+        return hapiTest(flattened(
+                uploadInitCode(BALANCE_LOOKUP),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                contractCreate(BALANCE_LOOKUP).balance(1_000L).via("txn"),
+                validateTransferListForBalances(
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> contractCallWithSendRecordSanityChecks() {
-        return defaultHapiSpec("ContractCallWithSendRecordSanityChecks")
-                .given(flattened(
-                        uploadInitCode(PAYABLE_CONTRACT),
-                        contractCreate(PAYABLE_CONTRACT),
-                        UtilVerbs.takeBalanceSnapshots(
-                                PAYABLE_CONTRACT, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)))
-                .when(contractCall(PAYABLE_CONTRACT, "deposit", BigInteger.valueOf(1_000L))
+        return hapiTest(flattened(
+                uploadInitCode(PAYABLE_CONTRACT),
+                contractCreate(PAYABLE_CONTRACT),
+                UtilVerbs.takeBalanceSnapshots(
+                        PAYABLE_CONTRACT, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                contractCall(PAYABLE_CONTRACT, "deposit", BigInteger.valueOf(1_000L))
                         .via("txn")
-                        .sending(1_000L))
-                .then(
-                        validateTransferListForBalances(
-                                "txn",
-                                List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, PAYABLE_CONTRACT)),
-                        validateRecordTransactionFees("txn"));
+                        .sending(1_000L),
+                validateTransferListForBalances(
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, PAYABLE_CONTRACT)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
@@ -122,86 +100,80 @@ public class ContractRecordsSanityCheckSuite {
                 .mapToObj(i -> String.format("Altruist%s", (char) ('A' + i)))
                 .toArray(String[]::new);
 
-        return defaultHapiSpec("CircularTransfersRecordSanityChecks")
-                .given(flattened(
-                        uploadInitCode(contractName),
-                        Stream.of(altruists)
-                                .map(suffix -> createDefaultContract(contractName + suffix)
-                                        .bytecode(contractName))
-                                .toArray(HapiSpecOperation[]::new),
-                        Stream.of(altruists)
-                                .map(suffix -> contractCallWithTuple(
-                                                contractName + suffix,
-                                                SET_NODES_ABI,
-                                                spec -> Tuple.singleton(Stream.of(altruists)
-                                                        .map(a -> BigInteger.valueOf(spec.registry()
-                                                                .getContractId(contractName + a)
-                                                                .getContractNum()))
-                                                        .toArray(BigInteger[]::new)))
-                                        .gas(120_000)
-                                        .via("txnFor" + contractName + suffix)
-                                        .sending(initBalanceFn.applyAsLong(contractName + suffix)))
-                                .toArray(HapiSpecOperation[]::new),
-                        UtilVerbs.takeBalanceSnapshots(Stream.of(
-                                        Stream.of(altruists).map(suffix -> contractName + suffix),
-                                        Stream.of(canonicalAccounts))
-                                .flatMap(identity())
-                                .toArray(String[]::new))))
-                .when(contractCallWithFunctionAbi(
+        return hapiTest(flattened(
+                uploadInitCode(contractName),
+                Stream.of(altruists)
+                        .map(suffix ->
+                                createDefaultContract(contractName + suffix).bytecode(contractName))
+                        .toArray(HapiSpecOperation[]::new),
+                Stream.of(altruists)
+                        .map(suffix -> contractCallWithTuple(
+                                        contractName + suffix,
+                                        SET_NODES_ABI,
+                                        spec -> Tuple.singleton(Stream.of(altruists)
+                                                .map(a -> new BigInteger(asSolidityAddress(
+                                                        spec.registry().getContractId(contractName + a))))
+                                                .toArray(BigInteger[]::new)))
+                                .gas(120_000)
+                                .via("txnFor" + contractName + suffix)
+                                .sending(initBalanceFn.applyAsLong(contractName + suffix)))
+                        .toArray(HapiSpecOperation[]::new),
+                UtilVerbs.takeBalanceSnapshots(Stream.of(
+                                Stream.of(altruists).map(suffix -> contractName + suffix), Stream.of(canonicalAccounts))
+                        .flatMap(identity())
+                        .toArray(String[]::new)),
+                contractCallWithFunctionAbi(
                                 contractName + altruists[0], RECEIVE_AND_SEND_ABI, initKeepAmountDivisor, stopBalance)
-                        .via(ALTRUISTIC_TXN))
-                .then(
-                        validateTransferListForBalances(
-                                ALTRUISTIC_TXN,
-                                Stream.concat(
-                                                Stream.of(canonicalAccounts),
-                                                Stream.of(altruists).map(suffix -> contractName + suffix))
-                                        .toList()),
-                        validateRecordTransactionFees(ALTRUISTIC_TXN),
-                        addLogInfo((spec, infoLog) -> {
-                            long[] finalBalances = IntStream.range(0, numAltruists)
-                                    .mapToLong(ignore -> initBalanceFn.applyAsLong(""))
-                                    .toArray();
-                            int i = 0;
-                            long divisor = initKeepAmountDivisor;
-                            while (true) {
-                                long toKeep = finalBalances[i] / divisor;
-                                if (toKeep < stopBalance.longValue()) {
-                                    break;
-                                }
-                                int j = (i + 1) % numAltruists;
-                                finalBalances[j] += (finalBalances[i] - toKeep);
-                                finalBalances[i] = toKeep;
-                                i = j;
-                                divisor++;
-                            }
+                        .via(ALTRUISTIC_TXN),
+                validateTransferListForBalances(
+                        ALTRUISTIC_TXN,
+                        Stream.concat(
+                                        Stream.of(canonicalAccounts),
+                                        Stream.of(altruists).map(suffix -> contractName + suffix))
+                                .toList()),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, ALTRUISTIC_TXN)),
+                addLogInfo((spec, infoLog) -> {
+                    long[] finalBalances = IntStream.range(0, numAltruists)
+                            .mapToLong(ignore -> initBalanceFn.applyAsLong(""))
+                            .toArray();
+                    int i = 0;
+                    long divisor = initKeepAmountDivisor;
+                    while (true) {
+                        long toKeep = finalBalances[i] / divisor;
+                        if (toKeep < stopBalance.longValue()) {
+                            break;
+                        }
+                        int j = (i + 1) % numAltruists;
+                        finalBalances[j] += (finalBalances[i] - toKeep);
+                        finalBalances[i] = toKeep;
+                        i = j;
+                        divisor++;
+                    }
 
-                            infoLog.info("Expected Final Balances");
-                            infoLog.info("-----------------------");
-                            for (i = 0; i < numAltruists; i++) {
-                                infoLog.info("  {} = {} tinyBars", i, finalBalances[i]);
-                            }
-                        }));
+                    infoLog.info("Expected Final Balances");
+                    infoLog.info("-----------------------");
+                    for (i = 0; i < numAltruists; i++) {
+                        infoLog.info("  {} = {} tinyBars", i, finalBalances[i]);
+                    }
+                })));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> contractUpdateRecordSanityChecks() {
-        return defaultHapiSpec("ContractUpdateRecordSanityChecks")
-                .given(flattened(
-                        newKeyNamed("newKey").type(KeyFactory.KeyType.SIMPLE),
-                        uploadInitCode(BALANCE_LOOKUP),
-                        contractCreate(BALANCE_LOOKUP).balance(1_000L),
-                        takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)))
-                .when(contractUpdate(BALANCE_LOOKUP).newKey("newKey").via("txn").fee(95_000_000L))
-                .then(
-                        validateTransferListForBalances(
-                                "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)),
-                        validateRecordTransactionFees("txn"));
+        return hapiTest(flattened(
+                newKeyNamed("newKey").type(KeyFactory.KeyType.SIMPLE),
+                uploadInitCode(BALANCE_LOOKUP),
+                contractCreate(BALANCE_LOOKUP).balance(1_000L),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                contractUpdate(BALANCE_LOOKUP).newKey("newKey").via("txn").fee(95_000_000L),
+                validateTransferListForBalances(
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)),
+                withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
     private static final String SET_NODES_ABI =
             "{ \"constant\": false, \"inputs\": [ { \"internalType\": \"uint64[]\", \"name\":"
-                    + " \"accounts\", \"type\": \"uint64[]\" }     ], \"name\": \"setNodes\","
+                    + " \"accounts\", \"type\": \"uint160[]\" }     ], \"name\": \"setNodes\","
                     + " \"outputs\": [], \"payable\": true, \"stateMutability\": \"payable\", \"type\":"
                     + " \"function\" }";
 

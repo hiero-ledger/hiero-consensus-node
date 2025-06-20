@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -96,21 +80,20 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
     @HapiTest
     final Stream<DynamicTest> pauseFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-        return defaultHapiSpec("PauseFungibleToken")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .pauseKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .initialSupply(1_000)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
-                        contractCreate(PAUSE_UNPAUSE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .pauseKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         PAUSE_UNPAUSE_CONTRACT,
@@ -144,44 +127,42 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .alsoSigningWithFullPrefix(ACCOUNT)
                                 .via("pauseFungibleAccountIsDeletedFailingTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "pauseFungibleAccountDoesNotOwnPauseKeyFailingTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "pauseFungibleAccountIsDeletedFailingTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_WAS_DELETED)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(TOKEN_WAS_DELETED)))));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "pauseFungibleAccountDoesNotOwnPauseKeyFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "pauseFungibleAccountIsDeletedFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_WAS_DELETED)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_WAS_DELETED)))));
     }
 
     @HapiTest
     final Stream<DynamicTest> unpauseFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-        return defaultHapiSpec("unpauseFungibleToken")
-                .given(
-                        newKeyNamed(UNPAUSE_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .pauseKey(UNPAUSE_KEY)
-                                .adminKey(UNPAUSE_KEY)
-                                .initialSupply(1_000)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
-                        contractCreate(PAUSE_UNPAUSE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(UNPAUSE_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .pauseKey(UNPAUSE_KEY)
+                        .adminKey(UNPAUSE_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         PAUSE_UNPAUSE_CONTRACT,
@@ -203,39 +184,37 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .signedBy(GENESIS, ACCOUNT)
                                 .alsoSigningWithFullPrefix(ACCOUNT)
                                 .via(UNPAUSE_FUNGIBLE_TXN)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "unpauseFungibleAccountDoesNotOwnPauseKeyFailingTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Unpaused));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "unpauseFungibleAccountDoesNotOwnPauseKeyFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Unpaused));
     }
 
     @HapiTest
     final Stream<DynamicTest> pauseNonFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-        return defaultHapiSpec("pauseNonFungibleToken")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(PAUSE_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(MULTI_KEY)
-                                .pauseKey(PAUSE_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
-                        contractCreate(PAUSE_UNPAUSE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(PAUSE_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .pauseKey(PAUSE_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         PAUSE_UNPAUSE_CONTRACT,
@@ -269,46 +248,44 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .alsoSigningWithFullPrefix(ACCOUNT)
                                 .via("pauseNonFungibleAccountIsDeletedFailingTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))))
-                .then(
-                        childRecordsCheck(
-                                "pauseNonFungibleAccountDoesNotOwnPauseKeyFailingTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        childRecordsCheck(
-                                "pauseNonFungibleAccountIsDeletedFailingTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(TOKEN_WAS_DELETED)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(TOKEN_WAS_DELETED)))));
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "pauseNonFungibleAccountDoesNotOwnPauseKeyFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "pauseNonFungibleAccountIsDeletedFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_WAS_DELETED)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_WAS_DELETED)))));
     }
 
     @HapiTest
     final Stream<DynamicTest> unpauseNonFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-        return defaultHapiSpec("unpauseNonFungibleToken")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        newKeyNamed(UNPAUSE_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .pauseKey(UNPAUSE_KEY)
-                                .supplyKey(MULTI_KEY)
-                                .adminKey(UNPAUSE_KEY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
-                        contractCreate(PAUSE_UNPAUSE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(UNPAUSE_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .pauseKey(UNPAUSE_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .adminKey(UNPAUSE_KEY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         PAUSE_UNPAUSE_CONTRACT,
@@ -330,37 +307,35 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .signedBy(GENESIS, ACCOUNT)
                                 .alsoSigningWithFullPrefix(ACCOUNT)
                                 .via(UNPAUSE_NONFUNGIBLE_TXN)
-                                .gas(GAS_TO_OFFER))))
-                .then(
-                        childRecordsCheck(
-                                "unpauseNonFungibleAccountDoesNotOwnPauseKeyFailingTxn",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
-                                        .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(htsPrecompileResult()
-                                                        .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
-                        getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Unpaused));
+                                .gas(GAS_TO_OFFER))),
+                childRecordsCheck(
+                        "unpauseNonFungibleAccountDoesNotOwnPauseKeyFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Unpaused));
     }
 
     @HapiTest
     final Stream<DynamicTest> noTokenIdReverts() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-        return defaultHapiSpec("noTokenIdReverts")
-                .given(
-                        newKeyNamed(MULTI_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .pauseKey(MULTI_KEY)
-                                .adminKey(MULTI_KEY)
-                                .initialSupply(1_000)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
-                        contractCreate(PAUSE_UNPAUSE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .pauseKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
                                         PAUSE_UNPAUSE_CONTRACT,
@@ -377,14 +352,11 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .payingWith(ACCOUNT)
                                 .gas(GAS_TO_OFFER)
-                                .via(UNPAUSE_TX))))
-                .then(
-                        childRecordsCheck(
-                                PAUSE_TX, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                UNPAUSE_TX,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)));
+                                .via(UNPAUSE_TX))),
+                childRecordsCheck(
+                        PAUSE_TX, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        UNPAUSE_TX, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
 
     @HapiTest

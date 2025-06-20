@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior;
 import com.hedera.node.config.types.StreamMode;
@@ -60,16 +44,34 @@ public interface Savepoint extends BuilderSink {
      * in this savepoint.
      *
      * @param reversingBehavior the reversing behavior to apply to the builder on rollback
-     * @param txnCategory       the category of transaction initiating the new builder
-     * @param customizer        the customizer to apply when externalizing the builder
-     * @param isBaseBuilder     whether the builder is the base builder for a stack
-     * @param streamMode        the mode of the stream
+     * @param txnCategory the category of transaction initiating the new builder
+     * @param customizer the customizer to apply when externalizing the builder
+     * @param streamMode the mode of the stream
+     * @param isBaseBuilder whether the builder is the base builder for a stack
      * @return the new builder
      */
     StreamBuilder createBuilder(
             @NonNull ReversingBehavior reversingBehavior,
             @NonNull HandleContext.TransactionCategory txnCategory,
-            @NonNull ExternalizedRecordCustomizer customizer,
-            boolean isBaseBuilder,
-            @NonNull StreamMode streamMode);
+            @NonNull StreamBuilder.TransactionCustomizer customizer,
+            @NonNull StreamMode streamMode,
+            boolean isBaseBuilder);
+
+    /**
+     * Tracks the given amount of fees collected into node accounts in this savepoint.
+     * @param amount the amount to track
+     */
+    void trackCollectedNodeFee(long amount);
+
+    /**
+     * Tracks the given amount of fees refunded from node accounts in this savepoint.
+     * @param amount the amount to track
+     */
+    void trackRefundedNodeFee(long amount);
+
+    /**
+     * The total fees collected into node accounts and not rolled back in this savepoint.
+     * @return the total fees collected
+     */
+    long getNodeFeesCollected();
 }

@@ -1,39 +1,24 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.failedVerification;
 import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.passedVerification;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
@@ -46,17 +31,17 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import java.security.InvalidKeyException;
 import java.time.Instant;
 import java.util.Set;
-import java.util.function.Predicate;
 import org.assertj.core.api.BDDAssertions;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,6 +59,12 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected TransactionDispatcher mockDispatcher;
 
+    @Mock
+    protected TransactionChecker mockTransactionChecker;
+
+    @Mock
+    protected NodeInfo creatorInfo;
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected HandleContext mockContext;
 
@@ -86,6 +77,7 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
     protected final TransactionKeys testChildKeys =
             createChildKeys(adminKey, schedulerKey, payerKey, optionKey, otherKey);
 
+    @Override
     protected void setUpBase() throws PreCheckException, InvalidKeyException {
         super.setUpBase();
         setUpContext();
@@ -97,16 +89,15 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
                 .hasFieldOrPropertyWithValue("status", expectedError);
     }
 
-    protected void verifyHandleSucceededAndExecuted(
-            final Schedule next, final TransactionID parentId, final int startCount) {
+    protected void verifyHandleSucceededAndExecuted(final Schedule next, final int startCount) {
         commit(writableById); // commit changes so we can inspect the underlying map
         // should be a new schedule in the map
-        assertThat(scheduleMapById.size()).isEqualTo(startCount + 1);
+        assertThat(scheduleMapById).hasSize(startCount + 1);
         // verifying that the handle really ran and created the new schedule
         final Schedule wrongSchedule = writableSchedules.get(next.scheduleId());
         assertThat(wrongSchedule).isNull(); // shard and realm *should not* match here
         // get a corrected schedule ID.
-        final ScheduleID correctedId = adjustRealmShardForPayer(next, parentId);
+        final ScheduleID correctedId = adjustRealmShard(next);
         final Schedule resultSchedule = writableSchedules.get(correctedId);
         // verify the schedule was created ready for sign transactions
         assertThat(resultSchedule).isNotNull(); // shard and realm *should* match here
@@ -117,11 +108,10 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         assertThat(resultSchedule.resolutionTime()).isEqualTo(timestampFrom(testConsensusTime));
     }
 
-    protected void verifySignHandleSucceededAndExecuted(
-            final Schedule next, final TransactionID parentId, final int startCount) {
+    protected void verifySignHandleSucceededAndExecuted(final Schedule next, final int startCount) {
         commit(writableById); // commit changes so we can inspect the underlying map
         // should be a new schedule in the map
-        assertThat(scheduleMapById.size()).isEqualTo(startCount + 1);
+        assertThat(scheduleMapById).hasSize(startCount + 1);
         // verifying that the handle really ran and created the new schedule
         final Schedule signedSchedule = writableSchedules.get(next.scheduleId());
         assertThat(signedSchedule).isNotNull(); // shard and realm *should* match here
@@ -132,11 +122,10 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         assertThat(signedSchedule.resolutionTime()).isEqualTo(timestampFrom(testConsensusTime));
     }
 
-    protected void verifySignHandleSucceededNoExecution(
-            final Schedule next, final TransactionID parentId, final int startCount) {
+    protected void verifySignHandleSucceededNoExecution(final Schedule next, final int startCount) {
         commit(writableById); // commit changes so we can inspect the underlying map
         // should be a new schedule in the map
-        assertThat(scheduleMapById.size()).isEqualTo(startCount + 1);
+        assertThat(scheduleMapById).hasSize(startCount + 1);
         // verifying that the handle really ran and created the new schedule
         final Schedule signedSchedule = writableSchedules.get(next.scheduleId());
         assertThat(signedSchedule).isNotNull(); // shard and realm *should* match here
@@ -147,13 +136,8 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         assertThat(signedSchedule.resolutionTime()).isNull();
     }
 
-    protected static ScheduleID adjustRealmShardForPayer(final Schedule next, final TransactionID parentId) {
-        long correctRealm = parentId.accountID().realmNum();
-        long correctShard = parentId.accountID().shardNum();
-        final ScheduleID.Builder correctedBuilder = next.scheduleId().copyBuilder();
-        correctedBuilder.realmNum(correctRealm).shardNum(correctShard);
-        final ScheduleID correctedId = correctedBuilder.build();
-        return correctedId;
+    protected static ScheduleID adjustRealmShard(final Schedule next) {
+        return next.scheduleId().copyBuilder().shardNum(SHARD).realmNum(REALM).build();
     }
 
     protected Timestamp timestampFrom(final Instant valueToConvert) {
@@ -180,19 +164,14 @@ class ScheduleHandlerTestBase extends ScheduleTestBase {
         given(keyVerifier.verificationFor(eq(schedulerKey), any())).willReturn(failedVerification(schedulerKey));
         given(keyVerifier.verificationFor(eq(optionKey), any())).willReturn(failedVerification(optionKey));
         given(keyVerifier.verificationFor(eq(otherKey), any())).willReturn(failedVerification(otherKey));
-        given(mockContext.dispatchChildTransaction(
-                        any(),
-                        eq(ScheduleStreamBuilder.class),
-                        any(Predicate.class),
-                        any(AccountID.class),
-                        any(TransactionCategory.class),
-                        any()))
-                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER));
+        given(mockContext.dispatch(
+                        assertArg(options -> assertEquals(ScheduleStreamBuilder.class, options.streamBuilderType()))))
+                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER));
 
         final var mockStack = mock(HandleContext.SavepointStack.class);
         given(mockContext.savepointStack()).willReturn(mockStack);
         given(mockStack.getBaseBuilder(ScheduleStreamBuilder.class))
-                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER));
+                .willReturn(new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER));
     }
 
     private static TransactionKeys createChildKeys(

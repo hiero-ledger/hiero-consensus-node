@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -21,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -36,9 +22,13 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCreateHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
@@ -48,12 +38,17 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ContractsConfig;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.metrics.api.Metrics;
 import java.util.List;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.Mock.Strictness;
 
 class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
@@ -72,6 +67,9 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private HandleContext handleContext;
 
     @Mock
+    private HederaOperations hederaOperations;
+
+    @Mock
     private TransactionComponent.Factory factory;
 
     @Mock
@@ -84,13 +82,30 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private HandleContext.SavepointStack stack;
 
     @Mock
+    private PureChecksContext pureChecksContext;
+
+    @Mock
     private GasCalculator gasCalculator;
+
+    @Mock(strictness = Strictness.LENIENT)
+    private ContractServiceComponent contractServiceComponent;
+
+    @Mock
+    private ContractsConfig contractsConfig;
+
+    private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
+
+    private final Metrics metrics = new NoOpMetrics();
+    private final ContractMetrics contractMetrics =
+            new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
 
     private ContractCreateHandler subject;
 
     @BeforeEach
     void setUp() {
-        subject = new ContractCreateHandler(() -> factory, gasCalculator);
+        contractMetrics.createContractPrimaryMetrics();
+        given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
+        subject = new ContractCreateHandler(() -> factory, gasCalculator, contractServiceComponent);
     }
 
     @Test
@@ -101,13 +116,14 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        System.out.println(expectedResult);
-        final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
+        final var expectedOutcome =
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
+        given(recordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
 
@@ -119,14 +135,15 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(factory.create(handleContext, HederaFunctionality.CONTRACT_CREATE))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
         final var expectedOutcome =
-                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, HALT_RESULT.gasPrice(), null, null);
+                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.contractID(null)).willReturn(recordBuilder);
+        given(recordBuilder.createdContractID(null)).willReturn(recordBuilder);
         given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
@@ -201,7 +218,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         final var txn1 = contractCreateTransactionWithInsufficientGas();
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true))
                 .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-        assertThrows(PreCheckException.class, () -> subject.pureChecks(txn1));
+        given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
     }
 
     private TransactionBody contractCreateTransaction(final Key adminKey, final AccountID autoRenewId) {

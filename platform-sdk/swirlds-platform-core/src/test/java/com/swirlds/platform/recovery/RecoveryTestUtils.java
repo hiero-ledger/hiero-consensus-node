@@ -1,44 +1,23 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomSignature;
-import static com.swirlds.common.utility.CompareTo.isLessThan;
+import static org.hiero.base.CompareTo.isLessThan;
+import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.event.PlatformEvent;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
-import com.swirlds.platform.system.events.CesEvent;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
@@ -56,6 +35,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.mockito.Mockito;
 
 /**
@@ -80,10 +65,10 @@ public final class RecoveryTestUtils {
                 .setTransactionSize(random.nextInt(10) + 1)
                 .setSystemTransactionCount(0)
                 .setSelfParent(new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(random.nextLong(0, Long.MAX_VALUE)))
+                        .setCreatorId(NodeId.of(random.nextLong(0, Long.MAX_VALUE)))
                         .build())
                 .setOtherParent(new TestingEventBuilder(random)
-                        .setCreatorId(new NodeId(random.nextLong(0, Long.MAX_VALUE)))
+                        .setCreatorId(NodeId.of(random.nextLong(0, Long.MAX_VALUE)))
                         .build())
                 .setTimeCreated(now)
                 .setConsensusTimestamp(now)
@@ -163,7 +148,7 @@ public final class RecoveryTestUtils {
                 .build();
 
         final DefaultConsensusEventStream eventStreamManager = new DefaultConsensusEventStream(
-                platformContext, new NodeId(0L), x -> randomSignature(random), "test", x -> false);
+                platformContext, NodeId.of(0L), x -> randomSignature(random), "test", x -> false);
 
         // The event stream writer has flaky asynchronous behavior,
         // so we need to be extra careful when waiting for it to finish.

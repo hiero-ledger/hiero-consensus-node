@@ -1,47 +1,29 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static com.swirlds.platform.consensus.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.eventhandling.EventConfig_;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests the {@link ConsensusLinker} class. Aside from metrics, the only difference between an {@link InOrderLinker} and
@@ -49,17 +31,10 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class ConsensusEventLinkerTests {
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void eventsAreUnlinkedTest(final boolean birthRoundAncientMode) {
-
+    @Test
+    void eventsAreUnlinkedTest() {
         final Random random = getRandomPrintSeed();
-
-        final AncientMode ancientMode =
-                birthRoundAncientMode ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, birthRoundAncientMode)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
@@ -73,9 +48,9 @@ class ConsensusEventLinkerTests {
                 new StandardEventSource());
 
         final List<EventImpl> linkedEvents = new LinkedList<>();
-        final InOrderLinker linker = new ConsensusLinker(platformContext, new NodeId(0));
+        final InOrderLinker linker = new ConsensusLinker(platformContext, NodeId.of(0));
 
-        EventWindow eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 
         for (int i = 0; i < 10_000; i++) {
 
@@ -122,16 +97,14 @@ class ConsensusEventLinkerTests {
 
             // Once in a while, advance the ancient window so that the most recent event is barely non-ancient.
             if (random.nextDouble() < 0.01) {
-                if (event.getAncientIndicator(ancientMode) <= eventWindow.getAncientThreshold()) {
+                if (event.getBirthRound() <= eventWindow.ancientThreshold()) {
                     // Advancing the window any further would make the most recent event ancient. Skip.
                     continue;
                 }
 
-                eventWindow = new EventWindow(
-                        ROUND_FIRST /* ignored in this test */,
-                        event.getAncientIndicator(ancientMode),
-                        ancientMode.getGenesisIndicator() /* ignored in this test */,
-                        ancientMode);
+                eventWindow = EventWindowBuilder.builder()
+                        .setAncientThreshold(event.getBirthRound())
+                        .build();
                 linker.setEventWindow(eventWindow);
 
                 // All ancient events should have their parents nulled out

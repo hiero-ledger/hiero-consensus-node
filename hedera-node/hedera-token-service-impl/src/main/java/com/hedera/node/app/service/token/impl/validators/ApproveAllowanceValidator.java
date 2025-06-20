@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY;
@@ -21,15 +6,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_CANN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_DELEGATING_SPENDER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_ACCOUNT_SAME_AS_OWNER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.TokenValidations.PERMIT_PAUSED;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Account;
@@ -43,6 +30,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.HederaConfig;
@@ -88,9 +76,6 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
         final var cryptoAllowances = op.cryptoAllowances();
         final var tokenAllowances = op.tokenAllowances();
         final var nftAllowances = op.nftAllowances();
-
-        // feature flag for allowances. FUTURE: Will probably be moved to some other place in app in the future.
-        validateTrue(hederaConfig.allowancesIsEnabled(), NOT_SUPPORTED);
 
         // validate total count of allowances does not exceed the configured maximum
         validateAllowanceCount(cryptoAllowances, tokenAllowances, nftAllowances, hederaConfig);
@@ -150,9 +135,7 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
             final var owner = allowance.owner();
             final var spender = allowance.spenderOrThrow();
             // pureChecks() ensures that tokenId is not null
-            final var token = tokenStore.get(allowance.tokenIdOrThrow());
-            // check if token exists
-            validateTrue(token != null, INVALID_TOKEN_ID);
+            final var token = getIfUsable(allowance.tokenIdOrElse(TokenID.DEFAULT), tokenStore, PERMIT_PAUSED);
 
             // check if owner specified in allowances exists.
             // If not set, owner will be treated as payer for the transaction
@@ -194,8 +177,7 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
             final var tokenId = allowance.tokenIdOrThrow();
             final var serialNums = allowance.serialNumbers();
 
-            final var token = tokenStore.get(tokenId);
-            validateTrue(token != null, INVALID_TOKEN_ID);
+            final var token = getIfUsable(tokenId, tokenStore, PERMIT_PAUSED);
             validateFalse(TokenType.FUNGIBLE_COMMON.equals(token.tokenType()), FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES);
 
             final var spenderAccount = accountStore.getAccountById(spender);
@@ -213,6 +195,16 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
             // But, the spender is not allowed to grant approveForAll privileges to anyone else.
             if (allowance.hasDelegatingSpender()
                     && allowance.delegatingSpenderOrThrow().accountNumOrThrow() != 0) {
+
+                // validate delegating spender
+                getIfUsable(
+                        allowance.delegatingSpenderOrThrow(),
+                        accountStore,
+                        expiryValidator,
+                        INVALID_DELEGATING_SPENDER,
+                        INVALID_DELEGATING_SPENDER,
+                        TokenHandlerHelper.AccountIDType.ALIASED_ID);
+
                 if (allowance.hasApprovedForAll()) {
                     validateFalse(
                             allowance.approvedForAll().booleanValue(), DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL);

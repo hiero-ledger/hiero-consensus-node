@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.api.extensions.emergency;
 
 import com.swirlds.logging.api.Level;
@@ -23,7 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * This interface is used to log emergency events. It is used in the logger api to log events. An implementation must
- * not be dependend on any other logging system and must be directly usable in the logger api. Next to that an
+ * not be dependent on any other logging system and must be directly usable in the logger api. Next to that an
  * implementation must be bullet proof and must not throw any exceptions.
  */
 public interface EmergencyLogger {

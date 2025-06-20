@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_TOKEN_REFERENCE_LIST;
@@ -49,6 +34,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -59,6 +45,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +61,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     private Configuration config;
 
     private TokenRejectHandler subject;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Override
     @BeforeEach
@@ -115,7 +105,6 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
         // Then:
         assertThat(writableAccountStore.modifiedAccountsInState()).hasSize(2);
         assertThat(writableAccountStore.modifiedAccountsInState()).contains(ownerId, treasuryId);
-        assertThat(writableAccountStore.sizeOfAliasesState()).isEqualTo(2);
 
         // Verify balance removal
         final var endSenderTokenBalance =
@@ -143,7 +132,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(176L);
@@ -161,7 +150,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(104L);
@@ -179,7 +168,7 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
 
         subject.calculateFees(feeContext);
 
-        // Not interested in return value from calculate, just that it was called and bpt and rbs were set approriately
+        // Not interested in return value from calculate, just that it was called and bpt and rbs were set appropriately
         InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
         inOrder.verify(feeCalculatorFactory, times(1)).feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
         inOrder.verify(feeCalculator, times(1)).addBytesPerTransaction(280L);
@@ -201,8 +190,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
     @Test
     void handleRepeatedTokenReferences() {
         final var txn = newTokenReject(ACCOUNT_ID_3333, tokenRefFungible, tokenRefFungible);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(TOKEN_REFERENCE_REPEATED));
     }
@@ -216,8 +206,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
                         .build())
                 .build();
         final var txn = newTokenReject(ACCOUNT_ID_3333, invalidNftRef);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
@@ -230,8 +221,9 @@ class TokenRejectHandlerTest extends CryptoTransferHandlerTestBase {
                         .owner(ACCOUNT_ID_3333)
                         .build())
                 .build();
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_TOKEN_REFERENCE_LIST));
     }

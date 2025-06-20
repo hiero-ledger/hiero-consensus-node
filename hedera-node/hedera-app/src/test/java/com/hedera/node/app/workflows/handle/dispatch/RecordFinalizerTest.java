@@ -1,36 +1,20 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletionsTest.asTxn;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +32,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.List;
@@ -68,6 +53,9 @@ public class RecordFinalizerTest {
 
     @Mock
     private Dispatch dispatch;
+
+    @Mock
+    private SavepointStackImpl stack;
 
     @Mock
     private FinalizeContext finalizeContext;
@@ -100,7 +88,7 @@ public class RecordFinalizerTest {
             HederaFunctionality.CRYPTO_TRANSFER,
             null);
 
-    private RecordStreamBuilder recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_RECORD_CUSTOMIZER, USER);
+    private RecordStreamBuilder recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
     private RecordFinalizer subject;
 
     @BeforeEach
@@ -108,14 +96,15 @@ public class RecordFinalizerTest {
         subject = new RecordFinalizer(finalizeRecordHandler);
 
         lenient().when(dispatch.txnInfo()).thenReturn(TXN_INFO);
-        lenient().when(dispatch.recordBuilder()).thenReturn(recordBuilder);
+        lenient().when(dispatch.streamBuilder()).thenReturn(recordBuilder);
         lenient().when(dispatch.finalizeContext()).thenReturn(finalizeContext);
         lenient().when(dispatch.handleContext()).thenReturn(handleContext);
     }
 
     @Test
-    public void testFinalizeRecordUserTransaction() {
-        when(dispatch.txnCategory()).thenReturn(USER);
+    public void finalizesStakingRecordForScheduledDispatchOfUserTxn() {
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.permitsStakingRewards()).willReturn(true);
 
         when(dispatch.handleContext().dispatchPaidRewards()).thenReturn(Map.of());
 
@@ -126,12 +115,13 @@ public class RecordFinalizerTest {
     }
 
     @Test
-    public void testFinalizeRecordChildTransaction() {
-        when(dispatch.txnCategory()).thenReturn(CHILD);
+    public void finalizesNonStakingRecordForIneligibleDispatchStack() {
+        given(dispatch.stack()).willReturn(stack);
 
         subject.finalizeRecord(dispatch);
+
         verify(finalizeRecordHandler, never()).finalizeStakingRecord(any(), any(), any(), any());
-        verify(finalizeRecordHandler, times(1)).finalizeNonStakingRecord(any(), any());
+        verify(finalizeRecordHandler).finalizeNonStakingRecord(any(), any());
     }
 
     @Test

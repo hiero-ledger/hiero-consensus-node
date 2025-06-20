@@ -1,21 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test;
 
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 
@@ -24,21 +11,31 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.ReadableUpgradeFileStoreImpl;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
-import com.hedera.node.app.spi.state.FilteredReadableStates;
-import com.hedera.node.app.spi.state.FilteredWritableStates;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.spi.FilteredReadableStates;
+import com.swirlds.state.spi.FilteredWritableStates;
+import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.ListReadableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
@@ -93,9 +90,10 @@ public class FileTestBase {
                                     A_THRESHOLD_KEY)))
             .build();
 
+    // Constants below must match V0490FileSchema
     protected static final String FILES = "FILES";
     protected static final String UPGRADE_FILE_KEY = "UPGRADE_FILE";
-    protected static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[%s]";
+    protected static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
     protected final Key key = A_COMPLEX_KEY;
     protected final AccountID payerId = AccountID.newBuilder().accountNum(3).build();
     protected final byte[] contents = "contents".getBytes();
@@ -104,12 +102,17 @@ public class FileTestBase {
     protected final KeyList keys = A_KEY_LIST.keyList();
 
     protected final KeyList anotherKeys = B_KEY_LIST.keyList();
-    protected final FileID WELL_KNOWN_FILE_ID =
-            FileID.newBuilder().fileNum(1_234L).build();
-    protected final FileID WELL_KNOWN_UPGRADE_FILE_ID =
-            FileID.newBuilder().fileNum(150L).shardNum(0L).realmNum(0L).build();
-    protected final FileID WELL_KNOWN_SYSTEM_FILE_ID =
-            FileID.newBuilder().fileNum(122L).shardNum(0L).realmNum(0L).build();
+
+    protected final long SHARD =
+            DEFAULT_CONFIG.getConfigData(HederaConfig.class).shard();
+    protected final long REALM =
+            DEFAULT_CONFIG.getConfigData(HederaConfig.class).realm();
+
+    protected final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+
+    protected final FileID WELL_KNOWN_FILE_ID = idFactory.newFileId(1_234L);
+    protected final FileID WELL_KNOWN_UPGRADE_FILE_ID = idFactory.newFileId(150L);
+    protected final FileID WELL_KNOWN_SYSTEM_FILE_ID = idFactory.newFileId(122L);
     protected final FileID fileId = WELL_KNOWN_FILE_ID;
     protected final FileID fileIdNotExist = FileID.newBuilder().fileNum(6_789L).build();
     protected final FileID fileSystemFileId = WELL_KNOWN_SYSTEM_FILE_ID;
@@ -151,7 +154,10 @@ public class FileTestBase {
     protected StoreFactory storeFactory;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    protected ReadableEntityCounters readableEntityCounters;
+
+    @Mock
+    protected WritableEntityCounters writableEntityCounters;
 
     protected MapReadableKVState<FileID, File> readableFileState;
     protected MapWritableKVState<FileID, File> writableFileState;
@@ -176,6 +182,7 @@ public class FileTestBase {
     }
 
     protected void refreshStoresWithCurrentFileOnlyInReadable() {
+        givenEntityCounters(1);
         readableFileState = readableFileState();
         writableFileState = emptyWritableFileState();
         readableUpgradeStates = readableUpgradeDataState();
@@ -184,15 +191,15 @@ public class FileTestBase {
         writableUpgradeFileStates = emptyUpgradeFileState();
         given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
-        given(filteredReadableStates.<ProtoBytes>getQueue(UPGRADE_DATA_KEY.formatted(fileUpgradeFileId)))
-                .willReturn(readableUpgradeStates);
-        given(filteredWritableStates.<ProtoBytes>getQueue(UPGRADE_DATA_KEY.formatted(fileUpgradeFileId)))
-                .willReturn(writableUpgradeStates);
+        final var fileStateKey = UPGRADE_DATA_KEY.formatted(
+                fileUpgradeFileId.shardNum(), fileUpgradeFileId.realmNum(), fileUpgradeFileId.fileNum());
+        given(filteredReadableStates.<ProtoBytes>getQueue(fileStateKey)).willReturn(readableUpgradeStates);
+        given(filteredWritableStates.<ProtoBytes>getQueue(fileStateKey)).willReturn(writableUpgradeStates);
         given(filteredReadableStates.<FileID, File>get(FILES)).willReturn(readableUpgradeFileStates);
         given(filteredWritableStates.<FileID, File>get(FILES)).willReturn(writableUpgradeFileStates);
-        readableStore = new ReadableFileStoreImpl(readableStates);
+        readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableFileStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         readableUpgradeFileStore = new ReadableUpgradeFileStoreImpl(filteredReadableStates);
         writableUpgradeFileStore = new WritableUpgradeFileStore(filteredWritableStates);
 
@@ -201,7 +208,28 @@ public class FileTestBase {
         given(storeFactory.writableStore(WritableUpgradeFileStore.class)).willReturn(writableUpgradeFileStore);
     }
 
+    protected void givenEntityCounters(int numFiles) {
+        given(writableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build(), c -> {}));
+        given(writableStates.getSingleton(ENTITY_COUNTS_KEY))
+                .willReturn(new WritableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY,
+                        () -> EntityCounts.newBuilder().numFiles(numFiles).build(),
+                        c -> {}));
+        given(readableStates.getSingleton(ENTITY_ID_STATE_KEY))
+                .willReturn(new ReadableSingletonStateBase<>(
+                        ENTITY_ID_STATE_KEY, () -> EntityNumber.newBuilder().build()));
+        given(readableStates.getSingleton(ENTITY_COUNTS_KEY))
+                .willReturn(new ReadableSingletonStateBase<>(
+                        ENTITY_COUNTS_KEY,
+                        () -> EntityCounts.newBuilder().numFiles(numFiles).build()));
+        readableEntityCounters = new ReadableEntityIdStoreImpl(readableStates);
+        writableEntityCounters = new WritableEntityIdStore(writableStates);
+    }
+
     protected void refreshStoresWithCurrentFileInBothReadableAndWritable() {
+        givenEntityCounters(1);
         readableFileState = readableFileState();
         writableFileState = writableFileStateWithOneKey();
         readableUpgradeStates = readableUpgradeDataState();
@@ -210,15 +238,15 @@ public class FileTestBase {
         writableUpgradeFileStates = writableUpgradeFileState();
         given(readableStates.<FileID, File>get(FILES)).willReturn(readableFileState);
         given(writableStates.<FileID, File>get(FILES)).willReturn(writableFileState);
-        given(filteredReadableStates.<ProtoBytes>getQueue(UPGRADE_DATA_KEY.formatted(fileUpgradeFileId)))
-                .willReturn(readableUpgradeStates);
-        given(filteredWritableStates.<ProtoBytes>getQueue(UPGRADE_DATA_KEY.formatted(fileUpgradeFileId)))
-                .willReturn(writableUpgradeStates);
+        final var fileStateKey = UPGRADE_DATA_KEY.formatted(
+                fileUpgradeFileId.shardNum(), fileUpgradeFileId.realmNum(), fileUpgradeFileId.fileNum());
+        given(filteredReadableStates.<ProtoBytes>getQueue(fileStateKey)).willReturn(readableUpgradeStates);
+        given(filteredWritableStates.<ProtoBytes>getQueue(fileStateKey)).willReturn(writableUpgradeStates);
         given(filteredReadableStates.<FileID, File>get(FILES)).willReturn(readableUpgradeFileStates);
         given(filteredWritableStates.<FileID, File>get(FILES)).willReturn(writableUpgradeFileStates);
-        readableStore = new ReadableFileStoreImpl(readableStates);
+        readableStore = new ReadableFileStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
-        writableStore = new WritableFileStore(writableStates, configuration, storeMetricsService);
+        writableStore = new WritableFileStore(writableStates, writableEntityCounters);
         readableUpgradeFileStore = new ReadableUpgradeFileStoreImpl(filteredReadableStates);
         writableUpgradeFileStore = new WritableUpgradeFileStore(filteredWritableStates);
 

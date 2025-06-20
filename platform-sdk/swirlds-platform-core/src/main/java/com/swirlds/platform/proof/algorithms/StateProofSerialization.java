@@ -1,30 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.proof.algorithms;
 
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.ExtendableOutputStream;
 import com.swirlds.common.io.extendable.extensions.MaxSizeStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.platform.proof.tree.StateProofInternalNode;
 import com.swirlds.platform.proof.tree.StateProofNode;
 import com.swirlds.platform.proof.tree.StateProofPayload;
@@ -34,6 +14,11 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Serialization and deserialization logic for state proofs.
@@ -62,7 +47,7 @@ public final class StateProofSerialization {
         out.writeInt(signatures.size());
         for (final NodeSignature entry : signatures) {
             out.writeSerializable(entry.nodeId(), false);
-            out.writeSerializable(entry.signature(), false);
+            entry.signature().serialize(out, false);
         }
     }
 
@@ -87,11 +72,7 @@ public final class StateProofSerialization {
             if (nodeId == null) {
                 throw new IOException("nodeId is null");
             }
-            final Signature signature = in.readSerializable(false, Signature::new);
-            if (signature == null) {
-                throw new IOException("signature is null");
-            }
-
+            final Signature signature = Signature.deserialize(in, false);
             signatures.add(new NodeSignature(nodeId, signature));
         }
         return signatures;

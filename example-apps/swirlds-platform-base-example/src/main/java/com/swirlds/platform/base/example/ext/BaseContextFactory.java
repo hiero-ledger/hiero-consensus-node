@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.base.example.ext;
 
+import static com.swirlds.base.utility.FileSystemUtils.waitForPathPresence;
+
 import com.swirlds.common.metrics.platform.DefaultMetricsProvider;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.ClasspathFileConfigSource;
@@ -30,6 +16,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Static factory that creates {@link BaseContext}
@@ -64,7 +51,7 @@ public class BaseContextFactory {
                     .withSource(new ClasspathFileConfigSource(Path.of(APPLICATION_PROPERTIES)))
                     .autoDiscoverExtensions();
 
-            if (EXTERNAL_PROPERTIES.toFile().exists()) {
+            if (waitForPathPresence(EXTERNAL_PROPERTIES)) {
                 configurationBuilder.withSources(new PropertyFileConfigSource(EXTERNAL_PROPERTIES));
             }
 

@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
 
 import static com.hedera.node.app.hapi.utils.SignatureGenerator.BOUNCYCASTLE_PROVIDER;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -34,13 +19,15 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
+import java.security.interfaces.ECPrivateKey;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
+import org.hiero.base.utility.CommonUtils;
 
 public class SpecKeyFromEcdsaFile extends UtilOp {
     private static final Logger log = LogManager.getLogger(SpecKeyFromEcdsaFile.class);
@@ -64,12 +51,12 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
         }
     }
 
-    public static PrivateKey ecdsaFrom(final BigInteger s) {
+    public static ECPrivateKey ecdsaFrom(final BigInteger s) {
         final var params = ECNamedCurveTable.getParameterSpec("secp256k1");
         final var keySpec = new ECPrivateKeySpec(s, params);
         try {
             final KeyFactory kf = KeyFactory.getInstance("EC", BOUNCYCASTLE_PROVIDER);
-            return kf.generatePrivate(keySpec);
+            return (ECPrivateKey) kf.generatePrivate(keySpec);
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
@@ -77,20 +64,26 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
 
     static void createAndLinkEcdsaKey(
             final HapiSpec spec,
-            final byte[] pubKey,
-            final PrivateKey privateKey,
+            final ECPrivateKey privateKey,
             final String name,
             final Optional<String> linkedId,
+            final Optional<Supplier<String>> linkSupplier,
             final @Nullable Logger logToUse) {
-        final var hexedKey = CommonUtils.hex(pubKey);
+        final var pubKey = Secp256k1Utils.extractEcdsaPublicKey(privateKey);
+        final var hexedPubKey = CommonUtils.hex(pubKey);
         if (logToUse != null) {
-            logToUse.info("Hex-encoded public key: {}", hexedKey);
+            logToUse.info("Hex-encoded public key: {}", hexedPubKey);
         }
         final var key =
                 Key.newBuilder().setECDSASecp256K1(ByteString.copyFrom(pubKey)).build();
         spec.registry().saveKey(name, key);
-        spec.keys().incorporate(name, hexedKey, privateKey, SigControl.SECP256K1_ON);
+        spec.keys().incorporate(name, hexedPubKey, privateKey, SigControl.SECP256K1_ON);
         linkedId.ifPresent(s -> spec.registry().saveAccountId(name, HapiPropertySource.asAccount(s)));
+        linkSupplier.ifPresent(fn -> {
+            var s = fn.get();
+            spec.registry().saveAccountId(name, HapiPropertySource.asAccount(s));
+            spec.registry().saveKey(s, key);
+        });
     }
 
     public SpecKeyFromEcdsaFile linkedTo(final String id) {
@@ -101,7 +94,7 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
     @Override
     protected boolean submitOp(final HapiSpec spec) throws Throwable {
         final var privateKey = ecdsaFrom(s);
-        createAndLinkEcdsaKey(spec, CommonUtils.unhex(hexedPubKey), privateKey, name, linkedId, log);
+        createAndLinkEcdsaKey(spec, privateKey, name, linkedId, Optional.empty(), log);
         return false;
     }
 

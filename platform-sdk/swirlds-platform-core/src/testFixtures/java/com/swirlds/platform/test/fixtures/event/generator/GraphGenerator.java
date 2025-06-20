@@ -1,39 +1,22 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.generator;
 
-import com.swirlds.common.platform.NodeId;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Generates a hashgraph of events.
  *
- * @param <T>
- * 		the concrete type of this {@link GraphGenerator}
  */
-public interface GraphGenerator<T extends GraphGenerator<T>> {
+public interface GraphGenerator {
 
     /**
      * Get the next event.
@@ -48,7 +31,13 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
     /**
      * Get the event source for a particular node ID.
      */
-    EventSource<?> getSource(@NonNull final NodeId nodeID);
+    EventSource getSource(@NonNull final NodeId nodeID);
+
+    /**
+     * Get the event source for a particular node index.
+     */
+    @NonNull
+    EventSource getSourceByIndex(final int nodeIndex);
 
     /**
      * Get an exact copy of this event generator in its current state. The events returned by this
@@ -58,8 +47,8 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
      * Note: if this generator has emitted a large number of events, this method may be expensive. The copied
      * generator needs to skip all events already emitted.
      */
-    default T copy() {
-        final T generator = cleanCopy();
+    default GraphGenerator copy() {
+        final GraphGenerator generator = cleanCopy();
         generator.skip(getNumEventsGenerated());
         return generator;
     }
@@ -67,15 +56,7 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
     /**
      * Get an exact copy of this event generator as it was when it was first created.
      */
-    T cleanCopy();
-
-    /**
-     * Get a clean copy but with a different seed.
-     *
-     * @param seed
-     * 		The new seed to use.
-     */
-    T cleanCopy(long seed);
+    GraphGenerator cleanCopy();
 
     /**
      * Reset this generator to its original state. Does not undo settings changes, just the events that have been
@@ -118,16 +99,14 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
      * Get an address book that represents the collection of nodes that are generating the events.
      */
     @NonNull
+    @Deprecated(forRemoval = true)
     AddressBook getAddressBook();
 
     /**
-     * Returns the maximum generation of this event generator.
-     *
-     * @param creatorId
-     * 		the event creator
-     * @return the maximum event generation for the supplied creator
+     * Get the roster that represents the collection of nodes that are generating the events.
      */
-    long getMaxGeneration(@Nullable final NodeId creatorId);
+    @NonNull
+    Roster getRoster();
 
     /**
      * Returns the maximum birth round of this event generator.
@@ -137,11 +116,6 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
      * @return the maximum event birth round for the supplied creator
      */
     long getMaxBirthRound(@Nullable final NodeId creatorId);
-
-    /**
-     * Returns the maximum generation of all events created by this generator
-     */
-    long getMaxGeneration();
 
     /**
      * Set the affinity of each node for choosing the parents of its events.
@@ -166,9 +140,11 @@ public interface GraphGenerator<T extends GraphGenerator<T>> {
     void setOtherParentAffinity(final DynamicValue<List<List<Double>>> affinityMatrix);
 
     /**
-     * Sets the timestamp of the last emitted event
-     *
-     * @param previousTimestamp the timestamp to set
+     * Remove a node from the generator. This will remove it from the address book and it will remove its event source,
+     * so that this node will not generate any more events.
+     * NOTE: This method is created specifically for a single node removal. For more complex address book changes this
+     * functionality should be expanded.
+     * @param nodeId the node to remove
      */
-    void setPreviousTimestamp(final Instant previousTimestamp);
+    void removeNode(@NonNull final NodeId nodeId);
 }

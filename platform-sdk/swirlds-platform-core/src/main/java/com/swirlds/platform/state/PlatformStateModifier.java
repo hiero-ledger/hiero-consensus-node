@@ -1,29 +1,13 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.consensus.ConsensusSnapshot;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This interface represents the platform state and provide methods for modifying the state.
@@ -35,21 +19,7 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
      *
      * @param creationVersion the creation version
      */
-    void setCreationSoftwareVersion(@NonNull SoftwareVersion creationVersion);
-
-    /**
-     * Set the address book.
-     *
-     * @param addressBook an address book
-     */
-    void setAddressBook(@Nullable AddressBook addressBook);
-
-    /**
-     * Set the previous address book.
-     *
-     * @param addressBook an address book
-     */
-    void setPreviousAddressBook(@Nullable AddressBook addressBook);
+    void setCreationSoftwareVersion(@NonNull SemanticVersion creationVersion);
 
     /**
      * Set the round when this state was generated.
@@ -106,7 +76,7 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
      *
      * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened
      */
-    void setFirstVersionInBirthRoundMode(SoftwareVersion firstVersionInBirthRoundMode);
+    void setFirstVersionInBirthRoundMode(SemanticVersion firstVersionInBirthRoundMode);
 
     /**
      * Set the last round before the birth round mode was enabled.

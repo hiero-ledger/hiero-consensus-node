@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature;
 
 import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.failedVerification;
@@ -23,19 +8,25 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.AbstractMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,25 +34,20 @@ import org.apache.logging.log4j.Logger;
  * Base implementation of {@link AppKeyVerifier}
  */
 public class DefaultKeyVerifier implements AppKeyVerifier {
-
     private static final Logger logger = LogManager.getLogger(DefaultKeyVerifier.class);
 
-    private final int legacyFeeCalcNetworkVpt;
+    private static final Comparator<Key> KEY_COMPARATOR = new KeyComparator();
     private final long timeout;
     private final Map<Key, SignatureVerificationFuture> keyVerifications;
 
     /**
      * Creates a {@link DefaultKeyVerifier}
      *
-     * @param legacyFeeCalcNetworkVpt the number of verifications to report for temporary mono-service parity
      * @param config configuration for the node
      * @param keyVerifications A {@link Map} with all data to verify signatures
      */
     public DefaultKeyVerifier(
-            final int legacyFeeCalcNetworkVpt,
-            @NonNull final HederaConfig config,
-            @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
-        this.legacyFeeCalcNetworkVpt = legacyFeeCalcNetworkVpt;
+            @NonNull final HederaConfig config, @NonNull final Map<Key, SignatureVerificationFuture> keyVerifications) {
         this.timeout = requireNonNull(config, "config must not be null").workflowVerificationTimeoutMS();
         this.keyVerifications = requireNonNull(keyVerifications, "keyVerifications must not be null");
     }
@@ -133,8 +119,17 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
 
     @Override
     public int numSignaturesVerified() {
-        // FUTURE - keyVerifications.size(); now this for mono-service differential testing
-        return legacyFeeCalcNetworkVpt;
+        return keyVerifications.size();
+    }
+
+    @Override
+    public SortedSet<Key> authorizingSimpleKeys() {
+        return keyVerifications.entrySet().stream()
+                .map(entry -> new AbstractMap.SimpleImmutableEntry<>(
+                        entry.getKey(), resolveFuture(entry.getValue(), () -> failedVerification(entry.getKey()))))
+                .filter(e -> e.getValue().passed())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toCollection(() -> new TreeSet<>(KEY_COMPARATOR)));
     }
 
     /**
@@ -173,8 +168,8 @@ public class DefaultKeyVerifier implements AppKeyVerifier {
                 final var clampedThreshold = Math.max(1, Math.min(threshold, keys.size()));
                 yield verificationFutureFor(key, keys, keys.size() - clampedThreshold);
             }
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET -> completedFuture(
-                    failedVerification(key));
+            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, ECDSA_384, RSA_3072, UNSET ->
+                completedFuture(failedVerification(key));
         };
     }
 

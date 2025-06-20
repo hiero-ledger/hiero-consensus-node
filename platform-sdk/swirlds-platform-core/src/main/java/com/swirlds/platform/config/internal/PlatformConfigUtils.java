@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config.internal;
 
+import static com.swirlds.logging.legacy.LogMarker.CONFIG;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
@@ -28,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -62,7 +49,9 @@ public class PlatformConfigUtils {
     }
 
     /**
-     * Logs all configuration properties that are not known by any configuration data type.
+     * Logs all configuration properties that are not known by any configuration data type as
+     * {@code DEBUG} events; it is harmless to provide extra properties but could be useful to
+     * see these messages during development.
      */
     private static void logNotKnownConfigProperties(
             @NonNull final Configuration configuration, @NonNull final Set<String> configNames) {
@@ -73,7 +62,7 @@ public class PlatformConfigUtils {
                 .forEach(name -> {
                     final String message =
                             "Configuration property '%s' is not used by any configuration data type".formatted(name);
-                    logger.error(EXCEPTION.getMarker(), message);
+                    logger.debug(CONFIG.getMarker(), message);
                 });
     }
 
@@ -150,7 +139,15 @@ public class PlatformConfigUtils {
         final Set<String> propertyNames =
                 configuration.getPropertyNames().collect(Collectors.toCollection(TreeSet::new));
         for (final String propertyName : propertyNames) {
-            stringBuilder.append(String.format("%s, %s%n", propertyName, configuration.getValue(propertyName)));
+            if (configuration.isListValue(propertyName)) {
+                final String value =
+                        Objects.requireNonNullElse(configuration.getValues(propertyName), List.of()).stream()
+                                .map(Object::toString)
+                                .collect(Collectors.joining(", "));
+                stringBuilder.append(String.format("%s, %s%n", propertyName, value));
+            } else {
+                stringBuilder.append(String.format("%s, %s%n", propertyName, configuration.getValue(propertyName)));
+            }
         }
     }
 }

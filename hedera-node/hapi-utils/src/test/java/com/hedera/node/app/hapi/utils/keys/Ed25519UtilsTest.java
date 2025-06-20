@@ -1,33 +1,15 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.keys;
 
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.relocatedIfNotPresentInWorkingDir;
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.relocatedIfNotPresentWithCurrentPathPrefix;
-import static com.swirlds.common.utility.CommonUtils.hex;
+import static org.hiero.base.utility.CommonUtils.hex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.utility.CommonUtils;
 import java.io.File;
-import java.nio.file.Paths;
 import java.security.KeyPair;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -50,37 +32,6 @@ class Ed25519UtilsTest {
         final var seed = CommonUtils.unhex(devPrivateKey);
 
         assertThrows(IllegalArgumentException.class, () -> Ed25519Utils.writeKeyTo(seed, tmpLoc, tmpPassphrase));
-    }
-
-    @Test
-    void canRelocateFromWhenFileIsMissing() {
-        final var missingLoc = "test/resources/vectors/genesis.pem";
-
-        final var relocated =
-                relocatedIfNotPresentWithCurrentPathPrefix(new File(missingLoc), "test", "src" + File.separator);
-
-        assertEquals("src/test/resources/vectors/genesis.pem", relocated.getPath());
-    }
-
-    @Test
-    void doesNotRelocateIfSegmentMissing() {
-        final var missingLoc = "test/resources/vectors/genesis.pem";
-
-        final var relocated =
-                relocatedIfNotPresentWithCurrentPathPrefix(new File(missingLoc), "NOPE", "src" + File.separator);
-
-        assertTrue(relocated.getPath().endsWith(missingLoc));
-    }
-
-    @Test
-    void triesToRelocateObviouslyMissingPath() {
-        final var notPresent = Paths.get("nowhere/src/main/resources/nothing.txt");
-
-        final var expected = Paths.get("hedera-node/test-clients/src/main/resources/nothing.txt");
-
-        final var actual = relocatedIfNotPresentInWorkingDir(notPresent);
-
-        assertEquals(expected, actual);
     }
 
     @Test
@@ -123,6 +74,14 @@ class Ed25519UtilsTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> Ed25519Utils.readKeyFrom(devGenesisPemLoc, notDevGenesisPassphrase));
+    }
+
+    @Test
+    void extractsPublicKey() {
+        final var key = Ed25519Utils.readKeyFrom(devGenesisPemLoc, devGenesisPassphrase);
+        final var publicKey = Ed25519Utils.extractEd25519PublicKey(key);
+
+        assertEquals(devPublicKey, hex(publicKey));
     }
 
     private void assertIsGenesisDevKey(final EdDSAPrivateKey key) {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
@@ -65,10 +50,6 @@ public class SystemContractGasCalculator {
         requireNonNull(body);
         requireNonNull(dispatchType);
         requireNonNull(payer);
-        // isGasPrecisionLossFixEnabled is a temporary feature flag that will be removed in the future.
-        if (!tinybarValues.isGasPrecisionLossFixEnabled()) {
-            return gasRequirementOldWithPrecisionLoss(body, payer, canonicalPriceInTinybars(dispatchType));
-        }
         return gasRequirementWithTinycents(body, payer, dispatchPrices.canonicalPriceInTinycents(dispatchType));
     }
 
@@ -82,10 +63,6 @@ public class SystemContractGasCalculator {
      */
     public long gasRequirementWithTinycents(
             @NonNull final TransactionBody body, @NonNull final AccountID payer, final long minimumPriceInTinycents) {
-        // If not enabled, make the calculation using the old method.
-        if (!tinybarValues.isGasPrecisionLossFixEnabled()) {
-            return gasRequirementOldWithPrecisionLoss(body, payer, minimumPriceInTinycents);
-        }
         final var computedPriceInTinybars = feeCalculator.applyAsLong(body, payer);
         final var priceInTinycents =
                 Math.max(minimumPriceInTinycents, tinybarValues.asTinycents(computedPriceInTinybars));
@@ -117,10 +94,6 @@ public class SystemContractGasCalculator {
      * @return the gas requirement for a view operation
      */
     public long viewGasRequirement() {
-        // isCanonicalViewGasEnabled is a temporary feature flag that will be removed in the future.
-        if (!tinybarValues.isCanonicalViewGasEnabled()) {
-            return FIXED_VIEW_GAS_COST;
-        }
         final var gasRequirement = gasRequirementFromTinycents(
                 dispatchPrices.canonicalPriceInTinycents(DispatchType.TOKEN_INFO), FIXED_TINY_CENT_GAS_PRICE_COST);
         return Math.max(FIXED_VIEW_GAS_COST, gasRequirement);
@@ -136,10 +109,6 @@ public class SystemContractGasCalculator {
      * @return the canonical gas requirement for that dispatch type
      */
     public long canonicalGasRequirement(@NonNull final DispatchType dispatchType) {
-        // isGasPrecisionLossFixEnabled is a temporary feature flag that will be removed in the future.
-        if (!tinybarValues.isGasPrecisionLossFixEnabled()) {
-            return asGasRequirement(canonicalPriceInTinybars(dispatchType));
-        }
         return gasRequirementFromTinycents(
                 dispatchPrices.canonicalPriceInTinycents(dispatchType),
                 tinybarValues.childTransactionTinycentGasPrice());
@@ -153,11 +122,6 @@ public class SystemContractGasCalculator {
      */
     public long canonicalPriceInTinycents(@NonNull final DispatchType dispatchType) {
         requireNonNull(dispatchType);
-        // If not enabled, return the price in TinyBars.
-        // This is directly used only in ClassicTransfersCall. However, it is easier to place the feature flag here.
-        if (!tinybarValues.isGasPrecisionLossFixEnabled()) {
-            return canonicalPriceInTinybars(dispatchType);
-        }
         return dispatchPrices.canonicalPriceInTinycents(dispatchType);
     }
 
@@ -194,58 +158,6 @@ public class SystemContractGasCalculator {
     private long gasRequirementFromTinycents(long tinycentsPrice, final long gasPriceInCents) {
         final var gasRequirement =
                 (tinycentsPrice + gasPriceInCents - 1) * FEE_SCHEDULE_UNITS_PER_TINYCENT / gasPriceInCents;
-        return gasRequirement + (gasRequirement / 5);
-    }
-
-    /**
-     * After feature flag isGasPrecisionLossFixEnabled is removed, this method should be removed.
-     * @deprecated
-     */
-    @Deprecated(since = "Precision loss fix was implemented in PR #14842", forRemoval = true)
-    public long topLevelGasPrice() {
-        return tinybarValues.topLevelTinybarGasPrice();
-    }
-
-    /**
-     * After feature flag isGasPrecisionLossFixEnabled is removed, this method should be removed.
-     * @deprecated
-     */
-    @Deprecated(since = "Precision loss fix was implemented in PR #14842", forRemoval = true)
-    public long canonicalPriceInTinybars(@NonNull final DispatchType dispatchType) {
-        requireNonNull(dispatchType);
-        return tinybarValues.asTinybars(dispatchPrices.canonicalPriceInTinycents(dispatchType));
-    }
-
-    /**
-     * After feature flag isGasPrecisionLossFixEnabled is removed, this method should be removed.
-     * @deprecated
-     */
-    @Deprecated(since = "Precision loss fix was implemented in PR #14842", forRemoval = true)
-    public long gasRequirementOldWithPrecisionLoss(
-            @NonNull final TransactionBody body, @NonNull final AccountID payer, final long minimumPriceInTinybars) {
-        final var nominalPriceInTinybars = feeCalculator.applyAsLong(body, payer);
-        final var priceInTinybars = Math.max(minimumPriceInTinybars, nominalPriceInTinybars);
-        return asGasRequirement(priceInTinybars);
-    }
-
-    /**
-     * After feature flag isGasPrecisionLossFixEnabled is removed, this method should be removed.
-     * @deprecated
-     */
-    @Deprecated(since = "Precision loss fix was implemented in PR #14842", forRemoval = true)
-    private long asGasRequirement(final long tinybarPrice) {
-        return asGasRequirement(tinybarPrice, tinybarValues.childTransactionTinybarGasPrice());
-    }
-
-    /**
-     * After feature flag isGasPrecisionLossFixEnabled is removed, this method should be removed.
-     * @deprecated
-     */
-    @Deprecated(since = "Precision loss fix was implemented in PR #14842", forRemoval = true)
-    private long asGasRequirement(final long tinybarPrice, final long gasPrice) {
-        // We round up to the nearest gas unit, and then add 20% to account for the premium
-        // of doing a HAPI operation from inside the EVM
-        final var gasRequirement = (tinybarPrice + gasPrice - 1) / gasPrice;
         return gasRequirement + (gasRequirement / 5);
     }
 }

@@ -1,44 +1,45 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.FIRST_CHILD;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.LAST_CHILD;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.MIDDLE_CHILD;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.IRREVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
 import com.hedera.node.app.blocks.impl.PairedStreamBuilder;
+import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
+import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.ReadonlyStatesWrapper;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.app.state.WrappedState;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.workflows.handle.HandleOutput;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.savepoints.BuilderSinkImpl;
@@ -46,6 +47,9 @@ import com.hedera.node.app.workflows.handle.stack.savepoints.FirstChildSavepoint
 import com.hedera.node.app.workflows.handle.stack.savepoints.FirstRootSavepoint;
 import com.hedera.node.app.workflows.handle.stack.savepoints.FollowingSavepoint;
 import com.hedera.node.config.types.StreamMode;
+import com.swirlds.base.time.Time;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -60,6 +64,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A stack of savepoints scoped to a dispatch. Each savepoint captures the state of the {@link State} at the time
@@ -83,19 +89,23 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     private final KVStateChangeListener kvStateChangeListener;
 
     @Nullable
-    private final BoundaryStateChangeListener roundStateChangeListener;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
 
     private final StreamMode streamMode;
+
+    private int numPresetIds;
+    private int noncesToSkipPerPresetId;
+    private boolean presetIdsAllowed;
 
     /**
      * Constructs the root {@link SavepointStackImpl} for the given state at the start of handling a user transaction.
      *
-     * @param state                 the state
-     * @param maxBuildersBeforeUser the maximum number of preceding builders with available consensus times
-     * @param maxBuildersAfterUser the maximum number of following builders with available consensus times
+     * @param state                       the state
+     * @param maxBuildersBeforeUser       the maximum number of preceding builders with available consensus times
+     * @param maxBuildersAfterUser        the maximum number of following builders with available consensus times
      * @param boundaryStateChangeListener the listener for the round state changes
-     * @param kvStateChangeListener the listener for the key/value state changes
-     * @param streamMode            the stream mode
+     * @param kvStateChangeListener       the listener for the key/value state changes
+     * @param streamMode                  the stream mode
      * @return the root {@link SavepointStackImpl}
      */
     public static SavepointStackImpl newRootStack(
@@ -128,8 +138,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public static SavepointStackImpl newChildStack(
             @NonNull final SavepointStackImpl root,
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
-            @NonNull final HandleContext.TransactionCategory category,
-            @NonNull final ExternalizedRecordCustomizer customizer,
+            @NonNull final TransactionCategory category,
+            @NonNull final StreamBuilder.TransactionCustomizer customizer,
             @NonNull final StreamMode streamMode) {
         return new SavepointStackImpl(root, reversingBehavior, category, customizer, streamMode);
     }
@@ -137,26 +147,28 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     /**
      * Constructs a new root {@link SavepointStackImpl} with the given root state.
      *
-     * @param state the state
-     * @param maxBuildersBeforeUser the maximum number of preceding builders to create
-     * @param maxBuildersAfterUser the maximum number of following builders to create
-     * @param roundStateChangeListener the listener for the round state changes
-     * @param kvStateChangeListener the listener for the key-value state changes
-     * @param streamMode the stream mode
+     * @param state                    the state
+     * @param maxBuildersBeforeUser    the maximum number of preceding builders to create
+     * @param maxBuildersAfterUser     the maximum number of following builders to create
+     * @param boundaryStateChangeListener the listener for the round state changes
+     * @param kvStateChangeListener    the listener for the key-value state changes
+     * @param streamMode               the stream mode
      */
     private SavepointStackImpl(
             @NonNull final State state,
             final int maxBuildersBeforeUser,
             final int maxBuildersAfterUser,
-            @NonNull final BoundaryStateChangeListener roundStateChangeListener,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final KVStateChangeListener kvStateChangeListener,
             @NonNull final StreamMode streamMode) {
         this.state = requireNonNull(state);
         this.kvStateChangeListener = requireNonNull(kvStateChangeListener);
-        this.roundStateChangeListener = requireNonNull(roundStateChangeListener);
+        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         builderSink = new BuilderSinkImpl(maxBuildersBeforeUser, maxBuildersAfterUser + 1);
+        presetIdsAllowed = true;
+        noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
         setupFirstSavepoint(USER);
-        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_RECORD_CUSTOMIZER, true, streamMode);
+        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_TRANSACTION_CUSTOMIZER, streamMode, true);
         this.streamMode = requireNonNull(streamMode);
     }
 
@@ -164,16 +176,17 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * Constructs a new child {@link SavepointStackImpl} with the given parent stack and the provided
      * characteristics of the dispatch.
      *
-     * @param parent the parent stack
+     * @param parent            the parent stack
      * @param reversingBehavior the reversing behavior of the dispatch
-     * @param category the category of the dispatch
-     * @param customizer the record customizer for the dispatch
+     * @param category          the category of the dispatch
+     * @param customizer        the record customizer for the dispatch
+     * @param streamMode        the stream mode
      */
     private SavepointStackImpl(
             @NonNull final SavepointStackImpl parent,
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
-            @NonNull final HandleContext.TransactionCategory category,
-            @NonNull final ExternalizedRecordCustomizer customizer,
+            @NonNull final TransactionCategory category,
+            @NonNull final StreamBuilder.TransactionCustomizer customizer,
             @NonNull final StreamMode streamMode) {
         requireNonNull(reversingBehavior);
         requireNonNull(customizer);
@@ -182,9 +195,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.state = requireNonNull(parent);
         this.builderSink = null;
         this.kvStateChangeListener = null;
-        this.roundStateChangeListener = null;
+        this.boundaryStateChangeListener = null;
         setupFirstSavepoint(category);
-        baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, true, streamMode);
+        baseBuilder = peek().createBuilder(reversingBehavior, category, customizer, streamMode, true);
+        presetIdsAllowed = false;
+    }
+
+    @Override
+    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+        state.init(time, metrics, merkleCryptography, roundSupplier);
     }
 
     @Override
@@ -220,7 +239,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @throws NullPointerException if called on the root stack
      */
     public void commitFullStack() {
-        commitFullStack(baseBuilder);
+        commitTransaction(baseBuilder);
     }
 
     /**
@@ -231,27 +250,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public void commitTransaction(@NonNull final StreamBuilder builder) {
         requireNonNull(builder);
-        commitFullStack(builder);
-    }
-
-    /**
-     * Commits all state changes captured in this stack; and captures the details for
-     * the block stream, correlated to state changes preceding the first transaction.
-     */
-    public void commitSystemStateChanges() {
-        commitFullStack(baseBuilder);
-    }
-
-    /**
-     * Commits all state changes captured in this stack; if this is the root stack, also
-     * captures the key/value changes in the given stream builder.
-     */
-    private void commitFullStack(@NonNull final StreamBuilder builder) {
         if (streamMode != RECORDS && kvStateChangeListener != null) {
             kvStateChangeListener.reset();
         }
         while (!stack.isEmpty()) {
-            stack.pop().commit();
+            final var savepoint = stack.pop();
+            // If this is a root stack, track the collected node fees for the block
+            if (boundaryStateChangeListener != null && stack.isEmpty()) {
+                boundaryStateChangeListener.trackCollectedNodeFees(savepoint.getNodeFeesCollected());
+            }
+            savepoint.commit();
         }
         if (streamMode != RECORDS && kvStateChangeListener != null) {
             builder.stateChanges(kvStateChangeListener.getStateChanges());
@@ -267,6 +275,28 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             stack.pop().rollback();
         }
         setupFirstSavepoint(baseBuilder.category());
+    }
+
+    /**
+     * Returns true when this stack's base builder should be finalized with staking rewards. There are
+     * two qualifying cases:
+     * <ol>
+     *     <li>The stack is for top-level transaction (either a user transaction or a triggered execution
+     *     like a expiring scheduled transaction with {@code wait_for_expiry=true}); or,</li>
+     *     <li>The stack is for executing a scheduled transaction with {@code wait_for_expiry=false}, and
+     *     whose triggering parent was a user transaction.</li>
+     * </ol>
+     * The second category is solely for backward compatibility with mono-service, and should be considered
+     * for deprecation and removal.
+     */
+    public boolean permitsStakingRewards() {
+        return builderSink != null
+                ||
+                // For backward compatibility with mono-service, we permit paying staking rewards to
+                // scheduled transactions that are exactly children of user transactions
+                (baseBuilder.category() == SCHEDULED
+                        && state instanceof SavepointStackImpl parent
+                        && parent.txnCategory() == USER);
     }
 
     /**
@@ -320,15 +350,19 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
 
     @NonNull
     @Override
-    public <T> T addChildRecordBuilder(@NonNull Class<T> recordBuilderClass) {
-        final var result = createReversibleChildBuilder();
+    public <T> T addChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull final HederaFunctionality functionality) {
+        requireNonNull(functionality);
+        final var result = createReversibleChildBuilder().functionality(functionality);
         return castBuilder(result, recordBuilderClass);
     }
 
     @NonNull
     @Override
-    public <T> T addRemovableChildRecordBuilder(@NonNull Class<T> recordBuilderClass) {
-        final var result = createRemovableChildBuilder();
+    public <T> T addRemovableChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull final HederaFunctionality functionality) {
+        requireNonNull(functionality);
+        final var result = createRemovableChildBuilder().functionality(functionality);
         return castBuilder(result, recordBuilderClass);
     }
 
@@ -373,8 +407,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * with the builder cast to the given type.
      *
      * @param builderClass the type to cast the builders to
-     * @param consumer the consumer to invoke
-     * @param <T> the type to cast the builders to
+     * @param consumer     the consumer to invoke
+     * @param <T>          the type to cast the builders to
      */
     public <T> void forEachNonBaseBuilder(@NonNull final Class<T> builderClass, @NonNull final Consumer<T> consumer) {
         requireNonNull(builderClass);
@@ -388,11 +422,41 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * Returns the {@link HandleContext.TransactionCategory} of the transaction that created this stack.
+     * Returns a transaction ID that can safely assigned to a child in this stack's context without
+     * waiting to the end of the transaction.
+     *
+     * @param isLastAllowed whether the stack should refuse to create more preset ids after this one
+     * @return the next expected transaction ID
+     * @throws HandleException      if the last allowed preset id was already created, or if the nonce
+     *                              changed from negative to positive, indicating there are no more nonces left for the base id
+     * @throws NullPointerException if this is called before the base builder was given an id
+     */
+    public TransactionID nextPresetTxnId(final boolean isLastAllowed) {
+        // Child stacks always delegate such requests to their parent
+        if (state instanceof SavepointStackImpl parent) {
+            return parent.nextPresetTxnId(isLastAllowed);
+        }
+        if (!presetIdsAllowed) {
+            throw new HandleException(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION);
+        }
+        numPresetIds++;
+        if (isLastAllowed) {
+            presetIdsAllowed = false;
+        }
+        final var baseId = requireNonNull(baseBuilder.transactionID());
+        final var presetNonce = baseId.nonce() + numPresetIds * noncesToSkipPerPresetId;
+        if (baseId.nonce() < 0 && presetNonce >= 0) {
+            throw new HandleException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
+        }
+        return baseId.copyBuilder().nonce(presetNonce).build();
+    }
+
+    /**
+     * Returns the {@link TransactionCategory} of the transaction that created this stack.
      *
      * @return the transaction category
      */
-    public HandleContext.TransactionCategory txnCategory() {
+    public TransactionCategory txnCategory() {
         return baseBuilder.category();
     }
 
@@ -402,7 +466,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createRemovableChildBuilder() {
-        return peek().createBuilder(REMOVABLE, CHILD, NOOP_RECORD_CUSTOMIZER, false, streamMode);
+        return peek().createBuilder(REMOVABLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -411,7 +475,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createReversibleChildBuilder() {
-        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_RECORD_CUSTOMIZER, false, streamMode);
+        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -420,18 +484,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
-        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_RECORD_CUSTOMIZER, false, streamMode);
+        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
     }
 
     /**
-     * Returns the top savepoint without removing it from the stack. Used only by the {@link WritableStatesStack},
-     * not part of the public API.
+     * Returns the top savepoint without removing it from the stack.
      *
      * @return the top savepoint
      * @throws IllegalStateException if the stack has been committed already
      */
-    @NonNull
-    Savepoint peek() {
+    public @NonNull Savepoint peek() {
         if (stack.isEmpty()) {
             throw new IllegalStateException("The stack has already been committed");
         }
@@ -439,80 +501,137 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * Builds all the records for the user transaction.
+     * Builds the {@link BlockRecordSource} and/or {@link RecordSource} for this user transaction.
      *
      * @param consensusTime consensus time of the transaction
      * @param exchangeRates the active exchange rates
-     * @return the stream of records
+     * @return the source of records and/or blocks for the transaction
      */
     public HandleOutput buildHandleOutput(
             @NonNull final Instant consensusTime, @NonNull final ExchangeRateSet exchangeRates) {
-        final List<BlockItem> blockItems;
-        Instant lastAssignedConsenusTime = consensusTime;
-        if (streamMode == RECORDS) {
-            blockItems = null;
-        } else {
-            blockItems = new LinkedList<>();
-        }
-        final List<SingleTransactionRecord> records = new ArrayList<>();
+        final List<BlockStreamBuilder.Output> outputs = streamMode != RECORDS ? new LinkedList<>() : null;
+        final List<SingleTransactionRecord> records = streamMode != BLOCKS ? new ArrayList<>() : null;
+        final List<RecordSource.IdentifiedReceipt> receipts = streamMode != BLOCKS ? new ArrayList<>() : null;
+
+        var lastAssignedConsenusTime = consensusTime;
         final var builders = requireNonNull(builderSink).allBuilders();
         TransactionID.Builder idBuilder = null;
-        int indexOfUserRecord = 0;
-        for (int i = 0, n = builders.size(); i < n; i++) {
-            if (builders.get(i).category() == USER) {
-                indexOfUserRecord = i;
-                idBuilder = builders.get(i).transactionID().copyBuilder();
+        int indexOfParentBuilder = 0;
+        int topLevelNonce = 0;
+        boolean isBatch = false;
+        final int n = builders.size();
+        for (int i = 0; i < n; i++) {
+            final var builder = builders.get(i);
+            final var category = builder.category();
+            if (category == USER || category == NODE) {
+                indexOfParentBuilder = i;
+                topLevelNonce = builder.transactionID().nonce();
+                idBuilder = builder.transactionID().copyBuilder();
+                isBatch = builder.functionality() == ATOMIC_BATCH;
                 break;
             }
         }
-        int nextNonce = 1;
-        for (int i = 0; i < builders.size(); i++) {
+        // Reduce the work that light clients must do when ingesting block streams by explicitly
+        // grouping all logical transactions connected to this commit's Merkle state changes
+        if (streamMode != RECORDS && n > 1) {
+            for (int i = 0; i < indexOfParentBuilder; i++) {
+                final var builder = builders.get(i);
+                builder.setTransactionGroupRole(i == 0 ? FIRST_CHILD : MIDDLE_CHILD);
+            }
+            final var parentBuilder = builders.get(indexOfParentBuilder);
+            parentBuilder.setTransactionGroupRole(indexOfParentBuilder == 0 ? STARTING_PARENT : PARENT);
+            for (int i = indexOfParentBuilder + 1; i < n; i++) {
+                final var builder = builders.get(i);
+                builder.setTransactionGroupRole(i == n - 1 ? LAST_CHILD : MIDDLE_CHILD);
+            }
+        }
+        int nextNonceOffset = 1;
+        var parentConsensusTime = consensusTime;
+        for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
-            final var nonce =
+            final var nonceOffset =
                     switch (builder.category()) {
-                        case USER, SCHEDULED -> 0;
-                        case PRECEDING, CHILD -> nextNonce++;
+                        case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
+                        case PRECEDING, CHILD -> nextNonceOffset++;
                     };
-            // The schedule service specifies the transaction id to use for a triggered transaction
-            if (builder.transactionID() == null || TransactionID.DEFAULT.equals(builder.transactionID())) {
-                builder.transactionID(requireNonNull(idBuilder).nonce(nonce).build())
+            final var txnId = builder.transactionID();
+            // If the builder does not already have a transaction id, then complete with the next nonce offset
+            if (txnId == null || TransactionID.DEFAULT.equals(txnId)) {
+                if (i > indexOfParentBuilder && isBatch) {
+                    if (builder.category() == PRECEDING) {
+                        for (int j = i + 1; j < n; j++) {
+                            if (builders.get(j).category() == BATCH_INNER) {
+                                idBuilder = builders.get(j).transactionID().copyBuilder();
+                                break;
+                            }
+                        }
+                    } else if (builder.category() == CHILD) {
+                        for (int j = i - 1; j > indexOfParentBuilder; j--) {
+                            if (builders.get(j).category() == BATCH_INNER) {
+                                idBuilder = builders.get(j).transactionID().copyBuilder();
+                                break;
+                            }
+                        }
+                    }
+                }
+                builder.transactionID(requireNonNull(idBuilder)
+                                .nonce(topLevelNonce + nonceOffset)
+                                .build())
                         .syncBodyIdFromRecordId();
             }
-            final var consensusNow = consensusTime.plusNanos((long) i - indexOfUserRecord);
+            final var consensusNow = consensusTime.plusNanos((long) i - indexOfParentBuilder);
             lastAssignedConsenusTime = consensusNow;
             builder.consensusTimestamp(consensusNow);
-            if (i > indexOfUserRecord) {
-                if (builder.category() != SCHEDULED) {
-                    // Only set exchange rates on transactions preceding the user transaction, since
-                    // no subsequent child can change the exchange rate
-                    builder.parentConsensus(consensusTime).exchangeRate(null);
-                } else {
-                    // But for backward compatibility keep setting rates on scheduled receipts, c.f.
-                    // https://github.com/hashgraph/hedera-services/issues/15393
-                    builder.exchangeRate(exchangeRates);
+
+            if (i > indexOfParentBuilder) {
+                switch (builder.category()) {
+                    case SCHEDULED -> builder.exchangeRate(exchangeRates);
+                    case BATCH_INNER -> {
+                        builder.parentConsensus(consensusTime).exchangeRate(null);
+                        parentConsensusTime = consensusNow;
+                    }
+                    case PRECEDING -> builder.parentConsensus(consensusTime).exchangeRate(null);
+                    case CHILD -> builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
             switch (streamMode) {
-                case RECORDS -> records.add(((RecordStreamBuilder) builder).build());
+                case RECORDS -> {
+                    final var nextRecord = ((RecordStreamBuilder) builder).build();
+                    records.add(nextRecord);
+                    receipts.add(new RecordSource.IdentifiedReceipt(
+                            nextRecord.transactionRecord().transactionIDOrThrow(),
+                            nextRecord.transactionRecord().receiptOrThrow()));
+                }
+                case BLOCKS -> requireNonNull(outputs).add(((BlockStreamBuilder) builder).build());
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
-                    requireNonNull(blockItems)
-                            .addAll(pairedBuilder.blockStreamBuilder().build());
+                    requireNonNull(outputs)
+                            .add(pairedBuilder.blockStreamBuilder().build());
                 }
             }
         }
+        BlockRecordSource blockRecordSource = null;
         if (streamMode != RECORDS) {
-            requireNonNull(roundStateChangeListener).setBoundaryTimestamp(lastAssignedConsenusTime);
+            requireNonNull(boundaryStateChangeListener).setBoundaryTimestamp(lastAssignedConsenusTime);
+            blockRecordSource = new BlockRecordSource(outputs);
         }
-        return new HandleOutput(blockItems, records);
+        final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;
+        final var firstAssignedConsensusTime =
+                indexOfParentBuilder == 0 ? consensusTime : consensusTime.minusNanos(indexOfParentBuilder);
+        return new HandleOutput(blockRecordSource, recordSource, firstAssignedConsensusTime);
     }
 
-    private void setupFirstSavepoint(@NonNull final HandleContext.TransactionCategory category) {
+    private void setupFirstSavepoint(@NonNull final TransactionCategory category) {
         if (state instanceof SavepointStackImpl parent) {
             stack.push(new FirstChildSavepoint(new WrappedState(state), parent.peek(), category));
         } else {
             stack.push(new FirstRootSavepoint(new WrappedState(state), requireNonNull(builderSink)));
         }
+    }
+
+    @Override
+    public void setHash(Hash hash) {
+        state.setHash(hash);
     }
 }

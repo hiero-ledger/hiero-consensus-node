@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading.pool;
 
+import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.manager.ThreadManager;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -23,11 +9,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 /**
  * An implementation that uses a CachedThreadPool to execute parallel tasks
  */
-public class CachedPoolParallelExecutor implements ParallelExecutor {
+public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
     private static final Runnable NOOP = () -> {};
 
     /**
@@ -65,6 +52,77 @@ public class CachedPoolParallelExecutor implements ParallelExecutor {
         throwIfImmutable("should only be started once");
         immutable = true;
         threadPool = Executors.newCachedThreadPool(factory);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean stop() {
+        return stop(StopBehavior.BLOCKING);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean stop(StopBehavior behavior) {
+        if (behavior == StopBehavior.BLOCKING) {
+            threadPool.close();
+        } else {
+            threadPool.shutdownNow();
+        }
+
+        return true;
+    }
+
+    /**
+     * Not supported on CachedPoolParallelExecutor
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean pause() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Not supported on CachedPoolParallelExecutor
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean resume() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * From the point when join is called, no need tasks will be accepted for execution.
+     */
+    @Override
+    public void join() throws InterruptedException {
+        threadPool.close();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * From the point when join is called, no need tasks will be accepted for execution.
+     */
+    @Override
+    public void join(long millis) throws InterruptedException {
+        threadPool.shutdown();
+        threadPool.awaitTermination(millis, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * From the point when join is called, no need tasks will be accepted for execution.
+     */
+    @Override
+    public void join(long millis, int nanos) throws InterruptedException {
+        join(millis + nanos / 100000); // ignore rest of nanos, we are not exact enough for that
     }
 
     /**

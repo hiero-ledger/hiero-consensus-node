@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -53,15 +38,14 @@ public class ContractCallHapiOnlySuite {
     @HapiTest
     final Stream<DynamicTest> callFailsWhenAmountIsNegativeButStillChargedFee() {
         final var payer = "payer";
-        return defaultHapiSpec("callFailsWhenAmountIsNegativeButStillChargedFee")
-                .given(
-                        uploadInitCode(PAY_RECEIVABLE_CONTRACT),
-                        contractCreate(PAY_RECEIVABLE_CONTRACT)
-                                .adminKey(THRESHOLD)
-                                .gas(1_000_000)
-                                .refusingEthConversion(),
-                        cryptoCreate(payer).balance(ONE_MILLION_HBARS).payingWith(GENESIS))
-                .when(withOpContext((spec, ignore) -> {
+        return hapiTest(
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .adminKey(THRESHOLD)
+                        .gas(1_000_000)
+                        .refusingEthConversion(),
+                cryptoCreate(payer).balance(ONE_MILLION_HBARS).payingWith(GENESIS),
+                withOpContext((spec, ignore) -> {
                     final var subop1 = balanceSnapshot("balanceBefore0", payer);
                     final var subop2 = contractCall(PAY_RECEIVABLE_CONTRACT)
                             .via(PAY_TXN)
@@ -78,7 +62,6 @@ public class ContractCallHapiOnlySuite {
                     final var subop4 =
                             getAccountBalance(payer).hasTinyBars(changeFromSnapshot("balanceBefore0", -delta));
                     allRunFor(spec, subop4);
-                }))
-                .then();
+                }));
     }
 }

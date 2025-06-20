@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: Extended Test Suite - Dry Run"
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        required: true
+        description: "The commit sha, tag, or branch to check out"
+      branch_name:
+        required: true
+        description: "The branch name, for JRS Panel output"
+      enable-extended-test-suite:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Extended Test Suite"
+      enable-abbreviated-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Abbreviated JRS Panel"
+      enable-hedera-node-jrs-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Hedera Node JRS Panel"
+      enable-sdk-tck-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run SDK TCK Regression Panel"
+
+permissions:
+  id-token: write
+  actions: write
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  extended-test-suite:
+    name: Execute eXtended Test Suite
+    if: ${{ inputs.enable-extended-test-suite == true }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "Dry-Run: Execute eXtended Test Suite"
+      enable-timing-sensitive-tests: true
+      enable-time-consuming-tests: true
+      enable-hammer-tests: true
+      enable-hapi-tests-time-consuming: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  abbreviated-panel:
+    name: JRS Panel
+    if: ${{ inputs.enable-abbreviated-panel == true }}
+    uses: ./.github/workflows/zxc-jrs-regression.yaml
+    with:
+      custom-job-name: "Dry-Run: Platform SDK"
+      panel-config: "configs/suites/GCP-PRCheck-Abbrev-4N.json"
+      ref: ${{ inputs.commit_sha }}
+      branch-name: ${{ inputs.branch_name }}
+      base-branch-name: ${{ inputs.branch_name }}
+      slack-results-channel: "regression-test"
+      slack-summary-channel: "regression-test"
+      use-branch-for-slack-channel: false
+    secrets:
+      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
+      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
+      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+
+  hedera-node-jrs-panel:
+    name: Hedera Node JRS Panel
+    if: ${{ inputs.enable-hedera-node-jrs-panel == true }}
+    uses: ./.github/workflows/zxc-jrs-regression.yaml
+    with:
+      custom-job-name: "Dry-Run: Abbrev Update Test"
+      ref: ${{ inputs.commit_sha }}
+      branch-name: ${{ inputs.branch_name }}
+      hedera-tests-enabled: true
+      use-branch-for-slack-channel: false
+      panel-config: "configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json"
+    secrets:
+      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
+      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
+      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
+      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
+      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
+      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
+      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
+
+  sdk-tck-regression-panel:
+    name: SDK TCK Regression Panel
+    if: ${{ inputs.enable-sdk-tck-regression-panel == true }}
+    uses: ./.github/workflows/zxc-tck-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
+      custom-job-name: "Dry-Run: SDK TCK Regression"

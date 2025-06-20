@@ -119,22 +119,22 @@ final Configuration config = ConfigurationBuilder.create()
 String value1 = config.getValue("app.var");                                   // value1 will be null
 String value2 = config.getValue("app.var", "default");                        // value2 will be null
 String value3 = config.getValue("app.var", String.class);                     // value3 will be null
-String value4 = config.getValue("app.var", String.class, "default");          // value4 will be null            
-            
+String value4 = config.getValue("app.var", String.class, "default");          // value4 will be null
+
 String value5 = config.getValue("app.foo");                                   // expression will throw a NoSuchElementException
 String value6 = config.getValue("app.foo", "default");                        // value6 will be "default"
 String value7 = config.getValue("app.foo", String.class);                     // expression will throw a NoSuchElementException
-String value8 = config.getValue("app.foo", String.class, "default");          // value8 will be "default"            
-            
+String value8 = config.getValue("app.foo", String.class, "default");          // value8 will be "default"
+
 List<String> value9 = config.getValues("app.vars");                           // value9 will be null
 List<String> value10 = config.getValues("app.vars", List.of());               // value10 will be null
 List<String> value11 = config.getValues("app.vars", String.class);            // value11 will be null
-List<String> value12 = config.getValues("app.vars", String.class, List.of()); // value12 will be null            
-            
+List<String> value12 = config.getValues("app.vars", String.class, List.of()); // value12 will be null
+
 List<String> value13 = config.getValues("app.foos");                          // expression will throw a NoSuchElementException
-List<String> value14 = config.getValues("app.foos", List.of());               // value14 will be the empty default list    
+List<String> value14 = config.getValues("app.foos", List.of());               // value14 will be the empty default list
 List<String> value15 = config.getValues("app.foos", String.class);            // expression will throw a NoSuchElementException
-List<String> value16 = config.getValues("app.foos", String.class, List.of()); // value16 will be the empty default list                   
+List<String> value16 = config.getValues("app.foos", String.class, List.of()); // value16 will be the empty default list
 ```
 
 **Note:** if you want to define an empty list as a value for a property you should define it by
@@ -171,7 +171,8 @@ The config API supports several datatypes for reading config properties. The fol
   1994-11-05T08:15:30-05:00"
 - `Duration`: the custom format from the old settings is supported; examples are "2ms" or "10s"
 - `ChronoUnit`: examples are "millis" or "seconds"
-- `Enum` 
+- `Enum`
+- `InetAddress`
 
 The support for all data types is done by using the `com.swirlds.config.api.converter.ConfigConverter` API. The
 `com.swirlds.config.api.ConfigurationBuilder` must be used to add support for custom datatypes. The following code
@@ -186,6 +187,11 @@ final Configuration config = ConfigurationBuilder.create()
 //usage of config
 final UUID id = config.getValue("app.id");
 ```
+
+You cannot add multiple converters for the same type.
+An exception will be thrown if you try to add a converter for a type that has already has a registered converter.
+You can, however, register converter for any of the above mentioned types that are supported by default.
+In that case your custom converter will be used.
 
 ### Supported config sources
 
@@ -494,4 +500,3 @@ be changed directly.
 
 For the platform the config is provided by the `com.swirlds.common.context.PlatformContext`. Like the context the config
 is defined in the `com.swirlds.platform.Browser` class.
-

@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
 import static java.nio.ByteBuffer.allocateDirect;
 
+import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -29,6 +15,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLongArray;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  * A {@link LongList} that stores its contents on-heap via a {@link CopyOnWriteArrayList} of {@link
@@ -50,59 +37,110 @@ import java.util.concurrent.atomic.AtomicLongArray;
 @SuppressWarnings("unused")
 public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
 
-    /** Construct a new LongListHeap with the default number of longs per chunk. */
-    public LongListHeap() {
-        this(DEFAULT_NUM_LONGS_PER_CHUNK, DEFAULT_MAX_LONGS_TO_STORE, 0);
-    }
+    /** A buffer for reading chunk data from the file only during the initialization. */
+    private ByteBuffer initReadBuffer;
 
     /**
-     * Construct a new LongListHeap with the specified number of longs per chunk and default max
-     * longs to store.
-     */
-    public LongListHeap(final int numLongsPerChunk) {
-        this(numLongsPerChunk, Math.min(DEFAULT_MAX_LONGS_TO_STORE, (long) numLongsPerChunk * MAX_NUM_CHUNKS), 0);
-    }
-
-    /**
-     * Construct a new LongListHeap with the specified number of longs per chunk and maximum number
-     * of longs.
+     * Create a new on-heap long list with the specified capacity. Number of longs per chunk and
+     * reserved buffer size are read from the provided configuration.
      *
-     * @param numLongsPerChunk number of longs to store in each chunk of memory allocated
-     * @param maxLongs the maximum number of longs permissible for this LongList
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
      */
-    LongListHeap(final int numLongsPerChunk, final long maxLongs, final long reservedBufferLength) {
-        super(numLongsPerChunk, maxLongs, reservedBufferLength);
+    public LongListHeap(final long capacity, final Configuration configuration) {
+        super(capacity, configuration);
     }
 
     /**
-     * Create a {@link LongListHeap} from a file that was saved.
+     * Create a new on-heap long list with the specified chunk size, capacity, and reserved
+     * buffer size.
      *
-     * @param file the file to read from
-     * @throws IOException If there was a problem reading the file
+     * @param longsPerChunk Number of longs to store in each chunk of memory allocated
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before
+     *                           minimal index in the list
      */
-    public LongListHeap(final Path file) throws IOException {
-        super(file, 0);
+    public LongListHeap(final int longsPerChunk, final long capacity, final long reservedBufferSize) {
+        super(longsPerChunk, capacity, reservedBufferSize);
+    }
+
+    /**
+     * Create a new on-heap long list from a file that was saved and the specified capacity. Number of
+     * longs per chunk and reserved buffer size are read from the provided configuration.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param file The file to load the long list from
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     */
+    public LongListHeap(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+            throws IOException {
+        super(file, capacity, configuration);
+    }
+
+    /**
+     * Create a long list from the specified file with the specified chunk size, capacity, and reserved
+     * buffer size. The file must exist.
+     *
+     * <p>If the list size in the file is greater than the capacity, an {@link IllegalArgumentException}
+     * is thrown.
+     *
+     * @param path The file to load the long list from
+     * @param longsPerChunk Number of longs to store in each chunk
+     * @param capacity Maximum number of longs permissible for this long list
+     * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
+     * @param configuration Platform configuration
+     *
+     * @throws IOException If the file doesn't exist or there was a problem reading the file
+     */
+    public LongListHeap(
+            @NonNull final Path path,
+            final int longsPerChunk,
+            final long capacity,
+            final long reservedBufferSize,
+            final Configuration configuration)
+            throws IOException {
+        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void readBodyFromFileChannelOnInit(
+            final String sourceFileName, final FileChannel fileChannel, Configuration configuration)
+            throws IOException {
+        initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
+        try {
+            super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
+        } finally {
+            MemoryUtils.closeDirectByteBuffer(initReadBuffer);
+        }
     }
 
     /** {@inheritDoc} */
     @Override
-    protected void readBodyFromFileChannelOnInit(String sourceFileName, FileChannel fileChannel) throws IOException {
-        // read data
-        final int numOfArrays = calculateNumberOfChunks(size());
-        final ByteBuffer buffer = allocateDirect(memoryChunkSize);
-        buffer.order(ByteOrder.nativeOrder());
-        for (int i = 0; i < numOfArrays; i++) {
-            final AtomicLongArray atomicLongArray = new AtomicLongArray(numLongsPerChunk);
-            buffer.clear();
-            MerkleDbFileUtils.completelyRead(fileChannel, buffer);
-            buffer.flip();
-            int index = 0;
-            while (buffer.remaining() > 0) {
-                atomicLongArray.set(index, buffer.getLong());
-                index++;
-            }
-            chunkList.set(i, atomicLongArray);
+    protected AtomicLongArray readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
+            throws IOException {
+        AtomicLongArray chunk = createChunk();
+
+        readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, initReadBuffer);
+
+        final int startOffset = startIndex * Long.BYTES;
+        final int endOffset = endIndex * Long.BYTES;
+        initReadBuffer.position(startOffset);
+        initReadBuffer.limit(endOffset);
+
+        while (initReadBuffer.hasRemaining()) {
+            int index = initReadBuffer.position() / Long.BYTES;
+            chunk.set(index, initReadBuffer.getLong());
         }
+
+        return chunk;
     }
 
     /** {@inheritDoc} */
@@ -177,6 +215,6 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     /** {@inheritDoc} */
     @Override
     protected AtomicLongArray createChunk() {
-        return new AtomicLongArray(numLongsPerChunk);
+        return new AtomicLongArray(longsPerChunk);
     }
 }

@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -45,7 +29,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
@@ -55,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.headlongFromHexed;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hedera.services.bdd.suites.contract.Utils.nCopiesOfSender;
@@ -161,17 +145,20 @@ public class LazyCreateThroughPrecompileSuite {
                 cryptoApproveAllowance()
                         .payingWith(CIVILIAN)
                         .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
-                sourcing(() -> contractCall(
-                                AUTO_CREATION_MODES,
-                                "createSeveralDirectly",
-                                headlongFromHexed(nftMirrorAddr.get()),
-                                nCopiesOfSender(n, mirrorAddrWith(civilianId.get())),
-                                nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
-                                LongStream.iterate(1L, l -> l + 1).limit(n).toArray())
-                        .via(creationAttempt)
-                        .gas(GAS_TO_OFFER)
-                        .alsoSigningWithFullPrefix(CIVILIAN)
-                        .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, CONTRACT_REVERT_EXECUTED)),
+                withOpContext((spec, log) -> {
+                    final var callOp = contractCall(
+                                    AUTO_CREATION_MODES,
+                                    "createSeveralDirectly",
+                                    headlongFromHexed(nftMirrorAddr.get()),
+                                    nCopiesOfSender(n, mirrorAddrWith(spec, civilianId.get())),
+                                    nNonMirrorAddressFrom(n, civilianId.get() + 3_050_000),
+                                    LongStream.iterate(1L, l -> l + 1).limit(n).toArray())
+                            .via(creationAttempt)
+                            .gas(GAS_TO_OFFER)
+                            .alsoSigningWithFullPrefix(CIVILIAN)
+                            .hasKnownStatusFrom(MAX_CHILD_RECORDS_EXCEEDED, CONTRACT_REVERT_EXECUTED);
+                    allRunFor(spec, callOp);
+                }),
                 childRecordsCheck(
                         creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(MAX_CHILD_RECORDS_EXCEEDED)));
     }
@@ -199,17 +186,21 @@ public class LazyCreateThroughPrecompileSuite {
                 cryptoApproveAllowance()
                         .payingWith(CIVILIAN)
                         .addNftAllowance(CIVILIAN, nft, AUTO_CREATION_MODES, true, List.of()),
-                sourcing(() -> contractCall(
-                                AUTO_CREATION_MODES,
-                                CREATE_DIRECTLY,
-                                headlongFromHexed(nftMirrorAddr.get()),
-                                mirrorAddrWith(civilianId.get()),
-                                mirrorAddrWith(civilianId.get() + 1_000_001),
-                                1L,
-                                false)
-                        .via(creationAttempt)
-                        .gas(GAS_TO_OFFER)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                withOpContext((spec, logger) -> {
+                    final var callOp = contractCall(
+                                    AUTO_CREATION_MODES,
+                                    CREATE_DIRECTLY,
+                                    headlongFromHexed(nftMirrorAddr.get()),
+                                    mirrorAddrWith(spec, civilianId.get()),
+                                    mirrorAddrWith(spec, civilianId.get() + 1_000_001),
+                                    1L,
+                                    false)
+                            .via(creationAttempt)
+                            .gas(GAS_TO_OFFER)
+                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED);
+
+                    allRunFor(spec, callOp);
+                }),
                 childRecordsCheck(
                         creationAttempt, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ALIAS_KEY)));
     }
@@ -228,8 +219,8 @@ public class LazyCreateThroughPrecompileSuite {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> tokenAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
+                        .exposingCreatedIdTo(
+                                id -> tokenAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(id)))),
                 uploadInitCode(ERC_20_CONTRACT),
                 // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
                 // since we have CONTRACT_ID key. Also, because of gas difference

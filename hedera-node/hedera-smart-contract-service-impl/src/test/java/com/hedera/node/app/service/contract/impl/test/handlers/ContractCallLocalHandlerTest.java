@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -31,7 +16,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
@@ -44,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextQueryProcessor;
 import com.hedera.node.app.service.contract.impl.exec.QueryComponent;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallLocalHandler;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -54,6 +39,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.time.InstantSource;
 import java.util.function.Function;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -113,13 +99,22 @@ class ContractCallLocalHandlerTest {
     @Mock
     private GasCalculator gasCalculator;
 
+    @Mock
+    private EntityIdFactory entityIdFactory;
+
+    @Mock
+    private ProxyWorldUpdater proxyWorldUpdater;
+
+    private final ContractID invalidContract =
+            ContractID.newBuilder().evmAddress(Bytes.fromHex("abcdabcd")).build();
+
     private final InstantSource instantSource = InstantSource.system();
 
     private ContractCallLocalHandler subject;
 
     @BeforeEach
     void setUp() {
-        subject = new ContractCallLocalHandler(() -> factory, gasCalculator, instantSource);
+        subject = new ContractCallLocalHandler(() -> factory, gasCalculator, instantSource, entityIdFactory);
     }
 
     @Test
@@ -196,6 +191,19 @@ class ContractCallLocalHandlerTest {
     }
 
     @Test
+    void validateFailsIfInvalidContractIdTest() {
+        // given
+        given(context.query()).willReturn(query);
+        given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
+        given(contractCallLocalQuery.contractID()).willReturn(invalidContract);
+        given(contractCallLocalQuery.functionParameters()).willReturn(Bytes.EMPTY);
+        givenDefaultConfig();
+
+        // when:
+        assertThatThrownBy(() -> subject.validate(context)).isInstanceOf(PreCheckException.class);
+    }
+
+    @Test
     void validateFailsIfNoContractOrTokenTest() {
         // given
         given(context.query()).willReturn(query);
@@ -245,9 +253,11 @@ class ContractCallLocalHandlerTest {
         given(factory.create(any(), any(), eq(HederaFunctionality.CONTRACT_CALL_LOCAL)))
                 .willReturn(component);
         given(component.contextQueryProcessor()).willReturn(processor);
-        final var expectedResult = SUCCESS_RESULT.asQueryResult();
-        final var expectedOutcome = new CallOutcome(
-                expectedResult, SUCCESS_RESULT.finalStatus(), null, SUCCESS_RESULT.gasPrice(), null, null);
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+
+        final var expectedResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
+        final var expectedOutcome =
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
         // given(processor.call()).willReturn(responseHeader);
@@ -259,9 +269,9 @@ class ContractCallLocalHandlerTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void computesFeesSuccessfully() {
 
-        final var id = ContractID.newBuilder().contractNum(10).build();
         given(context.query()).willReturn(query);
         given(query.contractCallLocalOrThrow()).willReturn(contractCallLocalQuery);
         given(context.feeCalculator()).willReturn(feeCalculator);
@@ -270,7 +280,6 @@ class ContractCallLocalHandlerTest {
         // Mock the behavior of legacyCalculate method
         when(feeCalculator.legacyCalculate(any(Function.class))).thenAnswer(invocation -> {
             // Extract the callback passed to the method
-            Function<SigValueObj, FeeData> passedCallback = invocation.getArgument(0);
             return new Fees(10L, 0L, 0L);
         });
 

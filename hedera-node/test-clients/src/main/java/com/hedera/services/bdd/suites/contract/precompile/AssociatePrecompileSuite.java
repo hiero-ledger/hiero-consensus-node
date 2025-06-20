@@ -1,24 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -46,6 +29,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -93,25 +77,27 @@ public class AssociatePrecompileSuite {
     /* -- HSCS-PREC-27 from HTS Precompile Test Plan -- */
     @HapiTest
     final Stream<DynamicTest> functionCallWithLessThanFourBytesFailsWithinSingleContractCall() {
-        return defaultHapiSpec("functionCallWithLessThanFourBytesFailsWithinSingleContractCall")
-                .given(uploadInitCode(THE_GRACEFULLY_FAILING_CONTRACT), contractCreate(THE_GRACEFULLY_FAILING_CONTRACT))
-                .when(contractCall(
+        return hapiTest(
+                uploadInitCode(THE_GRACEFULLY_FAILING_CONTRACT),
+                contractCreate(THE_GRACEFULLY_FAILING_CONTRACT),
+                contractCall(
                                 THE_GRACEFULLY_FAILING_CONTRACT,
                                 "performLessThanFourBytesFunctionCall",
                                 HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS),
                                 HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS))
                         .notTryingAsHexedliteral()
                         .via("Function call with less than 4 bytes txn")
-                        .gas(100_000))
-                .then(childRecordsCheck("Function call with less than 4 bytes txn", SUCCESS));
+                        .gas(100_000),
+                childRecordsCheck("Function call with less than 4 bytes txn", SUCCESS));
     }
 
     /* -- HSCS-PREC-27 from HTS Precompile Test Plan -- */
     @HapiTest
     final Stream<DynamicTest> invalidAbiCallGracefullyFailsWithinSingleContractCall() {
-        return defaultHapiSpec("invalidAbiCallGracefullyFailsWithinSingleContractCall")
-                .given(uploadInitCode(THE_GRACEFULLY_FAILING_CONTRACT), contractCreate(THE_GRACEFULLY_FAILING_CONTRACT))
-                .when(contractCall(
+        return hapiTest(
+                uploadInitCode(THE_GRACEFULLY_FAILING_CONTRACT),
+                contractCreate(THE_GRACEFULLY_FAILING_CONTRACT),
+                contractCall(
                                 THE_GRACEFULLY_FAILING_CONTRACT,
                                 "performInvalidlyFormattedFunctionCall",
                                 HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS),
@@ -120,8 +106,8 @@ public class AssociatePrecompileSuite {
                                     HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS)
                                 })
                         .notTryingAsHexedliteral()
-                        .via("Invalid Abi Function call txn"))
-                .then(childRecordsCheck("Invalid Abi Function call txn", SUCCESS));
+                        .via("Invalid Abi Function call txn"),
+                childRecordsCheck("Invalid Abi Function call txn", SUCCESS));
     }
 
     /* -- HSCS-PREC-26 from HTS Precompile Test Plan -- */
@@ -301,27 +287,26 @@ public class AssociatePrecompileSuite {
         final var zeroAccountAddress = "zeroAccountAddress";
         final var nullTokenArray = "nullTokens";
         final var nonExistingTokensInArray = "nonExistingTokensInArray";
-        return defaultHapiSpec("associateTokensNegativeScenarios")
-                .given(
-                        uploadInitCode(NEGATIVE_ASSOCIATIONS_CONTRACT),
-                        contractCreate(NEGATIVE_ASSOCIATIONS_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingAddressTo(tokenAddress1::set),
-                        tokenCreate(TOKEN1)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingAddressTo(tokenAddress2::set),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))))
-                .when(withOpContext((spec, custom) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(NEGATIVE_ASSOCIATIONS_CONTRACT),
+                contractCreate(NEGATIVE_ASSOCIATIONS_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress1::set),
+                tokenCreate(TOKEN1)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress2::set),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))),
+                withOpContext((spec, custom) -> allRunFor(
                         spec,
                         contractCall(
                                         NEGATIVE_ASSOCIATIONS_CONTRACT,
@@ -383,28 +368,20 @@ public class AssociatePrecompileSuite {
                                 .via(someNonExistingTokenArray)
                                 .logged(),
                         getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN)),
-                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN1)))))
-                .then(
-                        childRecordsCheck(
-                                nonExistingAccount,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
-                        childRecordsCheck(
-                                someNonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
-                        childRecordsCheck(
-                                zeroAccountAddress,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nullTokenArray,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                nonExistingTokensInArray,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)));
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN1)))),
+                childRecordsCheck(
+                        nonExistingAccount,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(nonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
+                childRecordsCheck(
+                        someNonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
+                childRecordsCheck(
+                        zeroAccountAddress,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullTokenArray, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
 
     @HapiTest
@@ -415,20 +392,19 @@ public class AssociatePrecompileSuite {
         final var nullAccount = "nullAccount";
         final var nonExistingToken = "nonExistingToken";
         final var nullToken = "nullToken";
-        return defaultHapiSpec("associateTokenNegativeScenarios")
-                .given(
-                        uploadInitCode(NEGATIVE_ASSOCIATIONS_CONTRACT),
-                        contractCreate(NEGATIVE_ASSOCIATIONS_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingAddressTo(tokenAddress::set),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))))
-                .when(withOpContext((spec, custom) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(NEGATIVE_ASSOCIATIONS_CONTRACT),
+                contractCreate(NEGATIVE_ASSOCIATIONS_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress::set),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))),
+                withOpContext((spec, custom) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(KEY_SHAPE.signedWith(sigs(ON, NEGATIVE_ASSOCIATIONS_CONTRACT))),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
@@ -467,23 +443,14 @@ public class AssociatePrecompileSuite {
                                 .gas(GAS_TO_OFFER)
                                 .via(nullToken)
                                 .logged(),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN))))
-                .then(
-                        childRecordsCheck(
-                                nonExistingAccount,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nullAccount,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nonExistingToken,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                nullToken,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)));
+                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN))),
+                childRecordsCheck(
+                        nonExistingAccount,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullAccount, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullToken, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
 }

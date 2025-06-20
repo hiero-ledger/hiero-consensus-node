@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fixtures.workflows;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
-import static com.hedera.node.app.spi.key.KeyUtils.isValid;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static java.util.Objects.requireNonNull;
 
@@ -32,11 +17,13 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
@@ -78,8 +65,6 @@ public class FakePreHandleContext implements PreHandleContext {
     private final Set<Key> optionalNonPayerKeys = new LinkedHashSet<>();
     /** The set of all hollow accounts that <strong>might</strong> need to be validated, but also might not. */
     private final Set<Account> optionalHollowAccounts = new LinkedHashSet<>();
-    /** Scheduled transactions have a secondary "inner context". Seems not quite right. */
-    private PreHandleContext innerContext;
 
     private final boolean userTransaction;
     private final Map<Class<?>, Object> stores = new ConcurrentHashMap<>();
@@ -423,24 +408,13 @@ public class FakePreHandleContext implements PreHandleContext {
 
     @NonNull
     @Override
-    public TransactionKeys allKeysForTransaction(
-            @NonNull TransactionBody nestedTxn, @NonNull AccountID payerForNested) {
+    public TransactionKeys allKeysForTransaction(@NonNull TransactionBody body, @NonNull AccountID payerId) {
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
     @Override
-    @NonNull
-    public PreHandleContext createNestedContext(
-            @NonNull final TransactionBody nestedTxn, @NonNull final AccountID payerForNested)
-            throws PreCheckException {
-        innerContext = new FakePreHandleContext(accountStore, nestedTxn, payerForNested, false);
-        return innerContext;
-    }
-
-    @Override
-    @Nullable
-    public PreHandleContext innerContext() {
-        return innerContext;
+    public NodeInfo creatorInfo() {
+        return FakeNetworkInfo.FAKE_NODE_INFOS.getFirst();
     }
 
     @Override
@@ -450,8 +424,7 @@ public class FakePreHandleContext implements PreHandleContext {
                 + txn + ", payer="
                 + payer + ", payerKey="
                 + payerKey + ", requiredNonPayerKeys="
-                + requiredNonPayerKeys + ", innerContext="
-                + innerContext + ", stores="
+                + requiredNonPayerKeys + ", stores="
                 + stores + '}';
     }
 

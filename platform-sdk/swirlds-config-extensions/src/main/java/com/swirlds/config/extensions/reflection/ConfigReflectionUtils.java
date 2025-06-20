@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.extensions.reflection;
 
 import com.swirlds.config.api.ConfigData;
@@ -67,7 +52,7 @@ public final class ConfigReflectionUtils {
      * Returns the config property name for a property of a config data object (see {@link ConfigData}).
      *
      * @param prefix    the prefix of the  config data type
-     * @param component the record component thatd efines the property
+     * @param component the record component that defines the property
      * @return the config property name for a property
      */
     public static String getPropertyNameForConfigDataProperty(final String prefix, final RecordComponent component) {

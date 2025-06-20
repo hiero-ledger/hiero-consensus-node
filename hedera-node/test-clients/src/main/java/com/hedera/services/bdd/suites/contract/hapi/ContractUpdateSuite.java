@@ -1,23 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -53,6 +37,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
@@ -98,33 +83,29 @@ public class ContractUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateMaxAutomaticAssociationsAndRequireKey() {
-        return defaultHapiSpec("updateMaxAutomaticAssociationsAndRequireKey")
-                .given(
-                        newKeyNamed(ADMIN_KEY),
-                        uploadInitCode(CONTRACT),
-                        contractCreate(CONTRACT).adminKey(ADMIN_KEY))
-                .when(
-                        contractUpdate(CONTRACT).newMaxAutomaticAssociations(20).signedBy(DEFAULT_PAYER, ADMIN_KEY),
-                        contractUpdate(CONTRACT).newMaxAutomaticAssociations(20).signedBy(DEFAULT_PAYER, ADMIN_KEY),
-                        doWithStartupConfigNow("entities.maxLifetime", (value, now) -> contractUpdate(CONTRACT)
-                                .newMaxAutomaticAssociations(20)
-                                .newExpirySecs(now.getEpochSecond() + Long.parseLong(value) - 12345L)
-                                .signedBy(DEFAULT_PAYER)
-                                .hasKnownStatus(INVALID_SIGNATURE)))
-                .then(getContractInfo(CONTRACT).has(contractWith().maxAutoAssociations(20)));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT).adminKey(ADMIN_KEY),
+                contractUpdate(CONTRACT).newMaxAutomaticAssociations(20).signedBy(DEFAULT_PAYER, ADMIN_KEY),
+                contractUpdate(CONTRACT).newMaxAutomaticAssociations(20).signedBy(DEFAULT_PAYER, ADMIN_KEY),
+                doWithStartupConfigNow("entities.maxLifetime", (value, now) -> contractUpdate(CONTRACT)
+                        .newMaxAutomaticAssociations(20)
+                        .newExpirySecs(now.getEpochSecond() + Long.parseLong(value) - 12345L)
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(INVALID_SIGNATURE)),
+                getContractInfo(CONTRACT).has(contractWith().maxAutoAssociations(20)));
     }
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        return defaultHapiSpec("idVariantsTreatedAsExpected")
-                .given(
-                        newKeyNamed(ADMIN_KEY),
-                        cryptoCreate("a"),
-                        cryptoCreate("b"),
-                        uploadInitCode(CONTRACT),
-                        contractCreate(CONTRACT).autoRenewAccountId("a").stakedAccountId("b"))
-                .when()
-                .then(submitModified(
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate("a"),
+                cryptoCreate("b"),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT).autoRenewAccountId("a").stakedAccountId("b"),
+                submitModified(
                         withSuccessivelyVariedBodyIds(),
                         () -> contractUpdate(CONTRACT).newAutoRenewAccount("b").newStakedAccountId("a")));
     }
@@ -141,12 +122,12 @@ public class ContractUpdateSuite {
                                 .isDeclinedReward(true)
                                 .noStakedAccountId()
                                 .stakedNodeId(0)),
-                contractUpdate(CONTRACT).newDeclinedReward(false).newStakedAccountId("0.0.10"),
+                contractUpdate(CONTRACT).newDeclinedReward(false).newStakedAccountId("10"),
                 getContractInfo(CONTRACT)
                         .has(contractWith()
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
-                                .stakedAccountId("0.0.10"))
+                                .stakedAccountId("10"))
                         .logged(),
 
                 /* --- reset the staking account */
@@ -556,10 +537,10 @@ public class ContractUpdateSuite {
                                                     asAddress(spec.registry().getAccountID("Player13")))
                                         }))))));
 
-        return defaultHapiSpec("playGame")
-                .given(given.toArray(HapiSpecOperation[]::new))
-                .when(when.toArray(HapiSpecOperation[]::new))
-                .then(then.toArray(HapiSpecOperation[]::new));
+        return hapiTest(flattened(
+                given.toArray(HapiSpecOperation[]::new),
+                when.toArray(HapiSpecOperation[]::new),
+                then.toArray(HapiSpecOperation[]::new)));
     }
 
     @HapiTest

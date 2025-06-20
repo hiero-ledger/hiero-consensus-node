@@ -1,0 +1,88 @@
+/**
+ * # Gossip Event
+ * An event that is sent and received via gossip
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.platform.event;
+
+/*
+ * Hedera Network Services Protobuf
+ *
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import "platform/event/event_core.proto";
+import "platform/event/event_descriptor.proto";
+
+option java_package = "com.hedera.hapi.platform.event.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.platform.event">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * An event that is sent and received via gossip
+ */
+message GossipEvent {
+
+  // The EventTransaction field has been reserved because it is no longer
+  // required to be stored in the GossipEvent.
+  reserved 3;
+
+  /**
+   * The core event data
+   */
+  EventCore event_core = 1;
+
+  /**
+   * A node signature on the event hash.<br/>
+   * The signature SHALL be created with the SHA384withRSA algorithm.<br/>
+   * The signature MUST verify using the public key belonging to the `event_creator`.<br/>
+   * The `event_creator` public key SHALL be read from the address book that corresponds to the event's birth round.<br/>
+   * The signed event hash SHALL be a SHA-384 hash.<br/>
+   * The signed event hash SHALL have the following inputs, in the specified order:<br/>
+   * 1. The bytes of the `event_core` field<br/>
+   * 2. The SHA-384 hash of each individual `EventTransaction`, in the order the transaction appear in the `event_transaction` field
+   */
+  bytes signature = 2;
+
+  /**
+   * A list of serialized transactions.
+   * <p>
+   * This field MAY contain zero transactions.<br/>
+   * Each transaction in this list SHALL be presented exactly as
+   * it was supplied to the consensus algorithm.<br/>
+   * This field MUST contain one entry for each transaction
+   * included in this gossip event.
+   */
+  repeated bytes transactions = 4;
+
+  /**
+   * A list of EventDescriptors representing the parents of this event.<br/>
+   * The list of parents SHALL include zero or one self parents, and zero or more other parents.<br/>
+   * The first element of the list SHALL be the self parent, if one exists.<br/>
+   * The list of parents SHALL NOT include more than one parent from the same creator.
+   * <p>
+   * NOTE: This field is currently being migrated from EventCore to GossipEvent.
+   * Once the migration is complete, this field will be removed from EventCore.
+   * While migration is ongoing, the expectation is that only one of the two
+   * fields will be set, but not both.
+   */
+  repeated EventDescriptor parents = 5;
+}

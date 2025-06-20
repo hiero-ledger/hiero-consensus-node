@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
@@ -28,8 +13,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
-import com.swirlds.platform.system.status.PlatformStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -38,6 +23,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -50,6 +37,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.Assertions;
 
 public class ProcessUtils {
@@ -60,11 +48,10 @@ public class ProcessUtils {
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
-    public static final String BLOCK_STREAMS_DIR = "block-streams";
+    public static final String BLOCK_STREAMS_DIR = "blockStreams";
     private static final long WAIT_SLEEP_MILLIS = 100L;
 
     public static final Executor EXECUTOR = Executors.newCachedThreadPool();
-    public static final Duration STOP_TIMEOUT = Duration.ofSeconds(10);
 
     private ProcessUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -75,34 +62,27 @@ public class ProcessUtils {
      * Throws an assertion error if the status is not reached within the timeout.
      *
      * @param node the node to wait for
-     * @param status the status to wait for
      * @param timeout the timeout duration
+     * @param statuses the status to wait for
      */
     public static void awaitStatus(
-            @NonNull final HederaNode node, @NonNull final PlatformStatus status, @NonNull final Duration timeout) {
+            @NonNull final HederaNode node,
+            @NonNull final Duration timeout,
+            @NonNull final PlatformStatus... statuses) {
         final AtomicReference<NodeStatus> lastStatus = new AtomicReference<>();
-        log.info("Waiting for node '{}' to be {} within {}", node.getName(), status, timeout);
+        log.info("Waiting for node '{}' to be {} within {}", node.getName(), Arrays.toString(statuses), timeout);
         try {
-            node.statusFuture(status, lastStatus::set).get(timeout.toMillis(), MILLISECONDS);
+            node.statusFuture(lastStatus::set, statuses).get(timeout.toMillis(), MILLISECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
                 Thread.currentThread().interrupt();
             }
-            Assertions.fail("Node '" + node.getName() + "' did not reach status " + status + " within " + timeout
+            Assertions.fail("Node '" + node.getName() + "' did not reach status any of " + Arrays.toString(statuses)
+                    + " within " + timeout
                     + "\n  Final status: " + lastStatus.get()
                     + "\n  Cause       : " + e);
         }
-        log.info("Node '{}' is {}", node.getName(), status);
-    }
-
-    /**
-     * Returns true if the given error is a bind exception that is correlated with a node starting.
-     *
-     * @param error the error to check
-     * @return true if the error is a correlated bind exception
-     */
-    public static boolean hadCorrelatedBindException(@NonNull final AssertionError error) {
-        return error.getMessage().contains("bindExceptionSeen=YES");
+        log.info("Node '{}' is {}", node.getName(), lastStatus.get());
     }
 
     /**
@@ -126,12 +106,48 @@ public class ProcessUtils {
      * @return the {@link ProcessHandle} of the started node
      */
     public static ProcessHandle startSubProcessNodeFrom(@NonNull final NodeMetadata metadata, final int configVersion) {
+        return startSubProcessNodeFrom(metadata, configVersion, Map.of());
+    }
+
+    /**
+     * Returns any environment overrides specified by the {@code hapi.spec.test.overrides} system property.
+     * @return a map of environment variable overrides
+     */
+    public static Map<String, String> prCheckOverrides() {
+        return Optional.ofNullable(System.getProperty("hapi.spec.test.overrides"))
+                .map(testOverrides -> Arrays.stream(testOverrides.split(","))
+                        .map(override -> override.split("="))
+                        .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1])))
+                .orElse(Map.of());
+    }
+
+    /**
+     * Starts a sub-process node from the given metadata and main class reference with the requested environment
+     * overrides, and returns its {@link ProcessHandle}.
+     *
+     * @param metadata the metadata of the node to start
+     * @param configVersion the version of the configuration to use
+     * @param envOverrides the environment variables to override
+     * @return the {@link ProcessHandle} of the started node
+     */
+    public static ProcessHandle startSubProcessNodeFrom(
+            @NonNull final NodeMetadata metadata,
+            final int configVersion,
+            @NonNull final Map<String, String> envOverrides) {
         final var builder = new ProcessBuilder();
         final var environment = builder.environment();
         environment.put("LC_ALL", "en.UTF-8");
         environment.put("LANG", "en_US.UTF-8");
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
+        environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
+        environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
+        environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
+        // Include an PR check overrides from build.gradle.kts
+        environment.putAll(prCheckOverrides());
+        // Give any overrides set by the test author the highest priority
+        environment.putAll(envOverrides);
         try {
             final var redirectFile = guaranteedExtantFile(
                     metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(ERROR_REDIRECT_FILE));
@@ -159,16 +175,16 @@ public class ProcessUtils {
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
         commandLine.addAll(List.of(
-                "-classpath",
-                // Use the same classpath that started this process, excluding test-clients
-                currentNonTestClientClasspath(),
+                "--module-path",
+                // Use the same module path that started this process, excluding test-clients
+                currentNonTestClientModulePath(),
                 // JVM system
                 "-Dfile.encoding=UTF-8",
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
                 "-Dhedera.profiles.active=DEV",
-                "-Dhedera.workflows.enabled=true",
-                "com.hedera.node.app.ServicesMain",
+                "--module",
+                "com.hedera.node.app/com.hedera.node.app.ServicesMain",
                 "-local",
                 Long.toString(metadata.nodeId())));
         return commandLine;
@@ -190,7 +206,7 @@ public class ProcessUtils {
      *
      * @param condition the condition to wait for
      * @param checkBackoffMs the supplier of the number of milliseconds to back off between checks
-     * @return
+     * @return a future that resolves when the condition is true or the timeout is reached
      */
     public static CompletableFuture<Void> conditionFuture(
             @NonNull final BooleanSupplier condition, @NonNull final LongSupplier checkBackoffMs) {
@@ -227,32 +243,34 @@ public class ProcessUtils {
                 EXECUTOR);
     }
 
-    private static String currentNonTestClientClasspath() {
-        // Could have been launched with -cp, or -classpath, or @/path/to/classpathFile.txt, or maybe module path?
+    private static String currentNonTestClientModulePath() {
+        // When started through Gradle, this was launched with @/path/to/pathFile.txt.
+        // This also works when launched with --module-path, -cp, or -classpath.
         final var args = ProcessHandle.current().info().arguments().orElse(EMPTY_STRING_ARRAY);
 
-        String classpath = "";
+        String moduleOrClassPath = "";
         for (int i = 0; i < args.length; i++) {
             final var arg = args[i];
             if (arg.startsWith("@")) {
                 try {
                     final var fileContents = Files.readString(Path.of(arg.substring(1)));
-                    classpath = fileContents.substring(fileContents.indexOf('/'));
+                    moduleOrClassPath = fileContents.substring(fileContents.indexOf('/'));
                     break;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-            } else if (arg.equals("-cp") || arg.equals("-classpath")) {
-                classpath = args[i + 1];
+            } else if (arg.equals("--module-path") || arg.equals("-cp") || arg.equals("-classpath")) {
+                moduleOrClassPath = args[i + 1];
                 break;
             }
         }
-        if (classpath.isBlank()) {
-            throw new IllegalStateException("Cannot discover the classpath. Was --module-path used instead?");
+        if (moduleOrClassPath.isBlank()) {
+            throw new IllegalStateException("Cannot discover module path or classpath.");
         }
-        return Arrays.stream(classpath.split(":"))
+        return Arrays.stream(moduleOrClassPath.split(File.pathSeparator))
+                .map(String::trim) // may have picked up a '\n' in the original path String
                 .filter(s -> !s.contains("test-clients"))
-                .collect(Collectors.joining(":"));
+                .collect(Collectors.joining(File.pathSeparator));
     }
 
     private static boolean endsWith(final String[] args, final String lastArg) {

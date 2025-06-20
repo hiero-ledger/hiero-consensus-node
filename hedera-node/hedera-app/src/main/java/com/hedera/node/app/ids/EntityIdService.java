@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.ids;
 
 import com.hedera.node.app.ids.schemas.V0490EntityIdSchema;
-import com.swirlds.state.spi.SchemaRegistry;
-import com.swirlds.state.spi.Service;
+import com.hedera.node.app.ids.schemas.V0590EntityIdSchema;
+import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.lifecycle.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -34,9 +20,16 @@ public class EntityIdService implements Service {
         return NAME;
     }
 
+    @Override
+    public int migrationOrder() {
+        // Traditionally the entity id service was migrated first, so preserve that harmless convention
+        return Integer.MIN_VALUE;
+    }
+
     /** {@inheritDoc} */
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         registry.register(new V0490EntityIdSchema());
+        registry.register(new V0590EntityIdSchema());
     }
 }

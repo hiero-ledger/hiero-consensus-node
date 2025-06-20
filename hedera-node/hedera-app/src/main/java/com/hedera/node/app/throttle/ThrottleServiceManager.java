@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
@@ -28,6 +13,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.congestion.CongestionLevelStarts;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
@@ -42,6 +28,7 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,6 +45,9 @@ public class ThrottleServiceManager {
     private final ThrottleAccumulator ingestThrottle;
     private final ThrottleAccumulator backendThrottle;
     private final CongestionMultipliers congestionMultipliers;
+
+    @Nullable
+    private ThrottleDefinitions activeDefinitions;
 
     @Inject
     public ThrottleServiceManager(
@@ -84,8 +74,10 @@ public class ThrottleServiceManager {
      */
     public void init(@NonNull final State state, @NonNull final Bytes throttleDefinitions) {
         requireNonNull(state);
-        // Apply configuration for gas throttles
+        // Apply configuration for gas, bytes and ops duration throttles
         applyGasConfig();
+        applyBytesConfig();
+        applyOpsDurationConfig();
         // Create backend/frontend throttles from the configured system file
         rebuildThrottlesFrom(throttleDefinitions);
         // Reset multiplier expectations
@@ -94,6 +86,15 @@ public class ThrottleServiceManager {
         final var serviceStates = state.getReadableStates(CongestionThrottleService.NAME);
         resetThrottlesFromUsageSnapshots(serviceStates);
         syncFromCongestionLevelStarts(serviceStates);
+    }
+
+    /**
+     * Returns the throttle definitions that are currently active.
+     * @return the active throttle definitions
+     * @throws IllegalStateException if the active throttle definitions are not available
+     */
+    public @NonNull ThrottleDefinitions activeThrottleDefinitionsOrThrow() {
+        return requireNonNull(activeDefinitions);
     }
 
     /**
@@ -115,6 +116,8 @@ public class ThrottleServiceManager {
      */
     public void refreshThrottleConfiguration() {
         applyGasConfig();
+        applyBytesConfig();
+        applyOpsDurationConfig();
         congestionMultipliers.resetExpectations();
     }
 
@@ -162,10 +165,13 @@ public class ThrottleServiceManager {
 
         final var gasThrottle = backendThrottle.gasLimitThrottle();
         final var gasThrottleSnapshot = gasThrottle.usageSnapshot();
+        final var opsDurationThrottle = backendThrottle.opsDurationThrottle();
+        final var opsDurationThrottleSnapshot = opsDurationThrottle.usageSnapshot();
 
         final WritableSingletonState<ThrottleUsageSnapshots> throttleSnapshots =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_KEY);
-        throttleSnapshots.put(new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot));
+        throttleSnapshots.put(
+                new ThrottleUsageSnapshots(hapiThrottleSnapshots, gasThrottleSnapshot, opsDurationThrottleSnapshot));
     }
 
     private void saveCongestionLevelStartsTo(@NonNull final WritableStates serviceStates) {
@@ -176,16 +182,25 @@ public class ThrottleServiceManager {
                 translateToList(congestionMultipliers.gasThrottleMultiplierCongestionStarts())));
     }
 
-    private @NonNull ThrottleParser.ValidatedThrottles rebuildThrottlesFrom(@NonNull Bytes encoded) {
+    private @NonNull ThrottleParser.ValidatedThrottles rebuildThrottlesFrom(@NonNull final Bytes encoded) {
         final var validatedThrottles = throttleParser.parse(encoded);
         ingestThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
         backendThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
+        this.activeDefinitions = validatedThrottles.throttleDefinitions();
         return validatedThrottles;
     }
 
     private void applyGasConfig() {
         ingestThrottle.applyGasConfig();
         backendThrottle.applyGasConfig();
+    }
+
+    private void applyBytesConfig() {
+        ingestThrottle.applyBytesConfig();
+    }
+
+    private void applyOpsDurationConfig() {
+        backendThrottle.applyDurationConfig();
     }
 
     private void syncFromCongestionLevelStarts(@NonNull final ReadableStates serviceStates) {

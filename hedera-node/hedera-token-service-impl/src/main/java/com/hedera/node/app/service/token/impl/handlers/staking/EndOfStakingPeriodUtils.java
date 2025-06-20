@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
@@ -62,7 +47,6 @@ public final class EndOfStakingPeriodUtils {
                 break;
             }
         }
-
         return (firstZero == -1)
                 ? rewardSumHistory.toString()
                 : IntStream.range(0, firstZero)
@@ -78,7 +62,8 @@ public final class EndOfStakingPeriodUtils {
      * @param stakingNodeInfo the staking node info
      * @return the {@link NodeStake} object
      */
-    public static NodeStake fromStakingInfo(final long rewardRate, StakingNodeInfo stakingNodeInfo) {
+    public static NodeStake fromStakingInfo(final long rewardRate, @NonNull final StakingNodeInfo stakingNodeInfo) {
+        requireNonNull(stakingNodeInfo);
         return NodeStake.newBuilder()
                 .nodeId(stakingNodeInfo.nodeNumber())
                 .stake(stakingNodeInfo.stake())
@@ -96,9 +81,12 @@ public final class EndOfStakingPeriodUtils {
      * @param networkRewardsStore the store to copy values from
      * @return the new builder instance
      */
-    public static NetworkStakingRewards.Builder copyBuilderFrom(
-            final ReadableNetworkStakingRewardsStore networkRewardsStore) {
-        return NetworkStakingRewards.newBuilder()
+    public static NetworkStakingRewards.Builder asStakingRewardBuilder(
+            @NonNull final ReadableNetworkStakingRewardsStore networkRewardsStore) {
+        requireNonNull(networkRewardsStore);
+        return networkRewardsStore
+                .get()
+                .copyBuilder()
                 .pendingRewards(networkRewardsStore.pendingRewards())
                 .stakingRewardsActivated(networkRewardsStore.isStakingRewardsActivated())
                 .totalStakedRewardStart(networkRewardsStore.totalStakeRewardStart())
@@ -205,7 +193,7 @@ public final class EndOfStakingPeriodUtils {
      *                                in order to receive rewards
      * @return the calculated {@link RewardSumHistory}
      */
-    public static RewardSumHistory calculateRewardSumHistory(
+    public static RewardSumHistory computeExtendedRewardSumHistory(
             @NonNull final StakingNodeInfo currentInfo,
             final long perHbarRate,
             final long maxPerHbarRate,
@@ -241,7 +229,6 @@ public final class EndOfStakingPeriodUtils {
         }
         perHbarRateThisNode = Math.min(perHbarRateThisNode, maxPerHbarRate);
         newRewardSumHistory.set(0, newRewardSumHistory.getFirst() + perHbarRateThisNode);
-
         return new RewardSumHistory(newRewardSumHistory, perHbarRateThisNode);
     }
 
@@ -255,15 +242,21 @@ public final class EndOfStakingPeriodUtils {
      * current staking info. The new {@code stakeRewardStart} value is also computed
      *
      * @param stakingInfo the node's current staking info
+     * @param stakingConfig the staking configuration of the network
      * @return the calculated {@link StakeResult}
      */
     @NonNull
-    public static StakeResult computeNextStake(@NonNull final StakingNodeInfo stakingInfo) {
+    public static StakeResult computeNewStakes(
+            @NonNull final StakingNodeInfo stakingInfo, @NonNull final StakingConfig stakingConfig) {
+        requireNonNull(stakingInfo);
+        requireNonNull(stakingConfig);
         final var totalStake = stakingInfo.stakeToReward() + stakingInfo.stakeToNotReward();
         final long newStake;
-        if (totalStake > stakingInfo.maxStake()) {
-            newStake = stakingInfo.maxStake();
-        } else if (totalStake < stakingInfo.minStake()) {
+        final long effectiveMax = Math.min(stakingInfo.maxStake(), stakingConfig.maxStake());
+        final long effectiveMin = Math.min(effectiveMax, Math.max(stakingInfo.minStake(), stakingConfig.minStake()));
+        if (totalStake > effectiveMax) {
+            newStake = effectiveMax;
+        } else if (totalStake < effectiveMin) {
             newStake = 0;
         } else {
             newStake = totalStake;

@@ -1,23 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager.DEFAULT_STAKING_PERIOD_MINS;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -27,16 +17,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
+import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
 import java.time.Duration;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;
@@ -47,7 +46,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class NodeStakeUpdatesTest {
+public class NodeStakeUpdatesTest {
     private static final Instant CONSENSUS_TIME_1234567 = Instant.ofEpochSecond(1_234_5670L, 1357);
 
     @Mock
@@ -62,25 +61,35 @@ class NodeStakeUpdatesTest {
     @Mock
     private ReadableBlockRecordStore blockStore;
 
-    @Mock
+    @Mock(strictness = Mock.Strictness.LENIENT)
     private SavepointStackImpl stack;
 
-    private NodeStakeUpdates subject;
+    @Mock
+    private Dispatch dispatch;
+
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private WritableStates writableStates;
+
+    @Mock
+    private WritableKVState<EntityNumber, Node> nodesState;
+
+    @Mock
+    private WritableSingletonState<EntityCounts> entityCountsState;
+
+    @Mock
+    private WritableSingletonState<EntityNumber> entityIdState;
+
+    private StakePeriodChanges subject;
 
     @BeforeEach
     void setUp() {
         given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
 
-        subject = new NodeStakeUpdates(stakingPeriodCalculator, exchangeRateManager);
-    }
+        subject = new StakePeriodChanges(stakingPeriodCalculator, exchangeRateManager);
 
-    @SuppressWarnings("DataFlowIssue")
-    @Test
-    void nullArgConstructor() {
-        Assertions.assertThatThrownBy(() -> new NodeStakeUpdates(null, exchangeRateManager))
-                .isInstanceOf(NullPointerException.class);
-        Assertions.assertThatThrownBy(() -> new NodeStakeUpdates(stakingPeriodCalculator, null))
-                .isInstanceOf(NullPointerException.class);
+        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(entityCountsState);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)).willReturn(entityIdState);
     }
 
     @Test
@@ -90,12 +99,21 @@ class NodeStakeUpdatesTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void processUpdateCalledForGenesisTxn() {
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(blockStore.getLastBlockInfo())
+                .willReturn(BlockInfo.newBuilder()
+                        .consTimeOfLastHandledTxn(Timestamp.newBuilder().seconds(1_234_567L))
+                        .build());
+        given(context.consensusTime()).willReturn(CONSENSUS_TIME_1234567);
 
-        subject.process(stack, context, true);
+        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
 
-        verify(stakingPeriodCalculator).updateNodes(context, ExchangeRateSet.DEFAULT);
+        verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
     }
 
@@ -110,14 +128,15 @@ class NodeStakeUpdatesTest {
                                 .nanos(CONSENSUS_TIME_1234567.getNano()))
                         .build());
 
-        subject.process(stack, context, false);
+        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
 
         verifyNoInteractions(stakingPeriodCalculator);
         verifyNoInteractions(exchangeRateManager);
     }
 
     @Test
-    void processUpdateCalledForNextPeriod() {
+    @SuppressWarnings("unchecked")
+    void processUpdateCalledForNextPeriodWithRecordsStreamMode() {
         given(context.configuration()).willReturn(newPeriodMinsConfig());
         // Use any number of seconds that gets isNextPeriod(...) to return true
         final var currentConsensusTime = CONSENSUS_TIME_1234567.plusSeconds(500_000);
@@ -128,14 +147,16 @@ class NodeStakeUpdatesTest {
                                 .nanos(CONSENSUS_TIME_1234567.getNano()))
                         .build());
         given(context.consensusTime()).willReturn(currentConsensusTime);
+        given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
 
         // Pre-condition check
         Assertions.assertThat(
-                        NodeStakeUpdates.isNextStakingPeriod(currentConsensusTime, CONSENSUS_TIME_1234567, context))
+                        StakePeriodChanges.isNextStakingPeriod(currentConsensusTime, CONSENSUS_TIME_1234567, context))
                 .isTrue();
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
 
-        subject.process(stack, context, false);
+        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -145,6 +166,32 @@ class NodeStakeUpdatesTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void processUpdateCalledForNextPeriodWithBlocksStreamMode() {
+        given(context.configuration()).willReturn(newPeriodMinsConfig());
+        // Use any number of seconds that gets isNextPeriod(...) to return true
+        final var currentConsensusTime = CONSENSUS_TIME_1234567.plusSeconds(500_000);
+        given(context.consensusTime()).willReturn(currentConsensusTime);
+
+        // Pre-condition check
+        Assertions.assertThat(
+                        StakePeriodChanges.isNextStakingPeriod(currentConsensusTime, CONSENSUS_TIME_1234567, context))
+                .isTrue();
+        given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+
+        subject.process(dispatch, stack, context, BLOCKS, CONSENSUS_TIME_1234567);
+
+        verify(stakingPeriodCalculator)
+                .updateNodes(
+                        argThat(stakingContext -> currentConsensusTime.equals(stakingContext.consensusTime())),
+                        eq(ExchangeRateSet.DEFAULT));
+        verify(exchangeRateManager).updateMidnightRates(stack);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
     void processUpdateExceptionIsCaught() {
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         doThrow(new RuntimeException("test exception"))
@@ -156,9 +203,12 @@ class NodeStakeUpdatesTest {
                         .build());
         given(context.consensusTime()).willReturn(CONSENSUS_TIME_1234567.plus(Duration.ofDays(2)));
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
+        given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
 
-        Assertions.assertThatNoException().isThrownBy(() -> subject.process(stack, context, false));
-        verify(stakingPeriodCalculator).updateNodes(context, ExchangeRateSet.DEFAULT);
+        Assertions.assertThatNoException()
+                .isThrownBy(() -> subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH));
+        verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
     }
 
@@ -168,7 +218,7 @@ class NodeStakeUpdatesTest {
 
         final var earlierNowConsensus =
                 CONSENSUS_TIME_1234567.minusSeconds(Duration.ofDays(1).toSeconds());
-        final var result = NodeStakeUpdates.isNextStakingPeriod(earlierNowConsensus, CONSENSUS_TIME_1234567, context);
+        final var result = StakePeriodChanges.isNextStakingPeriod(earlierNowConsensus, CONSENSUS_TIME_1234567, context);
 
         Assertions.assertThat(result).isFalse();
     }
@@ -178,7 +228,7 @@ class NodeStakeUpdatesTest {
         given(context.configuration()).willReturn(newPeriodMinsConfig());
 
         final var result =
-                NodeStakeUpdates.isNextStakingPeriod(CONSENSUS_TIME_1234567, CONSENSUS_TIME_1234567, context);
+                StakePeriodChanges.isNextStakingPeriod(CONSENSUS_TIME_1234567, CONSENSUS_TIME_1234567, context);
 
         Assertions.assertThat(result).isFalse();
     }
@@ -189,7 +239,7 @@ class NodeStakeUpdatesTest {
 
         final var laterNowConsensus =
                 CONSENSUS_TIME_1234567.plusSeconds(Duration.ofDays(1).toSeconds());
-        final var result = NodeStakeUpdates.isNextStakingPeriod(laterNowConsensus, CONSENSUS_TIME_1234567, context);
+        final var result = StakePeriodChanges.isNextStakingPeriod(laterNowConsensus, CONSENSUS_TIME_1234567, context);
 
         Assertions.assertThat(result).isTrue();
     }
@@ -203,7 +253,7 @@ class NodeStakeUpdatesTest {
                 // 1000 min * 60 seconds/min
                 1000 * 60);
         final var result =
-                NodeStakeUpdates.isNextStakingPeriod(earlierStakingPeriodTime, CONSENSUS_TIME_1234567, context);
+                StakePeriodChanges.isNextStakingPeriod(earlierStakingPeriodTime, CONSENSUS_TIME_1234567, context);
         Assertions.assertThat(result).isFalse();
     }
 
@@ -216,7 +266,7 @@ class NodeStakeUpdatesTest {
                 // 1000 min * 60 seconds/min
                 1000 * 60);
         final var result =
-                NodeStakeUpdates.isNextStakingPeriod(laterStakingPeriodTime, CONSENSUS_TIME_1234567, context);
+                StakePeriodChanges.isNextStakingPeriod(laterStakingPeriodTime, CONSENSUS_TIME_1234567, context);
         Assertions.assertThat(result).isTrue();
     }
 
@@ -225,9 +275,14 @@ class NodeStakeUpdatesTest {
     }
 
     private Configuration newPeriodMinsConfig(final long periodMins) {
+        return newConfig(periodMins, false);
+    }
+
+    private Configuration newConfig(final long periodMins, final boolean keyCandidateRoster) {
         return HederaTestConfigBuilder.create()
                 .withConfigDataType(StakingConfig.class)
                 .withValue("staking.periodMins", periodMins)
+                .withValue("tss.keyCandidateRoster", keyCandidateRoster)
                 .getOrCreateConfig();
     }
 }

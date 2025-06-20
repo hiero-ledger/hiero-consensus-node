@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -24,10 +9,6 @@ import com.hedera.hapi.streams.SignatureObject;
 import com.hedera.hapi.streams.SignatureType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.stream.Signer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -39,6 +20,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signer;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Simple stateless class with static methods to write signature files. It cleanly separates out the code for generating
@@ -128,7 +113,7 @@ final class SignatureWriterV6 {
      * @return Signature object
      */
     private static SignatureObject generateSignatureObject(@NonNull final Signer signer, @NonNull final Bytes hash) {
-        final Bytes signature = Bytes.wrap(signer.sign(hash.toByteArray()).getSignatureBytes());
+        final Bytes signature = signer.sign(hash.toByteArray()).getBytes();
         return SignatureObject.newBuilder()
                 .type(SignatureType.SHA_384_WITH_RSA)
                 .length((int) signature.length())

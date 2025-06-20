@@ -1,0 +1,34 @@
+/**
+ * # hinTS Key Publication Transaction
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.hints;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.services.auxiliary.hints.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.hints">>> This comment is special code for setting PBJ Compiler java package
+
+option java_multiple_files = true;
+
+/**
+ * A transaction body to publish a node's Common Reference String (CRS) to the network. This is used
+ * when node wants to update to reach the final CRS for network to use the hinTS protocol
+ */
+message CrsPublicationTransactionBody {
+    /**
+     * The party's generated random CRS.
+     */
+    bytes new_crs = 1;
+    /**
+     * The party's proof of the CRS update.
+     */
+    bytes proof = 2;
+}

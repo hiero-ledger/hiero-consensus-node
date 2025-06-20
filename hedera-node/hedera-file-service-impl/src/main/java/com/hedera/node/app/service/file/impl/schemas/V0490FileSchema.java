@@ -1,31 +1,13 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.schemas;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.fromString;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.swirlds.common.utility.CommonUtils.hex;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterator.DISTINCT;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.FeeComponents;
 import com.hedera.hapi.node.base.FeeData;
@@ -42,21 +24,18 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TransactionFeeSchedule;
-import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
-import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.FilesConfig;
@@ -64,14 +43,14 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.Schema;
-import com.swirlds.state.spi.StateDefinition;
-import com.swirlds.state.spi.info.NetworkInfo;
+import com.swirlds.state.lifecycle.MigrationContext;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -79,16 +58,15 @@ import java.security.PublicKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.Spliterators;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.StreamSupport;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -104,17 +82,24 @@ import org.apache.logging.log4j.Logger;
 public class V0490FileSchema extends Schema {
     private static final Logger logger = LogManager.getLogger(V0490FileSchema.class);
 
-    private static final AtomicInteger NEXT_DISPATCH_NONCE = new AtomicInteger(1);
-
     public static final String BLOBS_KEY = "FILES";
-    public static final String UPGRADE_FILE_KEY = "UPGRADE_FILE";
-    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[%s]";
+    public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
 
     /**
-     * A hint to the database system of the maximum number of files we will store. This MUST NOT BE CHANGED. If it is
-     * changed, then the database has to be rebuilt.
+     * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
+     * not found.
      */
-    private static final int MAX_FILES_HINT = 50_000_000;
+    private static final String DEFAULT_THROTTLES_RESOURCE = "genesis/throttles.json";
+
+    /**
+     * A hint to the database system of the expected maximum number of files we will store. This hint
+     * is used by the database to optimize its indices. If more than this number of files are actually
+     * stored, the database can handle that just fine.
+     *
+     * <p>If this number is changed, it will not have any effect on existing networks. Only new
+     * deployments will use the updated hint.
+     */
+    private static final int MAX_FILES_HINT = 50_000;
     /**
      * The version of the schema.
      */
@@ -144,12 +129,8 @@ public class V0490FileSchema extends Schema {
 
         // initializing the files 150 -159
         for (var updateNum = firstUpdateNum; updateNum <= lastUpdateNum; updateNum++) {
-            final var fileId = FileID.newBuilder()
-                    .shardNum(hederaConfig.shard())
-                    .realmNum(hederaConfig.realm())
-                    .fileNum(updateNum)
-                    .build();
-            definitions.add(StateDefinition.queue(UPGRADE_DATA_KEY.formatted(fileId), ProtoBytes.PROTOBUF));
+            final var stateKey = UPGRADE_DATA_KEY.formatted(hederaConfig.shard(), hederaConfig.realm(), updateNum);
+            definitions.add(StateDefinition.queue(stateKey, ProtoBytes.PROTOBUF));
         }
 
         return definitions;
@@ -163,9 +144,9 @@ public class V0490FileSchema extends Schema {
     // ================================================================================================================
     // Creates and loads the Address Book into state
 
-    public void createGenesisAddressBookAndNodeDetails(@NonNull final SystemContext systemContext) {
+    public void createGenesisAddressBookAndNodeDetails(
+            @NonNull final SystemContext systemContext, @NonNull final ReadableNodeStore nodeStore) {
         requireNonNull(systemContext);
-        final var networkInfo = systemContext.networkInfo();
         final var filesConfig = systemContext.configuration().getConfigData(FilesConfig.class);
         final var bootstrapConfig = systemContext.configuration().getConfigData(BootstrapConfig.class);
 
@@ -179,9 +160,8 @@ public class V0490FileSchema extends Schema {
         // Create the address book file
         final var addressBookFileNum = filesConfig.addressBook();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
-                                .contents(genesisAddressBook(networkInfo))
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
+                                .contents(nodeStoreAddressBook(nodeStore))
                                 .keys(masterKey)
                                 .expirationTime(maxLifetimeExpiry(systemContext))
                                 .build())
@@ -190,49 +170,13 @@ public class V0490FileSchema extends Schema {
 
         final var nodeInfoFileNum = filesConfig.nodeDetails();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
-                                .contents(genesisNodeDetails(networkInfo))
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
+                                .contents(nodeStoreNodeDetails(nodeStore))
                                 .keys(masterKey)
                                 .expirationTime(maxLifetimeExpiry(systemContext))
                                 .build())
                         .build(),
                 nodeInfoFileNum);
-    }
-
-    public Bytes genesisAddressBook(@NonNull final NetworkInfo networkInfo) {
-        final var nodeAddresses = new ArrayList<NodeAddress>();
-        for (final var nodeInfo : networkInfo.addressBook()) {
-            nodeAddresses.add(NodeAddress.newBuilder()
-                    .nodeId(nodeInfo.nodeId())
-                    .rsaPubKey(nodeInfo.hexEncodedPublicKey())
-                    .nodeAccountId(nodeInfo.accountId()) // don't use memo as it is deprecated.
-                    .serviceEndpoint(
-                            // we really don't have grpc proxy name and port for now. Temporary values are set.
-                            // After Dynamic Address Book Phase 2 release, we will have the correct values.Then update
-                            // here.
-                            V053AddressBookSchema.endpointFor("1.0.0.0", 1))
-                    .build());
-        }
-        return NodeAddressBook.PROTOBUF.toBytes(
-                NodeAddressBook.newBuilder().nodeAddress(nodeAddresses).build());
-    }
-
-    public Bytes genesisNodeDetails(@NonNull final NetworkInfo networkInfo) {
-        final var nodeDetails = new ArrayList<NodeAddress>();
-        for (final var nodeInfo : networkInfo.addressBook()) {
-            nodeDetails.add(NodeAddress.newBuilder()
-                    .stake(nodeInfo.stake())
-                    .nodeAccountId(nodeInfo.accountId())
-                    .nodeId(nodeInfo.nodeId())
-                    .rsaPubKey(nodeInfo.hexEncodedPublicKey())
-                    // we really don't have grpc proxy name and port for now.Temporary values are set.
-                    // After Dynamic Address Book Phase 2 release, we will have the correct values. Then update here.
-                    .serviceEndpoint(V053AddressBookSchema.endpointFor("1.0.0.0", 1))
-                    .build());
-        }
-        return NodeAddressBook.PROTOBUF.toBytes(
-                NodeAddressBook.newBuilder().nodeAddress(nodeDetails).build());
     }
 
     public void updateAddressBookAndNodeDetailsAfterFreeze(
@@ -252,42 +196,29 @@ public class V0490FileSchema extends Schema {
      * Given a {@link SystemContext}, dispatches a synthetic file update transaction for the given file ID and contents.
      *
      * @param systemContext the system context
-     * @param fileId the file ID
-     * @param contents the contents of the file
+     * @param fileId        the file ID
+     * @param contents      the contents of the file
      */
     public static void dispatchSynthFileUpdate(
             @NonNull final SystemContext systemContext, @NonNull final FileID fileId, @NonNull final Bytes contents) {
-        final var config = systemContext.configuration();
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
-        final var sysAdminId = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(config.getConfigData(AccountsConfig.class).systemAdmin())
-                .build();
-        systemContext.dispatchUpdate(TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(sysAdminId)
-                        .transactionValidStart(asTimestamp(systemContext.now()))
-                        .nonce(NEXT_DISPATCH_NONCE.getAndIncrement())
-                        .build())
-                .fileUpdate(FileUpdateTransactionBody.newBuilder()
-                        .fileID(fileId)
-                        .contents(contents)
-                        .expirationTime(maxLifetimeExpiry(systemContext))
-                        .build())
-                .build());
+        systemContext.dispatchAdmin(b -> b.fileUpdate(FileUpdateTransactionBody.newBuilder()
+                .fileID(fileId)
+                .contents(contents)
+                .expirationTime(maxLifetimeExpiry(systemContext))
+                .build()));
     }
 
-    private Bytes nodeStoreNodeDetails(@NonNull final ReadableNodeStore nodeStore) {
+    public Bytes nodeStoreNodeDetails(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeDetails = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        nodeStore.keys().stream()
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
+                .sorted(Comparator.comparingLong(Node::nodeId))
                 .forEach(node -> nodeDetails.add(NodeAddress.newBuilder()
                         .nodeId(node.nodeId())
                         .nodeAccountId(node.accountId())
-                        .nodeCertHash(node.grpcCertificateHash())
+                        .nodeCertHash(getHexStringBytesFromBytes(node.grpcCertificateHash()))
                         .description(node.description())
                         .stake(node.weight())
                         .rsaPubKey(readableKey(getPublicKeyFromCertBytes(
@@ -298,15 +229,21 @@ public class V0490FileSchema extends Schema {
                 NodeAddressBook.newBuilder().nodeAddress(nodeDetails).build());
     }
 
-    private Bytes nodeStoreAddressBook(@NonNull final ReadableNodeStore nodeStore) {
+    private Bytes getHexStringBytesFromBytes(final Bytes rawBytes) {
+        final String hexString = HexFormat.of().formatHex(rawBytes.toByteArray());
+        return Bytes.wrap(Normalizer.normalize(hexString, Normalizer.Form.NFD).getBytes(UTF_8));
+    }
+
+    public Bytes nodeStoreAddressBook(@NonNull final ReadableNodeStore nodeStore) {
         final var nodeAddresses = new ArrayList<NodeAddress>();
-        StreamSupport.stream(Spliterators.spliterator(nodeStore.keys(), nodeStore.sizeOfState(), DISTINCT), false)
+        nodeStore.keys().stream()
                 .mapToLong(EntityNumber::number)
                 .mapToObj(nodeStore::get)
                 .filter(node -> node != null && !node.deleted())
+                .sorted(Comparator.comparingLong(Node::nodeId))
                 .forEach(node -> nodeAddresses.add(NodeAddress.newBuilder()
                         .nodeId(node.nodeId())
-                        .nodeCertHash(node.grpcCertificateHash())
+                        .nodeCertHash(getHexStringBytesFromBytes(node.grpcCertificateHash()))
                         .nodeAccountId(node.accountId())
                         .serviceEndpoint(node.serviceEndpoint())
                         .build()));
@@ -324,8 +261,7 @@ public class V0490FileSchema extends Schema {
         final var masterKey =
                 Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
                                 .contents(genesisFeeSchedules(config))
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
@@ -342,7 +278,7 @@ public class V0490FileSchema extends Schema {
      */
     public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+        try (final var in = loadResourceInPackage(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
@@ -448,8 +384,7 @@ public class V0490FileSchema extends Schema {
                 .ed25519(config.getConfigData(BootstrapConfig.class).genesisPublicKey())
                 .build();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
                                 .contents(genesisExchangeRates(config))
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
@@ -492,8 +427,7 @@ public class V0490FileSchema extends Schema {
         final var masterKey =
                 Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
                                 .contents(genesisNetworkProperties(config))
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
@@ -522,8 +456,7 @@ public class V0490FileSchema extends Schema {
         final var masterKey =
                 Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
                                 .contents(genesisHapiPermissions(config))
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
@@ -551,7 +484,7 @@ public class V0490FileSchema extends Schema {
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (apiPermissionsContent == null) {
             final var resourceName = "api-permission.properties";
-            try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+            try (final var in = loadResourceInRoot(resourceName)) {
                 apiPermissionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("API Permissions loaded from classpath resource {}", resourceName);
             } catch (IOException | NullPointerException e) {
@@ -596,8 +529,7 @@ public class V0490FileSchema extends Schema {
         final var masterKey =
                 Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
         systemContext.dispatchCreation(
-                TransactionBody.newBuilder()
-                        .fileCreate(FileCreateTransactionBody.newBuilder()
+                b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
                                 .contents(genesisThrottleDefinitions(config))
                                 .keys(KeyList.newBuilder().keys(masterKey))
                                 .expirationTime(maxLifetimeExpiry(systemContext))
@@ -625,9 +557,11 @@ public class V0490FileSchema extends Schema {
      * @return the throttle definitions proto as a byte array
      */
     private static byte[] loadBootstrapThrottleDefinitions(@NonNull BootstrapConfig bootstrapConfig) {
-        // Get the path to the throttles permissions file
+        // Get the path to the throttles resource
         final var throttleDefinitionsResource = bootstrapConfig.throttleDefsJsonResource();
-        final var pathToThrottleDefinitions = Path.of(throttleDefinitionsResource);
+        // Get the path to the throttles file
+        final var throttleDefinitionsFile = bootstrapConfig.throttleDefsJsonFile();
+        final var pathToThrottleDefinitions = Path.of(throttleDefinitionsFile);
 
         // If the file exists, load from there
         String throttleDefinitionsContent = null;
@@ -644,13 +578,29 @@ public class V0490FileSchema extends Schema {
 
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (throttleDefinitionsContent == null) {
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(throttleDefinitionsResource)) {
+            try (final var in = loadResourceInPackage(throttleDefinitionsResource)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("Throttle definitions loaded from classpath resource {}", throttleDefinitionsResource);
             } catch (IOException | NullPointerException e) {
-                logger.fatal("Throttle definitions could not be loaded from disk or from classpath");
-                throw new IllegalStateException("Throttle definitions could not be loaded from classpath", e);
+                logger.warn(
+                        "Throttle definitions could not be loaded from classpath resource {}, using default fallback resource",
+                        throttleDefinitionsResource);
+            }
+        }
+
+        if (throttleDefinitionsContent == null) {
+            // Load the default throttle definitions resource
+            try (final var in = loadResourceInPackage(DEFAULT_THROTTLES_RESOURCE)) {
+                throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
+                logger.info(
+                        "Throttle definitions loaded from default fallback classpath resource {}",
+                        DEFAULT_THROTTLES_RESOURCE);
+            } catch (IOException | NullPointerException e) {
+                logger.fatal(
+                        "Throttle definitions could not be loaded from default fallback classpath resource {}",
+                        DEFAULT_THROTTLES_RESOURCE);
+                throw new IllegalArgumentException(
+                        "Throttle definitions could not be loaded from default fallback classpath resource", e);
             }
         }
 
@@ -689,8 +639,7 @@ public class V0490FileSchema extends Schema {
         // initializing the files 150 -159
         for (var updateNum = updateFilesRange.left(); updateNum <= updateFilesRange.right(); updateNum++) {
             systemContext.dispatchCreation(
-                    TransactionBody.newBuilder()
-                            .fileCreate(FileCreateTransactionBody.newBuilder()
+                    b -> b.fileCreate(FileCreateTransactionBody.newBuilder()
                                     .contents(Bytes.EMPTY)
                                     .keys(KeyList.newBuilder().keys(masterKey))
                                     .expirationTime(maxLifetimeExpiry(systemContext))
@@ -736,5 +685,19 @@ public class V0490FileSchema extends Schema {
                 .shardNum(hederaConfig.shard())
                 .fileNum(fileNum)
                 .build();
+    }
+
+    /**
+     * Loads a resource from within a package. The package must be within the loading Module or exported/opened.
+     */
+    private static InputStream loadResourceInPackage(String resourcePath) {
+        return V0490FileSchema.class.getResourceAsStream("/" + resourcePath);
+    }
+
+    /**
+     * Loads a resource from the root of any Jar file (not inside a package).
+     */
+    private static InputStream loadResourceInRoot(String resourceName) {
+        return Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName);
     }
 }

@@ -1,39 +1,25 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Metrics for ISS events.
  */
 public class IssMetrics {
 
-    private final AddressBook addressBook;
+    private final Roster roster;
 
     /**
      * The current number of nodes experiencing an ISS.
@@ -109,9 +95,9 @@ public class IssMetrics {
      * @throws IllegalArgumentException
      * 		if {@code metrics} is {@code null}
      */
-    public IssMetrics(@NonNull final Metrics metrics, @NonNull final AddressBook addressBook) {
+    public IssMetrics(@NonNull final Metrics metrics, @NonNull final Roster roster) {
         Objects.requireNonNull(metrics, "metrics must not be null");
-        this.addressBook = Objects.requireNonNull(addressBook, "addressBook must not be null");
+        this.roster = Objects.requireNonNull(roster, "roster must not be null");
 
         issCountGauge = metrics.getOrCreate(new IntegerGauge.Config(Metrics.INTERNAL_CATEGORY, "issCount")
                 .withDescription("the number of nodes that currently disagree with the consensus hash"));
@@ -119,8 +105,8 @@ public class IssMetrics {
         issWeightGage = metrics.getOrCreate(new LongGauge.Config(Metrics.INTERNAL_CATEGORY, "issWeight")
                 .withDescription("the amount of weight tied up by ISS events"));
 
-        for (final Address address : addressBook) {
-            issDataByNode.put(address.getNodeId(), new IssStatus());
+        for (final RosterEntry node : roster.rosterEntries()) {
+            issDataByNode.put(NodeId.of(node.nodeId()), new IssStatus());
         }
     }
 
@@ -176,7 +162,7 @@ public class IssMetrics {
         issStatus.setRound(round);
 
         if (issStatus.hasIss() != hasIss) {
-            final long weight = addressBook.getAddress(nodeId).getWeight();
+            final long weight = RosterUtils.getRosterEntry(roster, nodeId.id()).weight();
             if (hasIss) {
                 issCount++;
                 issWeight += weight;
@@ -208,8 +194,8 @@ public class IssMetrics {
             status.setRound(round);
         }
 
-        issCount = addressBook.getSize();
-        issWeight = addressBook.getTotalWeight();
+        issCount = roster.rosterEntries().size();
+        issWeight = RosterUtils.computeTotalWeight(roster);
 
         issCountGauge.set(issCount);
         issWeightGage.set(issWeight);

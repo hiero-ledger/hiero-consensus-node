@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.gas;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -48,9 +33,14 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  */
 @Singleton
 public class CustomGasCharging {
+    /** One HBAR denominated in tinybars */
     public static final long ONE_HBAR_IN_TINYBARS = 100_000_000L;
+
     private final GasCalculator gasCalculator;
 
+    /**
+     * @param gasCalculator the gas calculator to use
+     */
     @Inject
     public CustomGasCharging(@NonNull final GasCalculator gasCalculator) {
         this.gasCalculator = gasCalculator;
@@ -84,12 +74,12 @@ public class CustomGasCharging {
         final var refund = unusedGas * context.gasPrice();
         if (allowanceUsed > 0) {
             requireNonNull(relayer);
-            worldUpdater.refundFee(relayer.hederaId(), Math.min(allowanceUsed, refund));
+            worldUpdater.refundGasFee(relayer.hederaId(), Math.min(allowanceUsed, refund));
             if (refund > allowanceUsed) {
-                worldUpdater.refundFee(sender.hederaId(), refund - allowanceUsed);
+                worldUpdater.refundGasFee(sender.hederaId(), refund - allowanceUsed);
             }
         } else {
-            worldUpdater.refundFee(sender.hederaId(), refund);
+            worldUpdater.refundGasFee(sender.hederaId(), refund);
         }
     }
 
@@ -167,10 +157,10 @@ public class CustomGasCharging {
 
         if (transaction.isEthereumTransaction()) {
             final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
-            worldUpdater.collectFee(transaction.relayerId(), fee);
+            worldUpdater.collectGasFee(transaction.relayerId(), fee, false);
         } else {
             final var fee = feeForAborted(sender, context, worldUpdater, intrinsicGas);
-            worldUpdater.collectFee(sender, fee);
+            worldUpdater.collectGasFee(sender, fee, false);
         }
     }
 
@@ -202,7 +192,7 @@ public class CustomGasCharging {
         validateTrue(
                 sender.getBalance().toLong() >= transaction.upfrontCostGiven(context.gasPrice()),
                 INSUFFICIENT_PAYER_BALANCE);
-        worldUpdater.collectFee(sender.hederaId(), transaction.gasCostGiven(context.gasPrice()));
+        worldUpdater.collectGasFee(sender.hederaId(), transaction.gasCostGiven(context.gasPrice()), false);
     }
 
     private long chargeWithRelayer(
@@ -228,11 +218,16 @@ public class CustomGasCharging {
         validateTrue(transaction.maxGasAllowance() >= relayerGasCost, INSUFFICIENT_TX_FEE);
         validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
         validateTrue(sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
-        worldUpdater.collectFee(relayer.hederaId(), relayerGasCost);
-        worldUpdater.collectFee(sender.hederaId(), senderGasCost);
+        worldUpdater.collectGasFee(relayer.hederaId(), relayerGasCost, false);
+        worldUpdater.collectGasFee(sender.hederaId(), senderGasCost, true);
         return relayerGasCost;
     }
 
+    /**
+     * @param gasCharge gas to be charged
+     * @param gasPrice the gas price
+     * @return return th cost of the gas
+     */
     public long gasCostGiven(final long gasCharge, final long gasPrice) {
         try {
             return Math.multiplyExact(gasCharge, gasPrice);

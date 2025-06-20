@@ -3,7 +3,7 @@
 ## WIP
 
 The address book management pipeline is currently a work in progress. 
-This document reflects the address book pipeline as we want it to be, not necessarily as it is in `develop` today.
+This document reflects the address book pipeline as we want it to be, not necessarily as it is in `main` today.
 
 ## Summary
 

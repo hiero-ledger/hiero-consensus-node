@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
@@ -38,6 +23,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_RE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.TWO_STORAGE_ACCESSES;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.WEI_NETWORK_GAS_PRICE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenConfigInFrame;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.givenDefaultConfigInFrame;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -51,7 +37,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -171,9 +156,16 @@ class HederaEvmTransactionResultTest {
         final var createdIds = List.of(CALLED_CONTRACT_ID, CHILD_CONTRACT_ID);
         given(rootProxyWorldUpdater.getCreatedContractIds()).willReturn(createdIds);
         given(rootProxyWorldUpdater.getUpdatedContractNonces()).willReturn(NONCES);
+        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = HederaEvmTransactionResult.successFrom(
-                GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
+                GAS_LIMIT / 2,
+                SENDER_ID,
+                CALLED_CONTRACT_ID,
+                CALLED_CONTRACT_EVM_ADDRESS,
+                frame,
+                tracer,
+                entityIdFactory);
         final var protoResult = result.asProtoResultOf(rootProxyWorldUpdater);
         assertEquals(GAS_LIMIT / 2, protoResult.gasUsed());
         assertEquals(bloomForAll(BESU_LOGS), protoResult.bloom());
@@ -181,7 +173,7 @@ class HederaEvmTransactionResultTest {
         assertEquals("", protoResult.errorMessage());
         assertNull(protoResult.senderId());
         assertEquals(CALLED_CONTRACT_ID, protoResult.contractID());
-        assertEquals(pbjLogsFrom(BESU_LOGS), protoResult.logInfo());
+        assertEquals(pbjLogsFrom(entityIdFactory, BESU_LOGS), protoResult.logInfo());
         assertEquals(createdIds, protoResult.createdContractIDs());
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
@@ -204,9 +196,16 @@ class HederaEvmTransactionResultTest {
         final var createdIds = List.of(CALLED_CONTRACT_ID, CHILD_CONTRACT_ID);
         given(rootProxyWorldUpdater.getCreatedContractIds()).willReturn(createdIds);
         given(rootProxyWorldUpdater.getUpdatedContractNonces()).willReturn(NONCES);
+        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = HederaEvmTransactionResult.successFrom(
-                GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
+                GAS_LIMIT / 2,
+                SENDER_ID,
+                CALLED_CONTRACT_ID,
+                CALLED_CONTRACT_EVM_ADDRESS,
+                frame,
+                tracer,
+                entityIdFactory);
         final var protoResult = result.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater);
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.gasLimit(), protoResult.gas());
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.getAmount(), protoResult.amount());
@@ -219,7 +218,7 @@ class HederaEvmTransactionResultTest {
         assertEquals(OUTPUT_DATA, protoResult.contractCallResult());
         assertEquals("", protoResult.errorMessage());
         assertEquals(CALLED_CONTRACT_ID, protoResult.contractID());
-        assertEquals(pbjLogsFrom(BESU_LOGS), protoResult.logInfo());
+        assertEquals(pbjLogsFrom(entityIdFactory, BESU_LOGS), protoResult.logInfo());
         assertEquals(createdIds, protoResult.createdContractIDs());
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
@@ -248,7 +247,13 @@ class HederaEvmTransactionResultTest {
         given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
 
         final var result = HederaEvmTransactionResult.successFrom(
-                GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
+                GAS_LIMIT / 2,
+                SENDER_ID,
+                CALLED_CONTRACT_ID,
+                CALLED_CONTRACT_EVM_ADDRESS,
+                frame,
+                tracer,
+                entityIdFactory);
 
         assertNull(result.stateChanges());
     }
@@ -256,21 +261,27 @@ class HederaEvmTransactionResultTest {
     @Test
     void QueryResultOnSuccess() {
         givenFrameWithDefaultConfigNoAccessTracker();
-        given(tracer.contractActions()).willReturn(new ContractActions(List.of()));
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);
         given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
+        given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var result = HederaEvmTransactionResult.successFrom(
-                GAS_LIMIT / 2, SENDER_ID, CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, tracer);
-        final var queryResult = result.asQueryResult();
+                GAS_LIMIT / 2,
+                SENDER_ID,
+                CALLED_CONTRACT_ID,
+                CALLED_CONTRACT_EVM_ADDRESS,
+                frame,
+                tracer,
+                entityIdFactory);
+        final var queryResult = result.asQueryResult(proxyWorldUpdater);
         assertEquals(GAS_LIMIT / 2, queryResult.gasUsed());
         assertEquals(bloomForAll(BESU_LOGS), queryResult.bloom());
         assertEquals(OUTPUT_DATA, queryResult.contractCallResult());
         assertEquals("", queryResult.errorMessage());
         assertNull(queryResult.senderId());
         assertEquals(CALLED_CONTRACT_ID, queryResult.contractID());
-        assertEquals(pbjLogsFrom(BESU_LOGS), queryResult.logInfo());
+        assertEquals(pbjLogsFrom(entityIdFactory, BESU_LOGS), queryResult.logInfo());
     }
 
     @Test
@@ -280,7 +291,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.INVALID_OPERATION));
 
         final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
-        final var protoResult = result.asQueryResult();
+        final var protoResult = result.asQueryResult(proxyWorldUpdater);
         assertEquals(ExceptionalHaltReason.INVALID_OPERATION.toString(), protoResult.errorMessage());
     }
 
@@ -291,7 +302,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getRevertReason()).willReturn(Optional.of(SOME_REVERT_REASON));
 
         final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
-        final var protoResult = result.asQueryResult();
+        final var protoResult = result.asQueryResult(proxyWorldUpdater);
         assertEquals(SOME_REVERT_REASON.toString(), protoResult.errorMessage());
     }
 

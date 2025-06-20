@@ -1,42 +1,31 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.assertions;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.CryptoGetInfoResponse.AccountInfo;
+import static java.time.zone.ZoneRulesProvider.registerProvider;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Key;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo> {
@@ -81,13 +70,37 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
         return this;
     }
 
+    public AccountInfoAsserts withShard(int shard) {
+        registerProvider((spec, o) ->
+                assertEquals(shard, ((AccountInfo) o).getAccountID().getShardNum(), "Bad shard!"));
+        return this;
+    }
+
+    public AccountInfoAsserts withRealm(long realm) {
+        registerProvider((spec, o) ->
+                assertEquals(realm, ((AccountInfo) o).getAccountID().getRealmNum(), "Bad realm!"));
+        return this;
+    }
+
     public AccountInfoAsserts accountId(String account) {
         registerProvider((spec, o) -> assertEquals(
                 spec.registry().getAccountID(account), ((AccountInfo) o).getAccountID(), "Bad account Id!"));
         return this;
     }
 
-    public AccountInfoAsserts stakedAccountId(String idLiteral) {
+    public AccountInfoAsserts stakedAccountId(String acctNum) {
+        return stakedAccountId(Long.parseLong(acctNum));
+    }
+
+    public AccountInfoAsserts stakedAccountId(long acctNum) {
+        registerProvider((spec, o) -> assertEquals(
+                asAccount(spec.shard(), spec.realm(), acctNum),
+                ((AccountInfo) o).getStakingInfo().getStakedAccountId(),
+                "Bad stakedAccountId id!"));
+        return this;
+    }
+
+    public AccountInfoAsserts stakedAccountIdWithLiteral(String idLiteral) {
         registerProvider((spec, o) -> assertEquals(
                 HapiPropertySource.asAccount(idLiteral),
                 ((AccountInfo) o).getStakingInfo().getStakedAccountId(),
@@ -229,6 +242,16 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
         return this;
     }
 
+    /**
+     * Asserts that the account has the given EVM address.
+     * @param evmAddress the EVM address
+     * @return this
+     */
+    public AccountInfoAsserts evmAddress(@NonNull final Address evmAddress) {
+        requireNonNull(evmAddress);
+        return evmAddress(ByteString.copyFrom(explicitFromHeadlong(evmAddress)));
+    }
+
     public AccountInfoAsserts noAlias() {
         registerProvider((spec, o) -> assertTrue(((AccountInfo) o).getAlias().isEmpty(), BAD_ALIAS));
         return this;
@@ -246,6 +269,21 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
     public AccountInfoAsserts memo(String memo) {
         registerProvider((spec, o) -> assertEquals(memo, ((AccountInfo) o).getMemo(), "Bad memo!"));
         return this;
+    }
+
+    public static Function<HapiSpec, Function<Long, Optional<String>>> lessThan(final long expected) {
+        return spec -> actual -> {
+            if (actual == null) {
+                return Optional.of(
+                        String.format("Expected non-null numeric value less than <%d>, was <null>!", expected));
+            }
+
+            final var isLessThanExpected = actual < expected;
+
+            final var msg =
+                    isLessThanExpected ? null : String.format("Expected <%d> to be less than <%d>!", actual, expected);
+            return Optional.ofNullable(msg);
+        };
     }
 
     public AccountInfoAsserts balance(Function<HapiSpec, Function<Long, Optional<String>>> dynamicCondition) {

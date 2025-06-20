@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.util;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -62,15 +47,15 @@ public class AirdropHandlerHelper {
      * @param accountStore the account store to look up aliases in
      * @param airdropIds the list of pending airdrop ids to standardize
      * @param knownExtantIdTypes the set of id types that are known to exist in the system
-     * @return a list of standardized pending airdrop ids
+     * @return a set of standardized pending airdrop ids
      * @throws HandleException with INVALID_PENDING_AIRDROP_ID if any of the pending airdrop ids are invalid
      */
-    public static List<PendingAirdropId> standardizeAirdropIds(
+    public static Set<PendingAirdropId> standardizeAirdropIds(
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ReadableAirdropStore airdropStore,
             @NonNull final List<PendingAirdropId> airdropIds,
             @NonNull final Set<IdType> knownExtantIdTypes) {
-        final List<PendingAirdropId> standardAirdropIds = new ArrayList<>();
+        final Set<PendingAirdropId> standardAirdropIds = new LinkedHashSet<>();
         for (final var airdropId : airdropIds) {
             final var sender = knownExtantIdTypes.contains(IdType.SENDER)
                     ? requireNonNull(accountStore.getAliasedAccountById(airdropId.senderIdOrThrow()))
@@ -87,6 +72,7 @@ public class AirdropHandlerHelper {
                     .receiverId(receiver.accountIdOrThrow())
                     .build();
             validateTrue(airdropStore.exists(validatedId), INVALID_PENDING_AIRDROP_ID);
+            validateFalse(standardAirdropIds.contains(validatedId), PENDING_AIRDROP_ID_REPEATED);
             standardAirdropIds.add(validatedId);
         }
         final var uniqueAirdropIds = Set.copyOf(standardAirdropIds);

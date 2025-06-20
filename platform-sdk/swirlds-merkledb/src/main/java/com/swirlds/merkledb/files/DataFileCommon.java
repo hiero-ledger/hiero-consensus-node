@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.base.units.UnitConstants.GIBIBYTES_TO_BYTES;
@@ -97,26 +82,6 @@ public final class DataFileCommon {
     static final FieldDefinition FIELD_DATAFILE_ITEMS =
             new FieldDefinition("items", FieldType.MESSAGE, true, true, false, 11);
 
-    // Data file metadata protobuf fields
-    static final FieldDefinition FIELD_DATAFILEMETADATA_INDEX =
-            new FieldDefinition("index", FieldType.UINT32, false, true, false, 1);
-    static final FieldDefinition FIELD_DATAFILEMETADATA_CREATION_SECONDS =
-            new FieldDefinition("creationDateSeconds", FieldType.UINT64, false, false, false, 2);
-    static final FieldDefinition FIELD_DATAFILEMETADATA_CREATION_NANOS =
-            new FieldDefinition("creationDateNanos", FieldType.UINT32, false, false, false, 3);
-    static final FieldDefinition FIELD_DATAFILEMETADATA_ITEMS_COUNT =
-            new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
-
-    @Deprecated
-    static final FieldDefinition FIELD_DATAFILEMETADATA_ITEM_VERSION =
-            new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
-
-    static final FieldDefinition FIELD_DATAFILEMETADATA_COMPACTION_LEVEL =
-            new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
-
-    static final String ERROR_DATAITEM_TOO_LARGE =
-            "Data item is too large to write to a data file. Increase data file mapped byte buffer size";
-
     private DataFileCommon() {
         throw new IllegalStateException("Utility class; should not be instantiated.");
     }
@@ -167,6 +132,9 @@ public final class DataFileCommon {
      * @return String with split file and offset
      */
     public static String dataLocationToString(final long dataLocation) {
+        if (dataLocation <= 0) {
+            return String.valueOf(dataLocation);
+        }
         return "{" + fileIndexFromDataLocation(dataLocation) + "," + byteOffsetFromDataLocation(dataLocation) + "}";
     }
 

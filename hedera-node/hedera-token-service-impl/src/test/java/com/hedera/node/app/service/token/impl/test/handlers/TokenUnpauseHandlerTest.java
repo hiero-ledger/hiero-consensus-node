@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -55,6 +40,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,6 +73,9 @@ class TokenUnpauseHandlerTest extends TokenHandlerTestBase {
     @Mock(strictness = LENIENT)
     private HandleContext.SavepointStack stack;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     @BeforeEach
     void setUp() throws PreCheckException {
         given(accountStore.getAccountById(payerId)).willReturn(account);
@@ -105,22 +94,22 @@ class TokenUnpauseHandlerTest extends TokenHandlerTestBase {
     public void testPureChecksThrowsExceptionWhenDoesNotHaveToken() {
         TokenUnpauseTransactionBody transactionBody = mock(TokenUnpauseTransactionBody.class);
         TransactionBody transaction = mock(TransactionBody.class);
-        given(handleContext.body()).willReturn(transaction);
         given(transaction.tokenUnpauseOrThrow()).willReturn(transactionBody);
         given(transactionBody.hasToken()).willReturn(false);
+        given(pureChecksContext.body()).willReturn(transaction);
 
-        assertThatThrownBy(() -> subject.pureChecks(handleContext.body())).isInstanceOf(PreCheckException.class);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext)).isInstanceOf(PreCheckException.class);
     }
 
     @Test
     public void testPureChecksDoesNotThrowExceptionWhenHasToken() {
         TokenUnpauseTransactionBody transactionBody = mock(TokenUnpauseTransactionBody.class);
         TransactionBody transaction = mock(TransactionBody.class);
-        given(handleContext.body()).willReturn(transaction);
         given(transaction.tokenUnpauseOrThrow()).willReturn(transactionBody);
         given(transactionBody.hasToken()).willReturn(true);
+        given(pureChecksContext.body()).willReturn(transaction);
 
-        assertThatCode(() -> subject.pureChecks(handleContext.body())).doesNotThrowAnyException();
+        assertThatCode(() -> subject.pureChecks(pureChecksContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -209,7 +198,7 @@ class TokenUnpauseHandlerTest extends TokenHandlerTestBase {
                 .value(tokenId, copy)
                 .build();
         given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        readableTokenStore = new ReadableTokenStoreImpl(readableStates);
+        readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         preHandleContext.registerStore(ReadableTokenStore.class, readableTokenStore);
 
         subject.preHandle(preHandleContext);

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -24,6 +9,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -37,6 +24,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
@@ -103,6 +91,7 @@ public class DefaultTokenStatusSuite {
     @HapiTest
     final Stream<DynamicTest> getTokenDefaultKycStatus() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<TokenID> noKycTokenId = new AtomicReference<>();
         final var notAnAddress = new byte[20];
 
         return hapiTest(
@@ -115,6 +104,15 @@ public class DefaultTokenStatusSuite {
                         .kycKey(KYC_KEY)
                         .initialSupply(1_000)
                         .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                grantTokenKyc(VANILLA_TOKEN, ACCOUNT),
+                tokenCreate("noKycToken")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> noKycTokenId.set(asToken(id))),
+                tokenAssociate(ACCOUNT, "noKycToken"),
+                grantTokenKyc("noKycToken", ACCOUNT).hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
                 uploadInitCode(TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT),
                 contractCreate(TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT),
                 withOpContext((spec, opLog) -> allRunFor(
@@ -125,6 +123,13 @@ public class DefaultTokenStatusSuite {
                                         HapiParserUtil.asHeadlongAddress(asAddress(vanillaTokenID.get())))
                                 .payingWith(ACCOUNT)
                                 .via("GetTokenDefaultKycStatusTx")
+                                .gas(GAS_TO_OFFER),
+                        contractCall(
+                                        TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT,
+                                        GET_TOKEN_DEFAULT_KYC,
+                                        HapiParserUtil.asHeadlongAddress(asAddress(noKycTokenId.get())))
+                                .payingWith(ACCOUNT)
+                                .via("defaultKycStatus")
                                 .gas(GAS_TO_OFFER),
                         contractCallLocal(
                                 TOKEN_DEFAULT_KYC_FREEZE_STATUS_CONTRACT,
@@ -139,6 +144,16 @@ public class DefaultTokenStatusSuite {
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(FunctionType.GET_TOKEN_DEFAULT_KYC_STATUS)
                                                 .withStatus(SUCCESS)
-                                                .withTokenDefaultKycStatus(false)))));
+                                                .withTokenDefaultKycStatus(false)))),
+                childRecordsCheck(
+                        "defaultKycStatus",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(FunctionType.GET_TOKEN_DEFAULT_KYC_STATUS)
+                                                .withStatus(SUCCESS)
+                                                .withTokenDefaultKycStatus(true)))));
     }
 }

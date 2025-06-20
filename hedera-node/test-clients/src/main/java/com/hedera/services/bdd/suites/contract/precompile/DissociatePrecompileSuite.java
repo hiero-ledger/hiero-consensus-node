@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -54,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.FREEZABLE_TOKEN_ON_BY_DEFAULT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.KNOWABLE_TOKEN;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.TBD_TOKEN;
@@ -64,7 +49,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -110,28 +94,27 @@ public class DissociatePrecompileSuite {
         final var zeroAccountAddress = "zeroAccountAddress";
         final var nullTokenArray = "nullTokens";
         final var nonExistingTokensInArray = "nonExistingTokensInArray";
-        return defaultHapiSpec("dissociateTokensNegativeScenarios")
-                .given(
-                        uploadInitCode(NEGATIVE_DISSOCIATIONS_CONTRACT),
-                        contractCreate(NEGATIVE_DISSOCIATIONS_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingAddressTo(tokenAddress1::set),
-                        tokenCreate(TOKEN1)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingAddressTo(tokenAddress2::set),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))),
-                        tokenAssociate(ACCOUNT, List.of(TOKEN, TOKEN1)))
-                .when(withOpContext((spec, custom) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(NEGATIVE_DISSOCIATIONS_CONTRACT),
+                contractCreate(NEGATIVE_DISSOCIATIONS_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress1::set),
+                tokenCreate(TOKEN1)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress2::set),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))),
+                tokenAssociate(ACCOUNT, List.of(TOKEN, TOKEN1)),
+                withOpContext((spec, custom) -> allRunFor(
                         spec,
                         contractCall(
                                         NEGATIVE_DISSOCIATIONS_CONTRACT,
@@ -194,28 +177,20 @@ public class DissociatePrecompileSuite {
                                 .via(someNonExistingTokenArray)
                                 .logged(),
                         getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN1))))
-                .then(
-                        childRecordsCheck(
-                                nonExistingAccount,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
-                        childRecordsCheck(
-                                zeroAccountAddress,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nullTokenArray,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                nonExistingTokensInArray,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)),
-                        childRecordsCheck(
-                                someNonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)));
+                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN1))),
+                childRecordsCheck(
+                        nonExistingAccount,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(nonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
+                childRecordsCheck(
+                        zeroAccountAddress,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullTokenArray, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        someNonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -226,20 +201,19 @@ public class DissociatePrecompileSuite {
         final var nullAccount = "nullAccount";
         final var nonExistingToken = "nonExistingToken";
         final var nullToken = "nullToken";
-        return defaultHapiSpec("dissociateTokenNegativeScenarios")
-                .given(
-                        uploadInitCode(NEGATIVE_DISSOCIATIONS_CONTRACT),
-                        contractCreate(NEGATIVE_DISSOCIATIONS_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(50L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .treasury(TOKEN_TREASURY)
-                                .exposingAddressTo(tokenAddress::set),
-                        cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))))
-                .when(withOpContext((spec, custom) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(NEGATIVE_DISSOCIATIONS_CONTRACT),
+                contractCreate(NEGATIVE_DISSOCIATIONS_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress::set),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))),
+                withOpContext((spec, custom) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, NEGATIVE_DISSOCIATIONS_CONTRACT))),
@@ -279,24 +253,15 @@ public class DissociatePrecompileSuite {
                                 .gas(GAS_TO_OFFER)
                                 .via(nullToken)
                                 .logged(),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN))))
-                .then(
-                        childRecordsCheck(
-                                nonExistingAccount,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nullAccount,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_ACCOUNT_ID)),
-                        childRecordsCheck(
-                                nonExistingToken,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT)),
-                        childRecordsCheck(
-                                nullToken,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)));
+                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN))),
+                childRecordsCheck(
+                        nonExistingAccount,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullAccount, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullToken, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
 
     /* -- Not specifically required in the HTS Precompile Test Plan -- */
@@ -322,47 +287,46 @@ public class DissociatePrecompileSuite {
         final AtomicReference<TokenID> tbdTokenID = new AtomicReference<>();
         final AtomicReference<TokenID> tbdUniqueTokenID = new AtomicReference<>();
 
-        return defaultHapiSpec("dissociatePrecompileHasExpectedSemanticsForDeletedTokens")
-                .given(
-                        uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
-                        contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT).gas(GAS_TO_OFFER),
-                        cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS).exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(zeroBalanceFrozen)
-                                .balance(10 * ONE_HUNDRED_HBARS)
-                                .exposingCreatedIdTo(zeroBalanceFrozenID::set),
-                        cryptoCreate(zeroBalanceUnfrozen)
-                                .balance(10 * ONE_HUNDRED_HBARS)
-                                .exposingCreatedIdTo(zeroBalanceUnfrozenID::set),
-                        cryptoCreate(nonZeroBalanceFrozen)
-                                .balance(10 * ONE_HUNDRED_HBARS)
-                                .exposingCreatedIdTo(nonZeroBalanceFrozenID::set),
-                        cryptoCreate(nonZeroBalanceUnfrozen)
-                                .balance(10 * ONE_HUNDRED_HBARS)
-                                .exposingCreatedIdTo(nonZeroBalanceUnfrozenID::set),
-                        newKeyNamed(THRESHOLD_KEY)
-                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
-                        cryptoUpdate(zeroBalanceFrozen).key(THRESHOLD_KEY),
-                        cryptoUpdate(zeroBalanceUnfrozen).key(THRESHOLD_KEY),
-                        cryptoUpdate(nonZeroBalanceFrozen).key(THRESHOLD_KEY),
-                        cryptoUpdate(nonZeroBalanceUnfrozen).key(THRESHOLD_KEY),
-                        cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
-                        tokenCreate(TBD_TOKEN)
-                                .adminKey(THRESHOLD_KEY)
-                                .supplyKey(THRESHOLD_KEY)
-                                .initialSupply(initialSupply)
-                                .treasury(ACCOUNT)
-                                .freezeKey(THRESHOLD_KEY)
-                                .freezeDefault(true)
-                                .exposingCreatedIdTo(id -> tbdTokenID.set(asToken(id))),
-                        tokenCreate(tbdUniqToken)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .treasury(ACCOUNT)
-                                .adminKey(THRESHOLD_KEY)
-                                .supplyKey(THRESHOLD_KEY)
-                                .initialSupply(0)
-                                .exposingCreatedIdTo(id -> tbdUniqueTokenID.set(asToken(id))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT).gas(GAS_TO_OFFER),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(zeroBalanceFrozen)
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .exposingCreatedIdTo(zeroBalanceFrozenID::set),
+                cryptoCreate(zeroBalanceUnfrozen)
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .exposingCreatedIdTo(zeroBalanceUnfrozenID::set),
+                cryptoCreate(nonZeroBalanceFrozen)
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .exposingCreatedIdTo(nonZeroBalanceFrozenID::set),
+                cryptoCreate(nonZeroBalanceUnfrozen)
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .exposingCreatedIdTo(nonZeroBalanceUnfrozenID::set),
+                newKeyNamed(THRESHOLD_KEY)
+                        .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ED25519_ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
+                cryptoUpdate(zeroBalanceFrozen).key(THRESHOLD_KEY),
+                cryptoUpdate(zeroBalanceUnfrozen).key(THRESHOLD_KEY),
+                cryptoUpdate(nonZeroBalanceFrozen).key(THRESHOLD_KEY),
+                cryptoUpdate(nonZeroBalanceUnfrozen).key(THRESHOLD_KEY),
+                cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
+                tokenCreate(TBD_TOKEN)
+                        .adminKey(THRESHOLD_KEY)
+                        .supplyKey(THRESHOLD_KEY)
+                        .initialSupply(initialSupply)
+                        .treasury(ACCOUNT)
+                        .freezeKey(THRESHOLD_KEY)
+                        .freezeDefault(true)
+                        .exposingCreatedIdTo(id -> tbdTokenID.set(asToken(id))),
+                tokenCreate(tbdUniqToken)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .treasury(ACCOUNT)
+                        .adminKey(THRESHOLD_KEY)
+                        .supplyKey(THRESHOLD_KEY)
+                        .initialSupply(0)
+                        .exposingCreatedIdTo(id -> tbdUniqueTokenID.set(asToken(id))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         tokenAssociate(zeroBalanceFrozen, TBD_TOKEN),
                         tokenAssociate(zeroBalanceUnfrozen, TBD_TOKEN),
@@ -435,62 +399,60 @@ public class DissociatePrecompileSuite {
                                 .payingWith(ACCOUNT)
                                 .signedBy(THRESHOLD_KEY)
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS))))
-                .then(
-                        childRecordsCheck(
-                                "dissociateZeroBalanceFrozenTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "dissociateZeroBalanceUnfrozenTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "dissociateNonZeroBalanceFrozenTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        childRecordsCheck(
-                                "dissociateNonZeroBalanceUnfrozenTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(zeroBalanceFrozen).hasNoTokenRelationship(TBD_TOKEN),
-                        getAccountInfo(zeroBalanceUnfrozen).hasNoTokenRelationship(TBD_TOKEN),
-                        getAccountInfo(nonZeroBalanceFrozen).hasNoTokenRelationship(TBD_TOKEN),
-                        getAccountInfo(nonZeroBalanceUnfrozen).hasNoTokenRelationship(TBD_TOKEN),
-                        getAccountInfo(ACCOUNT)
-                                .hasToken(relationshipWith(TBD_TOKEN))
-                                .hasNoTokenRelationship(tbdUniqToken)
-                                .hasOwnedNfts(0),
-                        getAccountBalance(ACCOUNT).hasTokenBalance(TBD_TOKEN, initialSupply - 2 * nonZeroXfer));
+                                .hasKnownStatus(SUCCESS))),
+                childRecordsCheck(
+                        "dissociateZeroBalanceFrozenTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "dissociateZeroBalanceUnfrozenTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "dissociateNonZeroBalanceFrozenTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        "dissociateNonZeroBalanceUnfrozenTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(zeroBalanceFrozen).hasNoTokenRelationship(TBD_TOKEN),
+                getAccountInfo(zeroBalanceUnfrozen).hasNoTokenRelationship(TBD_TOKEN),
+                getAccountInfo(nonZeroBalanceFrozen).hasNoTokenRelationship(TBD_TOKEN),
+                getAccountInfo(nonZeroBalanceUnfrozen).hasNoTokenRelationship(TBD_TOKEN),
+                getAccountInfo(ACCOUNT)
+                        .hasToken(relationshipWith(TBD_TOKEN))
+                        .hasNoTokenRelationship(tbdUniqToken)
+                        .hasOwnedNfts(0),
+                getAccountBalance(ACCOUNT).hasTokenBalance(TBD_TOKEN, initialSupply - 2 * nonZeroXfer));
     }
 
     @HapiTest
     final Stream<DynamicTest> nestedDissociateWorksAsExpected() {
         final var NESTED_DISSOCIATE_FUNGIBLE_TXN = "nestedDissociateFungibleTxn";
-        return defaultHapiSpec("nestedDissociateWorksAsExpected")
-                .given(
-                        cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(VANILLA_TOKEN).tokenType(FUNGIBLE_COMMON).treasury(TOKEN_TREASURY),
-                        uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
-                        contractCreate(NESTED_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN).tokenType(FUNGIBLE_COMMON).treasury(TOKEN_TREASURY),
+                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                contractCreate(NESTED_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
@@ -511,8 +473,8 @@ public class DissociatePrecompileSuite {
                                 .payingWith(ACCOUNT)
                                 .hasRetryPrecheckFrom(BUSY)
                                 .via(NESTED_DISSOCIATE_FUNGIBLE_TXN)
-                                .gas(GAS_TO_OFFER))))
-                .then(getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
+                                .gas(GAS_TO_OFFER))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
     @HapiTest
@@ -522,27 +484,26 @@ public class DissociatePrecompileSuite {
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
         final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
 
-        return defaultHapiSpec("multiplePrecompileDissociationWithSigsForFungibleWorks")
-                .given(
-                        uploadInitCode(CONTRACT_AD),
-                        contractCreate(CONTRACT_AD),
-                        newKeyNamed(CONTRACT_ID_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, CONTRACT_AD))),
-                        cryptoCreate(ACCOUNT)
-                                .balance(10 * ONE_HUNDRED_HBARS)
-                                .key(CONTRACT_ID_KEY)
-                                .exposingCreatedIdTo(accountID::set),
-                        cryptoCreate(TOKEN_TREASURY).balance(0L).exposingCreatedIdTo(treasuryID::set),
-                        tokenCreate(VANILLA_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
-                        tokenCreate(KNOWABLE_TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(TOTAL_SUPPLY)
-                                .exposingCreatedIdTo(id -> knowableTokenTokenID.set(asToken(id))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                uploadInitCode(CONTRACT_AD),
+                contractCreate(CONTRACT_AD),
+                newKeyNamed(CONTRACT_ID_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, CONTRACT_AD))),
+                cryptoCreate(ACCOUNT)
+                        .balance(10 * ONE_HUNDRED_HBARS)
+                        .key(CONTRACT_ID_KEY)
+                        .exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY).balance(0L).exposingCreatedIdTo(treasuryID::set),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                tokenCreate(KNOWABLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .exposingCreatedIdTo(id -> knowableTokenTokenID.set(asToken(id))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         tokenAssociate(ACCOUNT, List.of(VANILLA_TOKEN, KNOWABLE_TOKEN)),
                         getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)),
@@ -562,17 +523,16 @@ public class DissociatePrecompileSuite {
                                 .hasKnownStatus(SUCCESS),
                         getTxnRecord("multipleDissociationTxn")
                                 .andAllChildRecords()
-                                .logged())))
-                .then(
-                        childRecordsCheck(
-                                "multipleDissociationTxn",
-                                SUCCESS,
-                                recordWith()
-                                        .status(SUCCESS)
-                                        .contractCallResult(resultWith()
-                                                .contractCallResult(
-                                                        htsPrecompileResult().withStatus(SUCCESS)))),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(FREEZABLE_TOKEN_ON_BY_DEFAULT),
-                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(KNOWABLE_TOKEN));
+                                .logged())),
+                childRecordsCheck(
+                        "multipleDissociationTxn",
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(FREEZABLE_TOKEN_ON_BY_DEFAULT),
+                getAccountInfo(ACCOUNT).hasNoTokenRelationship(KNOWABLE_TOKEN));
     }
 }

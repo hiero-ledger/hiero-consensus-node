@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.utils.contracts.precompile;
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ADDRESS;
@@ -22,8 +7,8 @@ import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.BYTES32;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FIXED_FEE;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FRACTIONAL_FEE;
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.HEDERA_TOKEN_V1;
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.HEDERA_TOKEN_V4;
+import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.HEDERA_TOKEN_V3;
+import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.HEDERA_TOKEN_WITH_METADATA;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.KEY_VALUE;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.RESPONSE_STATUS_AT_BEGINNING;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ROYALTY_FEE;
@@ -70,7 +55,7 @@ public class HTSPrecompileResult implements ContractCallResult {
     public static final String ROYALTY_FEE_REPLACED_ADDRESS = ROYALTY_FEE.replace(ADDRESS_TYPE, BYTES_32_TYPE);
     public static final String EXPIRY_REPLACED_ADDRESS = EXPIRY.replace(ADDRESS_TYPE, BYTES_32_TYPE);
     public static final String TOKEN_INFO_REPLACED_ADDRESS = "("
-            + HEDERA_TOKEN_V1.replace(removeBrackets(ADDRESS), removeBrackets(BYTES32))
+            + HEDERA_TOKEN_V3.replace(removeBrackets(ADDRESS), removeBrackets(BYTES32))
             + ",int64,bool,bool,bool,"
             + FIXED_FEE_REPLACED_ADDRESS
             + ARRAY_BRACKETS
@@ -83,7 +68,7 @@ public class HTSPrecompileResult implements ContractCallResult {
             + ",string"
             + ")";
     public static final String TOKEN_INFO_V2 = "("
-            + HEDERA_TOKEN_V4.replace(removeBrackets(ADDRESS), removeBrackets(BYTES32))
+            + HEDERA_TOKEN_WITH_METADATA.replace(removeBrackets(ADDRESS), removeBrackets(BYTES32))
             + ",int64,bool,bool,bool,"
             + FIXED_FEE_REPLACED_ADDRESS
             + ARRAY_BRACKETS
@@ -345,15 +330,15 @@ public class HTSPrecompileResult implements ContractCallResult {
                 switch (functionType) {
                     case HAPI_MINT -> Tuple.of(status.getNumber(), BigInteger.valueOf(totalSupply), serialNumbers);
                     case HAPI_BURN -> Tuple.of(status.getNumber(), BigInteger.valueOf(totalSupply));
-                    case ERC_TOTAL_SUPPLY -> Tuple.of(BigInteger.valueOf(totalSupply));
-                    case ERC_DECIMALS -> Tuple.of(decimals);
-                    case ERC_BALANCE -> Tuple.of(BigInteger.valueOf(balance));
-                    case ERC_NAME -> Tuple.of(name);
-                    case ERC_SYMBOL -> Tuple.of(symbol);
-                    case ERC_TOKEN_URI -> Tuple.of(metadata);
-                    case ERC_TRANSFER -> Tuple.of(ercFungibleTransferStatus);
-                    case ERC_IS_APPROVED_FOR_ALL -> Tuple.of(isApprovedForAllStatus);
-                    case ERC_ALLOWANCE -> Tuple.of(BigInteger.valueOf(allowance));
+                    case ERC_TOTAL_SUPPLY -> Tuple.singleton(BigInteger.valueOf(totalSupply));
+                    case ERC_DECIMALS -> Tuple.singleton(decimals);
+                    case ERC_BALANCE -> Tuple.singleton(BigInteger.valueOf(balance));
+                    case ERC_NAME -> Tuple.singleton(name);
+                    case ERC_SYMBOL -> Tuple.singleton(symbol);
+                    case ERC_TOKEN_URI -> Tuple.singleton(metadata);
+                    case ERC_TRANSFER -> Tuple.singleton(ercFungibleTransferStatus);
+                    case ERC_IS_APPROVED_FOR_ALL -> Tuple.singleton(isApprovedForAllStatus);
+                    case ERC_ALLOWANCE -> Tuple.singleton(BigInteger.valueOf(allowance));
                     case HAPI_IS_APPROVED_FOR_ALL -> Tuple.of(status.getNumber(), isApprovedForAllStatus);
                     case HAPI_ALLOWANCE -> Tuple.of(status.getNumber(), BigInteger.valueOf(allowance));
                     case HAPI_GET_APPROVED -> Tuple.of(status.getNumber(), expandByteArrayTo32Length(approved));
@@ -372,7 +357,7 @@ public class HTSPrecompileResult implements ContractCallResult {
                     case HAPI_GET_TOKEN_TYPE -> Tuple.of(status.getNumber(), tokenType);
                     case HAPI_GET_TOKEN_EXPIRY_INFO -> getTupleForTokenGetExpiryInfo();
                     case HAPI_GET_TOKEN_KEY -> getKeyValueTupleWithResponseCode(status.getNumber(), key);
-                    default -> Tuple.of(status.getNumber());
+                    default -> Tuple.singleton(status.getNumber());
                 };
 
         return Bytes.wrap(tupleType.encode(result).array());
@@ -471,7 +456,7 @@ public class HTSPrecompileResult implements ContractCallResult {
         for (final var customFee : tokenInfo.getCustomFeesList()) {
             extractFees(fixedFees, fractionalFees, royaltyFees, customFee);
         }
-        return Tuple.of(
+        return Tuple.from(
                 getHederaTokenTuple(),
                 tokenInfo.getTotalSupply(),
                 tokenInfo.getDeleted(),
@@ -491,7 +476,7 @@ public class HTSPrecompileResult implements ContractCallResult {
         for (final var customFee : tokenInfo.getCustomFeesList()) {
             extractFees(fixedFees, fractionalFees, royaltyFees, customFee);
         }
-        return Tuple.of(
+        return Tuple.from(
                 getHederaTokenTupleV2(),
                 tokenInfo.getTotalSupply(),
                 tokenInfo.getDeleted(),
@@ -539,7 +524,7 @@ public class HTSPrecompileResult implements ContractCallResult {
         final var expiryTuple = Tuple.of(
                 expiry, expandByteArrayTo32Length(Utils.asAddress(tokenInfo.getAutoRenewAccount())), autoRenewPeriod);
 
-        return Tuple.of(
+        return Tuple.from(
                 tokenInfo.getName(),
                 tokenInfo.getSymbol(),
                 expandByteArrayTo32Length(Utils.asAddress(tokenInfo.getTreasury())),
@@ -557,7 +542,7 @@ public class HTSPrecompileResult implements ContractCallResult {
         final var expiryTuple = Tuple.of(
                 expiry, expandByteArrayTo32Length(Utils.asAddress(tokenInfo.getAutoRenewAccount())), autoRenewPeriod);
 
-        return Tuple.of(
+        return Tuple.from(
                 tokenInfo.getName(),
                 tokenInfo.getSymbol(),
                 expandByteArrayTo32Length(Utils.asAddress(tokenInfo.getTreasury())),

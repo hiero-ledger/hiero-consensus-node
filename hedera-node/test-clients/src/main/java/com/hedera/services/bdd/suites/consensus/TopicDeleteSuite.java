@@ -1,22 +1,6 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
@@ -38,29 +22,26 @@ import org.junit.jupiter.api.DynamicTest;
 public class TopicDeleteSuite {
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        return defaultHapiSpec("idVariantsTreatedAsExpected")
-                .given(newKeyNamed("adminKey"))
-                .when(createTopic("topic").adminKeyName("adminKey"))
-                .then(submitModified(withSuccessivelyVariedBodyIds(), () -> deleteTopic("topic")));
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                createTopic("topic").adminKeyName("adminKey"),
+                submitModified(withSuccessivelyVariedBodyIds(), () -> deleteTopic("topic")));
     }
 
     @HapiTest
     final Stream<DynamicTest> pureCheckFails() {
-        return defaultHapiSpec("CannotDeleteAccountAsTopic")
-                .given(cryptoCreate("nonTopicId"))
-                .when()
-                .then(
-                        deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                                .hasPrecheck(INVALID_TOPIC_ID),
-                        deleteTopic((String) null).hasPrecheck(INVALID_TOPIC_ID));
+        return hapiTest(
+                cryptoCreate("nonTopicId"),
+                deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
+                        .hasPrecheck(INVALID_TOPIC_ID),
+                deleteTopic((String) null).hasPrecheck(INVALID_TOPIC_ID));
     }
 
     @HapiTest
     final Stream<DynamicTest> cannotDeleteAccountAsTopic() {
-        return defaultHapiSpec("CannotDeleteAccountAsTopic")
-                .given(cryptoCreate("nonTopicId"))
-                .when()
-                .then(deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
+        return hapiTest(
+                cryptoCreate("nonTopicId"),
+                deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
                         .hasKnownStatus(INVALID_TOPIC_ID));
     }
 
@@ -74,41 +55,38 @@ public class TopicDeleteSuite {
 
     @HapiTest
     final Stream<DynamicTest> noAdminKeyCannotDelete() {
-        return defaultHapiSpec("noAdminKeyCannotDelete")
-                .given(createTopic("testTopic"))
-                .when(deleteTopic("testTopic").hasKnownStatus(UNAUTHORIZED))
-                .then();
+        return hapiTest(createTopic("testTopic"), deleteTopic("testTopic").hasKnownStatus(UNAUTHORIZED));
     }
 
     @HapiTest
     final Stream<DynamicTest> deleteWithAdminKey() {
-        return defaultHapiSpec("deleteWithAdminKey")
-                .given(newKeyNamed("adminKey"), createTopic("testTopic").adminKeyName("adminKey"))
-                .when(deleteTopic("testTopic").hasPrecheck(ResponseCodeEnum.OK))
-                .then(getTopicInfo("testTopic").hasCostAnswerPrecheck(INVALID_TOPIC_ID));
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                createTopic("testTopic").adminKeyName("adminKey"),
+                deleteTopic("testTopic").hasPrecheck(ResponseCodeEnum.OK),
+                getTopicInfo("testTopic").hasCostAnswerPrecheck(INVALID_TOPIC_ID));
     }
 
     @HapiTest
     final Stream<DynamicTest> deleteFailedWithWrongKey() {
         long PAYER_BALANCE = 1_999_999_999L;
-        return defaultHapiSpec("deleteFailedWithWrongKey")
-                .given(
-                        newKeyNamed("adminKey"),
-                        newKeyNamed("wrongKey"),
-                        cryptoCreate("payer").balance(PAYER_BALANCE),
-                        createTopic("testTopic").adminKeyName("adminKey"))
-                .when(deleteTopic("testTopic")
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                newKeyNamed("wrongKey"),
+                cryptoCreate("payer").balance(PAYER_BALANCE),
+                createTopic("testTopic").adminKeyName("adminKey"),
+                deleteTopic("testTopic")
                         .payingWith("payer")
                         .signedBy("payer", "wrongKey")
-                        .hasKnownStatus(ResponseCodeEnum.INVALID_SIGNATURE))
-                .then();
+                        .hasKnownStatus(ResponseCodeEnum.INVALID_SIGNATURE));
     }
 
     @HapiTest
     final Stream<DynamicTest> feeAsExpected() {
-        return defaultHapiSpec("feeAsExpected")
-                .given(cryptoCreate("payer"), createTopic("testTopic").adminKeyName("payer"))
-                .when(deleteTopic("testTopic").blankMemo().payingWith("payer").via("topicDelete"))
-                .then(validateChargedUsd("topicDelete", 0.005));
+        return hapiTest(
+                cryptoCreate("payer"),
+                createTopic("testTopic").adminKeyName("payer"),
+                deleteTopic("testTopic").blankMemo().payingWith("payer").via("topicDelete"),
+                validateChargedUsd("topicDelete", 0.005));
     }
 }

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -24,15 +9,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
+import com.swirlds.platform.state.signed.SignedState;
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +46,12 @@ class TransactionPrehandlerTests {
                 .when(state)
                 .close();
 
+        final SignedState signedState = mock(SignedState.class);
+        final MerkleNodeState stateRoot = mock(MerkleNodeState.class);
+        when(signedState.getState()).thenReturn(stateRoot);
+
         final SignedStateNexus latestImmutableStateNexus = mock(SignedStateNexus.class);
+        final ConsensusStateEventHandler consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
         // return null until returnValidState is set to true. keep track of when the first state retrieval is attempted,
         // so we can assert that prehandle hasn't happened before the state is available
         when(latestImmutableStateNexus.getState(any())).thenAnswer(i -> {
@@ -68,8 +61,8 @@ class TransactionPrehandlerTests {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final TransactionPrehandler transactionPrehandler =
-                new DefaultTransactionPrehandler(platformContext, () -> latestImmutableStateNexus.getState("test"));
+        final TransactionPrehandler transactionPrehandler = new DefaultTransactionPrehandler(
+                platformContext, () -> latestImmutableStateNexus.getState("test"), consensusStateEventHandler);
 
         final PlatformEvent platformEvent = new TestingEventBuilder(random).build();
 

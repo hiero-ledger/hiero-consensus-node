@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
@@ -22,8 +7,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.internal.CryptoUtils;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.KeyCertPurpose;
@@ -50,6 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -74,22 +59,29 @@ class NetworkPeerIdentifierTest {
                 names.add(s.split("-")[1]);
             }
         });
-        publicStores = PublicStores.fromAllPublic(publicKeys, names.stream().toList());
+
+        final var ids = names.stream()
+                .map(name -> {
+                    final Matcher nameMatcher = NODE_NAME_PATTERN.matcher(name);
+                    if (!nameMatcher.matches()) {
+                        throw new RuntimeException("Invalid node name " + name);
+                    }
+                    final int id = Integer.parseInt(nameMatcher.group(1)) - 1;
+                    return NodeId.of(id);
+                })
+                .toList();
+
+        publicStores = PublicStores.fromAllPublic(publicKeys, ids);
 
         peerInfoList = new ArrayList<>();
-        names.forEach(name -> {
-            final Matcher nameMatcher = NODE_NAME_PATTERN.matcher(name);
-            if (!nameMatcher.matches()) {
-                throw new RuntimeException("Invalid node name " + name);
-            }
-            final int id = Integer.parseInt(nameMatcher.group(1)) - 1;
-            final NodeId node = new NodeId(id);
+        ids.forEach(id -> {
             final PeerInfo peer;
             try {
                 peer = new PeerInfo(
-                        node,
+                        id,
                         "127.0.0.1",
-                        Objects.requireNonNull(publicStores.getCertificate(KeyCertPurpose.SIGNING, name)));
+                        12345,
+                        Objects.requireNonNull(publicStores.getCertificate(KeyCertPurpose.SIGNING, id)));
             } catch (final KeyLoadingException e) {
                 throw new RuntimeException(e);
             }
@@ -145,7 +137,7 @@ class NetworkPeerIdentifierTest {
     void testIdentifyTlsPeerReturnsNull()
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
 
-        final SecureRandom secureRandom = CryptoUtils.getDetRandom();
+        final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
         final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
         rsaKeyGen.initialize(3072, secureRandom);

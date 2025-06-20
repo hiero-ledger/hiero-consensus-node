@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
@@ -45,7 +30,6 @@ import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
-import com.hederahashgraph.api.proto.java.NodeDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
@@ -361,17 +345,25 @@ class PrivilegesVerifierTest {
     }
 
     @Test
-    void nodeAdminCanCreate() throws InvalidProtocolBufferException {
+    void treasuryCanCreateNode() throws InvalidProtocolBufferException {
         // given:
-        var txn = nodeAdminTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
+        var txn = treasuryTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
-    void nodeAdminCanDelete() throws InvalidProtocolBufferException {
+    void sysAdminnCanCreateNode() throws InvalidProtocolBufferException {
         // given:
-        var txn = nodeAdminTxn().setNodeDelete(NodeDeleteTransactionBody.getDefaultInstance());
+        var txn = sysAdminTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
+        // expect:
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
+    }
+
+    @Test
+    void addressBookAdminCanCreateNode() throws InvalidProtocolBufferException {
+        // given:
+        var txn = addressBookAdminTxn().setNodeCreate(NodeCreateTransactionBody.getDefaultInstance());
         // expect:
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
@@ -672,7 +664,7 @@ class PrivilegesVerifierTest {
         return txnWithPayer(57);
     }
 
-    private TransactionBody.Builder nodeAdminTxn() {
+    private TransactionBody.Builder addressBookAdminTxn() {
         return txnWithPayer(55);
     }
 

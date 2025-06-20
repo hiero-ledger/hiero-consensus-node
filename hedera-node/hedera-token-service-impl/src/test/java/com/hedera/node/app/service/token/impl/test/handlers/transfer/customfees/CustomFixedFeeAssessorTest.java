@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers.transfer.customfees;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -45,11 +30,11 @@ public class CustomFixedFeeAssessorTest {
 
     private AssessmentResult result;
 
-    private final AccountID payer = asAccount(4001);
-    private final AccountID otherCollector = asAccount(1001);
-    private final AccountID funding = asAccount(98);
+    private final AccountID payer = asAccount(0L, 0L, 4001);
+    private final AccountID otherCollector = asAccount(0L, 0L, 1001);
+    private final AccountID funding = asAccount(0L, 0L, 98);
     private final TokenID firstFungibleTokenId = asToken(3000);
-    private final AccountID minter = asAccount(6000);
+    private final AccountID minter = asAccount(0L, 0L, 6000);
     private final TokenID nonFungibleTokenId = asToken(70000);
     private final TokenTransferList nftTransferList = asNftTransferList(nonFungibleTokenId, payer, funding, 1);
     final FixedFee htsFixedFee = FixedFee.newBuilder()

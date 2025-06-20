@@ -1,80 +1,57 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.config.CryptoConfig;
+import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.config.TransactionConfig;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ScheduledExecutorService;
-import org.jetbrains.annotations.NotNull;
+import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.TransactionConfig;
+import org.hiero.consensus.model.node.NodeId;
 
 public class FakePlatformContext implements PlatformContext {
-    private final Configuration platformConfig = ConfigurationBuilder.create()
+    public static final Configuration PLATFORM_CONFIG = ConfigurationBuilder.create()
             .withConfigDataType(MetricsConfig.class)
             .withConfigDataType(TransactionConfig.class)
             .withConfigDataType(CryptoConfig.class)
             .withConfigDataType(BasicConfig.class)
+            .withConfigDataType(VirtualMapConfig.class)
+            .withConfigDataType(MerkleDbConfig.class)
+            .withConfigDataType(TemporaryFileConfig.class)
+            .withConfigDataType(StateCommonConfig.class)
             .build();
 
     private final Metrics metrics;
 
     public FakePlatformContext(
-            @NonNull final NodeId defaultNodeId, @NonNull final ScheduledExecutorService executorService) {
+            @NonNull final NodeId defaultNodeId,
+            @NonNull final ScheduledExecutorService executorService,
+            @NonNull final Metrics metrics) {
         requireNonNull(defaultNodeId);
         requireNonNull(executorService);
-        final var metricsConfig = platformConfig.getConfigData(MetricsConfig.class);
-        this.metrics = new DefaultPlatformMetrics(
-                defaultNodeId,
-                new MetricKeyRegistry(),
-                executorService,
-                new PlatformMetricsFactoryImpl(metricsConfig),
-                metricsConfig);
+        this.metrics = requireNonNull(metrics);
     }
 
     @NonNull
     @Override
     public Configuration getConfiguration() {
-        return platformConfig;
-    }
-
-    @NonNull
-    @Override
-    public Cryptography getCryptography() {
-        return CryptographyHolder.get();
+        return PLATFORM_CONFIG;
     }
 
     @NonNull
@@ -107,9 +84,9 @@ public class FakePlatformContext implements PlatformContext {
         throw new UnsupportedOperationException("Not used by Hedera");
     }
 
-    @NotNull
+    @NonNull
     @Override
     public MerkleCryptography getMerkleCryptography() {
-        return MerkleCryptographyFactory.create(platformConfig, getCryptography());
+        return MerkleCryptographyFactory.create(PLATFORM_CONFIG);
     }
 }

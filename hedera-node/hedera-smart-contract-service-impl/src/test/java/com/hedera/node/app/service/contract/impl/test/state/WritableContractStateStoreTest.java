@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.BYTECODE_KEY;
@@ -22,15 +7,15 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BYTECOD
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableKVState;
@@ -58,6 +43,9 @@ class WritableContractStateStoreTest {
     @Mock
     private WritableStates states;
 
+    @Mock
+    private WritableEntityCounters entityCounters;
+
     private WritableContractStateStore subject;
 
     @BeforeEach
@@ -67,7 +55,7 @@ class WritableContractStateStoreTest {
 
         final var config = HederaTestConfigBuilder.createConfig();
 
-        subject = new WritableContractStateStore(states, config, mock(StoreMetricsService.class));
+        subject = new WritableContractStateStore(states, entityCounters);
     }
 
     @Test
@@ -123,14 +111,14 @@ class WritableContractStateStoreTest {
 
     @Test
     void getsSizeAsExpected() {
-        given(storage.size()).willReturn(1L);
+        given(entityCounters.getCounterFor(EntityType.CONTRACT_STORAGE)).willReturn(1L);
 
         assertSame(1L, subject.getNumSlots());
     }
 
     @Test
     void getsNumBytecodesAsExpected() {
-        given(bytecode.size()).willReturn(123L);
+        given(entityCounters.getCounterFor(EntityType.CONTRACT_BYTECODE)).willReturn(123L);
 
         assertSame(123L, subject.getNumBytecodes());
     }

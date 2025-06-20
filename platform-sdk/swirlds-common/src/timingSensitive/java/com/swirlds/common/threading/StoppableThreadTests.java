@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
@@ -31,20 +16,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.interrupt.InterruptableRunnable;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -555,7 +540,7 @@ class StoppableThreadTests {
 
         assertThrows(
                 MutabilityException.class,
-                () -> configuration.setNodeId(new NodeId(0L)),
+                () -> configuration.setNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
@@ -571,7 +556,7 @@ class StoppableThreadTests {
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,
-                () -> configuration.setOtherNodeId(new NodeId(0L)),
+                () -> configuration.setOtherNodeId(NodeId.of(0L)),
                 "configuration should be immutable");
         assertThrows(
                 MutabilityException.class,

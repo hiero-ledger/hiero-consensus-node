@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.util.HapiUtils.functionOf;
@@ -24,6 +9,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
@@ -48,6 +34,12 @@ public class ChildFeeContextImpl implements FeeContext {
     private final Authorizer authorizer;
     private final ReadableStoreFactory storeFactory;
     private final Instant consensusNow;
+    // The verifier is non-null only for batch inner transactions.
+    // Since other synthetic child transactions have no signatures to verify, the verifier is no needed.
+    @Nullable
+    private final AppKeyVerifier verifier;
+
+    private final int signatureMapSize;
 
     public ChildFeeContextImpl(
             @NonNull final FeeManager feeManager,
@@ -57,7 +49,9 @@ public class ChildFeeContextImpl implements FeeContext {
             final boolean computeFeesAsInternalDispatch,
             @NonNull final Authorizer authorizer,
             @NonNull final ReadableStoreFactory storeFactory,
-            @NonNull final Instant consensusNow) {
+            @NonNull final Instant consensusNow,
+            @Nullable final AppKeyVerifier verifier,
+            final int signatureMapSize) {
         this.feeManager = requireNonNull(feeManager);
         this.context = requireNonNull(context);
         this.body = requireNonNull(body);
@@ -66,6 +60,8 @@ public class ChildFeeContextImpl implements FeeContext {
         this.authorizer = requireNonNull(authorizer);
         this.storeFactory = requireNonNull(storeFactory);
         this.consensusNow = requireNonNull(consensusNow);
+        this.verifier = verifier;
+        this.signatureMapSize = signatureMapSize;
     }
 
     @Override
@@ -84,8 +80,8 @@ public class ChildFeeContextImpl implements FeeContext {
                     body,
                     Key.DEFAULT,
                     functionOf(body),
-                    0,
-                    0,
+                    numTxnSignatures(),
+                    signatureMapSize,
                     consensusNow,
                     subType,
                     computeFeesAsInternalDispatch,
@@ -108,7 +104,7 @@ public class ChildFeeContextImpl implements FeeContext {
     }
 
     @Override
-    public @Nullable Configuration configuration() {
+    public @NonNull Configuration configuration() {
         return context.configuration();
     }
 
@@ -119,7 +115,7 @@ public class ChildFeeContextImpl implements FeeContext {
 
     @Override
     public int numTxnSignatures() {
-        return 0;
+        return verifier == null ? 0 : verifier.numSignaturesVerified();
     }
 
     @Override

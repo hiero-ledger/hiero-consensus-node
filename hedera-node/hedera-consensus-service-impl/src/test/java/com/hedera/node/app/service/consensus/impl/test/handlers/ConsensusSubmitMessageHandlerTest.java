@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_MESSAGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl.TOPICS_KEY;
 import static com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler.RUNNING_HASH_VERSION;
 import static com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler.noThrowSha384HashOf;
@@ -26,14 +12,19 @@ import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Answers.RETURNS_SELF;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 import com.google.protobuf.ByteString;
@@ -44,22 +35,30 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusMessageChunkInfo;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
+import com.hedera.hapi.node.transaction.CustomFeeLimit;
+import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler;
+import com.hedera.node.app.service.consensus.impl.handlers.customfee.ConsensusCustomFeeAssessor;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
+import com.hedera.node.app.spi.key.KeyVerifier;
+import com.hedera.node.app.spi.signatures.SignatureVerification;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -67,6 +66,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -79,18 +80,44 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     @Mock
     private ReadableAccountStore accountStore;
 
+    @Mock
+    private PureChecksContext pureChecksContext;
+
     @Mock(answer = RETURNS_SELF)
     private ConsensusSubmitMessageStreamBuilder recordBuilder;
 
     @Mock(strictness = LENIENT)
     private HandleContext.SavepointStack stack;
 
+    @Mock
+    private WritableEntityCounters entityCounters;
+
+    @Mock
+    private KeyVerifier keyVerifier;
+
+    @Mock
+    private SignatureVerification signatureVerification;
+
+    @Mock
+    private CryptoTransferStreamBuilder streamBuilder;
+
+    private ConsensusCustomFeeAssessor customFeeAssessor;
+
     private ConsensusSubmitMessageHandler subject;
+
+    private static final Key ED25519KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
+            .build();
+
+    private static final Key ECDSAKEY = Key.newBuilder()
+            .ecdsaSecp256k1((Bytes.fromHex("0101010101010101010101010101010101010101010101010101010101010101")))
+            .build();
 
     @BeforeEach
     void setUp() {
         commonSetUp();
-        subject = new ConsensusSubmitMessageHandler();
+        customFeeAssessor = spy(new ConsensusCustomFeeAssessor());
+        subject = new ConsensusSubmitMessageHandler(customFeeAssessor);
 
         final var config = HederaTestConfigBuilder.create()
                 .withValue("consensus.message.maxBytesAllowed", 100)
@@ -100,9 +127,9 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         writableTopicState = writableTopicStateWithOneKey();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
         given(writableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(writableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
         given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
-        writableStore = new WritableTopicStore(writableStates, config, mock(StoreMetricsService.class));
+        writableStore = new WritableTopicStore(writableStates, entityCounters);
         given(storeFactory.writableStore(WritableTopicStore.class)).willReturn(writableStore);
 
         given(handleContext.configuration()).willReturn(config);
@@ -113,7 +140,8 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("pureChecks fails if submit message missing topic ID")
     void topicWithoutIdNotFound() {
-        assertThrowsPreCheck(() -> subject.pureChecks(newDefaultSubmitMessageTxn()), INVALID_TOPIC_ID);
+        given(pureChecksContext.body()).willReturn(newDefaultSubmitMessageTxn());
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_TOPIC_ID);
     }
 
     @Test
@@ -121,7 +149,8 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     void failsIfMessageIsEmpty() {
         givenValidTopic();
         final var txn = newSubmitMessageTxn(topicEntityNum, "");
-        assertThrowsPreCheck(() -> subject.pureChecks(txn), INVALID_TOPIC_MESSAGE);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_TOPIC_MESSAGE);
     }
 
     @Test
@@ -129,7 +158,8 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     void pureCheckWorksAsExpexcted() {
         givenValidTopic();
         final var txn = newDefaultSubmitMessageTxn(topicEntityNum);
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
@@ -156,7 +186,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         mockPayerLookup();
         readableTopicState = emptyReadableTopicState();
         given(readableStates.<TopicID, Topic>get(TOPICS_KEY)).willReturn(readableTopicState);
-        readableStore = new ReadableTopicStoreImpl(readableStates);
+        readableStore = new ReadableTopicStoreImpl(readableStates, readableEntityCounters);
         final var context = new FakePreHandleContext(accountStore, newDefaultSubmitMessageTxn(topicEntityNum));
         context.registerStore(ReadableTopicStore.class, readableStore);
 
@@ -185,6 +215,8 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
 
         given(handleContext.consensusNow()).willReturn(consensusTimestamp);
 
+        mockPayerKeyIsFeeExempt();
+
         final var initialTopic = writableTopicState.get(topicId);
         subject.handle(handleContext);
 
@@ -200,7 +232,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     @DisplayName("Handle throws IOException")
     void handleThrowsIOException() {
         givenValidTopic();
-        subject = new ConsensusSubmitMessageHandler() {
+        subject = new ConsensusSubmitMessageHandler(new ConsensusCustomFeeAssessor()) {
             @Override
             public Topic updateRunningHashAndSequenceNumber(
                     @NonNull final TransactionBody txn, @NonNull final Topic topic, @Nullable Instant consensusNow)
@@ -208,7 +240,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
                 throw new IOException();
             }
         };
-
+        mockPayerKeyIsFeeExempt();
         final var txn = newSubmitMessageTxn(topicEntityNum, "");
         given(handleContext.body()).willReturn(txn);
 
@@ -226,6 +258,8 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         given(handleContext.body()).willReturn(txn);
 
         given(handleContext.consensusNow()).willReturn(null);
+
+        mockPayerKeyIsFeeExempt();
 
         final var initialTopic = writableTopicState.get(topicId);
         subject.handle(handleContext);
@@ -341,11 +375,77 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         // The fees wouldn't be free in this scenario, but we don't care about the actual return
         // value here since we're using a mock calculator
         given(feeCalc.calculate()).willReturn(Fees.FREE);
-
+        readableStore = mock(ReadableTopicStore.class);
+        given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+        given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+        given(readableStore.getTopic(topicId))
+                .willReturn(Topic.newBuilder()
+                        .runningHash(Bytes.wrap(new byte[48]))
+                        .sequenceNumber(1L)
+                        .build());
         subject.calculateFees(feeCtx);
 
         verify(feeCalc).addBytesPerTransaction(28);
         verify(feeCalc).addNetworkRamByteSeconds(10080);
+    }
+
+    @Test
+    @DisplayName("Handle submit to topic with custom fee works as expected")
+    void handleWorksAsExpectedWithCustomFee() {
+        givenValidTopic();
+
+        final var txn = newSubmitMessageTxnWithMaxFee();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(consensusTimestamp);
+
+        mockPayerKeyIsNotFeeExempt();
+
+        final var initialTopic = writableTopicState.get(topicId);
+        subject.handle(handleContext);
+
+        final var expectedTopic = writableTopicState.get(topicId);
+        assertNotEquals(initialTopic, expectedTopic);
+        assertEquals(initialTopic.sequenceNumber() + 1, expectedTopic.sequenceNumber());
+        assertNotEquals(
+                initialTopic.runningHash().toString(),
+                expectedTopic.runningHash().toString());
+    }
+
+    @Test
+    void testSimpleKeyVerifierFromWithEd25519Key() {
+        List<Key> signatories = List.of(ED25519KEY);
+
+        Predicate<Key> verifier = ConsensusSubmitMessageHandler.simpleKeyVerifierFrom(signatories);
+
+        assertTrue(verifier.test(ED25519KEY));
+    }
+
+    @Test
+    void testSimpleKeyVerifierFromWithEcdsaSecp256k1Key() {
+
+        List<Key> signatories = List.of(ECDSAKEY);
+
+        Predicate<Key> verifier = ConsensusSubmitMessageHandler.simpleKeyVerifierFrom(signatories);
+
+        assertTrue(verifier.test(ECDSAKEY));
+    }
+
+    @Test
+    void testSimpleKeyVerifierFromWithNonSignatoryKey() {
+        List<Key> signatories = List.of(ED25519KEY);
+
+        Predicate<Key> verifier = ConsensusSubmitMessageHandler.simpleKeyVerifierFrom(signatories);
+
+        assertFalse(verifier.test(ECDSAKEY));
+    }
+
+    @Test
+    void testSimpleKeyVerifierFromWithEmptySignatories() {
+        List<Key> signatories = List.of();
+
+        Predicate<Key> verifier = ConsensusSubmitMessageHandler.simpleKeyVerifierFrom(signatories);
+
+        assertFalse(verifier.test(ED25519KEY));
     }
 
     /* ----------------- Helper Methods ------------------- */
@@ -372,6 +472,33 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         return TransactionBody.newBuilder()
                 .transactionID(txnId)
                 .consensusSubmitMessage(submitMessageBuilder.build())
+                .build();
+    }
+
+    private TransactionBody newSubmitMessageTxnWithMaxFee() {
+        final var txnId = TransactionID.newBuilder().accountID(payerId).build();
+        final var maxCustomFees = List.of(
+                // fungible token limit
+                CustomFeeLimit.newBuilder()
+                        .accountId(payerId)
+                        .fees(List.of(FixedFee.newBuilder()
+                                .denominatingTokenId(fungibleTokenId)
+                                .amount(1)
+                                .build()))
+                        .build(),
+                // hbar limit
+                CustomFeeLimit.newBuilder()
+                        .accountId(payerId)
+                        .fees(List.of(FixedFee.newBuilder().amount(1).build()))
+                        .build());
+        final var submitMessageBuilder = ConsensusSubmitMessageTransactionBody.newBuilder()
+                .topicID(TopicID.newBuilder().topicNum(topicEntityNum).build())
+                .message(Bytes.wrap("Message for test-" + Instant.now() + "."
+                        + Instant.now().getNano()));
+        return TransactionBody.newBuilder()
+                .transactionID(txnId)
+                .consensusSubmitMessage(submitMessageBuilder.build())
+                .maxCustomFees(maxCustomFees)
                 .build();
     }
 
@@ -413,4 +540,24 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
     }
 
     private final ByteString NONSENSE = ByteString.copyFromUtf8("NONSENSE");
+
+    private void mockPayerKeyIsFeeExempt() {
+        // mock signature is in FEKL
+        given(handleContext.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(any(Key.class), any())).willReturn(signatureVerification);
+        given(signatureVerification.passed()).willReturn(true);
+    }
+
+    private void mockPayerKeyIsNotFeeExempt() {
+        // mock payer and token processing
+        doReturn(anotherPayer).when(customFeeAssessor).getTokenTreasury(any(), any());
+        given(handleContext.payer()).willReturn(payerId);
+        // mock crypto transfer dispatch results
+        given(handleContext.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(SUCCESS);
+        // mock signature is not in FEKL
+        given(handleContext.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(any(Key.class), any())).willReturn(signatureVerification);
+        given(signatureVerification.passed()).willReturn(false);
+    }
 }

@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.assertions;
 
+import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_NONE;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -34,7 +20,6 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ContractLoginfo;
-import com.swirlds.common.utility.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Arrays;
@@ -44,10 +29,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 
 public class ContractFnResultAsserts extends BaseErroringAssertsProvider<ContractFunctionResult> {
@@ -83,7 +71,7 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
 
     public static Object[] viaAbi(String abi, byte[] bytes) {
         com.esaulpaugh.headlong.abi.Function function = com.esaulpaugh.headlong.abi.Function.fromJson(abi);
-        return function.decodeReturn(bytes).toList().toArray();
+        return function.decodeReturn(bytes).toArray();
     }
 
     /* Helpers to create the provider for #resultThruAbi. */
@@ -208,15 +196,23 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
         return this;
     }
 
+    public ContractFnResultAsserts resultViaFunctionName(
+            final String functionName,
+            final String contractName,
+            final Function<HapiSpec, Function<Object[], Optional<Throwable>>> provider) {
+        return resultViaFunctionName(Optional.empty(), functionName, contractName, provider);
+    }
+
     /*  Note:
      This method utilizes algorithmic extraction of a function ABI by the name of the function and the contract
      and should replace the "resultThruAbi" method, which depends on function ABI, passed as String literal.
     */
     public ContractFnResultAsserts resultViaFunctionName(
+            final Optional<String> variant,
             final String functionName,
             final String contractName,
             final Function<HapiSpec, Function<Object[], Optional<Throwable>>> provider) {
-        final var abi = Utils.getABIFor(FUNCTION, functionName, contractName);
+        final var abi = Utils.getABIFor(variant.orElse(VARIANT_NONE), FUNCTION, functionName, contractName);
         registerProvider((spec, o) -> {
             Object[] actualObjs = viaAbi(
                     abi, ((ContractFunctionResult) o).getContractCallResult().toByteArray());
@@ -229,7 +225,7 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
     }
 
     public ContractFnResultAsserts contract(String contract) {
-        registerIdLookupAssert(contract, r -> r.getContractID(), ContractID.class, "Bad contract!");
+        registerIdLookupAssert(contract, ContractFunctionResult::getContractID, ContractID.class, "Bad contract!");
         return this;
     }
 
@@ -280,19 +276,28 @@ public class ContractFnResultAsserts extends BaseErroringAssertsProvider<Contrac
     }
 
     public ContractFnResultAsserts approxGasUsed(final long expected, final double allowedPercentDeviation) {
+        approxGasUsed(() -> expected, () -> allowedPercentDeviation);
+        return this;
+    }
+
+    public ContractFnResultAsserts approxGasUsed(LongSupplier expected, DoubleSupplier allowedPercentDeviation) {
         registerProvider((spec, o) -> {
             ContractFunctionResult result = (ContractFunctionResult) o;
             final var actual = result.getGasUsed();
-            final var epsilon = allowedPercentDeviation * actual / 100.0;
-            assertEquals(expected, result.getGasUsed(), epsilon, "Wrong amount of gas used");
+            final var epsilon = allowedPercentDeviation.getAsDouble() * actual / 100.0;
+            assertEquals(expected.getAsLong(), actual, epsilon, "Wrong amount of gas used");
         });
         return this;
     }
 
     public ContractFnResultAsserts gasUsed(long gasUsed) {
+        return gasUsed(() -> gasUsed);
+    }
+
+    public ContractFnResultAsserts gasUsed(LongSupplier gasUsed) {
         registerProvider((spec, o) -> {
             ContractFunctionResult result = (ContractFunctionResult) o;
-            assertEquals(gasUsed, result.getGasUsed(), "Wrong amount of Gas was used!");
+            assertEquals(gasUsed.getAsLong(), result.getGasUsed(), "Wrong amount of Gas was used!");
         });
         return this;
     }

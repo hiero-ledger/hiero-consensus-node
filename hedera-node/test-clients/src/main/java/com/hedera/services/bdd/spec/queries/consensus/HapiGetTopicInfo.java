@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.queries.consensus;
 
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
@@ -22,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -29,14 +15,18 @@ import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.ConsensusGetTopicInfoQuery;
 import com.hederahashgraph.api.proto.java.ConsensusTopicInfo;
+import com.hederahashgraph.api.proto.java.FixedCustomFee;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
@@ -56,9 +46,16 @@ public class HapiGetTopicInfo extends HapiQueryOp<HapiGetTopicInfo> {
     private OptionalLong autoRenewPeriod = OptionalLong.empty();
     private boolean hasNoAdminKey = false;
     private boolean hasNoSubmitKey = false;
+    private boolean hasNoFeeScheduleKey = false;
     private Optional<String> adminKey = Optional.empty();
     private Optional<String> submitKey = Optional.empty();
     private Optional<String> autoRenewAccount = Optional.empty();
+    private Optional<String> feeScheduleKey = Optional.empty();
+    private final List<String> expectedFeeExemptKeyList = new ArrayList<>();
+    private boolean expectFeeExemptKeyListEmpty = false;
+    private final List<BiConsumer<HapiSpec, List<FixedCustomFee>>> expectedFees = new ArrayList<>();
+    private boolean expectNoFees = false;
+    private Optional<Integer> expectCustomFeeSize = Optional.empty();
     private boolean saveRunningHash = false;
     private Optional<LongConsumer> seqNoInfoObserver = Optional.empty();
 
@@ -129,6 +126,16 @@ public class HapiGetTopicInfo extends HapiQueryOp<HapiGetTopicInfo> {
         return this;
     }
 
+    public HapiGetTopicInfo hasFeeScheduleKey(final String exp) {
+        feeScheduleKey = Optional.of(exp);
+        return this;
+    }
+
+    public HapiGetTopicInfo hasNoFeeScheduleKey() {
+        hasNoFeeScheduleKey = true;
+        return this;
+    }
+
     public HapiGetTopicInfo hasAutoRenewAccount(String exp) {
         autoRenewAccount = Optional.of(exp);
         return this;
@@ -141,6 +148,31 @@ public class HapiGetTopicInfo extends HapiQueryOp<HapiGetTopicInfo> {
 
     public HapiGetTopicInfo savingSeqNoTo(LongConsumer consumer) {
         seqNoInfoObserver = Optional.of(consumer);
+        return this;
+    }
+
+    public HapiGetTopicInfo hasFeeExemptKeys(List<String> feeExemptKeyAssertion) {
+        expectedFeeExemptKeyList.addAll(feeExemptKeyAssertion);
+        return this;
+    }
+
+    public HapiGetTopicInfo hasCustomFee(BiConsumer<HapiSpec, List<FixedCustomFee>> feeAssertion) {
+        expectedFees.add(feeAssertion);
+        return this;
+    }
+
+    public HapiGetTopicInfo hasNoCustomFee() {
+        expectNoFees = true;
+        return this;
+    }
+
+    public HapiGetTopicInfo hasCustomFeeSize(int size) {
+        expectCustomFeeSize = Optional.of(size);
+        return this;
+    }
+
+    public HapiGetTopicInfo hasEmptyFeeExemptKeyList() {
+        expectFeeExemptKeyListEmpty = true;
         return this;
     }
 
@@ -171,9 +203,7 @@ public class HapiGetTopicInfo extends HapiQueryOp<HapiGetTopicInfo> {
             expiryObserver.accept(info.getExpirationTime().getSeconds());
         }
         topicMemo.ifPresent(exp -> assertEquals(exp, info.getMemo(), "Bad memo!"));
-        if (seqNoFn.isPresent()) {
-            seqNo = OptionalLong.of(seqNoFn.get().getAsLong());
-        }
+        seqNoFn.ifPresent(longSupplier -> seqNo = OptionalLong.of(longSupplier.getAsLong()));
         seqNo.ifPresent(exp -> assertEquals(exp, info.getSequenceNumber(), "Bad sequence number!"));
         seqNoInfoObserver.ifPresent(obs -> obs.accept(info.getSequenceNumber()));
         runningHashEntry.ifPresent(
@@ -185,6 +215,8 @@ public class HapiGetTopicInfo extends HapiQueryOp<HapiGetTopicInfo> {
                 exp -> assertEquals(exp, info.getAutoRenewPeriod().getSeconds(), "Bad auto-renew period!"));
         adminKey.ifPresent(exp -> assertEquals(spec.registry().getKey(exp), info.getAdminKey(), "Bad admin key!"));
         submitKey.ifPresent(exp -> assertEquals(spec.registry().getKey(exp), info.getSubmitKey(), "Bad submit key!"));
+        feeScheduleKey.ifPresent(
+                exp -> assertEquals(spec.registry().getKey(exp), info.getFeeScheduleKey(), "Bad fee schedule key!"));
         autoRenewAccount.ifPresent(
                 exp -> assertEquals(asId(exp, spec), info.getAutoRenewAccount(), "Bad auto-renew account!"));
         if (hasNoAdminKey) {
@@ -193,6 +225,30 @@ public class HapiGetTopicInfo extends HapiQueryOp<HapiGetTopicInfo> {
 
         if (hasNoSubmitKey) {
             assertFalse(info.hasSubmitKey(), "Should have no submit key!");
+        }
+        if (hasNoFeeScheduleKey) {
+            assertFalse(
+                    info.hasFeeScheduleKey()
+                            && info.getFeeScheduleKey().getKeyList().getKeysCount() > 0,
+                    "Should have no fee schedule key!");
+        }
+        final var actualFees = info.getCustomFeesList();
+        if (expectNoFees) {
+            assertTrue(actualFees.isEmpty(), "Should have no custom fees");
+        }
+        expectCustomFeeSize.ifPresent(
+                integer -> assertEquals((int) integer, actualFees.size(), "Custom fee size should be " + integer));
+        for (var expectedFee : expectedFees) {
+            expectedFee.accept(spec, actualFees);
+        }
+        var actualFeeExemptKeys = info.getFeeExemptKeyListList();
+        for (var expectedKey : expectedFeeExemptKeyList) {
+            assertTrue(
+                    actualFeeExemptKeys.contains(spec.registry().getKey(expectedKey)),
+                    "Doesn't contain free messages key!");
+        }
+        if (expectFeeExemptKeyListEmpty) {
+            assertTrue(actualFeeExemptKeys.isEmpty(), "Should have no keys in fee except key list");
         }
         expectedLedgerId.ifPresent(id -> Assertions.assertEquals(id, info.getLedgerId()));
     }

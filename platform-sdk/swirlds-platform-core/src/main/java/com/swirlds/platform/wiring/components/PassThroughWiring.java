@@ -1,27 +1,12 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring.components;
 
-import com.swirlds.common.wiring.model.WiringModel;
-import com.swirlds.common.wiring.schedulers.TaskScheduler;
-import com.swirlds.common.wiring.schedulers.builders.TaskSchedulerType;
-import com.swirlds.common.wiring.wires.input.BindableInputWire;
-import com.swirlds.common.wiring.wires.input.InputWire;
-import com.swirlds.common.wiring.wires.output.OutputWire;
+import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.schedulers.TaskScheduler;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.wires.input.BindableInputWire;
+import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.Function;
@@ -37,7 +22,7 @@ import java.util.function.Function;
  * of parked threads.
  * <p>
  * One example usage is in collecting hashes from the concurrent execution of the
- * {@link com.swirlds.platform.event.hashing.EventHasher}. The "postHashCollectorWiring" in
+ * {@link org.hiero.consensus.crypto.EventHasher}. The "postHashCollectorWiring" in
  * {@link com.swirlds.platform.wiring.PlatformWiring} is a pass through wiring object with a sequential scheduler that
  * shares a combined object counter with the preceding concurrent scheduler. Since the pair of schedulers share a
  * counter, the sequential scheduler does *not* apply backpressure to the concurrent scheduler. Instead, "finished"
@@ -69,10 +54,9 @@ public class PassThroughWiring<DATA_TYPE> {
         this(
                 model,
                 inputLabel,
-                model.schedulerBuilder(Objects.requireNonNull(componentName))
+                model.<DATA_TYPE>schedulerBuilder(Objects.requireNonNull(componentName))
                         .withType(Objects.requireNonNull(schedulerType))
-                        .build()
-                        .cast());
+                        .build());
     }
 
     /**

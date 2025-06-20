@@ -1,25 +1,7 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -54,6 +36,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
@@ -196,8 +180,8 @@ public class ApproveAllowanceSuite {
                 withOpContext((spec, opLog) -> {
                     final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
                     final var receiver = spec.registry().getContractId(nestedContract);
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(approveTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -205,8 +189,14 @@ public class ApproveAllowanceSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(APPROVE_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getContractNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
                                                     .longValue(10)))))
                             .andAllChildRecords()
                             .logged();
@@ -216,40 +206,37 @@ public class ApproveAllowanceSuite {
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
-        return defaultHapiSpec("idVariantsTreatedAsExpected")
-                .given(
-                        newKeyNamed("supplyKey"),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(OWNER).maxAutomaticTokenAssociations(2),
-                        cryptoCreate("delegatingOwner").maxAutomaticTokenAssociations(1),
-                        cryptoCreate(SPENDER))
-                .when(
-                        tokenCreate("fungibleToken").initialSupply(123).treasury(TOKEN_TREASURY),
-                        tokenCreate("nonFungibleToken")
-                                .treasury(TOKEN_TREASURY)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0L)
-                                .supplyKey("supplyKey"),
-                        mintToken(
-                                "nonFungibleToken",
-                                List.of(
-                                        ByteString.copyFromUtf8("A"),
-                                        ByteString.copyFromUtf8("B"),
-                                        ByteString.copyFromUtf8("C"))),
-                        cryptoTransfer(
-                                movingUnique("nonFungibleToken", 1L, 2L).between(TOKEN_TREASURY, OWNER),
-                                moving(10, "fungibleToken").between(TOKEN_TREASURY, OWNER)),
-                        cryptoTransfer(movingUnique("nonFungibleToken", 3L).between(TOKEN_TREASURY, "delegatingOwner")))
-                .then(
-                        submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
-                                .addNftAllowance("delegatingOwner", "nonFungibleToken", OWNER, true, List.of())
-                                .signedBy(DEFAULT_PAYER, "delegatingOwner")),
-                        submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
-                                .addNftAllowance(OWNER, "nonFungibleToken", SPENDER, false, List.of(1L))
-                                .addTokenAllowance(OWNER, "fungibleToken", SPENDER, 1L)
-                                .addDelegatedNftAllowance(
-                                        "delegatingOwner", "nonFungibleToken", SPENDER, OWNER, false, List.of(3L))
-                                .signedBy(DEFAULT_PAYER, OWNER)));
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(OWNER).maxAutomaticTokenAssociations(2),
+                cryptoCreate("delegatingOwner").maxAutomaticTokenAssociations(1),
+                cryptoCreate(SPENDER),
+                tokenCreate("fungibleToken").initialSupply(123).treasury(TOKEN_TREASURY),
+                tokenCreate("nonFungibleToken")
+                        .treasury(TOKEN_TREASURY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey("supplyKey"),
+                mintToken(
+                        "nonFungibleToken",
+                        List.of(
+                                ByteString.copyFromUtf8("A"),
+                                ByteString.copyFromUtf8("B"),
+                                ByteString.copyFromUtf8("C"))),
+                cryptoTransfer(
+                        movingUnique("nonFungibleToken", 1L, 2L).between(TOKEN_TREASURY, OWNER),
+                        moving(10, "fungibleToken").between(TOKEN_TREASURY, OWNER)),
+                cryptoTransfer(movingUnique("nonFungibleToken", 3L).between(TOKEN_TREASURY, "delegatingOwner")),
+                submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
+                        .addNftAllowance("delegatingOwner", "nonFungibleToken", OWNER, true, List.of())
+                        .signedBy(DEFAULT_PAYER, "delegatingOwner")),
+                submitModified(withSuccessivelyVariedBodyIds(), () -> cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, "nonFungibleToken", SPENDER, false, List.of(1L))
+                        .addTokenAllowance(OWNER, "fungibleToken", SPENDER, 1L)
+                        .addDelegatedNftAllowance(
+                                "delegatingOwner", "nonFungibleToken", SPENDER, OWNER, false, List.of(3L))
+                        .signedBy(DEFAULT_PAYER, OWNER)));
     }
 
     @HapiTest
@@ -348,8 +335,8 @@ public class ApproveAllowanceSuite {
                 withOpContext((spec, opLog) -> {
                     final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
                     final var receiver = spec.registry().getAccountID(theSpender);
-                    final var idOfToken =
-                            "0.0." + (spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(approveTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -357,8 +344,14 @@ public class ApproveAllowanceSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(APPROVE_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getAccountNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .longValue(10)))))
                             .andAllChildRecords();
                     allRunFor(spec, txnRecord);
@@ -554,8 +547,8 @@ public class ApproveAllowanceSuite {
                 withOpContext((spec, opLog) -> {
                     final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
                     final var receiver = spec.registry().getAccountID(theSpender);
-                    final var idOfToken = "0.0."
-                            + (spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(NON_FUNGIBLE_TOKEN).getTokenNum());
                     var txnRecord = getTxnRecord(allowanceTxn)
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
@@ -563,8 +556,14 @@ public class ApproveAllowanceSuite {
                                                     .contract(idOfToken)
                                                     .withTopicsInOrder(List.of(
                                                             eventSignatureOf(APPROVE_FOR_ALL_SIGNATURE),
-                                                            parsedToByteString(sender.getContractNum()),
-                                                            parsedToByteString(receiver.getAccountNum())))
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getAccountNum())))
                                                     .booleanValue(true)))))
                             .andAllChildRecords()
                             .logged();
@@ -597,8 +596,7 @@ public class ApproveAllowanceSuite {
 
         final AtomicReference<TokenID> tokenID = new AtomicReference<>();
         final AtomicReference<String> attackerMirrorAddr = new AtomicReference<>();
-        final AtomicReference<String> calleeMirrorAddr = new AtomicReference<>();
-
+        final AtomicReference<byte[]> calleeMirrorAddr = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(PRETEND_ATTACKER)
@@ -616,7 +614,7 @@ public class ApproveAllowanceSuite {
                 contractCreate(callee)
                         .refusingEthConversion()
                         .adminKey(DEFAULT_PAYER)
-                        .exposingNumTo(num -> calleeMirrorAddr.set(asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> calleeMirrorAddr.set(asSolidityAddress(id))),
                 tokenAssociate(PRETEND_PAIR, FUNGIBLE_TOKEN),
                 tokenAssociate(callee, FUNGIBLE_TOKEN),
                 sourcing(() -> contractCall(

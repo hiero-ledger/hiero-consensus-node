@@ -1,58 +1,34 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.schemas;
 
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.NODES_KEY;
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.FileID;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.NodeAddress;
-import com.hedera.hapi.node.base.NodeAddressBook;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.BootstrapConfig;
-import com.hedera.node.config.data.FilesConfig;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.spi.MigrationContext;
-import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.Schema;
-import com.swirlds.state.spi.StateDefinition;
-import com.swirlds.state.spi.WritableKVState;
+import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * General schema for the addressbook service.
- * {@code V052AddressBookSchema} is used for migrating the address book on Version 0.52.0
+ * Genesis schema of the address book service.
  */
 public class V053AddressBookSchema extends Schema {
     private static final Logger log = LogManager.getLogger(V053AddressBookSchema.class);
@@ -62,8 +38,7 @@ public class V053AddressBookSchema extends Schema {
     private static final long MAX_NODES = 100L;
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(53).patch(0).build();
-    public static final String ACCOUNTS_KEY = "ACCOUNTS";
-    public static final String FILES_KEY = "FILES";
+    public static final String NODES_KEY = "NODES";
 
     public V053AddressBookSchema() {
         super(VERSION);
@@ -73,101 +48,6 @@ public class V053AddressBookSchema extends Schema {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(StateDefinition.onDisk(NODES_KEY, EntityNumber.PROTOBUF, Node.PROTOBUF, MAX_NODES));
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        requireNonNull(ctx);
-        final WritableKVState<EntityNumber, Node> writableNodes =
-                ctx.newStates().get(NODES_KEY);
-
-        final var networkInfo = ctx.networkInfo();
-        final var addressBook = networkInfo.addressBook();
-        final var bootstrapConfig = ctx.configuration().getConfigData(BootstrapConfig.class);
-
-        log.info("Started migrating nodes from address book");
-        final var adminKey = getAccountAdminKey(ctx);
-        final var nodeDetailMap = getNodeAddressMap(ctx);
-
-        Key finalAdminKey = adminKey == null || adminKey.equals(Key.DEFAULT)
-                ? Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build()
-                : adminKey;
-        NodeAddress nodeDetail;
-        for (final var nodeInfo : addressBook) {
-            final var nodeBuilder = Node.newBuilder()
-                    .nodeId(nodeInfo.nodeId())
-                    .accountId(nodeInfo.accountId())
-                    .description(nodeInfo.selfName())
-                    .gossipEndpoint(List.of(
-                            endpointFor(nodeInfo.internalHostName(), nodeInfo.internalPort()),
-                            endpointFor(nodeInfo.externalHostName(), nodeInfo.externalPort())))
-                    .gossipCaCertificate(nodeInfo.sigCertBytes())
-                    .weight(nodeInfo.stake())
-                    .adminKey(finalAdminKey);
-            if (nodeDetailMap != null) {
-                nodeDetail = nodeDetailMap.get(nodeInfo.nodeId());
-                if (nodeDetail != null) {
-                    nodeBuilder
-                            .serviceEndpoint(nodeDetail.serviceEndpoint())
-                            .grpcCertificateHash(nodeDetail.nodeCertHash());
-                }
-            }
-            writableNodes.put(
-                    EntityNumber.newBuilder().number(nodeInfo.nodeId()).build(), nodeBuilder.build());
-        }
-
-        log.info("Migrated {} nodes from address book", addressBook.size());
-    }
-
-    private Key getAccountAdminKey(@NonNull final MigrationContext ctx) {
-        var adminKey = Key.DEFAULT;
-
-        final var accountConfig = ctx.configuration().getConfigData(AccountsConfig.class);
-        ReadableKVState<AccountID, Account> readableAccounts = null;
-
-        try {
-            readableAccounts = ctx.newStates().get(ACCOUNTS_KEY);
-        } catch (IllegalArgumentException e) {
-            log.info("AccountStore is not found, can be ignored.");
-        }
-        if (readableAccounts != null) {
-            final var adminAccount = readableAccounts.get(AccountID.newBuilder()
-                    .accountNum(accountConfig.addressBookAdmin())
-                    .build());
-            if (adminAccount != null) {
-                adminKey = adminAccount.keyOrElse(Key.DEFAULT);
-            }
-        }
-        return adminKey;
-    }
-
-    private Map<Long, NodeAddress> getNodeAddressMap(@NonNull final MigrationContext ctx) {
-        Map<Long, NodeAddress> nodeDetailMap = null;
-
-        final var fileConfig = ctx.configuration().getConfigData(FilesConfig.class);
-        ReadableKVState<FileID, File> readableFiles = null;
-        try {
-            readableFiles = ctx.newStates().get(FILES_KEY);
-        } catch (IllegalArgumentException e) {
-            log.info("FileStore is not found, can be ignored.");
-        }
-
-        if (readableFiles != null) {
-            final var nodeDetailFile = readableFiles.get(
-                    FileID.newBuilder().fileNum(fileConfig.nodeDetails()).build());
-            if (nodeDetailFile != null) {
-                try {
-                    final var nodeDetails = NodeAddressBook.PROTOBUF
-                            .parse(nodeDetailFile.contents())
-                            .nodeAddress();
-                    nodeDetailMap =
-                            nodeDetails.stream().collect(Collectors.toMap(NodeAddress::nodeId, Function.identity()));
-                } catch (ParseException e) {
-                    log.warn("Can not parse file 102 ", e);
-                }
-            }
-        }
-        return nodeDetailMap;
     }
 
     /**
@@ -192,5 +72,39 @@ public class V053AddressBookSchema extends Schema {
             builder.domainName(host);
         }
         return builder.build();
+    }
+
+    /**
+     * Parses the given JSON file as a map from node ids to hexed Ed25519 public keys.
+     * @param loc the location of the JSON file
+     * @return the map from node ids to Ed25519 keys
+     */
+    public static Map<Long, Key> parseEd25519NodeAdminKeysFrom(@NonNull final String loc) {
+        final var path = Paths.get(loc);
+        try {
+            final var json = Files.readString(path);
+            return parseEd25519NodeAdminKeys(json);
+        } catch (IOException ignore) {
+            return emptyMap();
+        }
+    }
+
+    /**
+     * Parses the given JSON string as a map from node ids to hexed Ed25519 public keys.
+     * @param json the JSON string
+     * @return the map from node ids to Ed25519 keys
+     */
+    public static Map<Long, Key> parseEd25519NodeAdminKeys(@NonNull final String json) {
+        requireNonNull(json);
+        final var mapper = new ObjectMapper();
+        try {
+            final Map<Long, String> result = mapper.readValue(json, new TypeReference<>() {});
+            return result.entrySet().stream().collect(toMap(Map.Entry::getKey, e -> Key.newBuilder()
+                    .ed25519(Bytes.wrap(unhex(e.getValue())))
+                    .build()));
+        } catch (JsonProcessingException e) {
+            log.warn("Unable to parse override keys", e);
+            return emptyMap();
+        }
     }
 }

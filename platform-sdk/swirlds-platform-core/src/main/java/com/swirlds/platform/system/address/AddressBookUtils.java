@@ -1,45 +1,29 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
 import static com.swirlds.platform.util.BootstrapUtils.detectSoftwareUpgrade;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.formatting.TextTable;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.PlatformStateModifier;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.address.AddressBookInitializer;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.system.SoftwareVersion;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.security.cert.CertificateEncodingException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A utility class for AddressBook functionality.
@@ -58,13 +42,10 @@ import java.util.regex.Pattern;
  *     <li>memo field (optional)</li>
  * </ul>
  * Example: `address, 22, node22, node22, 1, 10.10.11.12, 5060, 212.25.36.123, 5060, memo for node 22`
- * <p>
- * The last line of the config.txt address book contains the nextNodeId value in the form of: `nextNodeId, 23`
  */
 public class AddressBookUtils {
 
     public static final String ADDRESS_KEYWORD = "address";
-    public static final String NEXT_NODE_ID_KEYWORD = "nextNodeId";
     private static final Pattern IPV4_ADDRESS_PATTERN =
             Pattern.compile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$");
 
@@ -97,8 +78,7 @@ public class AddressBookUtils {
                     address.getPortExternal() + (hasMemo ? "," : ""),
                     memo);
         }
-        final String addresses = table.render();
-        return addresses + "\n" + NEXT_NODE_ID_KEYWORD + ", " + addressBook.getNextNodeId();
+        return table.render();
     }
 
     /**
@@ -112,7 +92,6 @@ public class AddressBookUtils {
     public static AddressBook parseAddressBookText(@NonNull final String addressBookText) throws ParseException {
         Objects.requireNonNull(addressBookText, "The addressBookText must not be null.");
         final AddressBook addressBook = new AddressBook();
-        boolean nextNodeIdParsed = false;
         for (final String line : addressBookText.split("\\r?\\n")) {
             final String trimmedLine = line.trim();
             if (trimmedLine.isEmpty()
@@ -126,59 +105,18 @@ public class AddressBookUtils {
                 if (address != null) {
                     addressBook.add(address);
                 }
-            } else if (trimmedLine.startsWith(NEXT_NODE_ID_KEYWORD)) {
-                final NodeId nodeId = parseNextNodeId(trimmedLine);
-                addressBook.setNextNodeId(nodeId);
-                nextNodeIdParsed = true;
+            } else if (trimmedLine.startsWith("nextNodeId")) {
+                // As of release 0.56, nextNodeId is not used and ignored.
+                // CI/CD pipelines need to be updated to remove this field from files.
+                // Future Work: remove this case and hard fail when nextNodeId is no longer present in CI/CD pipelines.
             } else {
                 throw new ParseException(
-                        "The line [%s] does not start with `%s` or `%s`."
-                                .formatted(
-                                        line.substring(0, Math.min(line.length(), 30)),
-                                        ADDRESS_KEYWORD,
-                                        NEXT_NODE_ID_KEYWORD),
+                        "The line [%s] does not start with `%s`."
+                                .formatted(line.substring(0, Math.min(line.length(), 30)), ADDRESS_KEYWORD),
                         0);
             }
         }
-        if (!nextNodeIdParsed) {
-            throw new ParseException("The address book text does not contain a `nextNodeId` line.", 0);
-        }
         return addressBook;
-    }
-
-    /**
-     * Parse the next available node id from a single line of text.  The line must start with the keyword `nextNodeId`
-     * followed by a comma and then the node id.  The node id must be a positive integer greater than all nodeIds in the
-     * address book.
-     *
-     * @param nextNodeId the text to parse.
-     * @return the parsed node id.
-     * @throws ParseException if there is any problem with parsing the node id.
-     */
-    @NonNull
-    public static NodeId parseNextNodeId(@NonNull final String nextNodeId) throws ParseException {
-        Objects.requireNonNull(nextNodeId, "The nextNodeId must not be null.");
-        final String[] parts = nextNodeId.split(",");
-        if (parts.length != 2) {
-            throw new ParseException(
-                    "The nextNodeId [%s] does not have exactly 2 comma separated parts.".formatted(nextNodeId), 0);
-        }
-        if (!parts[0].trim().equals(NEXT_NODE_ID_KEYWORD)) {
-            throw new ParseException(
-                    "The nextNodeId [%s] does not start with the keyword `nextNodeId`.".formatted(nextNodeId), 0);
-        }
-        final String nodeIdText = parts[1].trim();
-        try {
-            final long nodeId = Long.parseLong(nodeIdText);
-            if (nodeId < 0) {
-                throw new ParseException(
-                        "The nextNodeId [%s] does not have a positive integer node id.".formatted(nextNodeId), 1);
-            }
-            return new NodeId(nodeId);
-        } catch (final NumberFormatException e) {
-            throw new ParseException(
-                    "The nextNodeId [%s] does not have a positive integer node id.".formatted(nextNodeId), 1);
-        }
     }
 
     /**
@@ -214,7 +152,7 @@ public class AddressBookUtils {
         }
         final NodeId nodeId;
         try {
-            nodeId = new NodeId(Long.parseLong(parts[1]));
+            nodeId = NodeId.of(Long.parseLong(parts[1]));
         } catch (final Exception e) {
             throw new ParseException("Cannot parse node id from '" + parts[1] + "'", 1);
         }
@@ -228,12 +166,6 @@ public class AddressBookUtils {
         }
         // FQDN Support: The original string value is preserved, whether it is an IP Address or a FQDN.
         final String internalHostname = parts[5];
-        try {
-            // validate that an InetAddress can be created from the internal hostname.
-            InetAddress.getByName(internalHostname);
-        } catch (UnknownHostException e) {
-            throw new ParseException("Cannot parse ip address from '" + parts[5] + "'", 5);
-        }
         final int internalPort;
         try {
             internalPort = Integer.parseInt(parts[6]);
@@ -242,12 +174,6 @@ public class AddressBookUtils {
         }
         // FQDN Support: The original string value is preserved, whether it is an IP Address or a FQDN.
         final String externalHostname = parts[7];
-        try {
-            // validate that an InetAddress can be created from the external hostname.
-            InetAddress.getByName(externalHostname);
-        } catch (UnknownHostException e) {
-            throw new ParseException("Cannot parse ip address from '" + parts[7] + "'", 7);
-        }
         final int externalPort;
         try {
             externalPort = Integer.parseInt(parts[8]);
@@ -268,39 +194,6 @@ public class AddressBookUtils {
                 null,
                 null,
                 memoToUse);
-    }
-
-    /**
-     * Verifies that all addresses and the nextNodeId are the same between the two address books, otherwise an
-     * IllegalStateException is thrown.  All other fields in the address book are intentionally ignored. This comparison
-     * is used during reconnect to verify that the address books align enough to proceed.
-     *
-     * @param addressBook1 the first address book to compare.
-     * @param addressBook2 the second address book to compare.
-     * @throws IllegalStateException if the address books are not compatible for reconnect.
-     */
-    public static void verifyReconnectAddressBooks(
-            @NonNull final AddressBook addressBook1, @NonNull final AddressBook addressBook2)
-            throws IllegalStateException {
-        if (!addressBook1.getNextNodeId().equals(addressBook2.getNextNodeId())) {
-            throw new IllegalStateException("The next node ids are not the same.");
-        }
-        final int addressCount = addressBook1.getSize();
-        if (addressCount != addressBook2.getSize()) {
-            throw new IllegalStateException("The address books do not have the same number of addresses.");
-        }
-        for (int i = 0; i < addressCount; i++) {
-            final NodeId nodeId1 = addressBook1.getNodeId(i);
-            final NodeId nodeId2 = addressBook2.getNodeId(i);
-            if (!nodeId1.equals(nodeId2)) {
-                throw new IllegalStateException("The address books do not have the same node ids.");
-            }
-            final Address address1 = addressBook1.getAddress(nodeId1);
-            final Address address2 = addressBook2.getAddress(nodeId2);
-            if (!address1.equals(address2)) {
-                throw new IllegalStateException("The address books do not have the same addresses.");
-            }
-        }
     }
 
     /**
@@ -328,101 +221,107 @@ public class AddressBookUtils {
     }
 
     /**
-     * Creates a new roster from the bootstrap address book.
-     *
-     * @return a new roster
-     */
-    @NonNull
-    public static Roster createRoster(@NonNull final AddressBook bootstrapAddressBook) {
-        Objects.requireNonNull(bootstrapAddressBook, "The bootstrapAddressBook must not be null.");
-        final List<RosterEntry> rosterEntries = new ArrayList<>(bootstrapAddressBook.getSize());
-        for (int i = 0; i < bootstrapAddressBook.getSize(); i++) {
-            final NodeId nodeId = bootstrapAddressBook.getNodeId(i);
-            final Address address = bootstrapAddressBook.getAddress(nodeId);
-
-            final RosterEntry rosterEntry = AddressBookUtils.toRosterEntry(address, nodeId);
-            rosterEntries.add(rosterEntry);
-        }
-        return Roster.newBuilder().rosterEntries(rosterEntries).build();
-    }
-
-    /**
-     * Converts an address to a roster entry.
-     *
-     * @param address the address to convert
-     * @param nodeId  the node ID to use for the roster entry
-     * @return the roster entry
-     */
-    private static RosterEntry toRosterEntry(@NonNull final Address address, @NonNull final NodeId nodeId) {
-        Objects.requireNonNull(address);
-        Objects.requireNonNull(nodeId);
-        final var signingCertificate = address.getSigCert();
-        Bytes signingCertificateBytes;
-        try {
-            signingCertificateBytes =
-                    signingCertificate == null ? Bytes.EMPTY : Bytes.wrap(signingCertificate.getEncoded());
-        } catch (final CertificateEncodingException e) {
-            signingCertificateBytes = Bytes.EMPTY;
-        }
-
-        final List<ServiceEndpoint> serviceEndpoints = new ArrayList<>(2);
-        if (address.getHostnameInternal() != null) {
-            serviceEndpoints.add(endpointFor(address.getHostnameInternal(), address.getPortInternal()));
-        }
-        if (address.getHostnameExternal() != null) {
-            serviceEndpoints.add(endpointFor(address.getHostnameExternal(), address.getPortExternal()));
-        }
-
-        return RosterEntry.newBuilder()
-                .nodeId(nodeId.id())
-                .weight(address.getWeight())
-                .gossipCaCertificate(signingCertificateBytes)
-                .gossipEndpoint(serviceEndpoints)
-                .build();
-    }
-    /**
      * Initializes the address book from the configuration and platform saved state.
-     * @param selfId the node ID of the current node
-     * @param version the software version of the current node
-     * @param initialState the initial state of the platform
+     *
+     * @param selfId               the node ID of the current node
+     * @param version              the software version of the current node
+     * @param initialState         the initial state of the platform
      * @param bootstrapAddressBook the bootstrap address book
-     * @param platformContext the platform context
+     * @param platformContext      the platform context
      * @return the initialized address book
      */
     public static @NonNull AddressBook initializeAddressBook(
             @NonNull final NodeId selfId,
-            @NonNull final SoftwareVersion version,
+            @NonNull final SemanticVersion version,
             @NonNull final ReservedSignedState initialState,
             @NonNull final AddressBook bootstrapAddressBook,
-            @NonNull final PlatformContext platformContext) {
-        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get());
+            @NonNull final PlatformContext platformContext,
+            @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler,
+            @NonNull final PlatformStateFacade platformStateFacade) {
+        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get(), platformStateFacade);
         // Initialize the address book from the configuration and platform saved state.
         final AddressBookInitializer addressBookInitializer = new AddressBookInitializer(
-                selfId, version, softwareUpgrade, initialState.get(), bootstrapAddressBook.copy(), platformContext);
+                selfId,
+                softwareUpgrade,
+                initialState.get(),
+                bootstrapAddressBook.copy(),
+                platformContext,
+                consensusStateEventHandler,
+                platformStateFacade);
+        final State state = initialState.get().getState();
 
         if (addressBookInitializer.hasAddressBookChanged()) {
-            final MerkleRoot state = initialState.get().getState();
-            // Update the address book with the current address book read from config.txt.
-            // Eventually we will not do this, and only transactions will be capable of
-            // modifying the address book.
-            final PlatformStateModifier platformState = state.getWritablePlatformState();
-            platformState.bulkUpdate(v -> {
-                v.setAddressBook(addressBookInitializer.getCurrentAddressBook().copy());
-                v.setPreviousAddressBook(
-                        addressBookInitializer.getPreviousAddressBook() == null
-                                ? null
-                                : addressBookInitializer
-                                        .getPreviousAddressBook()
-                                        .copy());
-            });
+            if (addressBookInitializer.getPreviousAddressBook() != null) {
+                // We cannot really "update" the previous roster because we don't know the round number
+                // at which it became active. And we shouldn't do that anyway because under normal circumstances
+                // the RosterService tracks the roster history correctly. However, since we're given a non-null
+                // previous AddressBook, and per the current implementation we know it comes from the state,
+                // we might as well validate this fact here just to ensure the update is correct.
+                final Roster previousRoster =
+                        RosterRetriever.buildRoster(addressBookInitializer.getPreviousAddressBook());
+                final long round = platformStateFacade.roundOf(state);
+                if (!previousRoster.equals(RosterRetriever.retrieveActive(state, round))
+                        && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state))) {
+                    throw new IllegalStateException(
+                            "The previousRoster in the AddressBookInitializer doesn't match either the active or previous roster in state."
+                                    + " AddressBookInitializer previousRoster = " + RosterUtils.toString(previousRoster)
+                                    + ", state currentRoster = "
+                                    + RosterUtils.toString(RosterRetriever.retrieveActive(state, round))
+                                    + ", state previousRoster = "
+                                    + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
+                }
+            }
+
+            // The active roster is already initialized when creating a genesis state, so only set it here
+            // if it's not for the genesis state (round 0)
+            if (initialState.get().getRound() > 0) {
+                RosterUtils.setActiveRoster(
+                        state,
+                        RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
+                        platformStateFacade.roundOf(state) + 1);
+            }
         }
 
         // At this point the initial state must have the current address book set.  If not, something is wrong.
-        final AddressBook addressBook =
-                initialState.get().getState().getReadablePlatformState().getAddressBook();
+        final long round = platformStateFacade.roundOf(state);
+        final AddressBook addressBook = RosterUtils.buildAddressBook(RosterRetriever.retrieveActive(state, round));
         if (addressBook == null) {
             throw new IllegalStateException("The current address book of the initial state is null.");
         }
         return addressBook;
+    }
+
+    /**
+     * Format a "consensusEventStreamName" using the "memo" field from the self-Address.
+     * <p>
+     * !!! IMPORTANT !!!: It's imperative to retain the logic that is based on the current content of the "memo" field,
+     * even if the code is updated to source the content of "memo" from another place. The "consensusEventStreamName" is
+     * used as a directory name to save some files on disk, and the directory name should remain unchanged for now.
+     * <p>
+     * Per @lpetrovic05 : "As far as I know, CES isn't really used for anything. It is however, uploaded to google
+     * storage, so maybe the name change might affect the uploader."
+     * <p>
+     * This logic could and should eventually change to use the nodeId only (see the else{} branch below.) However, this
+     * change needs to be coordinated with DevOps and NodeOps to ensure the data continues to be uploaded. Replacing the
+     * directory and starting with an empty one may or may not affect the DefaultConsensusEventStream which will need to
+     * be tested when this change takes place.
+     *
+     * @param addressBook an AddressBook
+     * @param selfId      a NodeId for self
+     * @return consensusEventStreamName
+     */
+    @NonNull
+    public static String formatConsensusEventStreamName(
+            @NonNull final AddressBook addressBook, @NonNull final NodeId selfId) {
+        // !!!!! IMPORTANT !!!!! Read the javadoc above and the comment below before modifying this code.
+        // Required for conformity with legacy behavior. This sort of funky logic is normally something
+        // we'd try to move away from, but since we will be removing the CES entirely, it's simpler
+        // to just wait until the entire component disappears.
+        final Address address = addressBook.getAddress(selfId);
+        if (!address.getMemo().isEmpty()) {
+            return address.getMemo();
+        } else {
+            return String.valueOf(selfId);
+        }
     }
 }

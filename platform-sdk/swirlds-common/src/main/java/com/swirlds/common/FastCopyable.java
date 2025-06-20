@@ -1,22 +1,10 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common;
 
 import com.swirlds.base.state.Mutable;
+import org.hiero.base.Copyable;
+import org.hiero.base.Releasable;
+import org.hiero.base.crypto.Hashable;
 
 /**
  * An interface for classes that can be copied and serialized in a way specific to the Swirlds platform. If a class
@@ -45,7 +33,7 @@ public interface FastCopyable extends Copyable, Mutable, Releasable {
      * Either behavior is fine, but each implementation should document which behavior it has chosen.
      * By the default, the first implementation is assumed.
      *
-     * If a FastCopyable object extends {@link com.swirlds.common.crypto.Hashable} then under no circumstances should
+     * If a FastCopyable object extends {@link Hashable} then under no circumstances should
      * the hash be copied by this method.
      *
      * It is strongly suggested that each implementing class override the return type of this method to its self

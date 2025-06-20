@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event.source;
 
 import static com.swirlds.platform.test.fixtures.event.EventUtils.staticDynamicValue;
 
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
@@ -26,15 +10,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
 
-public interface EventSource<T extends EventSource<T>> {
+public interface EventSource {
 
     /**
      * Get an exact copy of this event source as it was in its original state. Child classes should invoke
      * the copy constructor {@link AbstractEventSource#AbstractEventSource(AbstractEventSource)}
      * when creating the copy.
      */
-    T copy();
+    EventSource copy();
 
     /**
      * Reset this event source to its original state. Does not undo manual settings changes.
@@ -57,12 +42,7 @@ public interface EventSource<T extends EventSource<T>> {
      * 		A unique integer that represents the ID of this node.
      * @return this
      */
-    T setNodeId(@NonNull NodeId nodeId);
-
-    /**
-     * Get the weight held by this event source.
-     */
-    long getWeight();
+    EventSource setNodeId(@NonNull NodeId nodeId);
 
     /**
      * Get the probabilistic weight that this node will create the next new event. A node with a weight of 1 will
@@ -81,28 +61,26 @@ public interface EventSource<T extends EventSource<T>> {
      * @return this
      */
     @SuppressWarnings("unchecked")
-    default T setNewEventWeight(final double newEventWeight) {
+    default EventSource setNewEventWeight(final double newEventWeight) {
         setNewEventWeight(staticDynamicValue(newEventWeight));
-        return (T) this;
+        return this;
     }
 
     /**
      * Set the probabilistic weight that this node will create the next new event. A node with a weight of 1.0 will
-     * create new events half as often as a node with a weight of 2.0. A node with a weight of 0.0 will
-     * never create new events.
+     * create new events half as often as a node with a weight of 2.0. A node with a weight of 0.0 will never create new
+     * events.
      *
-     * @param dynamicWeight
-     * 		a weight that may change over time
-     * @return this
+     * @param dynamicWeight a weight that may change over time
      */
-    T setNewEventWeight(DynamicValue<Double> dynamicWeight);
+    void setNewEventWeight(DynamicValue<Double> dynamicWeight);
 
     /**
      * Set the transaction generator function used to generate transactions for events created by this source.
      *
      * @return this
      */
-    T setTransactionGenerator(final TransactionGenerator transactionGenerator);
+    EventSource setTransactionGenerator(final TransactionGenerator transactionGenerator);
 
     /**
      * Generates a new event. Is responsible for populating IndexedEvent metadata fields.
@@ -117,7 +95,7 @@ public interface EventSource<T extends EventSource<T>> {
     EventImpl generateEvent(
             @NonNull final Random random,
             final long eventIndex,
-            @Nullable final EventSource<?> otherParent,
+            @Nullable final EventSource otherParent,
             @NonNull final Instant timestamp,
             final long birthRound);
 
@@ -176,7 +154,7 @@ public interface EventSource<T extends EventSource<T>> {
      *
      * @return this
      */
-    T setRequestedOtherParentAgeDistribution(DynamicValue<Integer> otherParentIndex);
+    EventSource setRequestedOtherParentAgeDistribution(DynamicValue<Integer> otherParentIndex);
 
     /**
      * Get the event index (i.e. the age of the event) that this node would like to use for when it provides other
@@ -202,7 +180,7 @@ public interface EventSource<T extends EventSource<T>> {
      *
      * @return this
      */
-    T setProvidedOtherParentAgeDistribution(DynamicValue<Integer> otherParentIndex);
+    EventSource setProvidedOtherParentAgeDistribution(DynamicValue<Integer> otherParentIndex);
 
     /**
      * Returns the number of recent events that are saved by this node. These recent events are used as the
@@ -216,5 +194,5 @@ public interface EventSource<T extends EventSource<T>> {
      *
      * @return this
      */
-    T setRecentEventRetentionSize(int recentEventRetentionSize);
+    EventSource setRecentEventRetentionSize(int recentEventRetentionSize);
 }

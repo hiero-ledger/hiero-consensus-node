@@ -1,26 +1,7 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.branching;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
+import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -28,12 +9,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A standard implementation of {@link BranchDetector}.
  */
 public class DefaultBranchDetector implements BranchDetector {
-
     /**
      * The current event window.
      */
@@ -54,8 +38,10 @@ public class DefaultBranchDetector implements BranchDetector {
      *
      * @param currentRoster the current roster
      */
-    public DefaultBranchDetector(@NonNull final AddressBook currentRoster) {
-        nodes.addAll(currentRoster.getNodeIdSet());
+    public DefaultBranchDetector(@NonNull final Roster currentRoster) {
+        nodes.addAll(currentRoster.rosterEntries().stream()
+                .map(re -> NodeId.of(re.nodeId()))
+                .toList());
         Collections.sort(nodes);
     }
 

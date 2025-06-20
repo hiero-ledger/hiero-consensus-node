@@ -1,32 +1,11 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static com.swirlds.platform.event.AncientMode.GENERATION_THRESHOLD;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.eventhandling.EventConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -85,28 +64,22 @@ public class PcesFileManager {
     private final PcesFileTracker files;
 
     /**
-     * The PCES file type for new files.
-     */
-    private final AncientMode newFileType;
-
-    /**
      * Constructor
      *
-     * @param platformContext the platform context for this node
-     * @param files           the files to track
-     * @param selfId          the ID of this node
-     * @param startingRound   the round number of the initial state of the system
+     * @param platformContext   the platform context for this node
+     * @param files             the files to track
+     * @param databaseDirectory the directory where new files will be created
+     * @param startingRound     the round number of the initial state of the system
      * @throws IOException if there is an error reading the files
      */
     public PcesFileManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final PcesFileTracker files,
-            @NonNull final NodeId selfId,
+            @NonNull final Path databaseDirectory,
             final long startingRound)
             throws IOException {
 
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(selfId);
 
         if (startingRound < 0) {
             throw new IllegalArgumentException("starting round must be non-negative");
@@ -119,16 +92,9 @@ public class PcesFileManager {
         this.files = Objects.requireNonNull(files);
         this.metrics = new PcesMetrics(platformContext.getMetrics());
         this.minimumRetentionPeriod = preconsensusEventStreamConfig.minimumRetentionPeriod();
-        this.databaseDirectory = getDatabaseDirectory(platformContext, selfId);
+        this.databaseDirectory = Objects.requireNonNull(databaseDirectory);
 
         this.currentOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
-
-        this.newFileType = platformContext
-                        .getConfiguration()
-                        .getConfigData(EventConfig.class)
-                        .useBirthRoundAncientThreshold()
-                ? BIRTH_ROUND_THRESHOLD
-                : GENERATION_THRESHOLD;
 
         initializeMetrics();
     }
@@ -218,7 +184,6 @@ public class PcesFileManager {
         }
 
         final PcesFile descriptor = PcesFile.of(
-                newFileType,
                 time.now(),
                 getNextSequenceNumber(),
                 lowerBoundForFile,

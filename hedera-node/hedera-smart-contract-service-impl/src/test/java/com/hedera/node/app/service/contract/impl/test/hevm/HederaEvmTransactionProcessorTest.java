@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.*;
@@ -82,9 +67,9 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, feesOnlyUpdater, context, VERSION_030, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_030, tracer, config);
 
-        verify(v30processor).processTransaction(transaction, worldUpdater, feesOnlyUpdater, context, tracer, config);
+        verify(v30processor).processTransaction(transaction, worldUpdater, context, tracer, config);
     }
 
     @Test
@@ -92,9 +77,9 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, feesOnlyUpdater, context, VERSION_034, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_034, tracer, config);
 
-        verify(v34processor).processTransaction(transaction, worldUpdater, feesOnlyUpdater, context, tracer, config);
+        verify(v34processor).processTransaction(transaction, worldUpdater, context, tracer, config);
     }
 
     @Test
@@ -102,8 +87,8 @@ class HederaEvmTransactionProcessorTest {
         final var transaction = wellKnownHapiCall();
         final var context = wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator);
 
-        subject.process(transaction, worldUpdater, feesOnlyUpdater, context, VERSION_038, tracer, config);
+        subject.process(transaction, worldUpdater, context, VERSION_038, tracer, config);
 
-        verify(v38processor).processTransaction(transaction, worldUpdater, feesOnlyUpdater, context, tracer, config);
+        verify(v38processor).processTransaction(transaction, worldUpdater, context, tracer, config);
     }
 }

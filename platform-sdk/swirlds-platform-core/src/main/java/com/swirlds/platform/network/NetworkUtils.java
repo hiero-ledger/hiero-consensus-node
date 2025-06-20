@@ -1,34 +1,15 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
 
-import com.swirlds.common.crypto.config.CryptoConfig;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import com.swirlds.platform.network.connectivity.TlsFactory;
-import com.swirlds.platform.system.PlatformConstructionException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
 import java.io.IOException;
@@ -42,6 +23,9 @@ import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.exceptions.PlatformConstructionException;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 public final class NetworkUtils {
     private static final Logger logger = LogManager.getLogger(NetworkUtils.class);
@@ -140,26 +124,23 @@ public final class NetworkUtils {
      *
      * @param selfId        the ID of the node
      * @param peers         the list of peers
-     * @param keysAndCerts  the keys and certificates to use for the TLS connections
+     * @param ownKeysAndCerts  the keys and certificates to use for the TLS connections
      * @param configuration the configuration of the network
      * @return the created {@link SocketFactory}
      */
     public static @NonNull SocketFactory createSocketFactory(
             @NonNull final NodeId selfId,
             @NonNull final List<PeerInfo> peers,
-            @NonNull final KeysAndCerts keysAndCerts,
+            @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final Configuration configuration) {
         Objects.requireNonNull(selfId);
         Objects.requireNonNull(peers);
-        Objects.requireNonNull(keysAndCerts);
+        Objects.requireNonNull(ownKeysAndCerts);
         Objects.requireNonNull(configuration);
-
-        final CryptoConfig cryptoConfig = configuration.getConfigData(CryptoConfig.class);
-        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
 
         try {
             return new TlsFactory(
-                    keysAndCerts.agrCert(), keysAndCerts.agrKeyPair().getPrivate(), peers, socketConfig, cryptoConfig);
+                    ownKeysAndCerts.agrCert(), ownKeysAndCerts.agrKeyPair().getPrivate(), peers, selfId, configuration);
         } catch (final NoSuchAlgorithmException
                 | UnrecoverableKeyException
                 | KeyStoreException

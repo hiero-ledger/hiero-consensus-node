@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.grouping;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
@@ -62,8 +47,8 @@ public class SysFileLookups extends UtilOp {
         return allSystemFileNums(spec)
                 .filter(test)
                 .boxed()
-                .collect(Collectors.toMap(fileNum -> new FileID(0, 0, fileNum), fileNum -> {
-                    final var query = getFileContents("0.0." + fileNum).noLogging();
+                .collect(Collectors.toMap(fileNum -> new FileID(spec.shard(), spec.realm(), fileNum), fileNum -> {
+                    final var query = getFileContents(String.valueOf(fileNum)).noLogging();
                     allRunFor(spec, query);
                     final var contents = query.getResponse()
                             .getFileGetContents()

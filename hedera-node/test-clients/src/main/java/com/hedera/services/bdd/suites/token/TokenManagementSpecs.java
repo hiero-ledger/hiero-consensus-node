@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
@@ -120,6 +105,7 @@ public class TokenManagementSpecs {
     private static final String WIPE_TXN = "wipeTxn";
     private static final String ONE_KYC = "oneKyc";
     private static final String RIGID = "rigid";
+    public static final String INVALID_ACCOUNT = "999.999.999";
 
     @HapiTest
     final Stream<DynamicTest> aliasFormFailsForAllTokenOps() {
@@ -561,10 +547,10 @@ public class TokenManagementSpecs {
                 tokenCreate(withoutKycKey).treasury(TOKEN_TREASURY),
                 tokenCreate(withKycKey).kycKey(ONE_KYC).treasury(TOKEN_TREASURY),
                 grantTokenKyc(withoutKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
-                grantTokenKyc(withKycKey, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
+                grantTokenKyc(withKycKey, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
                 grantTokenKyc(withKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
                 grantTokenKyc(withoutKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
-                revokeTokenKyc(withKycKey, "1.2.3").hasKnownStatus(INVALID_ACCOUNT_ID),
+                revokeTokenKyc(withKycKey, INVALID_ACCOUNT).hasKnownStatus(INVALID_ACCOUNT_ID),
                 revokeTokenKyc(withKycKey, TOKEN_TREASURY).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
                 getTokenInfo(withoutKycKey).hasRegisteredId(withoutKycKey).logged());
     }

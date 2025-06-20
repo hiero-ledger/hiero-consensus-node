@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2023-2024 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "PR Formatting"
 on:
   pull_request_target:
@@ -43,30 +28,45 @@ permissions:
 jobs:
   title-check:
     name: Title Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
       - name: Check PR Title
-        uses: step-security/conventional-pr-title-action@0eae74515f5a79f8773fa04142dd746df76666ac # v1.0.0
+        uses: step-security/conventional-pr-title-action@8a8989588c2547f23167c4c42f0fb2356479e81b # v3.2.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   milestone-check:
     name: Milestone Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
       - name: Check Milestone
         if: ${{ github.event.pull_request.milestone == null }}
         run: |
-            echo "Milestone is not set. Failing the workflow."
-            exit 1
+          echo "Milestone is not set. Failing the workflow."
+          exit 1
 
   assignee-check:
     name: Assignee Check
-    runs-on: network-node-linux-medium
+    runs-on: hiero-network-node-linux-medium
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
       - name: Check Assignee
         if: ${{ github.event.pull_request.assignees == null || github.event.pull_request.assignees[0] == null }}
         run: |
-            echo "Assignee is not set. Failing the workflow."
-            exit 1
+          echo "Assignee is not set. Failing the workflow."
+          exit 1

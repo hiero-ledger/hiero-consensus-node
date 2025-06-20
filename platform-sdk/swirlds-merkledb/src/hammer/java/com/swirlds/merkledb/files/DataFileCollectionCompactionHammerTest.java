@@ -1,26 +1,11 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.config.singleton.ConfigurationHolder;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -63,17 +48,16 @@ class DataFileCollectionCompactionHammerTest {
         Configurator.reconfigure();
     }
 
-    @SuppressWarnings("unchecked")
     @ParameterizedTest
     @MethodSource("provideForBenchmark")
     @Tags({@Tag("Speed")})
     void benchmark(int numFiles, int maxEntriesPerFile) throws IOException {
-        final Path tempFileDir =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("DataFileCollectionCompactionHammerTest");
+        final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
+                "DataFileCollectionCompactionHammerTest", CONFIGURATION);
         assertDoesNotThrow(() -> {
-            final LongListHeap index = new LongListHeap();
+            final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
-            final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
+            final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
             final var coll = new DataFileCollection(
                     dbConfig, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
             final var compactor = new DataFileCompactor(dbConfig, storeName, coll, index, null, null, null, null);
@@ -98,7 +82,8 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L).setFileCompleted();
+                coll.updateValidKeyRange(index.size() * 2L - 1, index.size() * 2L);
+                coll.endWriting();
             }
 
             final long start = System.currentTimeMillis();
@@ -130,14 +115,13 @@ class DataFileCollectionCompactionHammerTest {
                 Arguments.of(1000, 1_000_000));
     }
 
-    @SuppressWarnings("unchecked")
     @Test
     void hammer() throws IOException, InterruptedException, ExecutionException {
-        final Path tempFileDir =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("DataFileCollectionCompactionHammerTest");
-        final LongListHeap index = new LongListHeap();
+        final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
+                "DataFileCollectionCompactionHammerTest", CONFIGURATION);
+        final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
-        final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var coll = new DataFileCollection(
                 dbConfig, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
         final var compactor = new DataFileCompactor(dbConfig, storeName, coll, index, null, null, null, null);
@@ -165,7 +149,8 @@ class DataFileCollectionCompactionHammerTest {
                                     },
                                     2 * Long.BYTES));
                 }
-                coll.endWriting(index.size() * 2L - 1, index.size() * 2L).setFileCompleted();
+                coll.updateValidKeyRange(index.size() * 2L - 1, index.size() * 2L);
+                coll.endWriting();
             }
             return null;
         });

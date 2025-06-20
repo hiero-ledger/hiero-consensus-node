@@ -1,29 +1,14 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmContractId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.successResultOfZeroValueTraceable;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FEE_SUBMITTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
@@ -40,7 +25,6 @@ import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -64,6 +48,10 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     // random256BitGenerator(uint256)
     static final int PSEUDORANDOM_SEED_GENERATOR_SELECTOR = 0xd83bf9a1;
     public static final String PRNG_PRECOMPILE_ADDRESS = "0x169";
+    // The system contract ID always uses shard 0 and realm 0 so we cannot use ConversionUtils methods for this
+    public static final ContractID PRNG_CONTRACT_ID = ContractID.newBuilder()
+            .contractNum(numberOfLongZero(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS)))
+            .build();
     private long gasRequirement;
 
     @Inject
@@ -72,19 +60,16 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     }
 
     @Override
-    public FullResult computeFully(@NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public FullResult computeFully(
+            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
 
         // compute the gas requirement
         gasRequirement = calculateGas(frame);
 
-        // get the contract ID
-        final ContractID contractID = asEvmContractId(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS));
-
         try {
             validateTrue(input.size() >= 4, INVALID_TRANSACTION_BODY);
-            validateTrue(frame.getValue().getAsBigInteger().equals(BigInteger.ZERO), INVALID_FEE_SUBMITTED);
             // compute the pseudorandom number
             final var randomNum = generatePseudoRandomData(input, frame);
             requireNonNull(randomNum);
@@ -154,7 +139,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
 
             updater.enhancement()
                     .systemOperations()
-                    .externalizePreemptedDispatch(synthBody(), toPbj(responseCode))
+                    .externalizePreemptedDispatch(synthBody(), toPbj(responseCode), UTIL_PRNG)
                     .contractCallResult(contractResult);
         }
     }

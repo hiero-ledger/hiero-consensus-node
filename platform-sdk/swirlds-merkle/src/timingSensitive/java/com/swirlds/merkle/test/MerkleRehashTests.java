@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.invalidateTree;
@@ -27,24 +12,24 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
 import com.swirlds.common.merkle.exceptions.FailedRehashException;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialNaryMerkleInternal;
 import com.swirlds.common.merkle.route.MerkleRoute;
-import com.swirlds.common.test.fixtures.junit.tags.TestComponentTags;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -86,14 +71,13 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(Cryptography.NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
             });
 
-            MerkleCryptoFactory.getInstance().digestTreeSync(root);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
             root.forEachNode((final MerkleNode node) -> {
                 assertNotNull(node.getHash(), "node should not have a null hash");
@@ -103,8 +87,7 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(Cryptography.NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
@@ -126,14 +109,13 @@ class MerkleRehashTests {
 
             root.forEachNode((final MerkleNode node) -> {
                 if (node.isSelfHashing()) {
-                    assertEquals(
-                            CryptographyHolder.get().getNullHash(), node.getHash(), "dummy node should have null hash");
+                    assertEquals(Cryptography.NULL_HASH, node.getHash(), "dummy node should have null hash");
                 } else {
                     assertNull(node.getHash(), "node should have a null hash");
                 }
             });
 
-            MerkleCryptoFactory.getInstance().digestTreeSync(root);
+            TestMerkleCryptoFactory.getInstance().digestTreeSync(root);
 
             final Map<MerkleRoute, Hash> hashes = new HashMap<>();
 
@@ -142,7 +124,7 @@ class MerkleRehashTests {
                 hashes.put(node.getRoute(), node.getHash());
             });
 
-            rehashTree(root);
+            rehashTree(TestMerkleCryptoFactory.getInstance(), root);
 
             root.forEachNode((final MerkleNode node) -> {
                 assertNotNull(node.getHash(), "node should not have a null hash");
@@ -160,8 +142,10 @@ class MerkleRehashTests {
     @DisplayName("Failed Rehash Behavior")
     public void failedRehash() {
 
-        DummyMerkleNode root = spy(generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.25));
-        when(root.getHash()).then(new Answer<Hash>() {
+        DummyMerkleNode root = generateRandomTree(0, 2, 1, 1, 0, 3, 1, 0.25);
+        MerkleNode child = spy(root.asInternal().getChild(0).copy());
+        root.asInternal().setChild(0, child);
+        when(child.getHash()).then(new Answer<Hash>() {
             private int count = 0;
 
             @Override
@@ -173,7 +157,7 @@ class MerkleRehashTests {
                 }
             }
         });
-        assertThrows(FailedRehashException.class, () -> rehashTree(root));
+        assertThrows(FailedRehashException.class, () -> rehashTree(TestMerkleCryptoFactory.getInstance(), root));
     }
 
     private static class DummySelfHashingLeaf extends PartialMerkleLeaf implements MerkleLeaf {
@@ -207,7 +191,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return CryptographyHolder.get().getNullHash();
+            return Cryptography.NULL_HASH;
         }
 
         @Override
@@ -246,7 +230,7 @@ class MerkleRehashTests {
 
         @Override
         public Hash getHash() {
-            return CryptographyHolder.get().getNullHash();
+            return Cryptography.NULL_HASH;
         }
 
         @Override

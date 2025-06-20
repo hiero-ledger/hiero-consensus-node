@@ -1,24 +1,8 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -160,52 +144,44 @@ public class ContractBurnHTSSuite {
         final var negativeBurnNFT = "negativeBurnNFT";
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
-        return defaultHapiSpec("burnWithNegativeAmount")
-                .given(
-                        uploadInitCode(NEGATIVE_BURN_CONTRACT),
-                        contractCreate(NEGATIVE_BURN_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(1_000L)
-                                .exposingAddressTo(tokenAddress::set),
-                        tokenCreate(NFT)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .exposingAddressTo(nftAddress::set),
-                        mintToken(NFT, List.of(copyFromUtf8(FIRST), copyFromUtf8(SECOND))))
-                .when(
-                        sourcing(() -> contractCall(
-                                        NEGATIVE_BURN_CONTRACT, "burnFungibleNegativeLong", tokenAddress.get())
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .via(negativeBurnFungible)
-                                .logged()),
-                        newKeyNamed(CONTRACT_KEY).shape(KeyShape.CONTRACT.signedWith(NEGATIVE_BURN_CONTRACT)),
-                        tokenUpdate(NFT).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                        sourcing(() -> contractCall(
-                                        NEGATIVE_BURN_CONTRACT, "burnNFTNegativeLong", nftAddress.get(), new long[] {
-                                            1L, 2L
-                                        })
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)
-                                .payingWith(TOKEN_TREASURY)
-                                .signingWith(TOKEN_TREASURY)
-                                .via(negativeBurnNFT)
-                                .logged()))
-                .then(
-                        childRecordsCheck(
-                                negativeBurnFungible,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_BURN_AMOUNT)),
-                        childRecordsCheck(negativeBurnNFT, SUCCESS, recordWith().status(SUCCESS)),
-                        getAccountBalance(TOKEN_TREASURY)
-                                .hasTokenBalance(TOKEN, 1_000)
-                                .hasTokenBalance(NFT, 0));
+        return hapiTest(
+                uploadInitCode(NEGATIVE_BURN_CONTRACT),
+                contractCreate(NEGATIVE_BURN_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(1_000L)
+                        .exposingAddressTo(tokenAddress::set),
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .exposingAddressTo(nftAddress::set),
+                mintToken(NFT, List.of(copyFromUtf8(FIRST), copyFromUtf8(SECOND))),
+                sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleNegativeLong", tokenAddress.get())
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via(negativeBurnFungible)
+                        .logged()),
+                newKeyNamed(CONTRACT_KEY).shape(KeyShape.CONTRACT.signedWith(NEGATIVE_BURN_CONTRACT)),
+                tokenUpdate(NFT).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                sourcing(() -> contractCall(
+                                NEGATIVE_BURN_CONTRACT, "burnNFTNegativeLong", nftAddress.get(), new long[] {1L, 2L})
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(SUCCESS)
+                        .payingWith(TOKEN_TREASURY)
+                        .signingWith(TOKEN_TREASURY)
+                        .via(negativeBurnNFT)
+                        .logged()),
+                childRecordsCheck(
+                        negativeBurnFungible,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_TOKEN_BURN_AMOUNT)),
+                childRecordsCheck(negativeBurnNFT, SUCCESS, recordWith().status(SUCCESS)),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 1_000).hasTokenBalance(NFT, 0));
     }
 
     @HapiTest
@@ -214,102 +190,89 @@ public class ContractBurnHTSSuite {
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
         final var fungibleExtremeAmount = "fungibleExtremeAmounts";
         final var nftExtremeAmount = "NFTExtremeAmounts";
-        return defaultHapiSpec("burnAboveMaxLongAmount")
-                .given(
-                        uploadInitCode(NEGATIVE_BURN_CONTRACT),
-                        contractCreate(NEGATIVE_BURN_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(1_000)
-                                .exposingAddressTo(tokenAddress::set),
-                        tokenCreate(NFT)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .exposingAddressTo(nftAddress::set),
-                        mintToken(NFT, List.of(copyFromUtf8(FIRST), copyFromUtf8(SECOND))))
-                .when(
-                        sourcing(() -> contractCall(
-                                        NEGATIVE_BURN_CONTRACT, "burnFungibleWithExtremeAmounts", tokenAddress.get())
+        return hapiTest(
+                uploadInitCode(NEGATIVE_BURN_CONTRACT),
+                contractCreate(NEGATIVE_BURN_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(1_000)
+                        .exposingAddressTo(tokenAddress::set),
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .exposingAddressTo(nftAddress::set),
+                mintToken(NFT, List.of(copyFromUtf8(FIRST), copyFromUtf8(SECOND))),
+                sourcing(
+                        () -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleWithExtremeAmounts", tokenAddress.get())
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .via(fungibleExtremeAmount)
                                 .logged()),
-                        newKeyNamed(CONTRACT_KEY).shape(KeyShape.CONTRACT.signedWith(NEGATIVE_BURN_CONTRACT)),
-                        tokenUpdate(NFT).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                        sourcing(() -> contractCall(
-                                        NEGATIVE_BURN_CONTRACT,
-                                        "burnNFTWithExtremeAmounts",
-                                        nftAddress.get(),
-                                        new long[] {1L, 2L})
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .payingWith(TOKEN_TREASURY)
-                                .signingWith(TOKEN_TREASURY)
-                                .via(nftExtremeAmount)
-                                .logged()))
-                .then(
-                        emptyChildRecordsCheck(fungibleExtremeAmount, CONTRACT_REVERT_EXECUTED),
-                        emptyChildRecordsCheck(nftExtremeAmount, CONTRACT_REVERT_EXECUTED),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 1_000),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2));
+                newKeyNamed(CONTRACT_KEY).shape(KeyShape.CONTRACT.signedWith(NEGATIVE_BURN_CONTRACT)),
+                tokenUpdate(NFT).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                sourcing(() -> contractCall(
+                                NEGATIVE_BURN_CONTRACT, "burnNFTWithExtremeAmounts", nftAddress.get(), new long[] {
+                                    1L, 2L
+                                })
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .payingWith(TOKEN_TREASURY)
+                        .signingWith(TOKEN_TREASURY)
+                        .via(nftExtremeAmount)
+                        .logged()),
+                emptyChildRecordsCheck(fungibleExtremeAmount, CONTRACT_REVERT_EXECUTED),
+                emptyChildRecordsCheck(nftExtremeAmount, CONTRACT_REVERT_EXECUTED),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 1_000),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2));
     }
 
     @HapiTest
     final Stream<DynamicTest> burnWithZeroAddress() {
-        return defaultHapiSpec("burnWithZeroAddress")
-                .given(uploadInitCode(NEGATIVE_BURN_CONTRACT), contractCreate(NEGATIVE_BURN_CONTRACT))
-                .when(
-                        sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleZeroAddress")
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .via("zeroAddress")
-                                .logged()),
-                        sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnNFTZeroAddress", new long[] {1L, 2L})
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .via("zeroAddressNFT")
-                                .logged()))
-                .then(
-                        childRecordsCheck(
-                                "zeroAddress",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                "zeroAddressNFT",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)));
+        return hapiTest(
+                uploadInitCode(NEGATIVE_BURN_CONTRACT),
+                contractCreate(NEGATIVE_BURN_CONTRACT),
+                sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleZeroAddress")
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via("zeroAddress")
+                        .logged()),
+                sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnNFTZeroAddress", new long[] {1L, 2L})
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via("zeroAddressNFT")
+                        .logged()),
+                childRecordsCheck(
+                        "zeroAddress", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        "zeroAddressNFT", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
     }
 
     @HapiTest
     final Stream<DynamicTest> burnWithInvalidAddress() {
-        return defaultHapiSpec("burnWithInvalidAddress")
-                .given(uploadInitCode(NEGATIVE_BURN_CONTRACT), contractCreate(NEGATIVE_BURN_CONTRACT))
-                .when(
-                        sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleInvalidAddress")
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .via("invalidAddress")
-                                .logged()),
-                        sourcing(
-                                () -> contractCall(NEGATIVE_BURN_CONTRACT, "burnNFTInvalidAddress", new long[] {1L, 2L})
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                        .via("invalidAddressNFT")
-                                        .logged()))
-                .then(
-                        childRecordsCheck(
-                                "invalidAddress",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)),
-                        childRecordsCheck(
-                                "invalidAddressNFT",
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith().status(INVALID_TOKEN_ID)));
+        return hapiTest(
+                uploadInitCode(NEGATIVE_BURN_CONTRACT),
+                contractCreate(NEGATIVE_BURN_CONTRACT),
+                sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleInvalidAddress")
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via("invalidAddress")
+                        .logged()),
+                sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnNFTInvalidAddress", new long[] {1L, 2L})
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via("invalidAddressNFT")
+                        .logged()),
+                childRecordsCheck(
+                        "invalidAddress", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        "invalidAddressNFT",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_TOKEN_ID)));
     }
 
     @HapiTest
@@ -318,43 +281,39 @@ public class ContractBurnHTSSuite {
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
         final var negativeBurnFungible = "negativeBurnFungible";
         final var negativeBurnNft = "negativeBurnNft";
-        return defaultHapiSpec("burnWithInvalidSerials")
-                .given(
-                        uploadInitCode(NEGATIVE_BURN_CONTRACT),
-                        contractCreate(NEGATIVE_BURN_CONTRACT),
-                        cryptoCreate(TOKEN_TREASURY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(1_000)
-                                .exposingAddressTo(tokenAddress::set),
-                        tokenCreate(NFT)
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .treasury(TOKEN_TREASURY)
-                                .initialSupply(0L)
-                                .supplyKey(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .exposingAddressTo(nftAddress::set),
-                        mintToken(NFT, List.of(copyFromUtf8(FIRST), copyFromUtf8(SECOND))))
-                .when(
-                        sourcing(() -> contractCall(
-                                        NEGATIVE_BURN_CONTRACT, "burnFungibleWithInvalidSerials", tokenAddress.get())
+        return hapiTest(
+                uploadInitCode(NEGATIVE_BURN_CONTRACT),
+                contractCreate(NEGATIVE_BURN_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(1_000)
+                        .exposingAddressTo(tokenAddress::set),
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury(TOKEN_TREASURY)
+                        .initialSupply(0L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .exposingAddressTo(nftAddress::set),
+                mintToken(NFT, List.of(copyFromUtf8(FIRST), copyFromUtf8(SECOND))),
+                sourcing(
+                        () -> contractCall(NEGATIVE_BURN_CONTRACT, "burnFungibleWithInvalidSerials", tokenAddress.get())
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                 .via(negativeBurnFungible)
                                 .logged()),
-                        sourcing(() -> contractCall(
-                                        NEGATIVE_BURN_CONTRACT, "burnNFTWithInvalidSerials", nftAddress.get())
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
-                                .payingWith(TOKEN_TREASURY)
-                                .signingWith(TOKEN_TREASURY)
-                                .via(negativeBurnNft)
-                                .logged()))
-                .then(
-                        emptyChildRecordsCheck(negativeBurnFungible, CONTRACT_REVERT_EXECUTED),
-                        emptyChildRecordsCheck(negativeBurnNft, CONTRACT_REVERT_EXECUTED),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 1_000),
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2));
+                sourcing(() -> contractCall(NEGATIVE_BURN_CONTRACT, "burnNFTWithInvalidSerials", nftAddress.get())
+                        .gas(GAS_TO_OFFER)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .payingWith(TOKEN_TREASURY)
+                        .signingWith(TOKEN_TREASURY)
+                        .via(negativeBurnNft)
+                        .logged()),
+                emptyChildRecordsCheck(negativeBurnFungible, CONTRACT_REVERT_EXECUTED),
+                emptyChildRecordsCheck(negativeBurnNft, CONTRACT_REVERT_EXECUTED),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN, 1_000),
+                getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2));
     }
 }

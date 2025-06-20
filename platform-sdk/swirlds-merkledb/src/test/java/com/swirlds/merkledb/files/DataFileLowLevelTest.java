@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCommon.FILE_EXTENSION;
 import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.config.singleton.ConfigurationHolder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import java.io.IOException;
@@ -55,20 +40,22 @@ class DataFileLowLevelTest {
     @TempDir
     static Path tempFileDir;
 
-    private final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
+    private final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
-    protected static final Random RANDOM = new Random(123456);
-    protected static final Instant TEST_START = Instant.now();
-    protected static final Map<FilesTestType, DataFileMetadata> dataFileMetadataMap = new HashMap<>();
-    protected static final Map<FilesTestType, Path> dataFileMap = new HashMap<>();
-    protected static final Map<FilesTestType, LongArrayList> listOfDataItemLocationsMap = new HashMap<>();
+    private static final Random RANDOM = new Random(123456);
+    private static final Instant TEST_START = Instant.now();
     private static final int DATA_FILE_INDEX = 123;
+    private static final int ITEMS_SIZE = 1000;
+
+    private static final Map<FilesTestType, DataFileMetadata> dataFileMetadataMap = new HashMap<>();
+    private static final Map<FilesTestType, Path> dataFileMap = new HashMap<>();
+    private static final Map<FilesTestType, LongArrayList> listOfDataItemLocationsMap = new HashMap<>();
 
     // =================================================================================================================
     // Helper Methods
 
     /**
-     * For tests, we want to have all different dta sizes, so we use this function to choose how
+     * For tests, we want to have all different data sizes, so we use this function to choose how
      * many times to repeat the data value long
      */
     private int getRepeatCountForKey(long key) {
@@ -136,8 +123,8 @@ class DataFileLowLevelTest {
         // open file and write data
         DataFileWriter writer = new DataFileWriter(
                 "test_" + testType.name(), tempFileDir, DATA_FILE_INDEX, TEST_START, INITIAL_COMPACTION_LEVEL);
-        LongArrayList listOfDataItemLocations = new LongArrayList(1000);
-        for (int i = 0; i < 1000; i++) {
+        LongArrayList listOfDataItemLocations = new LongArrayList(ITEMS_SIZE);
+        for (int i = 0; i < ITEMS_SIZE; i++) {
             long[] dataValue;
             switch (testType) {
                 default:
@@ -151,8 +138,8 @@ class DataFileLowLevelTest {
 
             listOfDataItemLocations.add(storeDataItem(writer, dataValue));
         }
-        writer.finishWriting();
-        final var dataFileMetadata = writer.getMetadata();
+        writer.close();
+        final DataFileMetadata dataFileMetadata = writer.getMetadata();
         // tests
         assertTrue(Files.exists(writer.getPath()), "expected file does not exist");
         assertEquals(
@@ -169,40 +156,36 @@ class DataFileLowLevelTest {
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void checkMetadataOfWrittenFile(FilesTestType testType) {
-        final var dataFileMetadata = dataFileMetadataMap.get(testType);
+        final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
         // check metadata
-        assertEquals(1000, dataFileMetadata.getDataItemCount(), "unexpected DataItemCount");
         assertEquals(TEST_START, dataFileMetadata.getCreationDate(), "unexpected creation date");
         assertEquals(DATA_FILE_INDEX, dataFileMetadata.getIndex(), "unexpected Index");
-        if (testType == FilesTestType.fixed) {
-            String expectedToString =
-                    "DataFileMetadata[" + "itemsCount=1000,index=123,creationDate=" + TEST_START + "]";
-            assertEquals(expectedToString, dataFileMetadata.toString(), "unexpected toString() value");
-        }
+        assertEquals(INITIAL_COMPACTION_LEVEL, dataFileMetadata.getCompactionLevel(), "unexpected compaction level");
     }
 
     @Order(101)
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void checkMetadataOfWrittenFileReadBack(FilesTestType testType) throws IOException {
-        final var dataFileMetadata = new DataFileMetadata(dataFileMap.get(testType));
+        final DataFileMetadata dataFileMetadata = DataFileMetadata.readFromFile(dataFileMap.get(testType));
         // check metadata
-        assertEquals(1000, dataFileMetadata.getDataItemCount(), "unexpected data item count");
         assertEquals(TEST_START, dataFileMetadata.getCreationDate(), "unexpected creation date");
         assertEquals(DATA_FILE_INDEX, dataFileMetadata.getIndex(), "unexpected Index value");
+        assertEquals(INITIAL_COMPACTION_LEVEL, dataFileMetadata.getCompactionLevel(), "unexpected compaction level");
     }
 
     @Order(200)
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void readBackRawData(FilesTestType testType) throws IOException {
-        final var dataFile = dataFileMap.get(testType);
+        final Path dataFile = dataFileMap.get(testType);
         final int fileSize = (int) Files.size(dataFile);
-        final var dataFileMetadata = dataFileMetadataMap.get(testType);
+        final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
         final int headerSize = dataFileMetadata.metadataSizeInBytes();
         // read the whole file
         BufferedData buf = BufferedData.wrap(Files.readAllBytes(dataFile), headerSize, fileSize - headerSize);
-        for (int i = 0; i < 1000; i++) {
+
+        for (int i = 0; i < ITEMS_SIZE; i++) {
             final int tag = buf.readVarInt(false);
             assertEquals(DataFileCommon.FIELD_DATAFILE_ITEMS.number(), tag >>> ProtoParserTools.TAG_FIELD_OFFSET);
             final int size = buf.readVarInt(false);
@@ -225,7 +208,7 @@ class DataFileLowLevelTest {
                         // read key
                         assertEquals(i, buf.readLong(), "unexpected data value #2");
                         for (int j = 0; j < repeatCount; j++) {
-                            assertEquals(i + 10_000, buf.readLong(), "unexcted value from get() #2");
+                            assertEquals(i + 10_000, buf.readLong(), "unexpected value from get() #2");
                         }
                     }
                     break;
@@ -233,25 +216,28 @@ class DataFileLowLevelTest {
                     buf.skip(size);
             }
         }
+
+        assertEquals(0, buf.remaining(), "buffer is not fully read");
     }
 
     @Order(201)
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void readBackWithReader(FilesTestType testType) throws IOException {
-        final var dataFile = dataFileMap.get(testType);
-        final var dataFileMetadata = dataFileMetadataMap.get(testType);
-        final var listOfDataItemLocations = listOfDataItemLocationsMap.get(testType);
+        final Path dataFile = dataFileMap.get(testType);
+        final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
+        final LongArrayList listOfDataItemLocations = listOfDataItemLocationsMap.get(testType);
         DataFileReader dataFileReader = new DataFileReader(dbConfig, dataFile, dataFileMetadata);
+
         // check by locations returned by write
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < ITEMS_SIZE; i++) {
             long[] dataItem = readDataItem(dataFileReader, listOfDataItemLocations.get(i));
             checkItem(testType, i, dataItem);
         }
         // check by location math
         if (testType == FilesTestType.fixed) {
             long offset = dataFileMetadata.metadataSizeInBytes();
-            for (int i = 0; i < 1000; i++) {
+            for (int i = 0; i < ITEMS_SIZE; i++) {
                 long[] dataItem = readDataItem(dataFileReader, DataFileCommon.dataLocation(DATA_FILE_INDEX, offset));
                 assertEquals(i, dataItem[0], "unexpected dataItem[0]");
                 assertEquals(i + 10_000, dataItem[1], "unexpected dataItem[1]");
@@ -260,7 +246,7 @@ class DataFileLowLevelTest {
             }
         }
         // check by random
-        IntStream.range(0, 10_000).map(i -> RANDOM.nextInt(1000)).forEach(i -> {
+        IntStream.range(0, 10_000).map(i -> RANDOM.nextInt(ITEMS_SIZE)).forEach(i -> {
             try {
                 long[] dataItem = readDataItem(dataFileReader, listOfDataItemLocations.get(i));
                 checkItem(testType, i, dataItem);
@@ -269,14 +255,17 @@ class DataFileLowLevelTest {
             }
         });
         // check by random parallel
-        IntStream.range(0, 10_000).map(i -> RANDOM.nextInt(1000)).parallel().forEach(i -> {
-            try {
-                long[] dataItem = readDataItem(dataFileReader, listOfDataItemLocations.get(i));
-                checkItem(testType, i, dataItem);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+        IntStream.range(0, 10_000)
+                .map(i -> RANDOM.nextInt(ITEMS_SIZE))
+                .parallel()
+                .forEach(i -> {
+                    try {
+                        long[] dataItem = readDataItem(dataFileReader, listOfDataItemLocations.get(i));
+                        checkItem(testType, i, dataItem);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
         // some additional asserts to increase DataFileReader's coverage.
         DataFileReader secondReader = new DataFileReader(dbConfig, dataFile);
         DataFileIterator firstIterator = dataFileReader.createIterator();
@@ -307,25 +296,30 @@ class DataFileLowLevelTest {
     @ParameterizedTest
     @EnumSource(FilesTestType.class)
     void readBackWithIterator(FilesTestType testType) throws IOException {
-        final var dataFile = dataFileMap.get(testType);
-        final var dataFileMetadata = dataFileMetadataMap.get(testType);
-        final var listOfDataItemLocations = listOfDataItemLocationsMap.get(testType);
-        DataFileIterator fileIterator = new DataFileIterator(dbConfig, dataFile, dataFileMetadata);
+        final Path dataFile = dataFileMap.get(testType);
+        final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
+        final LongArrayList listOfDataItemLocations = listOfDataItemLocationsMap.get(testType);
+
         int i = 0;
-        while (fileIterator.next()) {
-            assertEquals(
-                    listOfDataItemLocations.get(i),
-                    fileIterator.getDataItemDataLocation(),
-                    "unexpected data items data location");
-            BufferedData dataItemData = fileIterator.getDataItemData();
-            assertEquals(i, dataItemData.getLong(dataItemData.position() + Long.BYTES), "unexpected data items key");
-            final long[] dataItem = new long[Math.toIntExact(dataItemData.readLong())];
-            for (int j = 0; j < dataItem.length; j++) {
-                dataItem[j] = dataItemData.readLong();
+        try (DataFileIterator fileIterator = new DataFileIterator(dbConfig, dataFile, dataFileMetadata)) {
+            while (fileIterator.next()) {
+                assertEquals(
+                        listOfDataItemLocations.get(i),
+                        fileIterator.getDataItemDataLocation(),
+                        "unexpected data items data location");
+                BufferedData dataItemData = fileIterator.getDataItemData();
+                assertEquals(
+                        i, dataItemData.getLong(dataItemData.position() + Long.BYTES), "unexpected data items key");
+                final long[] dataItem = new long[Math.toIntExact(dataItemData.readLong())];
+                for (int j = 0; j < dataItem.length; j++) {
+                    dataItem[j] = dataItemData.readLong();
+                }
+                checkItem(testType, i, dataItem);
+                i++;
             }
-            checkItem(testType, i, dataItem);
-            i++;
         }
+
+        assertEquals(ITEMS_SIZE, i, "unexpected number of items read");
     }
 
     @Order(400)
@@ -339,20 +333,24 @@ class DataFileLowLevelTest {
                 TEST_START.plus(1, ChronoUnit.SECONDS),
                 INITIAL_COMPACTION_LEVEL);
 
-        final var dataFile = dataFileMap.get(testType);
-        final var dataFileMetadata = dataFileMetadataMap.get(testType);
-        DataFileIterator fileIterator = new DataFileIterator(dbConfig, dataFile, dataFileMetadata);
-        final LongArrayList newDataLocations = new LongArrayList(1000);
-        while (fileIterator.next()) {
-            final BufferedData itemData = fileIterator.getDataItemData();
-            newDataLocations.add(newDataFileWriter.storeDataItem(itemData));
+        final Path dataFile = dataFileMap.get(testType);
+        final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
+        final LongArrayList newDataLocations;
+
+        try (DataFileIterator fileIterator = new DataFileIterator(dbConfig, dataFile, dataFileMetadata)) {
+            newDataLocations = new LongArrayList(ITEMS_SIZE);
+            while (fileIterator.next()) {
+                final BufferedData itemData = fileIterator.getDataItemData();
+                newDataLocations.add(newDataFileWriter.storeDataItem(itemData));
+            }
         }
-        newDataFileWriter.finishWriting();
-        final var newDataFileMetadata = newDataFileWriter.getMetadata();
+
+        newDataFileWriter.close();
+        final DataFileMetadata newDataFileMetadata = newDataFileWriter.getMetadata();
         // now read back and check
         DataFileReader dataFileReader = new DataFileReader(dbConfig, newDataFileWriter.getPath(), newDataFileMetadata);
         // check by locations returned by write
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < ITEMS_SIZE; i++) {
             long[] dataItem = readDataItem(dataFileReader, newDataLocations.get(i));
             checkItem(testType, i, dataItem);
         }

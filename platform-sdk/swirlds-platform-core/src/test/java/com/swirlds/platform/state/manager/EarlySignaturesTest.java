@@ -1,40 +1,32 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignatureBytes;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -48,9 +40,9 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
 
     private final int roundAgeToSign = 3;
 
-    private final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+    private final Roster roster = RandomRosterBuilder.create(random)
             .withSize(4)
-            .withWeightDistributionStrategy(RandomAddressBookBuilder.WeightDistributionStrategy.BALANCED)
+            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
             .build();
 
     /**
@@ -75,6 +67,16 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         };
     }
 
+    @BeforeEach
+    void setUp() {
+        MerkleDb.resetDefaultInstancePath();
+    }
+
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+    }
+
     @Test
     @DisplayName("Early Signatures Test")
     void earlySignaturesTest() throws InterruptedException {
@@ -94,8 +96,9 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         // Create a series of signed states.
         final List<SignedState> states = new ArrayList<>();
         for (int round = 0; round < count; round++) {
+            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
-                    .setAddressBook(addressBook)
+                    .setRoster(roster)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
                     .build();
@@ -105,39 +108,38 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         // send out signatures super early. Many will be rejected.
         for (int round = 0; round < count; round++) {
             // All node 0 and 2 signatures are sent very early.
+            final RosterEntry node0 = roster.rosterEntries().get(0);
+            final RosterEntry node2 = roster.rosterEntries().get(2);
+
             manager.handlePreconsensusSignatureTransaction(
-                    addressBook.getNodeId(0),
+                    NodeId.of(node0.nodeId()),
                     StateSignatureTransaction.newBuilder()
                             .round(round)
                             .signature(buildFakeSignatureBytes(
-                                    addressBook
-                                            .getAddress(addressBook.getNodeId(0))
-                                            .getSigPublicKey(),
+                                    RosterUtils.fetchGossipCaCertificate(node0).getPublicKey(),
                                     states.get(round).getState().getHash()))
                             .hash(states.get(round).getState().getHash().getBytes())
                             .build());
             manager.handlePreconsensusSignatureTransaction(
-                    addressBook.getNodeId(2),
+                    NodeId.of(node2.nodeId()),
                     StateSignatureTransaction.newBuilder()
                             .round(round)
                             .signature(buildFakeSignatureBytes(
-                                    addressBook
-                                            .getAddress(addressBook.getNodeId(2))
-                                            .getSigPublicKey(),
+                                    RosterUtils.fetchGossipCaCertificate(node2).getPublicKey(),
                                     states.get(round).getState().getHash()))
                             .hash(states.get(round).getState().getHash().getBytes())
                             .build());
 
             // Even numbered rounds have 3 sent very early.
+            final RosterEntry node3 = roster.rosterEntries().get(3);
             if (round % 2 == 0) {
                 manager.handlePreconsensusSignatureTransaction(
-                        addressBook.getNodeId(3),
+                        NodeId.of(node3.nodeId()),
                         StateSignatureTransaction.newBuilder()
                                 .round(round)
                                 .signature(buildFakeSignatureBytes(
-                                        addressBook
-                                                .getAddress(addressBook.getNodeId(3))
-                                                .getSigPublicKey(),
+                                        RosterUtils.fetchGossipCaCertificate(node3)
+                                                .getPublicKey(),
                                         states.get(round).getState().getHash()))
                                 .hash(states.get(round).getState().getHash().getBytes())
                                 .build());
@@ -161,13 +163,28 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
 
             if (roundToSign > 0) {
                 if (roundToSign >= futureSignatures) {
-                    addSignature(manager, roundToSign, addressBook.getNodeId(0));
-                    addSignature(manager, roundToSign, addressBook.getNodeId(1));
-                    addSignature(manager, roundToSign, addressBook.getNodeId(2));
+                    addSignature(
+                            manager,
+                            roundToSign,
+                            NodeId.of(roster.rosterEntries().get(0).nodeId()));
+                    addSignature(
+                            manager,
+                            roundToSign,
+                            NodeId.of(roster.rosterEntries().get(1).nodeId()));
+                    addSignature(
+                            manager,
+                            roundToSign,
+                            NodeId.of(roster.rosterEntries().get(2).nodeId()));
                     expectedCompletedStateCount++;
                 } else if (roundToSign % 2 != 0) {
-                    addSignature(manager, roundToSign, addressBook.getNodeId(0));
-                    addSignature(manager, roundToSign, addressBook.getNodeId(1));
+                    addSignature(
+                            manager,
+                            roundToSign,
+                            NodeId.of(roster.rosterEntries().get(0).nodeId()));
+                    addSignature(
+                            manager,
+                            roundToSign,
+                            NodeId.of(roster.rosterEntries().get(1).nodeId()));
                     expectedCompletedStateCount++;
                 }
             }

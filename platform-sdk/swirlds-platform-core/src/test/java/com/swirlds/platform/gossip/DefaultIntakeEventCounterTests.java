@@ -1,46 +1,38 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip;
 
+import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.system.address.AddressBook;
-import java.util.Set;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
+import java.util.ArrayList;
+import org.hiero.base.utility.test.fixtures.ResettableRandom;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 @DisplayName("DefaultIntakeEventCounter Tests")
 class DefaultIntakeEventCounterTests {
     private IntakeEventCounter intakeCounter;
 
-    final NodeId nodeId1 = new NodeId(1);
-    final NodeId nodeId2 = new NodeId(2);
+    final NodeId nodeId1 = NodeId.of(1);
+    final NodeId nodeId2 = NodeId.of(2);
 
     @BeforeEach
     void setup() {
-        final AddressBook addressBook = mock(AddressBook.class);
-        Mockito.when(addressBook.getNodeIdSet()).thenReturn(Set.of(nodeId1, nodeId2));
+        final ResettableRandom random = getRandomPrintSeed();
+        final ArrayList<RosterEntry> rosterEntries = new ArrayList<>();
+        rosterEntries.add(
+                RandomRosterEntryBuilder.create(random).withNodeId(nodeId1.id()).build());
+        rosterEntries.add(
+                RandomRosterEntryBuilder.create(random).withNodeId(nodeId2.id()).build());
 
-        this.intakeCounter = new DefaultIntakeEventCounter(addressBook);
+        this.intakeCounter = new DefaultIntakeEventCounter(
+                Roster.newBuilder().rosterEntries(rosterEntries).build());
     }
 
     @Test

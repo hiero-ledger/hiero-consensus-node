@@ -1,30 +1,17 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.state.MerkleRoot;
+import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.wiring.components.StateAndRound;
+import java.util.Queue;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -36,7 +23,7 @@ class StateHashedNotificationTest {
     private static final Hash HASH = new Hash(new byte[48]);
 
     @Mock
-    private MerkleRoot merkleRoot;
+    private MerkleNodeState merkleRoot;
 
     @Mock
     private SignedState signedState;
@@ -47,14 +34,17 @@ class StateHashedNotificationTest {
     @Mock
     private ReservedSignedState reservedSignedState;
 
+    @Mock
+    private Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions;
+
     @Test
     void factoryWorksAsExpected() {
-        given(round.getRoundNum()).willReturn(ROUND);
         given(reservedSignedState.get()).willReturn(signedState);
         given(signedState.getState()).willReturn(merkleRoot);
+        given(signedState.getRound()).willReturn(ROUND);
         given(merkleRoot.getHash()).willReturn(HASH);
 
-        final var notification = StateHashedNotification.from(new StateAndRound(reservedSignedState, round));
+        final var notification = StateHashedNotification.from(reservedSignedState);
 
         assertEquals(ROUND, notification.round());
         assertEquals(HASH, notification.hash());

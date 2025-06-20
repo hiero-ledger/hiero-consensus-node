@@ -1,38 +1,17 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.uptime;
 
 import static com.swirlds.common.units.TimeUnit.UNIT_MICROSECONDS;
 import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.utility.CompareTo;
-import com.swirlds.platform.internal.ConsensusRound;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.ConsensusEvent;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.SelfEventReachedConsensusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -40,6 +19,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import org.hiero.base.CompareTo;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Monitors the uptime of nodes in the network.
@@ -48,8 +34,6 @@ public class UptimeTracker {
 
     private final NodeId selfId;
     private final Time time;
-    private final AddressBook addressBook;
-
     private final UptimeMetrics uptimeMetrics;
     private final Duration degradationThreshold;
 
@@ -64,8 +48,7 @@ public class UptimeTracker {
     private final StatusActionSubmitter statusActionSubmitter;
 
     /**
-     * The uptime data for all the nodes.
-     * It's package-private for testing purposes.
+     * The uptime data for all the nodes. It's package-private for testing purposes.
      */
     final UptimeData uptimeData;
 
@@ -73,27 +56,26 @@ public class UptimeTracker {
      * Construct a new uptime detector.
      *
      * @param platformContext       the platform context
-     * @param addressBook           the address book
+     * @param roster                the current roster
      * @param statusActionSubmitter enables submitting platform status actions
      * @param selfId                the ID of this node
      * @param time                  a source of time
      */
     public UptimeTracker(
-            @NonNull PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
+            @NonNull final PlatformContext platformContext,
+            @NonNull final Roster roster,
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final NodeId selfId,
             @NonNull final Time time) {
 
         this.selfId = Objects.requireNonNull(selfId, "selfId must not be null");
         this.time = Objects.requireNonNull(time);
-        this.addressBook = Objects.requireNonNull(addressBook);
         this.statusActionSubmitter = Objects.requireNonNull(statusActionSubmitter);
         this.degradationThreshold = platformContext
                 .getConfiguration()
                 .getConfigData(UptimeConfig.class)
                 .degradationThreshold();
-        this.uptimeMetrics = new UptimeMetrics(platformContext.getMetrics(), addressBook, this::isSelfDegraded);
+        this.uptimeMetrics = new UptimeMetrics(platformContext.getMetrics(), roster, this::isSelfDegraded);
         this.uptimeData = new UptimeData();
     }
 
@@ -101,26 +83,26 @@ public class UptimeTracker {
      * Look at the events in a round to determine which nodes are up and which nodes are down.
      *
      * @param round       the round to analyze
-     * @param addressBook the address book for this round
      */
-    public void handleRound(@NonNull final ConsensusRound round, @Nullable final AddressBook addressBook) {
+    public void handleRound(@NonNull final ConsensusRound round) {
 
         if (round.isEmpty()) {
             return;
         }
 
-        if (addressBook == null) {
-            return;
-        }
-
         final Instant start = time.now();
 
-        addAndRemoveNodes(uptimeData, addressBook);
+        addAndRemoveNodes(uptimeData, round.getConsensusRoster());
         final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator = new HashMap<>();
         final Map<NodeId, ConsensusEvent> judgesByCreator = new HashMap<>();
         scanRound(round, lastEventsInRoundByCreator, judgesByCreator);
-        updateUptimeData(addressBook, uptimeData, lastEventsInRoundByCreator, judgesByCreator, round.getRoundNum());
-        reportUptime(uptimeData, round.getConsensusTimestamp(), round.getRoundNum());
+        updateUptimeData(
+                round.getConsensusRoster(),
+                uptimeData,
+                lastEventsInRoundByCreator,
+                judgesByCreator,
+                round.getRoundNum());
+        reportUptime(round.getConsensusRoster(), uptimeData, round.getConsensusTimestamp(), round.getRoundNum());
 
         final Instant end = time.now();
         final Duration elapsed = Duration.between(start, end);
@@ -130,16 +112,18 @@ public class UptimeTracker {
     }
 
     /**
-     * Add and remove nodes as necessary. Will only make changes if address book membership in this round is different
-     * from the address book in the previous round, or at genesis.
+     * Add and remove nodes as necessary. Will only make changes if roster membership in this round is different
+     * from the roster in the previous round, or at genesis.
      *
      * @param uptimeData  the uptime data
-     * @param addressBook the current address book
+     * @param roster the current roster
      */
-    private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final AddressBook addressBook) {
-        final Set<NodeId> addressBookNodes = addressBook.getNodeIdSet();
+    private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final Roster roster) {
+        final Set<NodeId> rosterNodes = roster.rosterEntries().stream()
+                .map(entry -> NodeId.of(entry.nodeId()))
+                .collect(Collectors.toSet());
         final Set<NodeId> trackedNodes = uptimeData.getTrackedNodes();
-        for (final NodeId nodeId : addressBookNodes) {
+        for (final NodeId nodeId : rosterNodes) {
             if (!trackedNodes.contains(nodeId)) {
                 // node was added
                 uptimeMetrics.addMetricsForNode(nodeId);
@@ -147,7 +131,7 @@ public class UptimeTracker {
             }
         }
         for (final NodeId nodeId : trackedNodes) {
-            if (!addressBookNodes.contains(nodeId)) {
+            if (!rosterNodes.contains(nodeId)) {
                 // node was removed
                 uptimeMetrics.removeMetricsForNode(nodeId);
                 uptimeData.removeNode(nodeId);
@@ -211,21 +195,21 @@ public class UptimeTracker {
     /**
      * Update the uptime data based on the events in this round.
      *
-     * @param addressBook                the current address book
+     * @param roster                     the current roster
      * @param uptimeData                 the uptime data to be updated
      * @param lastEventsInRoundByCreator the last event in the round by creator
      * @param judgesByCreator            the judges by creator
      * @param roundNum                   the round number
      */
     private void updateUptimeData(
-            @NonNull final AddressBook addressBook,
+            @NonNull final Roster roster,
             @NonNull final UptimeData uptimeData,
             @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator,
             @NonNull final Map<NodeId, ConsensusEvent> judgesByCreator,
             final long roundNum) {
 
-        for (final Address address : addressBook) {
-            final ConsensusEvent lastEvent = lastEventsInRoundByCreator.get(address.getNodeId());
+        for (final RosterEntry rosterEntry : roster.rosterEntries()) {
+            final ConsensusEvent lastEvent = lastEventsInRoundByCreator.get(NodeId.of(rosterEntry.nodeId()));
             if (lastEvent != null) {
                 uptimeData.recordLastEvent(lastEvent, roundNum);
             }
@@ -244,19 +228,21 @@ public class UptimeTracker {
      * @param uptimeData the uptime data
      */
     private void reportUptime(
-            @NonNull final UptimeData uptimeData, @NonNull final Instant lastRoundEndTime, final long currentRound) {
+            @NonNull final Roster roster,
+            @NonNull final UptimeData uptimeData,
+            @NonNull final Instant lastRoundEndTime,
+            final long currentRound) {
 
         long nonDegradedConsensusWeight = 0;
-
-        for (final Address address : addressBook) {
-            final NodeId id = address.getNodeId();
+        for (final RosterEntry entry : roster.rosterEntries()) {
+            final NodeId id = NodeId.of(entry.nodeId());
 
             final Instant lastConsensusEventTime = uptimeData.getLastEventTime(id);
             if (lastConsensusEventTime != null) {
                 final Duration timeSinceLastConsensusEvent = Duration.between(lastConsensusEventTime, lastRoundEndTime);
 
                 if (CompareTo.isLessThanOrEqualTo(timeSinceLastConsensusEvent, degradationThreshold)) {
-                    nonDegradedConsensusWeight += addressBook.getAddress(id).getWeight();
+                    nonDegradedConsensusWeight += entry.weight();
                 }
             }
 
@@ -271,8 +257,8 @@ public class UptimeTracker {
             //                uptimeMetrics.getRoundsSinceLastJudgeMetric(id).update(currentRound - lastJudgeRound);
             //            }
         }
-
-        final double fractionOfNetworkAlive = (double) nonDegradedConsensusWeight / addressBook.getTotalWeight();
+        final double fractionOfNetworkAlive =
+                (double) nonDegradedConsensusWeight / RosterUtils.computeTotalWeight(roster);
         uptimeMetrics.getHealthyNetworkFraction().update(fractionOfNetworkAlive);
     }
 }

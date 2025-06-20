@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.cache; // NOSONAR: Needed to benchmark internal classes
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
@@ -27,6 +13,7 @@ import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -38,17 +25,32 @@ import org.openjdk.jmh.annotations.Warmup;
 @Warmup(iterations = 1, time = 10)
 @Measurement(iterations = 10, time = 15)
 public class ConcurrentArrayBench {
-    private static final Random RANDOM = new Random();
+
+    private static final Random RANDOM = new Random(12341);
     private static final int MIN_THREADS = 2;
     private static final int DEFAULT_ARRAY_SIZE = 1000;
 
+    @Param({"1000000"})
+    public int size;
+
     private ConcurrentArray<Long> concurrentArray;
     private ExecutorService executor;
+
+    // Used in the benchmark to create concurrent arrays from streams
+    private long[] source;
 
     @Setup(Level.Trial)
     public void setupInfrastructure() {
         int numCores = Runtime.getRuntime().availableProcessors();
         executor = Executors.newFixedThreadPool(Math.max(MIN_THREADS, numCores - 1));
+    }
+
+    @Setup(Level.Trial)
+    public void setupSourceArray() {
+        source = new long[size];
+        for (int i = 0; i < size; i++) {
+            source[i] = RANDOM.nextLong();
+        }
     }
 
     @TearDown(Level.Trial)
@@ -63,6 +65,11 @@ public class ConcurrentArrayBench {
         for (int i = 0; i < DEFAULT_ARRAY_SIZE; i++) {
             concurrentArray.add(RANDOM.nextLong());
         }
+    }
+
+    @Benchmark
+    public void benchmarkCreateFromStream() {
+        concurrentArray = new ConcurrentArray<>(Arrays.stream(source).boxed());
     }
 
     @Benchmark

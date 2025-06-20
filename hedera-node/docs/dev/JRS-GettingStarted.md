@@ -127,7 +127,7 @@ Providing very long `name` will cause failure to create instances.
 
 <a name="naming-conventions"></a>
 ## **Naming Conventions for the JSONs** 
-Naming conventions described in [file](https://github.com/swirlds/swirlds-platform-regression/blob/develop/docs/regression-test-naming-standards.md) are required to be followed for both types of configuration JSONs. 
+Naming conventions described in [file](https://github.com/swirlds/swirlds-platform-regression/blob/main/docs/regression-test-naming-standards.md) are required to be followed for both types of configuration JSONs. 
 Any new naming conventions need to be added to the file if required, after seeking approval from the code owners in `swirlds-platform-regression` repository.
 
 <a name="instructions"></a>
@@ -167,7 +167,7 @@ Current Services nightly regression runs the following tests based on the cron t
 
 All the above tests are under the following path `swirlds-platform/regression/configs/services/suites` under `daily` or `weekly`  with appropriate names.
 
-**NOTE** : To validate the regression results follow steps defined in [regression-validation-checklist.md](https://github.com/swirlds/swirlds-platform-regression/blob/develop/docs/regression-validation-checklist.md).
+**NOTE** : To validate the regression results follow steps defined in [regression-validation-checklist.md](https://github.com/swirlds/swirlds-platform-regression/blob/main/docs/regression-validation-checklist.md).
 
 <a name="gcp_setup"></a>
 

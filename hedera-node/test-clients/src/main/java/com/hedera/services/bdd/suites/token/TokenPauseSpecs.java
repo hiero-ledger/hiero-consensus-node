@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
@@ -44,7 +29,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -56,6 +40,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_PAUSED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Paused;
 import static com.hederahashgraph.api.proto.java.TokenPauseStatus.Unpaused;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
@@ -384,30 +369,13 @@ public class TokenPauseSpecs {
     }
 
     @HapiTest
-    final Stream<DynamicTest> basePauseAndUnpauseHaveExpectedPrices() {
-        final var expectedBaseFee = 0.001;
-        final var token = "token";
-        final var tokenPauseTransaction = "tokenPauseTxn";
-        final var tokenUnpauseTransaction = "tokenUnpauseTxn";
-        final var civilian = "NonExemptPayer";
-
-        return defaultHapiSpec("BasePauseAndUnpauseHaveExpectedPrices")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        newKeyNamed(PAUSE_KEY),
-                        cryptoCreate(civilian).key(PAUSE_KEY))
-                .when(
-                        tokenCreate(token)
-                                .pauseKey(PAUSE_KEY)
-                                .treasury(TOKEN_TREASURY)
-                                .payingWith(civilian),
-                        tokenPause(token).blankMemo().payingWith(civilian).via(tokenPauseTransaction),
-                        getTokenInfo(token).hasPauseStatus(Paused),
-                        tokenUnpause(token).blankMemo().payingWith(civilian).via(tokenUnpauseTransaction),
-                        getTokenInfo(token).hasPauseStatus(Unpaused))
-                .then(
-                        validateChargedUsd(tokenPauseTransaction, expectedBaseFee),
-                        validateChargedUsd(tokenUnpauseTransaction, expectedBaseFee));
+    final Stream<DynamicTest> unpauseDeletedToken() {
+        return hapiTest(
+                cryptoCreate(PAUSE_KEY),
+                cryptoCreate(ADMIN_KEY),
+                tokenCreate(PRIMARY).adminKey(ADMIN_KEY).pauseKey(PAUSE_KEY),
+                tokenDelete(PRIMARY),
+                tokenUnpause(PRIMARY).hasKnownStatus(TOKEN_WAS_DELETED));
     }
 
     public static class TokenIdOrderingAsserts extends BaseErroringAssertsProvider<List<TokenTransferList>> {

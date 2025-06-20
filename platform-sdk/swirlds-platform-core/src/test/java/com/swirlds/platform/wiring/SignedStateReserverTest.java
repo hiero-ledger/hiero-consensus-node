@@ -1,43 +1,33 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.utility.ValueReference;
-import com.swirlds.common.wiring.model.WiringModel;
-import com.swirlds.common.wiring.model.WiringModelBuilder;
-import com.swirlds.common.wiring.schedulers.TaskScheduler;
-import com.swirlds.common.wiring.schedulers.builders.TaskSchedulerType;
-import com.swirlds.common.wiring.wires.input.BindableInputWire;
-import com.swirlds.common.wiring.wires.output.OutputWire;
+import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.schedulers.TaskScheduler;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.component.framework.wires.input.BindableInputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.ValueReference;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 class SignedStateReserverTest {
 
@@ -48,20 +38,25 @@ class SignedStateReserverTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
+        MerkleNodeState mockState = mock(MerkleNodeState.class);
+        MerkleNode root = mock(MerkleNode.class);
+        when(mockState.getRoot()).thenReturn(root);
         final SignedState signedState = new SignedState(
-                platformContext,
-                Mockito.mock(SignatureVerifier.class),
-                Mockito.mock(MerkleRoot.class),
+                platformContext.getConfiguration(),
+                mock(SignatureVerifier.class),
+                mockState,
                 "create",
                 false,
                 false,
-                false);
+                false,
+                mock(PlatformStateFacade.class));
 
-        final WiringModel model = WiringModelBuilder.create(platformContext).build();
-        final TaskScheduler<ReservedSignedState> taskScheduler = model.schedulerBuilder("scheduler")
+        final WiringModel model =
+                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+        final TaskScheduler<ReservedSignedState> taskScheduler = model.<ReservedSignedState>schedulerBuilder(
+                        "scheduler")
                 .withType(TaskSchedulerType.DIRECT)
-                .build()
-                .cast();
+                .build();
         final OutputWire<ReservedSignedState> outputWire =
                 taskScheduler.getOutputWire().buildAdvancedTransformer(new SignedStateReserver("reserver"));
         final BindableInputWire<ReservedSignedState, ReservedSignedState> inputWire =

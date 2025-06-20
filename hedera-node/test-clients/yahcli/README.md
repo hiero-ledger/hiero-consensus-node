@@ -218,9 +218,33 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n previe
 
 ```
 
-The new account will have a single Ed25519 key, exported to the target network's _keys/_ directory in both
+By default, the new account will have a single Ed25519 key, exported to the target network's _keys/_ directory in both
 PEM/passphrase and mnemonic forms. (E.g., this command might create both _previewnet/keys/account1234.{pem,pass}_ and
-_previewnet/keys/account1234.words_.)
+_previewnet/keys/account1234.words_.) If the `-k SECP256K1` option is used, the new account will be created with a
+Secp256k1 key. A PEM file and .pass file are still created, but this algorithm doesn't support mnemonic keys, so the
+`.words` file is _not_ created.
+
+Yahcli now supports creating a new account with an existing key (either Ed25519 or Secp256k1) in PEM format. Use the
+`--keyFile` and `--passFile` options–both required–to specify the path to the PEM file and its corresponding passphrase file.
+These options supersede the key type option (`--keyType`) when specified, meaning there is no need to specify the key type
+when using an existing key.
+
+For example:
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n previewnet -p 2 accounts create -d hbar -a 1 /
+--memo "Created with existing key" /
+--keyFile previewnet/keys/existing-account.pem /
+--passFile previewnet/keys/existing-account.pass
+
+```
+
+Note that the existing key **is not moved or copied** to the target network's `keys/` directory. Since yahcli typically
+depends on the keys in the `keys/` directory for subsequent operations, you will need to ensure that the imported key files
+used to create the account (i.e. the PEM file and pass file) are placed in the appropriate `keys/` directory with the
+standard naming, `accountXXX.pem` and `accountXXX.pass`.
+
+```
 
 # Updating system files
 
@@ -231,6 +255,7 @@ The DER-encoded RSA public key of the node is in a file _node3.der_, and its TLS
 in a file _node3.crt_. We place these files in the directory structure below.
 
 ```
+
 localhost
 ├── keys
 │   ├── account2.pass
@@ -238,18 +263,21 @@ localhost
 │   ├── account55.pass
 │   └── account55.pem
 └── sysfiles
-    ├── certs
-    │   └── node3.crt
-    └── pubkeys
-        └── node3.der
+├── certs
+│   └── node3.crt
+└── pubkeys
+└── node3.der
+
 ```
 
 We first download the existing address book,
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 2 sysfiles download address-book
 Targeting localhost, paying with 0.0.2
 Downloading the address-book...OK
+
 ```
 
 Next we edit the newly-downloaded _localhost/sysfiles/addressBook.json_ and
@@ -260,49 +288,55 @@ we tell yahcli to compute their values from the _certs/node3.crt_ and _pubkeys/n
 files, respectively.
 
 ```
+
 ...
-  }, {
-    "nodeId" : 3,
-    "certHash" : "!",
-    "rsaPubKey" : "!",
-    "nodeAccount" : "0.0.6",
-    "endpoints" : [ {
-      "ipAddressV4" : "127.0.0.1",
-      "port" : 50207
-    }, {
-      "ipAddressV4" : "127.0.0.1",
-      "port" : 50208
-    } ]
+}, {
+"nodeId" : 3,
+"certHash" : "!",
+"rsaPubKey" : "!",
+"nodeAccount" : "0.0.6",
+"endpoints" : [ {
+"ipAddressV4" : "127.0.0.1",
+"port" : 50207
+}, {
+"ipAddressV4" : "127.0.0.1",
+"port" : 50208
+}]
 ...
+
 ```
 
 And now we upload the new address book, this time using the address book admin `0.0.55` as the payer:
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 55 sysfiles upload address-book
+
 ```
 
 Finally we re-download the book to see that the hex-encoded cert hash and RSA public key were uploaded as expected:
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 2 sysfiles download address-book
 Targeting localhost, paying with 0.0.2
 Downloading the address-book...OK
 $ tail -17 localhost/sysfiles/addressBook.json
-  }, {
-    "nodeId" : 3,
-    "certHash" : "0ae05bde15d216781a40e7bce5303bf68926f9440eec3cb20fabe9df06b0091a205fdea86911facb4e51e46c3890c803",
-    "rsaPubKey" : "3636303839396438343537353933653537396565363861333263303630336535393936666162613530386439343438306333656236346463613538373835326461333830353730323933636535336564393932666465343835333234636162356433353565373438313334393534623139633231633366303863363161316535643965333530316334333234353937656334646538646435383866666266646434613566333634366262376335393830636264323164643634301216763393131336631636533313864636134616635373732323462646538396332633137336633666538643039326534623866383030373130376138643965323633333166353335356135383464383037373661306162636139326530303438646433373163666530353936656464366261303737303338313432383866313039613832383035383630363562376262663238353432303434376134343336383830633361393336613666666663646162313012153335633864666561306461306537353035383530346661396163333036396438653166643762623333343530663761346261303439310a",
-    "nodeAccount" : "0.0.6",
-    "endpoints" : [ {
-      "ipAddressV4" : "127.0.0.1",
-      "port" : 50207
-    }, {
-      "ipAddressV4" : "127.0.0.1",
-      "port" : 50208
-    } ]
-  } ]
+}, {
+"nodeId" : 3,
+"certHash" : "0ae05bde15d216781a40e7bce5303bf68926f9440eec3cb20fabe9df06b0091a205fdea86911facb4e51e46c3890c803",
+"rsaPubKey" : "3636303839396438343537353933653537396565363861333263303630336535393936666162613530386439343438306333656236346463613538373835326461333830353730323933636535336564393932666465343835333234636162356433353565373438313334393534623139633231633366303863363161316535643965333530316334333234353937656334646538646435383866666266646434613566333634366262376335393830636264323164643634301216763393131336631636533313864636134616635373732323462646538396332633137336633666538643039326534623866383030373130376138643965323633333166353335356135383464383037373661306162636139326530303438646433373163666530353936656464366261303737303338313432383866313039613832383035383630363562376262663238353432303434376134343336383830633361393336613666666663646162313012153335633864666561306461306537353035383530346661396163333036396438653166643762623333343530663761346261303439310a",
+"nodeAccount" : "0.0.6",
+"endpoints" : [ {
+"ipAddressV4" : "127.0.0.1",
+"port" : 50207
+}, {
+"ipAddressV4" : "127.0.0.1",
+"port" : 50208
+}]
+} ]
 }
+
 ```
 
 ## Uploading special files
@@ -316,36 +350,44 @@ is used for a software update ZIP, and file `0.0.159` for a telemetry upgrade ZI
 To upload such artifacts, use the special files names as below,
 
 ```
+
 $ tree localhost/sysfiles/
 localhost/sysfiles/
 ├── softwareUpgrade.zip
 └── telemetryUpgrade.zip
+
 ```
 
 Then proceed as with any other `sysfiles upload` command,
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 58 sysfiles upload software-zip
 ...
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 58 sysfiles upload telemetry-zip
 ...
+
 ```
 
 :repeat:&nbsp;Since `yahcli:0.4.1` you can add the `--restart-from-failure` option like,
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 58 sysfiles upload software-zip --restart-from-failure
+
 ```
 
 If the hash of the file on the network matches the hash of a prefix of the bytes you're uploading, then yahcli will
 automatically restart the upload after that prefix. For example,
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 58 sysfiles upload software-zip
 Log level is WARN
 Targeting localhost, paying with 0.0.2
 .i. Continuing upload for 0.0.150 with 34 appends already finished (out of 97 appends required)
 ...
+
 ```
 
 ### Checking a special file hash
@@ -353,7 +395,9 @@ Targeting localhost, paying with 0.0.2
 You can also directly check the SHA-384 hash of a special file with the `sysfiles hash-check` subcommand,
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 58 sysfiles hash-check software-zip
+
 ```
 
 # Preparing an NMT software upgrade
@@ -364,9 +408,14 @@ SHA-384 hash of this ZIP must be given so the nodes can validate the integrity o
 staging its artifacts for NMT to use. This looks like,
 
 ```
+
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localhost -p 58 prepare-upgrade \
+
 > --upgrade-zip-hash 5d3b0e619d8513dfbf606ef00a2e83ba97d736f5f5ba61561d895ea83a6d4c34fce05d6cd74c83ec171f710e37e12aab
-```
+>
+> ```
+>
+> ```
 
 # Launching an NMT telemetry upgrade
 
@@ -411,8 +460,12 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -n localh
 
 # Updating account keys
 
-You can use yahcli to replace an account's key with either a newly generated key, or an existing key. (Existing keys
-can be either PEM files or BIP-39 mnemonics.)
+You can use yahcli to replace an account's key with either a newly generated key, or an existing key. Existing keys
+can be either PEM files (for Ed25519 or Secp256k1 keys) or BIP-39 mnemonics (Ed25519 keys only). Note that, in the
+case of key generation, you may opt to specify a Secp256k1 type with `-K`, which will now generate a new ECDSA key.
+**The `-K SECP256K1` option is only required for generating a _new_ key; this option is _not_ required for _replacing_
+an existing Secp256k1 key.** Support for Secp256k1 keys has not previously been available for the `rekey` command, but
+should now 'just work' as the Ed25519 key replacements do.
 
 Our first example uses a randomly generated new key,
 
@@ -438,7 +491,7 @@ localhost/keys
 └── account57.pem.bkup
 ```
 
-For the next example, we specify an existing PEM file, and enter its passphrase when prompted,
+For the next example, we specify an existing PEM file, and enter its passphrase when prompted:
 
 ```
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 -p 57 -n localhost \
@@ -448,6 +501,21 @@ Please enter the passphrase for key file new-account55.pem:
 .i. Exported key from new-account55 to localhost/keys/account57.pem
 .i. SUCCESS - account 0.0.57 has been re-keyed
 ```
+
+Now we give an example of re-keying an account administered by a Secp256k1 key from a pre-existing PEM
+and .pass file, where the contents of the original key–located in `account12345.pem`–are replaced with the
+contents of a new Secp256k1 key–`new-ecdsa-key.pem`–and a new passphrase:
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.6.4 -p 57 -n localhost \
+> accounts rekey -k new-ecdsa-key.pem 57
+Targeting localhost, paying with 0.0.57
+.i. Exported key from new-ecdsa-key to localhost/keys/account57.pem
+.i. SUCCESS - account 0.0.57 has been re-keyed
+```
+
+As before, the previous PEM and .pass files are given a _.bkup_ extension, while _localhost/keys/account57.pem_
+and _localhost/keys/account57.pass_ are overwritten with the contents of the new Secp256k1 key.
 
 In our final example, we replace the `0.0.57` key from a mnemonic,
 
@@ -492,7 +560,7 @@ generated passphrase in a _.pass_ file.
 
 # Printing key details
 
-If you have a PEM or mnemonic file for an Ed25519 key pair and need to extract the public key, you can run,
+If you have a PEM or mnemonic file for an Ed25519 or Secp256k1 key pair and need to extract the public key, you can run,
 
 ```
 $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 keys print-public -p novel.pem -x PkpcBBYCjd7K
@@ -509,6 +577,9 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.1 keys prin
 .i. The private key @ novel.pem is: ea52bce1ad54a88e156f50840e856b941f9b0db09266660c953cd14205546ca2
 .i.   -> With DER prefix; 302e020100300506032b657004220420ea52bce1ad54a88e156f50840e856b941f9b0db09266660c953cd14205546ca2
 ```
+
+For this command, Secp256k1 keys are now supported. There are no special considerations for printing the private or
+public components of either an Ed25519 or Secp256k1 key, i.e. these print commands should work equivalently for both types.
 
 # Changing a staking election
 
@@ -715,6 +786,12 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:0.4.8 -n localh
   --adminKey adminKey.pem
 ```
 
+Independent of the gossip CA certificate format, the `--declineRewards` option can be used to indicate that the
+new node should decline reward payments. Use `--declineRewards` to decline rewards, or `--declineRewards false`
+to accept rewards. This value defaults to `true` (declines the rewards) if not specified.
+
+The `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`, can be used to specify a gRPC proxy endpoint for the node. This is optional.
+
 :warning: If the payer and admin keys do not meet the signing requirements of the new node's fee collection account,
 there must be a key in the target network's _keys/_ directory for that account.
 
@@ -782,3 +859,9 @@ Targeting localhost, paying with 0.0.2
 .!. No key on disk for account 0.0.42, payer and admin key signatures must meet its signing requirements
 .i. SUCCESS - node1 has been updated
 ```
+
+A node can also be updated to begin declining or accepting reward payments. Use `--startDecliningRewards` to
+begin accepting reward payments, or `--stopDecliningRewards` to stop accepting reward payments. These params have
+no default values.
+
+A node's gRPC proxy endpoint can also be updated with the `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`. This is optional.

@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXF: Prepare Extended Test Suite"
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git Commit Reference for the XTS prep tag
+        required: true
+      dry-run-enabled:
+        description: "If true, the workflow will not create a tag, but will validate the commit."
+        required: false
+        default: false
+        type: boolean
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  actions: write
+  contents: write
+  statuses: write
+
+env:
+  XTS_CANDIDATE_TAG: "xts-candidate"
+  XTS_PASS_GREP_PATTERN: "xts-pass-*"
+  PROMOTED_GREP_PATTERN: "build-.{5}"
+
+jobs:
+  tag-for-xts:
+    name: Tag for XTS promotion
+    runs-on: hiero-network-node-linux-medium
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Default Branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: "main"
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Validate Input Ref
+        id: validate-input
+        env:
+          COMMIT_ID: ${{ inputs.ref }}
+        run: |
+          if git merge-base --is-ancestor "${COMMIT_ID}" main >/dev/null 2>&1; then
+            echo "commit_on_dev=true" >> $GITHUB_OUTPUT
+          else
+            echo "::error title=Branch Alignment::The provided commit (${COMMIT_ID}) is not present on the main branch."
+            exit 1
+          fi
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        if: ${{ steps.validate-input.outputs.commit_on_dev == 'true'}}
+        with:
+          fetch-depth: "0"
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      # Check if this commit is already tagged in the XTS flow
+      - name: Check if XTS flow is required
+        id: check-xts-required
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_PATTERN: ${{ env.XTS_CANDIDATE_TAG }}
+          XTS_PASS_PATTERN: ${{ env.XTS_PASS_GREP_PATTERN }}
+          BUILD_PROMO_PATTERN: ${{ env.PROMOTED_GREP_PATTERN }}
+        run: |
+          set +e
+          # Check if the HEAD ref is already tagged in the XTS workflows
+          XTS_CANDIDATE_TAGGED=$(git tag --contains HEAD | grep -E "${CANDIDATE_PATTERN}")
+          XTS_PASS_TAGGED=$(git tag --contains HEAD | grep -E "${XTS_PASS_PATTERN}")
+          BUILD_PROMOTED_TAGGED=$(git tag --contains HEAD | grep -E "${BUILD_PROMO_PATTERN}")
+          set -e
+
+          # if the strings are not empty than the commit has been tagged.
+          if [[ -n "${XTS_CANDIDATE_TAGGED}" || -n "${XTS_PASS_TAGGED}" || -n "${BUILD_PROMOTED_TAGGED}" ]]; then
+            gh run cancel ${{ github.run_id }}
+          else
+            echo "xts-checks-required=true" >> $GITHUB_OUTPUT
+          fi
+
+      # move the tag if successful
+      - name: Tag Code and push
+        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' && !inputs.dry-run-enabled }}
+        run: |
+          # Check if the tag exists
+          set +e
+          git rev-list -n 1 "${XTS_CANDIDATE_TAG}" >/dev/null 2>&1
+          XTS_COMMIT_FOUND="${?}"
+          set -e
+
+          # Delete the tag if it does exist
+          if [[ "${XTS_COMMIT_FOUND}" -eq 0 ]]; then
+            git push --delete origin "${XTS_CANDIDATE_TAG}"
+            git tag -d "${XTS_CANDIDATE_TAG}"
+          fi
+
+          # Create the new tag
+          git tag --annotate "${XTS_CANDIDATE_TAG}" --message "chore: tagging commit for XTS promotion"
+          git push --set-upstream origin --tags
+
+      - name: Report failure
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "#FF0000",
+                  "blocks": [
+                    {
+                      "type": "header",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Tagging Failed",
+                        "emoji": true
+                      }
+                    },
+                    {
+                      "type": "divider"
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }

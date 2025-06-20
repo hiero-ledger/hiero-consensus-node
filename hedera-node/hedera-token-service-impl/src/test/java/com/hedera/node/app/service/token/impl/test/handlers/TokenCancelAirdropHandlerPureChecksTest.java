@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_REPEATED;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -25,6 +10,7 @@ import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.a
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
@@ -38,16 +24,21 @@ import com.hedera.node.app.service.token.impl.handlers.TokenCancelAirdropHandler
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.util.Arrays;
 import java.util.Collections;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 
-public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase {
+class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerTestBase {
 
-    private static final AccountID ACCOUNT_SENDER = asAccount(4444);
-    private static final AccountID ACCOUNT_RECEIVER = asAccount(3333);
+    @Mock
+    private PureChecksContext pureChecksContext;
+
+    private static final AccountID ACCOUNT_SENDER = asAccount(0L, 0L, 4444);
+    private static final AccountID ACCOUNT_RECEIVER = asAccount(0L, 0L, 3333);
 
     private static final TokenID TOKEN_FUNGIBLE = asToken(2468);
     private static final TokenID NFT_TOKEN = asToken(2468);
@@ -84,8 +75,9 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
     @Test
     void handleCancelAirdropWithRepeatedFungiblePendingAirdrops() {
         final var txn = newTokenCancelAirdrop(repeatedAirdrops(pendingAirdropIdFungible, 2));
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(PENDING_AIRDROP_ID_REPEATED));
     }
@@ -93,8 +85,9 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
     @Test
     void handleCancelAirdropWithRepeatedNFTPendingAirdrops() {
         final var txn = newTokenCancelAirdrop(repeatedAirdrops(pendingAirdropIdNFT, 2));
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(PENDING_AIRDROP_ID_REPEATED));
     }
@@ -107,10 +100,11 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
                 .senderId(ACCOUNT_SENDER)
                 .build();
         final var txn = newTokenCancelAirdrop(pendingAirdropWithNoReceiver);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_ACCOUNT_ID));
+                .has(responseCode(INVALID_PENDING_AIRDROP_ID));
     }
 
     @Test
@@ -121,10 +115,11 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
                 .receiverId(ACCOUNT_RECEIVER)
                 .build();
         final var txn = newTokenCancelAirdrop(pendingAirdropWithNoSender);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
-                .has(responseCode(INVALID_ACCOUNT_ID));
+                .has(responseCode(INVALID_PENDING_AIRDROP_ID));
     }
 
     @Test
@@ -138,8 +133,9 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
                         .build())
                 .build();
         final var txn = newTokenCancelAirdrop(pendingAirdropIdWithInvalidNft);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_TOKEN_NFT_SERIAL_NUMBER));
     }
@@ -155,8 +151,9 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
                 .senderId(ACCOUNT_SENDER)
                 .build();
         final var txn = newTokenCancelAirdrop(pendingAirdropIdWithBothTypes);
+        given(pureChecksContext.body()).willReturn(txn);
 
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
         assertThat(pendingAirdropIdWithBothTypes.hasFungibleTokenType()).isFalse();
         assertThat(pendingAirdropIdWithBothTypes.hasNonFungibleToken()).isTrue();
         assertThat(pendingAirdropIdWithBothTypes.tokenReference().kind())
@@ -166,20 +163,25 @@ public class TokenCancelAirdropHandlerPureChecksTest extends CryptoTokenHandlerT
     @Test
     void handleCancelAirdropWithReferenceForNFTWorks() {
         final var txn = newTokenCancelAirdrop(pendingAirdropIdNFT);
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
     void handleCancelAirdropWithReferenceForFungibleWorks() {
         final var txn = newTokenCancelAirdrop(pendingAirdropIdFungible);
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
     void handleCancelAirdropWithEmptyPendingAirdrops() {
         final var txn = newTokenCancelAirdrop();
+        given(pureChecksContext.body()).willReturn(txn);
 
-        Assertions.assertThatThrownBy(() -> subject.pureChecks(txn))
+        Assertions.assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(EMPTY_PENDING_AIRDROP_ID_LIST));
     }

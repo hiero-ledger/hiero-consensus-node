@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.freeze;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
@@ -41,7 +26,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UPDATE_FILE_ID
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.suites.HapiSuite;
-import com.swirlds.common.utility.CommonUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -52,6 +36,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 
 public class UpgradeSuite extends HapiSuite {
@@ -71,8 +56,8 @@ public class UpgradeSuite extends HapiSuite {
     private final byte[] heavyPoeticUpgradeHash;
     private final byte[] notEvenASha384Hash = "abcdefgh".getBytes(StandardCharsets.UTF_8);
 
-    public static final String standardUpdateFile = "0.0.150";
-    public static final String standardTelemetryFile = "0.0.159";
+    public static final String standardUpdateFile = "150";
+    public static final String standardTelemetryFile = "159";
 
     public UpgradeSuite() {
         try {
@@ -107,146 +92,130 @@ public class UpgradeSuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> precheckRejectsUnknownFreezeType() {
-        return defaultHapiSpec("PrejeckRejectsUnknownFreezeType")
-                .given()
-                .when()
-                .then(freeze().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY));
+        return hapiTest(freeze().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY));
     }
 
     final Stream<DynamicTest> freezeOnlyPrecheckRejectsInvalid() {
-        return defaultHapiSpec("freezeOnlyPrecheckRejectsInvalid")
-                .given()
-                .when()
-                .then(
-                        freezeOnly().withRejectedStartHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeOnly().withRejectedStartMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeOnly().withRejectedEndHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeOnly().withRejectedEndMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeOnly().startingIn(-60).minutes().hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE));
+        return hapiTest(
+                freezeOnly().withRejectedStartHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeOnly().withRejectedStartMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeOnly().withRejectedEndHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeOnly().withRejectedEndMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeOnly().startingIn(-60).minutes().hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE));
     }
 
     final Stream<DynamicTest> freezeUpgradeValidationRejectsInvalid() {
-        return defaultHapiSpec("freezeUpgradeValidationRejectsInvalid")
-                .given()
-                .when()
-                .then(
-                        freezeUpgrade().withRejectedStartHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeUpgrade().withRejectedStartMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeUpgrade().withRejectedEndHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeUpgrade().withRejectedEndMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeUpgrade().startingIn(-60).minutes().hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE),
-                        freezeUpgrade()
-                                .startingIn(2)
-                                .minutes()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(poeticUpgradeHash)
-                                .hasKnownStatus(NO_UPGRADE_HAS_BEEN_PREPARED),
-                        freezeUpgrade()
-                                .startingIn(2)
-                                .minutes()
-                                .havingHash(poeticUpgradeHash)
-                                .hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
-                        freezeUpgrade()
-                                .startingIn(2)
-                                .minutes()
-                                .withUpdateFile(standardUpdateFile)
-                                .hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY));
+        return hapiTest(
+                freezeUpgrade().withRejectedStartHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeUpgrade().withRejectedStartMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeUpgrade().withRejectedEndHr().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeUpgrade().withRejectedEndMin().hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeUpgrade().startingIn(-60).minutes().hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE),
+                freezeUpgrade()
+                        .startingIn(2)
+                        .minutes()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(poeticUpgradeHash)
+                        .hasKnownStatus(NO_UPGRADE_HAS_BEEN_PREPARED),
+                freezeUpgrade()
+                        .startingIn(2)
+                        .minutes()
+                        .havingHash(poeticUpgradeHash)
+                        .hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY),
+                freezeUpgrade()
+                        .startingIn(2)
+                        .minutes()
+                        .withUpdateFile(standardUpdateFile)
+                        .hasPrecheck(INVALID_FREEZE_TRANSACTION_BODY));
     }
 
     final Stream<DynamicTest> freezeAbortIsIdempotent() {
-        return defaultHapiSpec("FreezeAbortIsIdempotent")
-                .given()
-                .when()
-                .then(freezeAbort().hasKnownStatus(SUCCESS), freezeAbort().hasKnownStatus(SUCCESS));
+        return hapiTest(freezeAbort().hasKnownStatus(SUCCESS), freezeAbort().hasKnownStatus(SUCCESS));
     }
 
     final Stream<DynamicTest> prepareUpgradeValidationRejectsInvalid() {
-        return defaultHapiSpec("PrepareUpgradeValidationRejectsInvalid")
-                .given(
-                        fileUpdate(standardUpdateFile)
-                                .signedBy(FREEZE_ADMIN)
-                                .contents(pragmatism)
-                                .payingWith(FREEZE_ADMIN),
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
-                        prepareUpgrade()
-                                .withUpdateFile("0.0.149")
-                                .havingHash(poeticUpgradeHash)
-                                .hasPrecheck(FREEZE_UPDATE_FILE_DOES_NOT_EXIST),
-                        prepareUpgrade()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(notEvenASha384Hash)
-                                .hasPrecheck(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH),
-                        prepareUpgrade()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(poeticUpgradeHash)
-                                .hasKnownStatus(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH))
-                .when(fileUpdate(standardUpdateFile)
+        return hapiTest(
+                fileUpdate(standardUpdateFile)
                         .signedBy(FREEZE_ADMIN)
                         .contents(pragmatism)
-                        .payingWith(FREEZE_ADMIN))
-                .then(
-                        prepareUpgrade()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(poeticUpgradeHash)
-                                .hasKnownStatus(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH),
-                        fileUpdate(standardUpdateFile)
-                                .signedBy(FREEZE_ADMIN)
-                                .path(poeticUpgradeLoc)
-                                .payingWith(FREEZE_ADMIN),
-                        getFileContents(standardUpdateFile)
-                                .hasByteStringContents(ignore -> ByteString.copyFrom(poeticUpgrade)),
-                        prepareUpgrade().withUpdateFile(standardUpdateFile).havingHash(poeticUpgradeHash),
-                        prepareUpgrade()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(poeticUpgradeHash)
-                                .hasKnownStatus(FREEZE_UPGRADE_IN_PROGRESS),
-                        freezeOnly().startingIn(60).minutes().hasKnownStatus(FREEZE_UPGRADE_IN_PROGRESS),
-                        telemetryUpgrade()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(poeticUpgradeHash)
-                                .startingIn(60)
-                                .minutes()
-                                .hasKnownStatus(FREEZE_UPGRADE_IN_PROGRESS),
-                        fileUpdate(standardUpdateFile)
-                                .signedBy(FREEZE_ADMIN)
-                                .path(poeticUpgradeLoc)
-                                .payingWith(FREEZE_ADMIN)
-                                .hasKnownStatus(PREPARED_UPDATE_FILE_IS_IMMUTABLE),
-                        fileAppend(standardUpdateFile)
-                                .signedBy(FREEZE_ADMIN)
-                                .path(poeticUpgradeLoc)
-                                .payingWith(FREEZE_ADMIN)
-                                .hasKnownStatus(PREPARED_UPDATE_FILE_IS_IMMUTABLE),
-                        freezeAbort());
+                        .payingWith(FREEZE_ADMIN),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
+                prepareUpgrade()
+                        .withUpdateFile("149")
+                        .havingHash(poeticUpgradeHash)
+                        .hasPrecheck(FREEZE_UPDATE_FILE_DOES_NOT_EXIST),
+                prepareUpgrade()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(notEvenASha384Hash)
+                        .hasPrecheck(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH),
+                prepareUpgrade()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(poeticUpgradeHash)
+                        .hasKnownStatus(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH),
+                fileUpdate(standardUpdateFile)
+                        .signedBy(FREEZE_ADMIN)
+                        .contents(pragmatism)
+                        .payingWith(FREEZE_ADMIN),
+                prepareUpgrade()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(poeticUpgradeHash)
+                        .hasKnownStatus(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH),
+                fileUpdate(standardUpdateFile)
+                        .signedBy(FREEZE_ADMIN)
+                        .path(poeticUpgradeLoc)
+                        .payingWith(FREEZE_ADMIN),
+                getFileContents(standardUpdateFile).hasByteStringContents(ignore -> ByteString.copyFrom(poeticUpgrade)),
+                prepareUpgrade().withUpdateFile(standardUpdateFile).havingHash(poeticUpgradeHash),
+                prepareUpgrade()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(poeticUpgradeHash)
+                        .hasKnownStatus(FREEZE_UPGRADE_IN_PROGRESS),
+                freezeOnly().startingIn(60).minutes().hasKnownStatus(FREEZE_UPGRADE_IN_PROGRESS),
+                telemetryUpgrade()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(poeticUpgradeHash)
+                        .startingIn(60)
+                        .minutes()
+                        .hasKnownStatus(FREEZE_UPGRADE_IN_PROGRESS),
+                fileUpdate(standardUpdateFile)
+                        .signedBy(FREEZE_ADMIN)
+                        .path(poeticUpgradeLoc)
+                        .payingWith(FREEZE_ADMIN)
+                        .hasKnownStatus(PREPARED_UPDATE_FILE_IS_IMMUTABLE),
+                fileAppend(standardUpdateFile)
+                        .signedBy(FREEZE_ADMIN)
+                        .path(poeticUpgradeLoc)
+                        .payingWith(FREEZE_ADMIN)
+                        .hasKnownStatus(PREPARED_UPDATE_FILE_IS_IMMUTABLE),
+                freezeAbort());
     }
 
     final Stream<DynamicTest> telemetryUpgradeValidationRejectsInvalid() {
-        return defaultHapiSpec("TelemetryUpgradeValidationRejectsInvalid")
-                .given(
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
-                        telemetryUpgrade()
-                                .withUpdateFile(standardTelemetryFile)
-                                .havingHash(poeticUpgradeHash)
-                                .startingIn(-60)
-                                .minutes()
-                                .hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE),
-                        telemetryUpgrade()
-                                .withUpdateFile("0.0.149")
-                                .havingHash(poeticUpgradeHash)
-                                .startingIn(3)
-                                .minutes()
-                                .hasPrecheck(FREEZE_UPDATE_FILE_DOES_NOT_EXIST),
-                        telemetryUpgrade()
-                                .startingIn(3)
-                                .minutes()
-                                .withUpdateFile(standardTelemetryFile)
-                                .havingHash(notEvenASha384Hash)
-                                .hasPrecheck(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH))
-                .when(fileUpdate(standardTelemetryFile)
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
+                telemetryUpgrade()
+                        .withUpdateFile(standardTelemetryFile)
+                        .havingHash(poeticUpgradeHash)
+                        .startingIn(-60)
+                        .minutes()
+                        .hasPrecheck(FREEZE_START_TIME_MUST_BE_FUTURE),
+                telemetryUpgrade()
+                        .withUpdateFile("149")
+                        .havingHash(poeticUpgradeHash)
+                        .startingIn(3)
+                        .minutes()
+                        .hasPrecheck(FREEZE_UPDATE_FILE_DOES_NOT_EXIST),
+                telemetryUpgrade()
+                        .startingIn(3)
+                        .minutes()
+                        .withUpdateFile(standardTelemetryFile)
+                        .havingHash(notEvenASha384Hash)
+                        .hasPrecheck(FREEZE_UPDATE_FILE_HASH_DOES_NOT_MATCH),
+                fileUpdate(standardTelemetryFile)
                         .signedBy(FREEZE_ADMIN)
                         .contents(pragmatism)
-                        .payingWith(FREEZE_ADMIN))
-                .then(telemetryUpgrade()
+                        .payingWith(FREEZE_ADMIN),
+                telemetryUpgrade()
                         .startingIn(3)
                         .minutes()
                         .withUpdateFile(standardTelemetryFile)
@@ -255,46 +224,43 @@ public class UpgradeSuite extends HapiSuite {
     }
 
     final Stream<DynamicTest> canFreezeUpgradeWithPreparedUpgrade() {
-        return defaultHapiSpec("CanFreezeUpgradeWithPreparedUpgrade")
-                .given(
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
-                        fileUpdate(standardUpdateFile)
-                                .signedBy(FREEZE_ADMIN)
-                                .path(poeticUpgradeLoc)
-                                .payingWith(FREEZE_ADMIN))
-                .when(prepareUpgrade().withUpdateFile(standardUpdateFile).havingHash(poeticUpgradeHash))
-                .then(
-                        freezeUpgrade()
-                                .startingIn(60)
-                                .minutes()
-                                .withUpdateFile(standardTelemetryFile)
-                                .havingHash(poeticUpgradeHash)
-                                .hasKnownStatus(UPDATE_FILE_ID_DOES_NOT_MATCH_PREPARED),
-                        freezeUpgrade()
-                                .startingIn(60)
-                                .minutes()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(heavyPoeticUpgradeHash)
-                                .hasKnownStatus(UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED),
-                        freezeUpgrade()
-                                .startingIn(60)
-                                .minutes()
-                                .withUpdateFile(standardUpdateFile)
-                                .havingHash(poeticUpgradeHash),
-                        freezeAbort());
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
+                fileUpdate(standardUpdateFile)
+                        .signedBy(FREEZE_ADMIN)
+                        .path(poeticUpgradeLoc)
+                        .payingWith(FREEZE_ADMIN),
+                prepareUpgrade().withUpdateFile(standardUpdateFile).havingHash(poeticUpgradeHash),
+                freezeUpgrade()
+                        .startingIn(60)
+                        .minutes()
+                        .withUpdateFile(standardTelemetryFile)
+                        .havingHash(poeticUpgradeHash)
+                        .hasKnownStatus(UPDATE_FILE_ID_DOES_NOT_MATCH_PREPARED),
+                freezeUpgrade()
+                        .startingIn(60)
+                        .minutes()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(heavyPoeticUpgradeHash)
+                        .hasKnownStatus(UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED),
+                freezeUpgrade()
+                        .startingIn(60)
+                        .minutes()
+                        .withUpdateFile(standardUpdateFile)
+                        .havingHash(poeticUpgradeHash),
+                freezeAbort());
     }
 
     final Stream<DynamicTest> canTelemetryUpgradeWithValid() {
-        return defaultHapiSpec("CanTelemetryUpgradeWithValid")
-                .given(cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)))
-                .when(
-                        fileUpdate(standardUpdateFile)
-                                .signedBy(FREEZE_ADMIN)
-                                .path(heavyPoeticUpgradeLoc)
-                                .payingWith(FREEZE_ADMIN),
-                        getFileContents(standardUpdateFile)
-                                .hasByteStringContents(ignore -> ByteString.copyFrom(heavyPoeticUpgrade)))
-                .then(telemetryUpgrade()
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FREEZE_ADMIN, ONE_HUNDRED_HBARS)),
+                fileUpdate(standardUpdateFile)
+                        .signedBy(FREEZE_ADMIN)
+                        .path(heavyPoeticUpgradeLoc)
+                        .payingWith(FREEZE_ADMIN),
+                getFileContents(standardUpdateFile)
+                        .hasByteStringContents(ignore -> ByteString.copyFrom(heavyPoeticUpgrade)),
+                telemetryUpgrade()
                         .startingIn(60)
                         .minutes()
                         .withUpdateFile(standardUpdateFile)

@@ -1,36 +1,24 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
-import static com.swirlds.common.utility.ByteUtils.byteArrayToShort;
+import static org.hiero.base.utility.ByteUtils.byteArrayToShort;
 
-import com.swirlds.common.crypto.CryptographyHolder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
 
 /**
  * A utility class for creating mnemonic words.
  */
 public final class Mnemonics {
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private Mnemonics() {}
 
@@ -2162,7 +2150,7 @@ public final class Mnemonics {
 
         while (mnemonics.size() < wordCount) {
             if (nextIndex + 1 >= entropy.length) {
-                entropy = CryptographyHolder.get().digestBytesSync(entropy);
+                entropy = CRYPTOGRAPHY.digestBytesSync(entropy);
                 nextIndex = 0;
             }
 
@@ -2202,5 +2190,9 @@ public final class Mnemonics {
      */
     public static String generateMnemonic(final byte[] data, final int wordCount) {
         return formattedList(generateMnemonicWords(data, wordCount).iterator(), "-");
+    }
+
+    public static String generateMnemonic(final Hash hash) {
+        return generateMnemonic(hash.copyToByteArray(), 4);
     }
 }

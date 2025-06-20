@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
 import com.swirlds.merkledb.collections.LongList;
@@ -59,8 +44,8 @@ public class LongListBenchmark {
     public void setup() {
         random = new Random(1234);
         list = switch (listImpl) {
-            default -> new LongListHeap();
-            case "LongListOffHeap" -> new LongListOffHeap();};
+            default -> new LongListHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
+            case "LongListOffHeap" -> new LongListOffHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);};
         // fill with some data
         for (int i = 0; i < INITIAL_DATA_SIZE; i++) {
             list.put(i, i + 1);

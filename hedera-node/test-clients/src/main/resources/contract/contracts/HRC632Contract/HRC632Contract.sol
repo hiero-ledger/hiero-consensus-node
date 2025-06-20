@@ -49,4 +49,11 @@ contract HRC632Contract is HederaAccountService {
         returns (bool result) {
         result = HederaAccountService.isAuthorizedRaw(account, messageHash, signature);
     }
+
+    function isAuthorizedCall(address account, bytes memory message, bytes memory signature) external
+    returns (bool result) {
+        int64 responseCode;
+        (responseCode, result) = HederaAccountService.isAuthorized(account, message, signature);
+        require(responseCode == HederaResponseCodes.SUCCESS, "getHederaAccountNumAlias failed");
+    }
 }

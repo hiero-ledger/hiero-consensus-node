@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
@@ -44,7 +29,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenDissociateUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -63,6 +47,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -86,14 +71,15 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
      * Default constructor for injection.
      */
     @Inject
-    public TokenDissociateFromAccountHandler() {}
+    public TokenDissociateFromAccountHandler() {
+        // exists for injection
+    }
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var trxBody = context.body();
         final var op = trxBody.tokenDissociateOrThrow();
-        pureChecks(trxBody);
 
         final var target = op.accountOrElse(AccountID.DEFAULT);
 
@@ -132,7 +118,7 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
         // positive balances to remove from the account separate from the account object itself. Confusing, but we'll
         // _add_ the number to subtract to each aggregating variable. The total subtraction for each variable will be
         // done outside the dissociation loop
-        var numNftsToSubtract = 0;
+        var numNftsToSubtract = 0L;
         var numAutoAssociationsToSubtract = 0;
         var numAssociationsToSubtract = 0;
         var numPositiveBalancesToSubtract = 0;
@@ -209,7 +195,9 @@ public class TokenDissociateFromAccountHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
         final TokenDissociateTransactionBody op = txn.tokenDissociateOrThrow();
 
         validateTruePreCheck(hasAccountNumOrAlias(op.account()), INVALID_ACCOUNT_ID);

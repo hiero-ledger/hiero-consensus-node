@@ -1,0 +1,60 @@
+/**
+ * # Block Node Connections
+ * A representation of the configuration for connecting to a set of block nodes.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+
+syntax = "proto3";
+
+package com.hedera.hapi.network;
+
+option java_package = "com.hedera.node.internal.network.legacy";
+// <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A single block node connection configuration.<br/>
+ *
+ * This message provides the necessary details for a consensus node to
+ * establish a connection and stream blocks to a block node.</br>
+ * Each instance of this message represents one block node connection.
+ * Multiple instances may be included in {@link BlockNodeConnectionInfo}.
+ * - Each instance SHALL contain a valid address and port.<br/>
+ * - A consensus node SHALL connect to all listed block nodes.<br/>
+ * - The address MUST be a valid DNS hostname or IP address.<br/>
+ * - The port SHALL be within the valid TCP/UDP port range.<br/>
+ */
+message BlockNodeConfig {
+    /**
+     * The network address of the block node.<br/>
+     * This MAY be an IP address or a DNS hostname.
+     */
+    string address = 1;
+
+    /**
+     * The port used to communicate with the block node.<br/>
+     * Valid port range is 1 to 65535.
+     */
+    int32 port = 2;
+}
+
+/**
+ * Overall connection configuration for block nodes.<br/>
+ *
+ * The BlockNodeConnectionInfo message SHOULD encapsulate all the information needed
+ * for a consensus node to connect to a set of block nodes and stream blocks.
+ */
+message BlockNodeConnectionInfo {
+    /**
+     * A list of block node configurations.<br/>
+     * This field SHALL list all block node configurations
+     * to which the consensus node SHOULD connect.
+     */
+    repeated BlockNodeConfig nodes = 1;
+}

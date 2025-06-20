@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
 import static com.swirlds.common.stream.HashCalculatorTest.PAY_LOAD_SIZE_4;
@@ -52,19 +37,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.RunningHashable;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.InvalidStreamFileException;
 import com.swirlds.common.stream.internal.LinkedObjectStreamValidateUtils;
 import com.swirlds.common.stream.internal.SingleStreamIterator;
 import com.swirlds.common.stream.internal.StreamValidationResult;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
 import com.swirlds.common.test.fixtures.stream.StreamObjectWorker;
@@ -80,6 +56,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHashable;
+import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -89,6 +74,7 @@ import org.junit.jupiter.api.Test;
  */
 class StreamUtilitiesTest {
     private static final Logger logger = LogManager.getLogger(StreamUtilitiesTest.class);
+    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
     private static final Marker LOGM_OBJECT_STREAM = MarkerManager.getMarker("OBJECT_STREAM");
     private static final Marker LOGM_EXCEPTION = MarkerManager.getMarker("EXCEPTION");
     private static final int logPeriodMs = 500;
@@ -112,7 +98,9 @@ class StreamUtilitiesTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructables("com.swirlds.common");
+        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        registry.registerConstructables("com.swirlds.common");
+        registry.registerConstructables("org.hiero");
     }
 
     private static File getResourceFile(final String path) {
@@ -137,7 +125,7 @@ class StreamUtilitiesTest {
     @Test
     void parseStreamTest() throws Exception {
         InputOutputStream io = new InputOutputStream();
-        Hash initialHash = RandomUtils.randomHash();
+        Hash initialHash = CryptoRandomUtils.randomHash();
 
         StreamObjectWorker streamObjectWorker =
                 new StreamObjectWorker(50, 50, initialHash, Instant.now(), io.getOutput());
@@ -292,8 +280,8 @@ class StreamUtilitiesTest {
                 // endRunningHash should be the last one in the iterator
                 assertFalse(iterator.hasNext());
             } else {
-                Hash objectHash = CryptographyHolder.get().digestSync(object);
-                runningHash = CryptographyHolder.get().calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
+                Hash objectHash = CRYPTOGRAPHY.digestSync(object);
+                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash);
             }
             objectsCount++;
             logger.info(LOGM_OBJECT_STREAM, "parsed object: {}", object);
@@ -539,7 +527,7 @@ class StreamUtilitiesTest {
             public SelfSerializable next() {
                 SelfSerializable next;
                 if (id == FIRST_ID || id == LAST_ID) {
-                    next = RandomUtils.randomHash();
+                    next = CryptoRandomUtils.randomHash();
                 } else {
                     next = getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
                 }

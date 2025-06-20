@@ -1,35 +1,20 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring.components;
 
-import static com.swirlds.common.wiring.model.diagram.HyperlinkBuilder.platformCoreHyperlink;
-import static com.swirlds.common.wiring.schedulers.builders.TaskSchedulerType.DIRECT;
+import static com.swirlds.component.framework.model.diagram.HyperlinkBuilder.platformCoreHyperlink;
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT;
 
 import com.swirlds.common.io.IOIterator;
-import com.swirlds.common.wiring.model.WiringModel;
-import com.swirlds.common.wiring.schedulers.TaskScheduler;
-import com.swirlds.common.wiring.wires.input.BindableInputWire;
-import com.swirlds.common.wiring.wires.input.InputWire;
-import com.swirlds.common.wiring.wires.output.OutputWire;
-import com.swirlds.common.wiring.wires.output.StandardOutputWire;
-import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.schedulers.TaskScheduler;
+import com.swirlds.component.framework.wires.input.BindableInputWire;
+import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * The wiring for the {@link PcesReplayer}.
@@ -52,11 +37,10 @@ public record PcesReplayerWiring(
      */
     @NonNull
     public static PcesReplayerWiring create(@NonNull final WiringModel model) {
-        final TaskScheduler<NoInput> taskScheduler = model.schedulerBuilder("pcesReplayer")
+        final TaskScheduler<NoInput> taskScheduler = model.<NoInput>schedulerBuilder("pcesReplayer")
                 .withType(DIRECT)
                 .withHyperlink(platformCoreHyperlink(PcesReplayer.class))
-                .build()
-                .cast();
+                .build();
 
         return new PcesReplayerWiring(
                 taskScheduler.buildInputWire("event files to replay"),

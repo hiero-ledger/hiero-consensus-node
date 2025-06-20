@@ -1,46 +1,24 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.turtle.gossip;
 
-import static com.swirlds.common.wiring.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.constructable.ConstructableRegistry;
-import com.swirlds.common.constructable.ConstructableRegistryException;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.wiring.model.TraceableWiringModel;
-import com.swirlds.common.wiring.model.WiringModel;
-import com.swirlds.common.wiring.model.WiringModelBuilder;
-import com.swirlds.common.wiring.schedulers.TaskScheduler;
-import com.swirlds.common.wiring.wires.input.BindableInputWire;
-import com.swirlds.common.wiring.wires.output.StandardOutputWire;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.event.hashing.DefaultEventHasher;
-import com.swirlds.platform.system.BasicSoftwareVersion;
-import com.swirlds.platform.system.StaticSoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
+import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
+import com.swirlds.component.framework.schedulers.TaskScheduler;
+import com.swirlds.component.framework.wires.input.BindableInputWire;
+import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.event.TestingEventBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -51,7 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import org.junit.jupiter.api.BeforeAll;
+import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -69,12 +52,6 @@ class SimulatedGossipTests {
             uniqueDescriptors.add(event.getDescriptor());
         }
         return uniqueDescriptors;
-    }
-
-    @BeforeAll
-    static void beforeAll() throws ConstructableRegistryException {
-        StaticSoftwareVersion.setSoftwareVersion(new BasicSoftwareVersion(1));
-        ConstructableRegistry.getInstance().registerConstructables("");
     }
 
     @SuppressWarnings("unchecked")
@@ -105,19 +82,18 @@ class SimulatedGossipTests {
 
         // Wire things up
         for (final NodeId nodeId : addressBook.getNodeIdSet()) {
-            final WiringModel model = WiringModelBuilder.create(context)
+            final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
                     .withDeterministicModeEnabled(true)
                     .build();
 
-            final TaskScheduler<Void> eventInputShim = model.schedulerBuilder("eventInputShim")
+            final TaskScheduler<Void> eventInputShim = model.<Void>schedulerBuilder("eventInputShim")
                     .configure(DIRECT_THREADSAFE_CONFIGURATION)
-                    .build()
-                    .cast();
+                    .build();
 
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);
-            final StandardOutputWire<PlatformEvent> eventOutputWire =
-                    new StandardOutputWire<>((TraceableWiringModel) model, "eventOutputWire");
+            final StandardOutputWire<PlatformEvent> eventOutputWire = new StandardOutputWire<>(
+                    (TraceableWiringModel) model, "eventOutputWire", ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
             eventOutputWire.solderTo("handleOutputEvent", "event", receivedEventsForNode::add);
 
             final BindableInputWire<PlatformEvent, Void> eventInputWire =

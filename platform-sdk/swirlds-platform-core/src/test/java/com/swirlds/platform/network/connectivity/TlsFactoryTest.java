@@ -1,39 +1,24 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.network.connectivity;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.platform.NodeId;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.crypto.AddressBookAndCerts;
 import com.swirlds.platform.crypto.CryptoArgsProvider;
-import com.swirlds.platform.crypto.KeysAndCerts;
+import com.swirlds.platform.crypto.RosterAndCerts;
 import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.PeerInfo;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,17 +45,17 @@ class TlsFactoryTest extends ConnectivityTestBase {
     @BeforeEach
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
-        final AddressBookAndCerts addressBookAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(2);
-        final AddressBook addressBook = addressBookAndCerts.addressBook();
-        final Map<NodeId, KeysAndCerts> keysAndCerts = addressBookAndCerts.nodeIdKeysAndCertsMap();
-        assertTrue(addressBook.getSize() > 1, "Address book must contain at least 2 nodes");
+        final RosterAndCerts rosterAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(2);
+        final Roster roster = rosterAndCerts.roster();
+        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.nodeIdKeysAndCertsMap();
+        assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         // choose 2 nodes to test connections
-        final NodeId nodeA = addressBook.getNodeId(0);
-        final NodeId nodeB = addressBook.getNodeId(1);
+        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
+        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
 
-        peersA = Utilities.createPeerInfoList(addressBook, nodeA);
-        final List<PeerInfo> peersB = Utilities.createPeerInfoList(addressBook, nodeB);
+        peersA = Utilities.createPeerInfoList(roster, nodeA);
+        final List<PeerInfo> peersB = Utilities.createPeerInfoList(roster, nodeB);
 
         // create their socket factories
         socketFactoryA = NetworkUtils.createSocketFactory(nodeA, peersA, keysAndCerts.get(nodeA), TLS_NO_IP_TOS_CONFIG);
@@ -86,18 +71,32 @@ class TlsFactoryTest extends ConnectivityTestBase {
         Assertions.assertFalse(serverSocket.isClosed());
 
         // create a new address book with keys and new set of nodes
-        final AddressBookAndCerts updatedAddressBookAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(6);
-        final AddressBook updatedAddressBook = updatedAddressBookAndCerts.addressBook();
-        final Address address = addressBook.getAddress(nodeA).copySetNodeId(updatedAddressBook.getNextNodeId());
-        updatedAddressBook.add(address); // ensure node A is in new addressBook
-        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedAddressBookAndCerts.nodeIdKeysAndCertsMap();
-        assertTrue(updatedAddressBook.getSize() > 1, "Address book must contain at least 2 nodes");
+        final RosterAndCerts updatedRosterAndCerts = CryptoArgsProvider.loadAddressBookWithKeys(6);
+        final Roster updatedRoster = Roster.newBuilder()
+                .rosterEntries(updatedRosterAndCerts.roster().rosterEntries().stream()
+                        .map(entry -> {
+                            if (entry.nodeId() == nodeA.id()) {
+                                return entry.copyBuilder()
+                                        .nodeId(updatedRosterAndCerts.roster().rosterEntries().stream()
+                                                        .mapToLong(RosterEntry::nodeId)
+                                                        .max()
+                                                        .getAsLong()
+                                                + 1)
+                                        .build();
+                            } else {
+                                return entry;
+                            }
+                        })
+                        .toList())
+                .build();
+        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.nodeIdKeysAndCertsMap();
+        assertTrue(updatedRoster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
-        peersA = Utilities.createPeerInfoList(updatedAddressBook, nodeA); // Peers of A as in updated addressBook
+        peersA = Utilities.createPeerInfoList(updatedRoster, nodeA); // Peers of A as in updated addressBook
 
         // pick a node for the 3rd connection C.
-        final NodeId nodeC = updatedAddressBook.getNodeId(4);
-        final List<PeerInfo> peersC = Utilities.createPeerInfoList(updatedAddressBook, nodeC);
+        final NodeId nodeC = NodeId.of(updatedRoster.rosterEntries().get(4).nodeId());
+        final List<PeerInfo> peersC = Utilities.createPeerInfoList(updatedRoster, nodeC);
         socketFactoryC =
                 NetworkUtils.createSocketFactory(nodeC, peersC, updatedKeysAndCerts.get(nodeC), TLS_NO_IP_TOS_CONFIG);
     }

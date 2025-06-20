@@ -1,26 +1,14 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
+
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hederahashgraph.api.proto.java.Key;
 import org.apache.tuweni.bytes.Bytes;
+import org.bouncycastle.util.encoders.Hex;
 
 public class HapiParserUtil {
 
@@ -80,5 +68,10 @@ public class HapiParserUtil {
 
         System.arraycopy(bytesToExpand, 4, expandedArray, 0, bytesToExpand.length - 4);
         return expandedArray;
+    }
+
+    // Generate an address with the passed in number. All the values are padded till the required length.
+    public static String toAddressString(String number) {
+        return "0x00" + Hex.toHexString(asEvmAddress(Long.parseLong(number, 16)));
     }
 }

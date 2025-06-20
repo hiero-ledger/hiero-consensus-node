@@ -1,28 +1,13 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
-import static com.swirlds.common.utility.CommonUtils.getNormalisedStringBytes;
+import static com.swirlds.virtualmap.VirtualMap.CLASS_ID;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.getNormalisedStringBytes;
 
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
@@ -30,8 +15,10 @@ import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
 import com.swirlds.common.utility.Labeled;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.common.utility.ValueReference;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.constructable.constructors.VirtualMapConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
@@ -39,6 +26,7 @@ import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import com.swirlds.virtualmap.internal.merkle.VirtualStateAccessorImpl;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
@@ -46,7 +34,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Objects;
+import org.hiero.base.ValueReference;
+import org.hiero.base.constructable.ConstructableClass;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A {@link MerkleInternal} node that virtualizes all of its children, such that the child nodes
@@ -76,7 +68,7 @@ import java.util.Objects;
  * for any existing versions going back to the oldest version that is still in memory (typically, a dozen
  * or so). If we have a cache miss there, then we go to disk, read an object, and place it in the cache,
  * if it will be modified later or is being modified now. We do not cache into memory records that are
- * only read. See {@link #getForModify(VirtualKey)}.
+ * only read.
  * <p>
  * One important optimization is avoiding accessing internal nodes during transaction handling. If a leaf
  * is added, we will need to create a new internal node, but we do not need to "walk up the tree" making
@@ -105,8 +97,8 @@ import java.util.Objects;
  * <p>
  * This class presents a map-like interface for getting and putting values. These values are stored
  * in the leaf nodes of this node's sub-tree. The map-like methods {@link #get(VirtualKey)},
- * {@link #put(VirtualKey, VirtualValue)}, {@link #replace(VirtualKey, VirtualValue)}, and {@link #remove(VirtualKey)}
- * can be used as a fast and convenient way to read, add, modify, or delete the corresponding leaf nodes and
+ * {@link #put(VirtualKey, VirtualValue)}, and {@link #remove(VirtualKey)} can be used as a
+ * fast and convenient way to read, add, modify, or delete the corresponding leaf nodes and
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  *
@@ -116,6 +108,7 @@ import java.util.Objects;
  * 		The value. Must be a {@link VirtualValue}.
  */
 @DebugIterationEndpoint
+@ConstructableClass(value = CLASS_ID, constructorType = VirtualMapConstructor.class)
 public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> extends PartialBinaryMerkleInternal
         implements ExternalSelfSerializable, Labeled, MerkleInternal {
 
@@ -165,11 +158,17 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      */
     private final RuntimeObjectRecord registryRecord;
 
+    /** Platform configuration */
+    @NonNull
+    private final Configuration configuration;
+
     /**
-     * Required by the {@link com.swirlds.common.constructable.RuntimeConstructable} contract.
+     * Required by the {@link RuntimeConstructable} contract.
      * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
      */
-    public VirtualMap() {
+    public VirtualMap(final @NonNull Configuration configuration) {
+        requireNonNull(configuration);
+        this.configuration = configuration;
         registryRecord = RuntimeObjectRegistry.createRecord(getClass());
     }
 
@@ -180,17 +179,23 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      * 		A label to give the virtual map. This label is used by the data source and cannot be null.
      * @param dataSourceBuilder
      * 		The data source builder. Must not be null.
+     * @param configuration platform configuration
      */
     public VirtualMap(
             final String label,
             final KeySerializer<K> keySerializer,
             final ValueSerializer<V> valueSerializer,
-            final VirtualDataSourceBuilder dataSourceBuilder) {
-        this();
-        setChild(ChildIndices.MAP_STATE_CHILD_INDEX, new VirtualMapState(Objects.requireNonNull(label)));
+            final VirtualDataSourceBuilder dataSourceBuilder,
+            final @NonNull Configuration configuration) {
+        this(configuration);
+        setChild(ChildIndices.MAP_STATE_CHILD_INDEX, new VirtualMapState(requireNonNull(label)));
         setChild(
                 ChildIndices.VIRTUAL_ROOT_CHILD_INDEX,
-                new VirtualRootNode<>(keySerializer, valueSerializer, Objects.requireNonNull(dataSourceBuilder)));
+                new VirtualRootNode<>(
+                        keySerializer,
+                        valueSerializer,
+                        requireNonNull(dataSourceBuilder),
+                        requireNonNull(configuration.getConfigData(VirtualMapConfig.class))));
     }
 
     /**
@@ -200,7 +205,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      * 		must not be null.
      */
     private VirtualMap(final VirtualMap<K, V> source) {
-        this();
+        this(source.configuration);
         setChild(ChildIndices.MAP_STATE_CHILD_INDEX, source.getState().copy());
         setChild(ChildIndices.VIRTUAL_ROOT_CHILD_INDEX, source.getRoot().copy());
     }
@@ -371,7 +376,8 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
                 () -> new SerializableDataInputStream(new BufferedInputStream(new FileInputStream(inputFile.toFile()))),
                 (final MerkleDataInputStream stream) -> {
                     virtualMapState.setValue(stream.readSerializable());
-                    virtualRootNode.setValue(new VirtualRootNode<>());
+                    virtualRootNode.setValue(
+                            new VirtualRootNode<>(configuration.getConfigData(VirtualMapConfig.class)));
                     virtualRootNode.getValue().deserialize(stream, inputFile.getParent(), stream.readInt());
                     return null;
                 });
@@ -432,22 +438,7 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
     }
 
     /**
-     * Gets the value associated with the given key such that any changes to the
-     * value will be used in calculating hashes and eventually saved to disk. If the
-     * value is actually never modified, some work will be wasted computing hashes
-     * and saving data that has not actually changed.
-     *
-     * @param key
-     * 		The key. This must not be null.
-     * @return The value. The value may be null.
-     */
-    public V getForModify(final K key) {
-        return root.getForModify(key);
-    }
-
-    /**
-     * Gets the value associated with the given key. The returned value *WILL BE* immutable.
-     * To modify the value, use call {@link #getForModify(VirtualKey)}.
+     * Gets the value associated with the given key.
      *
      * @param key
      * 		The key. This must not be null.
@@ -469,24 +460,6 @@ public final class VirtualMap<K extends VirtualKey, V extends VirtualValue> exte
      */
     public void put(final K key, final V value) {
         root.put(key, value);
-    }
-
-    /**
-     * Replace the given key with the given value. Only has an effect if the key already exists
-     * in the map. Returns the value on success. Throws an IllegalStateException if the key doesn't
-     * exist in the map.
-     *
-     * @param key
-     * 		The key. Cannot be null.
-     * @param value
-     * 		The value. May be null.
-     * @return the previous value associated with {@code key}, or {@code null} if there was no mapping for {@code key}.
-     * 		(A {@code null} return can also indicate that the map previously associated {@code null} with {@code key}.)
-     * @throws IllegalStateException
-     * 		if an attempt is made to replace a value that didn't already exist
-     */
-    public V replace(final K key, final V value) {
-        return root.replace(key, value);
     }
 
     /**

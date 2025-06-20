@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform;
 
 import static com.swirlds.demo.platform.PAYLOAD_CATEGORY.CATEGORY_FCM;
@@ -74,7 +59,7 @@ public enum PAYLOAD_TYPE implements FastCopyable {
 
     TYPE_VIRTUAL_MERKLE_SMART_CONTRACT_METHOD_EXECUTION(55, CATEGORY_VIRTUAL_MERKLE_SMART_CONTRACT),
 
-    // MIX FCM and Virtial Merkle transaction
+    // MIX FCM and Virtual Merkle transaction
     TYPE_FCM_VIRTUAL_MIX(60);
 
     public static Map<FCMTransaction.BodyCase, PAYLOAD_TYPE> BodyCase_TO_PAYLOAD_TYPE = new HashMap<>();
@@ -82,7 +67,7 @@ public enum PAYLOAD_TYPE implements FastCopyable {
     static {
 
         // BodyCase Enum is part of FCMTransaction and is different from these Payload types
-        // this map establisheds a correspondence.
+        // this map establishes a correspondence.
         BodyCase_TO_PAYLOAD_TYPE.put(FCMTransaction.BodyCase.CREATEACCOUNT, PAYLOAD_TYPE.TYPE_FCM_CREATE);
         BodyCase_TO_PAYLOAD_TYPE.put(FCMTransaction.BodyCase.TRANSFERBALANCE, PAYLOAD_TYPE.TYPE_FCM_TRANSFER);
         BodyCase_TO_PAYLOAD_TYPE.put(FCMTransaction.BodyCase.DELETEACCOUNT, PAYLOAD_TYPE.TYPE_FCM_DELETE);

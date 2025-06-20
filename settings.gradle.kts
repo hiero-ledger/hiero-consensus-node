@@ -1,45 +1,25 @@
-/*
- * Copyright (C) 2022-2023 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-pluginManagement { includeBuild("gradle/plugins") }
-
-plugins { id("com.hedera.gradle.settings") }
+// SPDX-License-Identifier: Apache-2.0
+plugins { id("org.hiero.gradle.build") version "0.4.1" }
 
 javaModules {
     // This "intermediate parent project" should be removed
     module("platform-sdk") { artifact = "swirlds-platform" }
 
     // The Hedera API module
-    module("hapi") {
-        group = "com.hedera.hashgraph"
-    }
+    directory("hapi") { group = "com.hedera.hashgraph" }
 
     // The Hedera platform modules
     directory("platform-sdk") {
-        group = "com.swirlds"
+        group = "com.hedera.hashgraph"
         module("swirlds") // not actually a Module as it has no module-info.java
         module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-        module("swirlds-unit-tests/core/swirlds-platform-test") // nested module is not found automatically
     }
 
     // The Hedera services modules
     directory("hedera-node") {
         group = "com.hedera.hashgraph"
 
-        // Configure 'artifact' for projects where the folder does not correspond to the artifact name
+        // Configure 'artifact' for projects where folder does not correspond to artifact name
         module("hapi-fees") { artifact = "app-hapi-fees" }
         module("hapi-utils") { artifact = "app-hapi-utils" }
         module("hedera-addressbook-service") { artifact = "app-service-addressbook" }
@@ -64,17 +44,13 @@ javaModules {
     }
 
     // Platform-base demo applications
-    directory("example-apps") {
-        group = "com.swirlds"
-    }
+    directory("example-apps") { group = "com.hedera.hashgraph" }
+
+    module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 
     // Platform demo applications
-    directory("platform-sdk/platform-apps/demos") {
-        group = "com.swirlds"
-    }
+    directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
 
     // Platform test applications
-    directory("platform-sdk/platform-apps/tests") {
-        group = "com.swirlds"
-    }
+    directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 }

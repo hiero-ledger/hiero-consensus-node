@@ -106,13 +106,13 @@ logging.level = INFO
 
 # Specific logging levels for packages or classes
 logging.level.com.swirlds.common.crypto = DEBUG
-logging.level.com.swirlds.common.crypto.Signature = WARN
+logging.level.org.hiero.base.crypto.Signature = WARN
 logging.level.com.hashgraph = WARN
 ```
 
 This configuration demonstrates how to set a global default logging level (`INFO`).
 It also illustrates how to specify logging levels for packages and classes.
-For example, everything under `com.swirlds.common.crypto` is set to `DEBUG`, except for `com.swirlds.common.crypto.Signature`, which is explicitly set to `WARN`.
+For example, everything under `com.swirlds.common.crypto` is set to `DEBUG`, except for `org.hiero.base.crypto.Signature`, which is explicitly set to `WARN`.
 Similarly, all loggers within `com.hashgraph` default to `WARN`.
 This approach ensures that loggers inherit the most specific level defined in the configuration, providing both flexibility and precision in logging management.
 
@@ -140,7 +140,7 @@ A typical logging configuration file, incorporating these marker filters, might 
 # General logging level configuration
 logging.level = INFO
 logging.level.com.swirlds.common.crypto = DEBUG
-logging.level.com.swirlds.common.crypto.Signature = WARN
+logging.level.org.hiero.base.crypto.Signature = WARN
 logging.level.com.hashgraph = WARN
 
 # Marker-specific logging configuration

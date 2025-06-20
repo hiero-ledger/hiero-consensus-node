@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.report;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
 import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.common.utility.CompareTo.isGreaterThan;
+import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.swirlds.common.formatting.UnitFormatter;
 import com.swirlds.common.io.IOIterator;
@@ -27,7 +12,6 @@ import com.swirlds.common.units.TimeUnit;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamMultiFileIterator;
 import com.swirlds.platform.recovery.internal.MultiFileRunningHashIterator;
-import com.swirlds.platform.system.events.CesEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -35,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Scans an event stream and generates a report.
@@ -44,8 +29,6 @@ public class EventStreamScanner {
     private static final int PROGRESS_INTERVAL = 10_000;
 
     private long eventCount = 0;
-    private long transactionCount = 0;
-    private long systemTransactionCount = 0;
     private long applicationTransactionCount = 0;
 
     // These variables store data for the higher granularity reports
@@ -57,8 +40,6 @@ public class EventStreamScanner {
     private long previousByteCount = 0;
     private long granularStartingDamagedFileCount = 0;
     private long granularEventCount = 0;
-    private long granularTransactionCount = 0;
-    private long granularSystemTransactionCount = 0;
     private long granularApplicationTransactionCount = 0;
 
     private final Duration reportPeriod;
@@ -94,8 +75,6 @@ public class EventStreamScanner {
                 lastEventInPeriod.getPlatformEvent().getConsensusTimestamp(),
                 granularRoundCount,
                 granularEventCount,
-                granularTransactionCount,
-                granularSystemTransactionCount,
                 granularApplicationTransactionCount,
                 previousFileCount - granularStartingFileCount,
                 fileIterator.getBytesRead() - previousByteCount,
@@ -110,8 +89,6 @@ public class EventStreamScanner {
     private void resetGranularData(final CesEvent mostRecentEvent) {
         granularFirstEvent = mostRecentEvent;
         granularEventCount = 0;
-        granularTransactionCount = 0;
-        granularSystemTransactionCount = 0;
         granularApplicationTransactionCount = 0;
         granularStartingFileCount = fileIterator.getFileCount();
         granularStartingDamagedFileCount = fileIterator.getDamagedFileCount();
@@ -125,15 +102,8 @@ public class EventStreamScanner {
         eventCount++;
         granularEventCount++;
         mostRecentEvent.getPlatformEvent().transactionIterator().forEachRemaining(transaction -> {
-            transactionCount++;
-            granularTransactionCount++;
-            if (transaction.isSystem()) {
-                systemTransactionCount++;
-                granularSystemTransactionCount++;
-            } else {
-                applicationTransactionCount++;
-                granularApplicationTransactionCount++;
-            }
+            applicationTransactionCount++;
+            granularApplicationTransactionCount++;
         });
     }
 
@@ -207,8 +177,6 @@ public class EventStreamScanner {
                         mostRecentEvent.getPlatformEvent().getConsensusTimestamp(),
                         rounds,
                         eventCount,
-                        transactionCount,
-                        systemTransactionCount,
                         applicationTransactionCount,
                         fileIterator.getFileCount(),
                         fileIterator.getBytesRead(),

@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -85,6 +71,20 @@ public class ClassicTransfersCall extends AbstractCall {
     private final VerificationStrategy verificationStrategy;
     private final SpecialRewardReceivers specialRewardReceivers;
 
+    /**
+     * @param gasCalculator the gas calculator for the system contract
+     * @param enhancement the enhancement to be used
+     * @param selector the method selector
+     * @param senderId the account id of the sender
+     * @param preemptingFailureStatus the response code to revert with
+     * @param syntheticTransfer the body of synthetic transfer operation
+     * @param configuration the configuration to use
+     * @param approvalSwitchHelper the switcher between unauthorized debits to approvals in a synthetic transfer
+     * @param callStatusStandardizer the standardizer of failure statuses to an HTS transfer system contract
+     * @param verificationStrategy the verification strategy to use
+     * @param systemAccountCreditScreen the helper to screen if a transfer tries to credit a system account
+     * @param specialRewardReceivers the special reward receiver
+     */
     // too many parameters
     @SuppressWarnings("java:S107")
     public ClassicTransfersCall(
@@ -126,7 +126,7 @@ public class ClassicTransfersCall extends AbstractCall {
                     false);
         }
         // When unlimited associations are enabled, will be updated with additional charges for any auto-associations
-        var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId, selector);
+        var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         if (preemptingFailureStatus != null) {
             return reversionWith(preemptingFailureStatus, gasRequirement);
         }
@@ -134,12 +134,14 @@ public class ClassicTransfersCall extends AbstractCall {
             return reversionWith(
                     gasRequirement,
                     systemContractOperations()
-                            .externalizePreemptedDispatch(syntheticTransfer, INVALID_RECEIVING_NODE_ACCOUNT));
+                            .externalizePreemptedDispatch(
+                                    syntheticTransfer, INVALID_RECEIVING_NODE_ACCOUNT, CRYPTO_TRANSFER));
         }
         if (executionIsNotSupported()) {
             return haltWith(
                     gasRequirement,
-                    systemContractOperations().externalizePreemptedDispatch(syntheticTransfer, NOT_SUPPORTED));
+                    systemContractOperations()
+                            .externalizePreemptedDispatch(syntheticTransfer, NOT_SUPPORTED, CRYPTO_TRANSFER));
         }
         final var transferToDispatch = shouldRetryWithApprovals()
                 ? syntheticTransfer
@@ -147,7 +149,7 @@ public class ClassicTransfersCall extends AbstractCall {
                         .cryptoTransfer(requireNonNull(approvalSwitchHelper)
                                 .switchToApprovalsAsNeededIn(
                                         syntheticTransfer.cryptoTransferOrThrow(),
-                                        systemContractOperations().activeSignatureTestWith(verificationStrategy),
+                                        systemContractOperations().signatureTestWith(verificationStrategy),
                                         nativeOperations(),
                                         senderId))
                         .build()
@@ -174,19 +176,17 @@ public class ClassicTransfersCall extends AbstractCall {
      * Simulates the mono-service gas calculation for a classic transfer, which is significantly complicated by our
      * current strategy for setting the minimum tinycent price based on the canonical prices of various operations.
      *
-     * @param body the transaction body to be dispatched
+     * @param body                        the transaction body to be dispatched
      * @param systemContractGasCalculator the gas calculator to use
-     * @param enhancement the enhancement to use
-     * @param payerId the payer of the transaction
-     * @param selector the selector of the call
+     * @param enhancement                 the enhancement to use
+     * @param payerId                     the payer of the transaction
      * @return the gas requirement for the transaction to be dispatched
      */
     public static long transferGasRequirement(
             @NonNull final TransactionBody body,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final AccountID payerId,
-            @NonNull final byte[] selector) {
+            @NonNull final AccountID payerId) {
         final var op = body.cryptoTransferOrThrow();
         final var hasCustomFees = enhancement.nativeOperations().checkForCustomFees(op);
         // For fungible there are always at least two operations, so only charge half for each
@@ -211,8 +211,7 @@ public class ClassicTransfersCall extends AbstractCall {
                 baseAdjustTinycentsPrice,
                 baseNftTransferTinycentsPrice,
                 baseLazyCreationPrice,
-                extantAccounts,
-                selector);
+                extantAccounts);
         return systemContractGasCalculator.gasRequirementWithTinycents(body, payerId, minimumTinycentPrice);
     }
 
@@ -222,8 +221,7 @@ public class ClassicTransfersCall extends AbstractCall {
             final long baseAdjustTinyCentsPrice,
             final long baseNftTransferTinyCentsPrice,
             final long baseLazyCreationPrice,
-            @NonNull final ReadableAccountStore extantAccounts,
-            @NonNull final byte[] selector) {
+            @NonNull final ReadableAccountStore extantAccounts) {
         long minimumTinycentPrice = 0L;
         final var numTinyCentsAdjusts =
                 op.transfersOrElse(TransferList.DEFAULT).accountAmounts().size();
@@ -235,8 +233,10 @@ public class ClassicTransfersCall extends AbstractCall {
             for (final var unitAdjust : unitAdjusts) {
                 if (unitAdjust.amount() > 0
                         && unitAdjust.accountIDOrElse(AccountID.DEFAULT).hasAlias()) {
+                    final var accountId = unitAdjust.accountIDOrThrow();
                     final var alias = unitAdjust.accountIDOrThrow().aliasOrThrow();
-                    final var extantAccount = extantAccounts.getAccountIDByAlias(alias);
+                    final var extantAccount =
+                            extantAccounts.getAccountIDByAlias(accountId.shardNum(), accountId.realmNum(), alias);
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }
@@ -246,8 +246,10 @@ public class ClassicTransfersCall extends AbstractCall {
             minimumTinycentPrice += nftTransfers.size() * baseNftTransferTinyCentsPrice;
             for (final var nftTransfer : nftTransfers) {
                 if (nftTransfer.receiverAccountIDOrElse(AccountID.DEFAULT).hasAlias()) {
-                    final var alias = nftTransfer.receiverAccountIDOrThrow().aliasOrThrow();
-                    final var extantAccount = extantAccounts.getAccountIDByAlias(alias);
+                    final var receiverAccountId = nftTransfer.receiverAccountIDOrThrow();
+                    final var alias = receiverAccountId.aliasOrThrow();
+                    final var extantAccount = extantAccounts.getAccountIDByAlias(
+                            receiverAccountId.shardNum(), receiverAccountId.realmNum(), alias);
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }

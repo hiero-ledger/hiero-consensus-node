@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.remote;
 
 import static com.hedera.services.bdd.junit.hedera.NodeMetadata.UNKNOWN_PORT;
@@ -39,21 +24,33 @@ import java.util.stream.IntStream;
 public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork {
     private static final String REMOTE_NETWORK_NAME = "JRS_SCOPE";
 
+    private final long shard;
+    private final long realm;
+
     private RemoteNetwork(
             @NonNull final String networkName,
             @NonNull final List<HederaNode> nodes,
-            @NonNull final HapiClients clients) {
+            @NonNull final HapiClients clients,
+            final long shard,
+            final long realm) {
         super(networkName, nodes, clients);
+        this.shard = shard;
+        this.realm = realm;
     }
 
     /**
      * Create a new network of remote nodes.
      *
      * @param nodeConnectInfos the connection information for the remote nodes
+     * @param shard the shard number
+     * @param realm the realm number
      * @return the new network
      */
     public static HederaNetwork newRemoteNetwork(
-            @NonNull final List<NodeConnectInfo> nodeConnectInfos, @NonNull final HapiClients clients) {
+            @NonNull final List<NodeConnectInfo> nodeConnectInfos,
+            @NonNull final HapiClients clients,
+            final long shard,
+            final long realm) {
         requireNonNull(nodeConnectInfos);
         requireNonNull(clients);
         return new RemoteNetwork(
@@ -62,7 +59,9 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
                         .<HederaNode>mapToObj(
                                 nodeId -> new RemoteNode(metadataFor(nodeId, nodeConnectInfos.get(nodeId))))
                         .toList(),
-                clients);
+                clients,
+                shard,
+                realm);
     }
 
     @Override
@@ -85,15 +84,28 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
         // No-op, a remote network must already be ready
     }
 
+    @Override
+    public long shard() {
+        return shard;
+    }
+
+    @Override
+    public long realm() {
+        return realm;
+    }
+
     private static NodeMetadata metadataFor(final int nodeId, @NonNull final NodeConnectInfo connectInfo) {
         return new NodeMetadata(
                 nodeId,
                 "node" + nodeId,
                 AccountID.newBuilder()
+                        .shardNum(connectInfo.getAccount().getShardNum())
+                        .realmNum(connectInfo.getAccount().getRealmNum())
                         .accountNum(connectInfo.getAccount().getAccountNum())
                         .build(),
                 connectInfo.getHost(),
                 connectInfo.getPort(),
+                UNKNOWN_PORT,
                 UNKNOWN_PORT,
                 UNKNOWN_PORT,
                 UNKNOWN_PORT,

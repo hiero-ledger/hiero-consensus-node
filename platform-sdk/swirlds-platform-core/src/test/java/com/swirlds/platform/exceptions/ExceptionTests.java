@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.exceptions;
 
 import static com.swirlds.platform.exceptions.ExceptionAssertions.CAUSE;
@@ -27,9 +12,10 @@ import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeyLoadingException;
 import com.swirlds.platform.gossip.shadowgraph.SyncTimeoutException;
 import com.swirlds.platform.network.NetworkProtocolException;
-import com.swirlds.platform.system.PlatformConstructionException;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.exceptions.PlatformConstructionException;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class ExceptionTests {
@@ -44,9 +30,10 @@ class ExceptionTests {
         assertExceptionSame(new KeyLoadingException(MESSAGE), MESSAGE, null);
         assertExceptionSame(new KeyLoadingException(MESSAGE, CAUSE), MESSAGE, CAUSE);
         assertExceptionSame(new KeyLoadingException(MESSAGE, CAUSE), MESSAGE, CAUSE);
-        final String name = "a name";
         assertExceptionContains(
-                new KeyLoadingException(MESSAGE, KeyCertPurpose.SIGNING, name), List.of(name, MESSAGE), null);
+                new KeyLoadingException(MESSAGE, KeyCertPurpose.SIGNING, NodeId.FIRST_NODE_ID),
+                List.of((NodeId.FIRST_NODE_ID.id() + 1) + "", MESSAGE),
+                null);
     }
 
     @Test

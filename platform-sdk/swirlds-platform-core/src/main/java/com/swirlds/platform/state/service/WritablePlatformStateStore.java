@@ -1,36 +1,16 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
-import static com.swirlds.platform.state.service.PbjConverter.toPbjAddressBook;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjConsensusSnapshot;
 import static com.swirlds.platform.state.service.PbjConverter.toPbjPlatformState;
-import static com.swirlds.platform.state.service.PbjConverter.toPbjTimestamp;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -38,7 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
-import java.util.function.Function;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Extends the read-only platform state store to provide write access to the platform state.
@@ -48,22 +28,7 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
     private final WritableSingletonState<PlatformState> state;
 
     /**
-     * Constructor that supports getting full {@link SoftwareVersion} information from the platform state. Must
-     * be used from within {@link com.swirlds.platform.state.MerkleStateRoot}.
-     * @param writableStates the writable states
-     * @param versionFactory a factory to create the current {@link SoftwareVersion} from a {@link SemanticVersion}
-     */
-    public WritablePlatformStateStore(
-            @NonNull final WritableStates writableStates,
-            @NonNull final Function<SemanticVersion, SoftwareVersion> versionFactory) {
-        super(writableStates, versionFactory);
-        this.writableStates = writableStates;
-        this.state = writableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_KEY);
-    }
-
-    /**
-     * Constructor that does not support getting full {@link SoftwareVersion} information from the platform state,
-     * but can be used to change and access any part of state that does not require the full {@link SoftwareVersion}.
+     * Constructor that can be used to change and access any part of state.
      * @param writableStates the writable states
      */
     public WritablePlatformStateStore(@NonNull final WritableStates writableStates) {
@@ -87,28 +52,10 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setCreationSoftwareVersion(@NonNull final SoftwareVersion creationVersion) {
+    public void setCreationSoftwareVersion(@NonNull final SemanticVersion creationVersion) {
         requireNonNull(creationVersion);
         final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().creationSoftwareVersion(creationVersion.getPbjSemanticVersion()));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setAddressBook(@Nullable final AddressBook addressBook) {
-        final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().addressBook(toPbjAddressBook(addressBook)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setPreviousAddressBook(@Nullable final AddressBook addressBook) {
-        final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().previousAddressBook(toPbjAddressBook(addressBook)));
+        update(previousState.copyBuilder().creationSoftwareVersion(creationVersion));
     }
 
     /**
@@ -165,10 +112,10 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setSnapshot(@NonNull final com.swirlds.platform.consensus.ConsensusSnapshot snapshot) {
+    public void setSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         requireNonNull(snapshot);
         final var previousState = stateOrThrow();
-        update(previousState.copyBuilder().consensusSnapshot(toPbjConsensusSnapshot(snapshot)));
+        update(previousState.copyBuilder().consensusSnapshot(snapshot));
     }
 
     /**
@@ -193,12 +140,12 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setFirstVersionInBirthRoundMode(@NonNull final SoftwareVersion firstVersionInBirthRoundMode) {
+    public void setFirstVersionInBirthRoundMode(@NonNull final SemanticVersion firstVersionInBirthRoundMode) {
         requireNonNull(firstVersionInBirthRoundMode);
         final var previousState = stateOrThrow();
         update(previousState
                 .copyBuilder()
-                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode.getPbjSemanticVersion())
+                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode)
                 .build());
     }
 

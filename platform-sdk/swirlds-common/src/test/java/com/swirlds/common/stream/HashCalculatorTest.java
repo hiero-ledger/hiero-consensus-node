@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,12 +9,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.SelfSerializable;
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.test.fixtures.RandomUtils;
 import com.swirlds.common.test.fixtures.stream.ObjectForTestStream;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.base.io.SelfSerializable;
 import org.junit.jupiter.api.Test;
 
 class HashCalculatorTest {
@@ -40,7 +25,7 @@ class HashCalculatorTest {
     void nextStreamTest() throws InterruptedException {
         LinkedObjectStream<ObjectForTestStream> queueThread = mock(QueueThreadObjectStream.class);
         HashCalculatorForStream<ObjectForTestStream> hashCalculator = new HashCalculatorForStream<>(queueThread);
-        Hash hash = RandomUtils.randomHash();
+        Hash hash = CryptoRandomUtils.randomHash();
         hashCalculator.setRunningHash(hash);
         verify(queueThread).setRunningHash(hash);
 
@@ -59,7 +44,7 @@ class HashCalculatorTest {
         HashCalculatorForStream<ObjectForTestStream> hashCalculator = new HashCalculatorForStream<>();
         assertNull(object.getHash(), "the object's Hash should be null after initialization");
         // calculate expected Hash
-        Hash expected = CryptographyHolder.get().digestSync((SelfSerializable) object);
+        Hash expected = CryptographyProvider.getInstance().digestSync((SelfSerializable) object);
         assertNotNull(expected, "the object's expected Hash should not be null");
         assertNull(object.getHash(), "the object's Hash should be null after calculated expected Hash");
         // hashCalculator calculates and set Hash for this object

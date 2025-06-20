@@ -1,54 +1,47 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
+import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Signature;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.common.utility.Threshold;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleRoot;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
-import com.swirlds.platform.system.SwirldState;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * <p>
@@ -89,7 +82,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * Is this the last state saved before the freeze period
      */
-    private boolean freezeState;
+    private final boolean freezeState;
 
     /**
      * True if this state has been deleted. Used to prevent the same state from being deleted more than once.
@@ -99,7 +92,7 @@ public class SignedState implements SignedStateInfo {
     /**
      * The root of the merkle state.
      */
-    private final MerkleRoot state;
+    private final MerkleNodeState state;
 
     /**
      * The timestamp of when this object was created.
@@ -160,11 +153,15 @@ public class SignedState implements SignedStateInfo {
      * True if this round reached consensus during the replaying of the preconsensus event stream.
      */
     private final boolean pcesRound;
+    /**
+     * The facade to access the platform state
+     */
+    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Instantiate a signed state.
      *
-     * @param platformContext          the platform context
+     * @param configuration            the configuration for this node
      * @param signatureVerifier        the signature verifier
      * @param state                    a fast copy of the state resulting from all transactions in consensus order from
      *                                 all events with received rounds up through the round this SignedState represents
@@ -177,22 +174,23 @@ public class SignedState implements SignedStateInfo {
      *                                 states that have been sent to the state garbage collector.
      * @param pcesRound                true if this round reached consensus during the replaying of the preconsensus
      *                                 event stream
+     * @param platformStateFacade      the facade to access the platform state
      */
     public SignedState(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final MerkleRoot state,
+            @NonNull final MerkleNodeState state,
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
-            final boolean pcesRound) {
+            final boolean pcesRound,
+            @NonNull final PlatformStateFacade platformStateFacade) {
+        this.platformStateFacade = platformStateFacade;
+        this.signatureVerifier = requireNonNull(signatureVerifier);
+        this.state = requireNonNull(state);
+        state.getRoot().reserve();
 
-        state.reserve();
-
-        this.signatureVerifier = Objects.requireNonNull(signatureVerifier);
-        this.state = state;
-
-        final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         if (stateConfig.stateHistoryEnabled()) {
             history = new SignedStateHistory(Time.getCurrent(), getRound(), stateConfig.debugStackTracesEnabled());
             history.recordAction(CREATION, getReservationCount(), reason, null);
@@ -208,12 +206,23 @@ public class SignedState implements SignedStateInfo {
         this.pcesRound = pcesRound;
     }
 
+    public void init(@NonNull PlatformContext platformContext) {
+        state.init(
+                platformContext.getTime(),
+                platformContext.getMetrics(),
+                platformContext.getMerkleCryptography(),
+                () -> {
+                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
+                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+                });
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public long getRound() {
-        return state.getReadablePlatformState().getRound();
+        return platformStateFacade.roundOf(state);
     }
 
     /**
@@ -222,7 +231,7 @@ public class SignedState implements SignedStateInfo {
      * @return true if this is the genesis state
      */
     public boolean isGenesisState() {
-        return state.getReadablePlatformState().getRound() == GENESIS_ROUND;
+        return platformStateFacade.isGenesisStateOf(state);
     }
 
     /**
@@ -239,15 +248,16 @@ public class SignedState implements SignedStateInfo {
      * @param sigSet the signatures to be attached to this signed state
      */
     public void setSigSet(@NonNull final SigSet sigSet) {
-        this.sigSet = Objects.requireNonNull(sigSet);
+        this.sigSet = requireNonNull(sigSet);
         signingWeight = 0;
-        state.initPlatformState();
         if (!isGenesisState()) {
             // Only non-genesis states will have signing weight
-            final AddressBook addressBook = getAddressBook();
+            final Map<Long, RosterEntry> entries = RosterUtils.toMap(getRoster());
+
             for (final NodeId signingNode : sigSet) {
-                if (addressBook.contains(signingNode)) {
-                    signingWeight += addressBook.getAddress(signingNode).getWeight();
+                final RosterEntry entry = entries.get(signingNode.id());
+                if (entry != null) {
+                    signingWeight += entry.weight();
                 }
             }
         }
@@ -257,10 +267,13 @@ public class SignedState implements SignedStateInfo {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull AddressBook getAddressBook() {
-        return Objects.requireNonNull(
-                getState().getReadablePlatformState().getAddressBook(),
-                "address book stored in this signed state is null, this should never happen");
+    public @NonNull Roster getRoster() {
+        /*
+        Ideally the roster would be captured in the constructor but due to the mutable underlying state, the roster
+        can change from underneath us. Therefore, the roster must be regenerated on each access.
+         */
+        final Roster roster = RosterRetriever.retrieveActive(state, getRound());
+        return requireNonNull(roster, "Roster stored in signed state is null (this should never happen)");
     }
 
     /**
@@ -269,7 +282,7 @@ public class SignedState implements SignedStateInfo {
      *
      * @return the state contained in the signed state
      */
-    public @NonNull MerkleRoot getState() {
+    public @NonNull MerkleNodeState getState() {
         return state;
     }
 
@@ -447,7 +460,7 @@ public class SignedState implements SignedStateInfo {
     @Override
     public String toString() {
         return "SS(round: %d, sigs: %d/%s, hash: %s)"
-                .formatted(getRound(), signingWeight, getAddressBook().getTotalWeight(), state.getHash());
+                .formatted(getRound(), signingWeight, RosterUtils.computeTotalWeight(getRoster()), state.getHash());
     }
 
     /**
@@ -456,7 +469,7 @@ public class SignedState implements SignedStateInfo {
      * @return the consensus timestamp for this signed state.
      */
     public @NonNull Instant getConsensusTimestamp() {
-        return state.getReadablePlatformState().getConsensusTimestamp();
+        return platformStateFacade.consensusTimestampOf(state);
     }
 
     /**
@@ -464,15 +477,6 @@ public class SignedState implements SignedStateInfo {
      */
     public @NonNull Instant getCreationTimestamp() {
         return creationTimestamp;
-    }
-
-    /**
-     * Get the root node of the application's state
-     *
-     * @return the root node of the application's state.
-     */
-    public @NonNull SwirldState getSwirldState() {
-        return state.getSwirldState();
     }
 
     /**
@@ -559,8 +563,7 @@ public class SignedState implements SignedStateInfo {
      * @return true if this state is signed by the threshold, false otherwise
      */
     private boolean signedBy(@NonNull final Threshold threshold) {
-        return Objects.requireNonNull(threshold)
-                .isSatisfiedBy(signingWeight, getAddressBook().getTotalWeight());
+        return requireNonNull(threshold).isSatisfiedBy(signingWeight, RosterUtils.computeTotalWeight(getRoster()));
     }
 
     /**
@@ -574,7 +577,7 @@ public class SignedState implements SignedStateInfo {
             throw new SignedStateInvalidException(
                     "Signed state lacks sufficient valid signatures. This state has " + sigSet.size()
                             + " valid signatures representing " + signingWeight + "/"
-                            + getAddressBook().getTotalWeight() + " weight");
+                            + RosterUtils.computeTotalWeight(getRoster()) + " weight");
         }
     }
 
@@ -587,7 +590,34 @@ public class SignedState implements SignedStateInfo {
      * state is either not complete or was previously complete prior to this signature
      */
     public boolean addSignature(@NonNull final NodeId nodeId, @NonNull final Signature signature) {
-        return addSignature(getAddressBook(), nodeId, signature);
+        requireNonNull(nodeId, "nodeId");
+        requireNonNull(signature, "signature");
+
+        if (isComplete()) {
+            // No need to add more signatures
+            return false;
+        }
+
+        final RosterEntry rosterEntry = RosterUtils.getRosterEntryOrNull(getRoster(), nodeId.id());
+
+        if (rosterEntry == null) {
+            // we ignore signatures from nodes no longer in the roster
+            return false;
+        }
+
+        if (!isSignatureValid(rosterEntry, signature)) {
+            return false;
+        }
+
+        if (sigSet.hasSignature(nodeId)) {
+            // we already have this signature
+            return false;
+        }
+
+        sigSet.addSignature(nodeId, signature);
+        signingWeight += rosterEntry.weight();
+
+        return isComplete();
     }
 
     /**
@@ -609,49 +639,44 @@ public class SignedState implements SignedStateInfo {
             return false;
         }
 
+        if (address.getSigPublicKey() == null) {
+            // If the address does not have a valid public key, the signature is invalid.
+            // https://github.com/hashgraph/hedera-services/issues/16648
+            return false;
+        }
+
         return signatureVerifier.verifySignature(
                 state.getHash().getBytes(), signature.getBytes(), address.getSigPublicKey());
     }
 
     /**
-     * Add a signature to the sigset if the signature is valid.
+     * Check if a signature is valid. If a node has no weight or is missing a certificate, we consider the signature to
+     * be invalid.
      *
-     * @param addressBook use this address book to determine if the signature is valid or not
-     * @param nodeId      the ID of the signing node
-     * @param signature   the signature to add
-     * @return true if the signed state is now complete as a result of the signature being added, false if the signed
-     * state is either not complete or was previously complete prior to this signature
+     * @param rosterEntry the roster entry of the signer, or null if there was no signing address
+     * @param signature   the signature to check
+     * @return true if the signature is valid, else false
      */
-    private boolean addSignature(
-            @NonNull final AddressBook addressBook, @NonNull final NodeId nodeId, @NonNull final Signature signature) {
-        Objects.requireNonNull(addressBook, "addressBook");
-        Objects.requireNonNull(nodeId, "nodeId");
-        Objects.requireNonNull(signature, "signature");
-
-        if (isComplete()) {
-            // No need to add more signatures
+    private boolean isSignatureValid(@Nullable final RosterEntry rosterEntry, @NonNull final Signature signature) {
+        if (rosterEntry == null) {
+            // Signing node is not in the roster.
             return false;
         }
 
-        if (!addressBook.contains(nodeId)) {
-            // we can ignore signatures from nodes no longer in the address book
+        if (rosterEntry.weight() == 0) {
+            // Signing node has no weight.
             return false;
         }
 
-        final Address address = addressBook.getAddress(nodeId);
-        if (!isSignatureValid(address, signature)) {
+        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+
+        if (cert == null) {
+            // If the address does not have a valid public key, the signature is invalid.
+            // https://github.com/hashgraph/hedera-services/issues/16648
             return false;
         }
 
-        if (sigSet.hasSignature(address.getNodeId())) {
-            // We already have this signature.
-            return false;
-        }
-
-        sigSet.addSignature(nodeId, signature);
-        signingWeight += address.getWeight();
-
-        return isComplete();
+        return signatureVerifier.verifySignature(state.getHash().getBytes(), signature.getBytes(), cert.getPublicKey());
     }
 
     /**
@@ -659,22 +684,24 @@ public class SignedState implements SignedStateInfo {
      * of signatures.
      */
     public void pruneInvalidSignatures() {
-        pruneInvalidSignatures(getAddressBook());
+        pruneInvalidSignatures(getRoster());
     }
 
     /**
      * Remove all invalid signatures from a signed state.
      *
-     * @param trustedAddressBook use this address book to determine signature validity instead of the one inside the
-     *                           signed state. Useful if validating signed states from untrusted sources.
+     * @param trustedRoster use this roster to determine signature validity instead of using the roster from the signed
+     *                      state. (Useful if validating signed states from untrusted sources.)
      */
-    public void pruneInvalidSignatures(@NonNull final AddressBook trustedAddressBook) {
-        Objects.requireNonNull(trustedAddressBook);
+    public void pruneInvalidSignatures(@NonNull final Roster trustedRoster) {
+        requireNonNull(trustedRoster);
 
+        final Map<Long, RosterEntry> entriesByNodeId = RosterUtils.toMap(trustedRoster);
         final List<NodeId> signaturesToRemove = new ArrayList<>();
+
         for (final NodeId nodeId : sigSet) {
-            final Address address = trustedAddressBook.contains(nodeId) ? trustedAddressBook.getAddress(nodeId) : null;
-            if (!isSignatureValid(address, sigSet.getSignature(nodeId))) {
+            final RosterEntry entry = entriesByNodeId.get(nodeId.id());
+            if (!isSignatureValid(entry, sigSet.getSignature(nodeId))) {
                 signaturesToRemove.add(nodeId);
             }
         }
@@ -685,9 +712,11 @@ public class SignedState implements SignedStateInfo {
 
         // Recalculate signing weight. We should do this even if we don't remove signatures.
         signingWeight = 0;
+
         for (final NodeId nodeId : sigSet) {
-            if (trustedAddressBook.contains(nodeId)) {
-                signingWeight += trustedAddressBook.getAddress(nodeId).getWeight();
+            final RosterEntry entry = entriesByNodeId.get(nodeId.id());
+            if (entry != null) {
+                signingWeight += entry.weight();
             }
         }
     }

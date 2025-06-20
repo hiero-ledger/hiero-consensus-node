@@ -1,38 +1,26 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
-import static com.swirlds.platform.system.status.PlatformStatus.ACTIVE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -40,6 +28,7 @@ import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.annotations.NodeSelfId;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
@@ -55,29 +44,37 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.throttle.ThrottleUsage;
+import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeBuffer;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
+import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.LazyCreationConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * The {@code IngestChecker} contains checks that are specific to the ingest workflow
  */
+@Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
@@ -86,6 +83,7 @@ public final class IngestChecker {
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
     private final CurrentPlatformStatus currentPlatformStatus;
+    private final BlockStreamManager blockStreamManager;
     private final TransactionChecker transactionChecker;
     private final SolvencyPreCheck solvencyPreCheck;
     private final SignatureVerifier signatureVerifier;
@@ -97,6 +95,36 @@ public final class IngestChecker {
     private final Authorizer authorizer;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
+    private final OpWorkflowMetrics workflowMetrics;
+
+    @Nullable
+    private final AtomicBoolean systemEntitiesCreatedFlag;
+
+    /**
+     * The result of running all checks.
+     */
+    public static class Result {
+        @Nullable
+        private TransactionInfo txnInfo;
+
+        private List<ThrottleUsage> throttleUsages = List.of();
+
+        public @NonNull TransactionInfo txnInfoOrThrow() {
+            return requireNonNull(txnInfo);
+        }
+
+        public void setTxnInfo(@Nullable TransactionInfo txnInfo) {
+            this.txnInfo = txnInfo;
+        }
+
+        public @NonNull List<ThrottleUsage> throttleUsages() {
+            return throttleUsages;
+        }
+
+        public void setThrottleUsages(@Nullable List<ThrottleUsage> throttleUsages) {
+            this.throttleUsages = throttleUsages;
+        }
+    }
 
     /**
      * Constructor of the {@code IngestChecker}
@@ -111,12 +139,14 @@ public final class IngestChecker {
      * @param feeManager the {@link FeeManager} that manages {@link com.hedera.node.app.spi.fees.FeeCalculator}s
      * @param synchronizedThrottleAccumulator the {@link SynchronizedThrottleAccumulator} that checks transaction should be throttled
      * @param instantSource the {@link InstantSource} that provides the current time
+     * @param workflowMetrics the {@link OpWorkflowMetrics} that manages the metrics for all operations
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Inject
     public IngestChecker(
             @NodeSelfId @NonNull final AccountID nodeAccount,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
+            @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final SignatureExpander signatureExpander,
@@ -126,9 +156,12 @@ public final class IngestChecker {
             @NonNull final FeeManager feeManager,
             @NonNull final Authorizer authorizer,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
-            @NonNull final InstantSource instantSource) {
+            @NonNull final InstantSource instantSource,
+            @NonNull final OpWorkflowMetrics workflowMetrics,
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.nodeAccount = requireNonNull(nodeAccount, "nodeAccount must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
+        this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -137,18 +170,36 @@ public final class IngestChecker {
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
         this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.authorizer = requireNonNull(authorizer, "authorizer must not be null");
-        this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
-        this.instantSource = requireNonNull(instantSource);
+        this.synchronizedThrottleAccumulator =
+                requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
+        this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
+        this.workflowMetrics = requireNonNull(workflowMetrics, "workflowMetrics must not be null");
+        this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
     }
 
     /**
-     * Checks the general state of the node
+     * Verifies the platform is active and this node should be processing HAPI operations.
      *
-     * @throws PreCheckException if the node is unable to process queries
+     * @throws PreCheckException if the node is unable to process HAPI operations
      */
-    public void checkNodeState() throws PreCheckException {
+    public void verifyPlatformActive() throws PreCheckException {
         if (currentPlatformStatus.get() != ACTIVE) {
             throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    /**
+     * Verifies the network is ready to handle transactions.
+     *
+     * @throws PreCheckException if the node is unable to process HAPI operations
+     */
+    public void verifyReadyForTransactions() throws PreCheckException {
+        verifyPlatformActive();
+        if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
+            throw new PreCheckException(CREATING_SYSTEM_ENTITIES);
+        }
+        if (!blockStreamManager.hasLedgerId()) {
+            throw new PreCheckException(WAITING_FOR_LEDGER_ID);
         }
     }
 
@@ -156,19 +207,28 @@ public final class IngestChecker {
      * Runs all the ingest checks on a {@link Transaction}
      *
      * @param state the {@link State} to use
-     * @param tx the {@link Transaction} to check
+     * @param serializedTransaction the {@link Transaction} to check
      * @param configuration the {@link Configuration} to use
-     * @return the {@link TransactionInfo} with the extracted information
+     * @param result the {@link Result} to populate with the results of the checks
      * @throws PreCheckException if a check fails
      */
-    public TransactionInfo runAllChecks(
-            @NonNull final State state, @NonNull final Transaction tx, @NonNull final Configuration configuration)
+    public void runAllChecks(
+            @NonNull final State state,
+            @NonNull final Bytes serializedTransaction,
+            @NonNull final Configuration configuration,
+            @NonNull final Result result)
             throws PreCheckException {
+        requireNonNull(result);
+
         // During ingest we approximate consensus time with wall clock time
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var txInfo = transactionChecker.check(tx, null);
+        final var maxBytes = maxIngestParseSize(configuration);
+        final var txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+        result.setTxnInfo(txInfo);
+        // check jumbo size after parsing
+        transactionChecker.checkJumboTransactionBody(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
@@ -191,16 +251,23 @@ public final class IngestChecker {
         }
 
         // 4. Check throttles
-        assertThrottlingPreconditions(txInfo, configuration);
+        final List<ThrottleUsage> throttleUsages = new ArrayList<>();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
-        if (hederaConfig.ingestThrottleEnabled()) {
-            if (synchronizedThrottleAccumulator.shouldThrottle(txInfo, state)) {
-                throw new PreCheckException(BUSY);
+
+        try {
+            checkThrottles(txInfo, state, hederaConfig, throttleUsages);
+            if (functionality == ATOMIC_BATCH) {
+                checkThrottlesForInnerTxns(
+                        state, configuration, txBody.atomicBatch().transactions(), throttleUsages);
             }
+        } finally {
+            // Always keep throttle usages up to date for refund logic
+            result.setThrottleUsages(throttleUsages);
         }
 
         // 4a. Run pure checks
-        dispatcher.dispatchPureChecks(txBody);
+        final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
+        dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
         final var storeFactory = new ReadableStoreFactory(state);
@@ -233,20 +300,68 @@ public final class IngestChecker {
                 dispatcher);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
+    }
 
-        return txInfo;
+    private void checkThrottles(
+            @NonNull final TransactionInfo txInfo,
+            @NonNull final State state,
+            @NonNull final HederaConfig hederaConfig,
+            @NonNull final List<ThrottleUsage> throttleUsages)
+            throws PreCheckException {
+        assertThrottlingPreconditions(txInfo, hederaConfig);
+        if (hederaConfig.ingestThrottleEnabled()
+                && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
+            workflowMetrics.incrementThrottled(txInfo.functionality());
+            throw new PreCheckException(BUSY);
+        }
+    }
+
+    /**
+     * Validates throttling constraints for inner transactions part of Atomic Batch.
+     *
+     * @param state Current network state for throttle evaluation
+     * @param configuration System configuration
+     * @param innerTxnsBytes Serialized inner transactions to validate
+     * @throws PreCheckException When exceeding throughput limits or failing to parse the transaction
+     */
+    private void checkThrottlesForInnerTxns(
+            @NonNull final State state,
+            @NonNull final Configuration configuration,
+            @NonNull final List<Bytes> innerTxnsBytes,
+            @NonNull final List<ThrottleUsage> throttleUsages)
+            throws PreCheckException {
+
+        if (innerTxnsBytes.isEmpty()) {
+            return;
+        }
+
+        final var maxParseSize = maxIngestParseSize(configuration);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+
+        for (final var bytes : innerTxnsBytes) {
+            final var innerTxn = transactionChecker.parseSignedAndCheck(bytes, maxParseSize);
+            checkThrottles(innerTxn, state, hederaConfig, throttleUsages);
+        }
+    }
+
+    private static int maxIngestParseSize(Configuration configuration) {
+        final var jumboTxnEnabled =
+                configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
+        final var jumboMaxTxnSize =
+                configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
+        final var transactionMaxBytes =
+                configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
+        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 
     private void assertThrottlingPreconditions(
-            @NonNull final TransactionInfo txInfo, @NonNull final Configuration configuration)
-            throws PreCheckException {
+            @NonNull final TransactionInfo txInfo, @NonNull final HederaConfig hederaConfig) throws PreCheckException {
         if (UNSUPPORTED_TRANSACTIONS.contains(txInfo.functionality())) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (PRIVILEGED_TRANSACTIONS.contains(txInfo.functionality())) {
             final var payerNum =
                     txInfo.payerID() == null ? Long.MAX_VALUE : txInfo.payerID().accountNumOrElse(Long.MAX_VALUE);
-            final var hederaConfig = configuration.getConfigData(HederaConfig.class);
             // This adds a mild restriction that privileged transactions can only
             // be issued by system accounts; (FUTURE) consider giving non-trivial
             // minimum fees to privileged transactions that fail with NOT_SUPPORTED
@@ -281,14 +396,12 @@ public final class IngestChecker {
                             .equals(payer.alias()))
                     .findFirst();
             validateTruePreCheck(originals.isPresent(), INVALID_SIGNATURE);
-            validateTruePreCheck(
-                    configuration.getConfigData(LazyCreationConfig.class).enabled(), INVALID_SIGNATURE);
             signatureExpander.expand(List.of(originals.get()), expandedSigs);
         }
 
         // Verify the signatures
         final var results = signatureVerifier.verify(txInfo.signedBytes(), expandedSigs);
-        final var verifier = new DefaultKeyVerifier(sigPairs.size(), hederaConfig, results);
+        final var verifier = new DefaultKeyVerifier(hederaConfig, results);
         final SignatureVerification payerKeyVerification;
         if (!isHollow(payer)) {
             payerKeyVerification = verifier.verificationFor(payerKey);

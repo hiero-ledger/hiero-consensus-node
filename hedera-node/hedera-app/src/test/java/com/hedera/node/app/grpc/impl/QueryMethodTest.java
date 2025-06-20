@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,29 +36,38 @@ final class QueryMethodTest {
 
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
     private final Metrics metrics = TestUtils.metrics();
+    private final int maxMessageSize = 6144;
 
     @Test
     void nullServiceNameThrows() {
         //noinspection ConstantConditions
-        assertThrows(NullPointerException.class, () -> new QueryMethod(null, METHOD_NAME, queryWorkflow, metrics));
+        assertThrows(
+                NullPointerException.class,
+                () -> new QueryMethod(null, METHOD_NAME, queryWorkflow, metrics, maxMessageSize));
     }
 
     @Test
     void nullMethodNameThrows() {
         //noinspection ConstantConditions
-        assertThrows(NullPointerException.class, () -> new QueryMethod(SERVICE_NAME, null, queryWorkflow, metrics));
+        assertThrows(
+                NullPointerException.class,
+                () -> new QueryMethod(SERVICE_NAME, null, queryWorkflow, metrics, maxMessageSize));
     }
 
     @Test
     void nullWorkflowThrows() {
         //noinspection ConstantConditions
-        assertThrows(NullPointerException.class, () -> new QueryMethod(SERVICE_NAME, METHOD_NAME, null, metrics));
+        assertThrows(
+                NullPointerException.class,
+                () -> new QueryMethod(SERVICE_NAME, METHOD_NAME, null, metrics, maxMessageSize));
     }
 
     @Test
     void nullMetricsThrows() {
         //noinspection ConstantConditions
-        assertThrows(NullPointerException.class, () -> new QueryMethod(SERVICE_NAME, METHOD_NAME, queryWorkflow, null));
+        assertThrows(
+                NullPointerException.class,
+                () -> new QueryMethod(SERVICE_NAME, METHOD_NAME, queryWorkflow, null, maxMessageSize));
     }
 
     @ParameterizedTest(name = "With {0} bytes")
@@ -83,7 +77,7 @@ final class QueryMethodTest {
         final var requestBuffer = BufferedData.wrap(arr);
         final AtomicBoolean called = new AtomicBoolean(false);
         final QueryWorkflow w = (req, res) -> called.set(true);
-        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics);
+        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics, maxMessageSize);
 
         // When we invoke the method
         //noinspection unchecked
@@ -111,7 +105,7 @@ final class QueryMethodTest {
             called.set(true);
             res.writeBytes(new byte[] {1, 2, 3});
         };
-        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics);
+        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics, maxMessageSize);
 
         // When the method is invoked
         method.invoke(requestBuffer, streamObserver);
@@ -141,7 +135,7 @@ final class QueryMethodTest {
         final QueryWorkflow w = (req, res) -> {
             throw new RuntimeException("Unexpected!");
         };
-        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics);
+        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics, maxMessageSize);
 
         // When the method is invoked
         method.invoke(requestBuffer, streamObserver);
@@ -170,7 +164,7 @@ final class QueryMethodTest {
         final var numThreads = 5;
         final var numRequests = 1000;
         final QueryWorkflow w = (req, res) -> res.writeBytes(req);
-        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics);
+        final var method = new QueryMethod(SERVICE_NAME, METHOD_NAME, w, metrics, maxMessageSize);
 
         final var futures = new ArrayList<Future<?>>();
         final var exec = Executors.newFixedThreadPool(numThreads);

@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.cache;
 
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -30,10 +16,9 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.Round;
-import com.swirlds.platform.system.events.ConsensusEvent;
-import com.swirlds.platform.system.transaction.Transaction;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,6 +26,9 @@ import java.util.concurrent.Executor;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.Transaction;
 
 /**
  * This class is used to warm up the cache. It is called at the beginning of a round with the current state
@@ -53,15 +41,23 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
+    private final HederaConfig hederaConfig;
+
+    @NonNull
+    private final SemanticVersion softwareVersionFactory;
 
     @Inject
     public CacheWarmer(
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull @Named("CacheWarmer") final Executor executor) {
-        this.checker = checker;
+            @NonNull @Named("CacheWarmer") final Executor executor,
+            @NonNull final SemanticVersion softwareVersionFactory,
+            @NonNull final ConfigProvider configProvider) {
+        this.checker = requireNonNull(checker);
         this.dispatcher = requireNonNull(dispatcher);
         this.executor = requireNonNull(executor);
+        this.softwareVersionFactory = softwareVersionFactory;
+        this.hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
     }
 
     /**
@@ -104,7 +100,10 @@ public class CacheWarmer {
         // or keeping the result for later.
         try {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
-            return checker.parseAndCheck(buffer).txBody();
+            // There is no cache warming to do for oversize TSS transactions, so it's fine
+            // to fail with TRANSACTION_OVERSIZE here in any case
+            final var transactionMaxBytes = hederaConfig.transactionMaxBytes();
+            return checker.parseAndCheck(buffer, transactionMaxBytes).txBody();
         } catch (PreCheckException ex) {
             return null;
         }

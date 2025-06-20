@@ -1,21 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.records;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -74,14 +60,16 @@ public interface TokenContext {
      * Adds a preceding child record builder to the list of record builders. If the current {@link HandleContext} (or
      * any parent context) is rolled back, all child record builders will be reverted.
      *
-     * @param recordBuilderClass the record type
      * @param <T> the record type
+     * @param recordBuilderClass the record type
+     * @param functionality the functionality of the record
      * @return the new child record builder
      * @throws NullPointerException if {@code recordBuilderClass} is {@code null}
      * @throws IllegalArgumentException if the record builder type is unknown to the app
      */
     @NonNull
-    <T extends StreamBuilder> T addPrecedingChildRecordBuilder(@NonNull Class<T> recordBuilderClass);
+    <T extends StreamBuilder> T addPrecedingChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
 
     /**
      * Returns the set of all known node ids, including ids that may no longer be active.

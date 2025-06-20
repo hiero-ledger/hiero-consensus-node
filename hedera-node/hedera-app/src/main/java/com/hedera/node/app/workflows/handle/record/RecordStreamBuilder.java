@@ -1,28 +1,16 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
-import static com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer.NOOP_RECORD_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -47,6 +35,8 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -78,14 +68,13 @@ import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenMintStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenUpdateStreamBuilder;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
+import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
-import com.hedera.node.app.spi.workflows.record.ExternalizedRecordCustomizer;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord.TransactionOutputs;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
@@ -100,6 +89,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * A custom builder for create a {@link SingleTransactionRecord}.
@@ -142,7 +132,8 @@ public class RecordStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
-                TokenAirdropStreamBuilder {
+                TokenAirdropStreamBuilder,
+                ReplayableFeeStreamBuilder {
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenId().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNum());
@@ -203,14 +194,23 @@ public class RecordStreamBuilder
     // Used to customize the externalized form of a dispatched child transaction, right before
     // its record stream item is built; lets the contract service externalize certain dispatched
     // CryptoCreate transactions as ContractCreate synthetic transactions
-    private final ExternalizedRecordCustomizer customizer;
+    private final TransactionCustomizer customizer;
 
     private TokenID tokenID;
+    private ScheduleID scheduleID;
     private TokenType tokenType;
+    private HederaFunctionality function;
+
+    private boolean isContractCreate;
+
+    /**
+     * ops duration used by the contract transaction
+     */
+    private long opsDuration;
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final ExternalizedRecordCustomizer customizer,
+            @NonNull final TransactionCustomizer customizer,
             @NonNull final TransactionCategory category) {
         this.consensusNow = Instant.EPOCH;
         this.reversingBehavior = requireNonNull(reversingBehavior, "reversingBehavior must not be null");
@@ -224,7 +224,7 @@ public class RecordStreamBuilder
      * @return the transaction record
      */
     public SingleTransactionRecord build() {
-        if (customizer != NOOP_RECORD_CUSTOMIZER) {
+        if (customizer != NOOP_TRANSACTION_CUSTOMIZER) {
             transaction = customizer.apply(transaction);
             transactionBytes = transaction.signedTransactionBytes();
         }
@@ -303,6 +303,11 @@ public class RecordStreamBuilder
     }
 
     @Override
+    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
+        // No-op
+    }
+
+    @Override
     public void nullOutSideEffectFields() {
         serialNumbers.clear();
         tokenTransferLists.clear();
@@ -317,7 +322,11 @@ public class RecordStreamBuilder
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-        transactionReceiptBuilder.contractID((ContractID) null);
+
+        if (isContractCreate) {
+            transactionReceiptBuilder.contractID((ContractID) null);
+        }
+
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
@@ -325,13 +334,11 @@ public class RecordStreamBuilder
             transactionReceiptBuilder.scheduledTransactionID((TransactionID) null);
         }
         // Note that internal contract creations are removed instead of reversed
-        transactionRecordBuilder.scheduleRef((ScheduleID) null);
         transactionReceiptBuilder.topicRunningHash(Bytes.EMPTY);
         transactionReceiptBuilder.newTotalSupply(0L);
         transactionReceiptBuilder.topicRunningHashVersion(0L);
         transactionReceiptBuilder.topicSequenceNumber(0L);
         transactionRecordBuilder.alias(Bytes.EMPTY);
-        transactionRecordBuilder.ethereumHash(Bytes.EMPTY);
         transactionRecordBuilder.evmAddress(Bytes.EMPTY);
     }
 
@@ -517,6 +524,12 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
     /**
      * Gets the transferList.
      *
@@ -526,6 +539,16 @@ public class RecordStreamBuilder
     @NonNull
     public TransferList transferList() {
         return transferList;
+    }
+
+    @Override
+    public void setReplayedFees(@NonNull final TransferList transferList) {
+        requireNonNull(transferList);
+        if (this.transferList == null || this.transferList == TransferList.DEFAULT) {
+            this.transferList = transferList;
+        } else {
+            throw new IllegalStateException("Transfer list already set");
+        }
     }
 
     /**
@@ -667,19 +690,6 @@ public class RecordStreamBuilder
     }
 
     /**
-     * Sets the alias.
-     *
-     * @param alias the alias
-     * @return the builder
-     */
-    @NonNull
-    public RecordStreamBuilder alias(@NonNull final Bytes alias) {
-        requireNonNull(alias, "alias must not be null");
-        transactionRecordBuilder.alias(alias);
-        return this;
-    }
-
-    /**
      * Sets the ethereum hash.
      *
      * @param ethereumHash the ethereum hash
@@ -805,6 +815,11 @@ public class RecordStreamBuilder
         return this.contractFunctionResult.gasUsed();
     }
 
+    @Override
+    public long getOpsDurationForContractTxn() {
+        return opsDuration;
+    }
+
     /**
      * Sets the receipt accountID.
      *
@@ -846,6 +861,21 @@ public class RecordStreamBuilder
         // Ensure we don't externalize as an account creation too
         transactionReceiptBuilder.accountID((AccountID) null);
         transactionReceiptBuilder.contractID(contractID);
+        return this;
+    }
+
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @Override
+    @NonNull
+    public RecordStreamBuilder createdContractID(@Nullable final ContractID contractID) {
+        isContractCreate = true;
+        contractID(contractID);
         return this;
     }
 
@@ -988,6 +1018,7 @@ public class RecordStreamBuilder
     public RecordStreamBuilder scheduleID(@NonNull final ScheduleID scheduleID) {
         requireNonNull(scheduleID, "scheduleID must not be null");
         transactionReceiptBuilder.scheduleID(scheduleID);
+        this.scheduleID = requireNonNull(scheduleID);
         return this;
     }
 
@@ -1065,6 +1096,24 @@ public class RecordStreamBuilder
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
         return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
     }
 
     /**
@@ -1188,7 +1237,17 @@ public class RecordStreamBuilder
 
     @Override
     public StreamBuilder functionality(@NonNull final HederaFunctionality functionality) {
-        // No-op
+        this.function = functionality;
         return this;
+    }
+
+    @Override
+    public ScheduleID scheduleID() {
+        return scheduleID;
+    }
+
+    @Override
+    public HederaFunctionality functionality() {
+        return function;
     }
 }

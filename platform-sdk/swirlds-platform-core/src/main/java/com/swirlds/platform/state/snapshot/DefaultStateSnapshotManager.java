@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2018-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.common.io.utility.FileUtils.deleteDirectoryAndLog;
@@ -24,14 +9,13 @@ import static com.swirlds.platform.state.snapshot.StateToDiskReason.UNKNOWN;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
 import com.swirlds.platform.config.StateConfig;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.events.EventConstants;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -42,6 +26,10 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.state.StateSavingResult;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This class is responsible for managing the state writing pipeline.
@@ -75,6 +63,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     private final Configuration configuration;
 
+    private final PlatformStateFacade platformStateFacade;
+
     /**
      * the platform context
      */
@@ -97,12 +87,14 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @param mainClassName the main class name of this node
      * @param selfId        the ID of this node
      * @param swirldName    the name of the swirld
+     * @param platformStateFacade the facade to access the platform state
      */
     public DefaultStateSnapshotManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
-            @NonNull final String swirldName) {
+            @NonNull final String swirldName,
+            @NonNull final PlatformStateFacade platformStateFacade) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = platformContext.getTime();
@@ -110,6 +102,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         this.mainClassName = Objects.requireNonNull(mainClassName);
         this.swirldName = Objects.requireNonNull(swirldName);
         configuration = platformContext.getConfiguration();
+        this.platformStateFacade = platformStateFacade;
         signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
         metrics = new StateSnapshotManagerMetrics(platformContext);
     }
@@ -139,9 +132,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             signedState.stateSavedToDisk();
-            final long minGen = deleteOldStates();
+            final long minBirthRound = deleteOldStates();
             stateSavingResult = new StateSavingResult(
-                    signedState.getRound(), signedState.isFreezeState(), signedState.getConsensusTimestamp(), minGen);
+                    signedState.getRound(),
+                    signedState.isFreezeState(),
+                    signedState.getConsensusTimestamp(),
+                    minBirthRound);
         }
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
@@ -175,7 +171,8 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
 
     private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
         try {
-            SignedStateFileWriter.writeSignedStateToDisk(platformContext, selfId, directory, state, getReason(state));
+            SignedStateFileWriter.writeSignedStateToDisk(
+                    platformContext, selfId, directory, state, getReason(state), platformStateFacade);
             return true;
         } catch (final Throwable e) {
             logger.error(
@@ -197,7 +194,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private void checkSignatures(@NonNull final SignedState reservedState) {
         // this is debug information for ticket #11422
         final long signingWeight1 = reservedState.getSigningWeight();
-        final long totalWeight1 = reservedState.getAddressBook().getTotalWeight();
+        final long totalWeight1 = RosterUtils.computeTotalWeight(reservedState.getRoster());
         if (reservedState.isComplete() || reservedState.isPcesRound()) {
             // state is complete, nothing to do
             // no signatures are generated for PCES rounds: https://github.com/hashgraph/hedera-services/issues/15229
@@ -206,10 +203,14 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         metrics.getTotalUnsignedDiskStatesMetric().increment();
 
         final long signingWeight2 = reservedState.getSigningWeight();
-        final long totalWeight2 = reservedState.getAddressBook().getTotalWeight();
+        final long totalWeight2 = RosterUtils.computeTotalWeight(reservedState.getRoster());
 
         // don't log an error if this is a freeze state. they are expected to lack signatures
         if (reservedState.isFreezeState()) {
+            final double signingWeightPercent = (((double) reservedState.getSigningWeight())
+                            / ((double) RosterUtils.computeTotalWeight(reservedState.getRoster())))
+                    * 100.0;
+
             logger.info(
                     STATE_TO_DISK.getMarker(),
                     """
@@ -218,11 +219,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                             """,
                     reservedState.getRound(),
                     reservedState.getSigningWeight(),
-                    reservedState.getAddressBook().getTotalWeight(),
-                    reservedState.getSigningWeight()
-                            / reservedState.getAddressBook().getTotalWeight()
-                            * 100.0);
+                    RosterUtils.computeTotalWeight(reservedState.getRoster()),
+                    signingWeightPercent);
         } else {
+            final double signingWeight1Percent = (((double) signingWeight1) / ((double) totalWeight1)) * 100.0;
+            final double signingWeight2Percent = (((double) signingWeight2) / ((double) totalWeight2)) * 100.0;
+
             logger.error(
                     EXCEPTION.getMarker(),
                     new InsufficientSignaturesPayload(
@@ -235,10 +237,10 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                                             reservedState.getRound(),
                                             signingWeight1,
                                             totalWeight1,
-                                            signingWeight1 / totalWeight1 * 100.0,
+                                            signingWeight1Percent,
                                             signingWeight2,
                                             totalWeight2,
-                                            signingWeight2 / totalWeight2 * 100.0,
+                                            signingWeight2Percent,
                                             Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight1, totalWeight1),
                                             Threshold.SUPER_MAJORITY.isSatisfiedBy(signingWeight2, totalWeight2)))));
         }
@@ -258,7 +260,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     /**
      * Purge old states on the disk.
      *
-     * @return the minimum generation non-ancient of the oldest state that was not deleted
+     * @return the minimum birth non-ancient of the oldest state that was not deleted
      */
     private long deleteOldStates() {
         final List<SavedStateInfo> savedStates =
@@ -281,6 +283,6 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             return EventConstants.GENERATION_UNDEFINED;
         }
         final SavedStateMetadata oldestStateMetadata = savedStates.get(index).metadata();
-        return oldestStateMetadata.minimumGenerationNonAncient();
+        return oldestStateMetadata.minimumBirthRoundNonAncient();
     }
 }

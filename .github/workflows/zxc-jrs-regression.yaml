@@ -1,19 +1,4 @@
-##
-# Copyright (C) 2022-2024 Hedera Hashgraph, LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-##
-
+# SPDX-License-Identifier: Apache-2.0
 name: "ZXC: Regression"
 on:
   workflow_call:
@@ -160,7 +145,6 @@ on:
         description: "The Slack API access token used to run unit and JRS tests."
         required: true
 
-
 env:
   MAVEN_OPTS: -Xmx16g -XX:ActiveProcessorCount=16
   JAVA_OPTS: -Xmx28g -XX:ActiveProcessorCount=16
@@ -184,10 +168,16 @@ permissions:
 jobs:
   jrs-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: network-node-linux-large
+    runs-on: hiero-network-node-linux-large
+    if: ${{ !github.event.workflow_call.repository.fork }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
       - name: Checkout Platform Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref || inputs.branch-name || '' }}
           fetch-depth: 0
@@ -210,7 +200,7 @@ jobs:
           echo "branch-name=${BRANCH_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout Regression Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: platform-sdk/regression
           repository: swirlds/swirlds-platform-regression
@@ -239,49 +229,6 @@ jobs:
 
           echo "file=${FINAL_PATH}" >> "${GITHUB_OUTPUT}"
 
-#      - name: Setup Control Groups
-#        run: |
-#          echo "::group::Get System Configuration"
-#            USR_ID="$(id -un)"
-#            GRP_ID="$(id -gn)"
-#            GRADLE_MEM_LIMIT="30064771072"
-#            PING_MEM_LIMIT="1073741824"
-#            AGENT_MEM_LIMIT="2147483648"
-#            GRADLE_GROUP_NAME="gradle-${{ github.run_id }}"
-#            PING_GROUP_NAME="ping-${{ github.run_id }}"
-#            AGENT_GROUP_NAME="agent-${{ github.run_id }}"
-#          echo "::endgroup::"
-#
-#          echo "::group::Install Control Group Tools"
-#            if ! command -v cgcreate >/dev/null 2>&1; then
-#              sudo apt-get update
-#              sudo apt-get install -y cgroup-tools
-#            fi
-#          echo "::endgroup::"
-#
-#          echo "::group::Create Control Groups"
-#            sudo cgcreate -g cpu,memory:${GRADLE_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-#            sudo cgcreate -g cpu,memory:${PING_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-#            sudo cgcreate -g cpu,memory:${AGENT_GROUP_NAME} -a ${USR_ID}:${GRP_ID} -t ${USR_ID}:${GRP_ID}
-#          echo "::endgroup::"
-#
-#          echo "::group::Set Control Group Limits"
-#            cgset -r cpu.shares=768 ${GRADLE_GROUP_NAME}
-#            cgset -r cpu.shares=768 ${PING_GROUP_NAME}
-#            cgset -r cpu.shares=500 ${AGENT_GROUP_NAME}
-#            cgset -r memory.limit_in_bytes=${GRADLE_MEM_LIMIT} ${GRADLE_GROUP_NAME}
-#            cgset -r memory.limit_in_bytes=${PING_MEM_LIMIT} ${PING_GROUP_NAME}
-#            cgset -r memory.limit_in_bytes=${AGENT_MEM_LIMIT} ${AGENT_GROUP_NAME}
-#            cgset -r memory.memsw.limit_in_bytes=${GRADLE_MEM_LIMIT} ${GRADLE_GROUP_NAME}
-#            cgset -r memory.memsw.limit_in_bytes=${PING_MEM_LIMIT} ${PING_GROUP_NAME}
-#            cgset -r memory.memsw.limit_in_bytes=${AGENT_MEM_LIMIT} ${AGENT_GROUP_NAME}
-#          echo "::endgroup::"
-#
-#          echo "::group::Move Runner Processes to Control Groups"
-#            sudo cgclassify --sticky -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Listener' | tr '\n' ' ')
-#            sudo cgclassify -g cpu,memory:${AGENT_GROUP_NAME} $(pgrep 'Runner.Worker' | tr '\n' ' ')
-#          echo "::endgroup::"
-
       - name: Install Grafana Agent
         run: |
           sudo mkdir -p /usr/local/grafana-agent
@@ -299,7 +246,7 @@ jobs:
           sudo chmod +x /usr/local/ping-exporter/ping_exporter
 
       - name: Execute Ping Exporter
-        uses: JarvusInnovations/background-action@313d37130873d82c33fc907b9b78e932aec8e990 # v1.0.5
+        uses: step-security/background-action@0abcc7782b4cc676a4b385c7096b398a07b52bd2 # v1.0.7
         with:
           run: |
             sudo setcap cap_net_raw+ep /usr/local/ping-exporter/ping_exporter
@@ -311,7 +258,7 @@ jobs:
             http://localhost:9427/metrics
 
       - name: Execute Grafana Agent
-        uses: JarvusInnovations/background-action@313d37130873d82c33fc907b9b78e932aec8e990 # v1.0.5
+        uses: step-security/background-action@0abcc7782b4cc676a4b385c7096b398a07b52bd2 # v1.0.7
         env:
           GRAFANA_AGENT_USERNAME: ${{ secrets.grafana-agent-username }}
           GRAFANA_AGENT_PASSWORD: ${{ secrets.grafana-agent-password }}
@@ -325,18 +272,18 @@ jobs:
             http://localhost:9427/metrics
 
       - name: Setup NodeJS Environment
-        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
         with:
           node-version: 18
 
       - name: Setup Java
-        uses: actions/setup-java@387ac29b308b003ca37ba93a6cab5eb57c8f5f93 # v4.0.0
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: ${{ inputs.java-distribution }}
           java-version: ${{ inputs.java-version }}
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
+        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
         with:
           gradle-version: ${{ inputs.gradle-version }}
           gradle-home-cache-strict-match: false
@@ -363,7 +310,7 @@ jobs:
           fi
 
       - name: Install SSH key
-        uses: shimataro/ssh-key-action@38b53cb2f445ea2e0eb8872407e366677c41dbc6 # v2.6.1
+        uses: step-security/ssh-key-action@f1316fac9982b07b13cadd1b0c20b6c00db5e92a # v2.7.1
         with:
           name: jrs-ssh-keyfile
           key: ${{ secrets.jrs-ssh-key-file }}
@@ -379,15 +326,15 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@55bd3a7c6e2ae7cf1877fd1ccb9d54c0503c457c # v2.1.2
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
-          workload_identity_provider: 'projects/785813846068/locations/global/workloadIdentityPools/jrs-identity-pool/providers/gh-provider'
-          service_account: 'swirlds-automation@swirlds-regression.iam.gserviceaccount.com'
+          workload_identity_provider: "projects/785813846068/locations/global/workloadIdentityPools/jrs-identity-pool/providers/gh-provider"
+          service_account: "swirlds-automation@swirlds-regression.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@98ddc00a17442e89a24bbf282954a3b65ce6d200 # v2.1.0
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
         with:
-          install_components: 'alpha'
+          install_components: "alpha"
 
       - name: Install RClone
         run: |
@@ -407,18 +354,13 @@ jobs:
 
       - name: Gradle Assemble
         id: gradle-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: assemble :test-clients:shadowJar --scan
+        working-directory: ${{ github.workspace }}
+        run: ./gradlew assemble :test-clients:shadowJar
 
       - name: Regression Gradle Assemble
         id: regression-gradle-build
-        uses: gradle/actions/setup-gradle@dbbdc275be76ac10734476cc723d82dfe7ec6eda # v3.4.2
-        with:
-          build-root-directory: platform-sdk/regression
-          gradle-version: ${{ inputs.gradle-version }}
-          arguments: assemble --scan
+        working-directory: ${{ github.workspace }}/platform-sdk/regression
+        run: ./gradlew assemble
 
       - name: Compute Actual Branch Name
         id: branch
@@ -485,8 +427,8 @@ jobs:
             fi
 
             if [[ -n "${HEDERA_TESTS_ENABLED}" && "${HEDERA_TESTS_ENABLED}" = true ]]; then
-              # Override for the develop branch
-              if [[ "${SLACK_BRANCH}" != "develop" ]]; then
+              # Override for the main branch
+              if [[ "${SLACK_BRANCH}" != "main" ]]; then
                 SLACK_SUMMARY="hedera-gcp-${SLACK_BRANCH}-summary"
                 SLACK_RESULTS="hedera-gcp-${SLACK_BRANCH}-regression"
               else

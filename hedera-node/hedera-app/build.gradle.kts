@@ -1,33 +1,11 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("com.hedera.gradle.services")
-    id("com.hedera.gradle.services-publish")
-    id("com.hedera.gradle.feature.benchmark")
-    id("com.hedera.gradle.feature.test-fixtures")
+    id("org.hiero.gradle.module.library")
+    id("org.hiero.gradle.feature.benchmark")
+    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Hedera Application - Implementation"
-
-// Remove the following line to enable all 'javac' lint checks that we have turned on by default
-// and then fix the reported issues.
-tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-Xlint:-exports,-lossy-conversions,-cast")
-}
 
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
@@ -36,28 +14,40 @@ mainModuleInfo {
     // This is needed to pick up and include the native libraries for the netty epoll transport
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
+    runtimeOnly("io.helidon.grpc.core")
+    runtimeOnly("io.helidon.webclient")
+    runtimeOnly("io.helidon.webclient.grpc")
 }
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
-    requires("com.google.jimfs")
+    requires("com.google.protobuf")
+    requires("com.google.common.jimfs")
     requires("com.hedera.node.app")
+    requires("com.hedera.node.app.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
-    requires("headlong")
+    requires("com.swirlds.state.impl.test.fixtures")
+    requires("com.swirlds.base.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
+    requires("com.esaulpaugh.headlong")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")
-    requires("org.hamcrest")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+    requires("tuweni.bytes")
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")
-    requiresStatic("com.github.spotbugs.annotations")
+
+    exportsTo("org.hiero.base.utility") // access package "utils" (maybe rename to "util")
+    opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
+    opensTo("com.swirlds.common") // instantiation via reflection
 }
 
 jmhModuleInfo {
@@ -67,8 +57,8 @@ jmhModuleInfo {
     requires("com.hedera.node.app.test.fixtures")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
-    requires("com.swirlds.common")
     requires("jmh.core")
+    requires("org.hiero.base.crypto")
 }
 
 // Add all the libs dependencies into the jar manifest!
@@ -132,19 +122,14 @@ tasks.assemble {
 // Create the "run" task for running a Hedera consensus node
 tasks.register<JavaExec>("run") {
     group = "application"
-    dependsOn(tasks.assemble)
-    workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*")
-    mainClass.set("com.swirlds.platform.Browser")
-}
-
-tasks.register<JavaExec>("modrun") {
-    group = "build"
     description = "Run a Hedera consensus node instance."
     dependsOn(tasks.assemble)
     workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*", "-Dhedera.workflows.enabled=true")
+    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
     mainClass.set("com.hedera.node.app.ServicesMain")
+
+    // Add arguments for the application to run a local node
+    args = listOf("-local", "0")
 }
 
 val cleanRun =

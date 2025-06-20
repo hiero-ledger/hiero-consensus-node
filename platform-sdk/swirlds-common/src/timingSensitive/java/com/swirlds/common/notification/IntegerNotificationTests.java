@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.notification;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.threading.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -31,9 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.notification.internal.AsyncNotificationEngine;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.futures.ConcurrentFuturePool;
-import com.swirlds.common.threading.futures.FuturePool;
-import com.swirlds.common.threading.futures.StandardFuture;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -50,6 +32,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.hiero.base.concurrent.futures.ConcurrentFuturePool;
+import org.hiero.base.concurrent.futures.FuturePool;
+import org.hiero.base.concurrent.futures.StandardFuture;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,6 +46,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class IntegerNotificationTests {
 
     private static final boolean ENABLE_DIAG_PRINTOUT = false;
+    private static final Duration TIMEOUT = Duration.ofMinutes(1);
 
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 5, 21, 57, 1_000, 10_000, 100_000})
@@ -906,7 +892,7 @@ public class IntegerNotificationTests {
                                 "callback should have completed with the same result");
                     }
                 },
-                Duration.ofSeconds(1),
+                TIMEOUT,
                 "callbacks and futures should be completed by now");
 
         engine.shutdown();

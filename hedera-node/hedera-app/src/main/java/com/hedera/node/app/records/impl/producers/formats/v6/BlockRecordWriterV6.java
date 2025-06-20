@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v6;
 
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.BLOCK_NUMBER;
@@ -29,6 +14,7 @@ import static com.hedera.node.app.records.impl.producers.formats.v6.SignatureWri
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
+import static com.swirlds.state.lifecycle.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -42,10 +28,7 @@ import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.crypto.HashingOutputStream;
-import com.swirlds.common.stream.Signer;
-import com.swirlds.state.spi.info.NodeInfo;
+import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -63,6 +46,9 @@ import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.base.crypto.Signer;
 
 /**
  * An incremental file-based {@link BlockRecordWriter} that writes a single {@link RecordStreamItem} at a time. It also
@@ -89,7 +75,6 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     /** The maximum size of a sidecar file in bytes. */
     private final int maxSideCarSizeInBytes;
     /** Whether to compress the record file and sidecar files. */
-    private final boolean compressFiles;
     /** The node-specific path to the directory where record files are written */
     private final Path nodeScopedRecordDir;
     /**
@@ -176,12 +161,11 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
 
         this.state = State.UNINITIALIZED;
         this.signer = requireNonNull(signer);
-        this.compressFiles = config.compressFilesOnCreation();
         this.maxSideCarSizeInBytes = config.sidecarMaxSizeMb() * 1024 * 1024;
 
         // Compute directories for record and sidecar files
         final Path recordDir = fileSystem.getPath(config.logDir());
-        nodeScopedRecordDir = recordDir.resolve("record" + nodeInfo.memo());
+        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeInfo.accountId()));
         nodeScopedSidecarDir = nodeScopedRecordDir.resolve(config.sidecarDir());
 
         // Create parent directories if needed for the record file itself
@@ -222,12 +206,8 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
         this.recordFilePath = getRecordFilePath(startConsensusTime);
         try {
             fileOutputStream = Files.newOutputStream(recordFilePath);
-            if (compressFiles) {
-                gzipOutputStream = new GZIPOutputStream(fileOutputStream);
-                hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), gzipOutputStream);
-            } else {
-                hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), fileOutputStream);
-            }
+            gzipOutputStream = new GZIPOutputStream(fileOutputStream);
+            hashingOutputStream = new HashingOutputStream(createWholeFileMessageDigest(), gzipOutputStream);
             bufferedOutputStream = new BufferedOutputStream(hashingOutputStream);
             outputStream = new WritableStreamingData(bufferedOutputStream);
 
@@ -308,19 +288,9 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             // Write the record file version int first to start of file
             outputStream.writeInt(VERSION_6);
             // [1] - hapi_proto_version
-            writeMessage(
-                    outputStream,
-                    HAPI_PROTO_VERSION,
-                    hapiProtoVersion,
-                    SemanticVersion.PROTOBUF::write,
-                    SemanticVersion.PROTOBUF::measureRecord);
+            writeMessage(outputStream, HAPI_PROTO_VERSION, hapiProtoVersion, SemanticVersion.PROTOBUF);
             // [2] - start_object_running_hash
-            writeMessage(
-                    outputStream,
-                    START_OBJECT_RUNNING_HASH,
-                    startObjectRunningHash,
-                    HashObject.PROTOBUF::write,
-                    HashObject.PROTOBUF::measureRecord);
+            writeMessage(outputStream, START_OBJECT_RUNNING_HASH, startObjectRunningHash, HashObject.PROTOBUF);
         } catch (final IOException e) {
             logger.warn("Error writing header to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
@@ -335,12 +305,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     private void writeFooter(@NonNull final HashObject endRunningHash) throws UncheckedIOException {
         try {
             // [4] - end_object_running_hash
-            writeMessage(
-                    outputStream,
-                    END_OBJECT_RUNNING_HASH,
-                    endRunningHash,
-                    HashObject.PROTOBUF::write,
-                    HashObject.PROTOBUF::measureRecord);
+            writeMessage(outputStream, END_OBJECT_RUNNING_HASH, endRunningHash, HashObject.PROTOBUF);
             // [5] - block_number
             writeLong(outputStream, BLOCK_NUMBER, blockNumber);
             // [6] - sidecars
@@ -348,8 +313,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                     outputStream,
                     SIDECARS,
                     sidecarMetadata == null ? Collections.emptyList() : sidecarMetadata,
-                    SidecarMetadata.PROTOBUF::write,
-                    SidecarMetadata.PROTOBUF::measureRecord);
+                    SidecarMetadata.PROTOBUF);
         } catch (IOException e) {
             logger.warn("Error writing footer to record file {}", recordFilePath, e);
             throw new UncheckedIOException(e);
@@ -402,7 +366,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
 
     @NonNull
     private SidecarWriterV6 createSidecarFileWriter(final int id) throws IOException {
-        return new SidecarWriterV6(getSidecarFilePath(id), compressFiles, maxSideCarSizeInBytes, id);
+        return new SidecarWriterV6(getSidecarFilePath(id), maxSideCarSizeInBytes, id);
     }
 
     private void closeSidecarFileWriter() {
@@ -412,17 +376,38 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                 sidecarFileWriter.close();
                 // get the sidecar hash
                 final Bytes sidecarHash = sidecarFileWriter.fileHash();
-                // create and add sidecar metadata to record file
+                // create and add sidecar metadata to the record file
                 if (sidecarMetadata == null) sidecarMetadata = new ArrayList<>();
                 sidecarMetadata.add(new SidecarMetadata(
                         new HashObject(HashAlgorithm.SHA_384, (int) sidecarHash.length(), sidecarHash),
                         sidecarFileWriter.id(),
                         sidecarFileWriter.types()));
+                // Add a marker file for the sidecar when it is closed
+                writeSidecarMarkerFile();
             }
         } catch (final IOException e) {
             // NOTE: Writing sidecar files really is best-effort, if it doesn't happen, we're OK with just logging the
             // warning and moving on.
             logger.warn("Error closing sidecar file", e);
+        }
+    }
+
+    /**
+     * Write a marker file for the sidecar file.
+     * This is used to indicate that the sidecar file has been closed and is ready to be uploaded.
+     * The marker file is named the same as the sidecar file, but with a .mf extension.
+     * The contents of the marker file are the hash of the sidecar file.
+     *
+     * @throws IOException if there was a problem writing the marker file
+     */
+    private void writeSidecarMarkerFile() throws IOException {
+        final Path sidecarPath = getSidecarFilePath(sidecarFileWriter.id());
+        final Path markerPath =
+                sidecarPath.resolveSibling(sidecarPath.getFileName().toString().replace(".rcd.gz", ".mf"));
+        if (Files.exists(markerPath)) {
+            logger.debug("Side‑car marker already exists: {}", markerPath);
+        } else {
+            Files.createFile(markerPath);
         }
     }
 
@@ -435,7 +420,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
     @NonNull
     private Path getRecordFilePath(final Instant consensusTime) {
         return nodeScopedRecordDir.resolve(convertInstantToStringWithPadding(consensusTime) + "." + RECORD_EXTENSION
-                + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : ""));
+                + COMPRESSION_ALGORITHM_EXTENSION);
     }
 
     /**
@@ -451,7 +436,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
                 + String.format("%02d", sidecarId)
                 + "."
                 + RECORD_EXTENSION
-                + (compressFiles ? COMPRESSION_ALGORITHM_EXTENSION : ""));
+                + COMPRESSION_ALGORITHM_EXTENSION);
     }
 
     /**

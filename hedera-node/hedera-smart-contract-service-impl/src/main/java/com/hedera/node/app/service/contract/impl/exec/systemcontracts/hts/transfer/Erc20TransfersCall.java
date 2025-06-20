@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -28,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
@@ -66,6 +52,19 @@ public class Erc20TransfersCall extends AbstractCall {
     private final boolean requiresApproval;
     private final SpecialRewardReceivers specialRewardReceivers;
 
+    /**
+     * @param gasCalculator the gas calculator used in this call
+     * @param enhancement the enhancement used in this call
+     * @param amount the amount of ERC20 tokens to be sent
+     * @param from the address of the account from which the token will be transferred
+     * @param to the address of the account to which the token will be transferred
+     * @param tokenId the token id of the token to be transferred
+     * @param verificationStrategy the verification strategy used in this call
+     * @param senderId the sender id of the sending account
+     * @param addressIdConverter the address ID converter for this call
+     * @param requiresApproval whether the call requires an approval
+     * @param specialRewardReceivers the special reward receiver
+     */
     // too many parameters
     @SuppressWarnings("java:S107")
     public Erc20TransfersCall(
@@ -99,9 +98,7 @@ public class Erc20TransfersCall extends AbstractCall {
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
         // https://eips.ethereum.org/EIPS/eip-20
         final var syntheticTransfer = syntheticTransferOrTransferFrom(senderId);
-        final var selector = (from == null) ? ERC_20_TRANSFER.selector() : ERC_20_TRANSFER_FROM.selector();
-        final var gasRequirement =
-                transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId, selector);
+        final var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         if (tokenId == null) {
             return reversionWith(INVALID_TOKEN_ID, gasRequirement);
         }
@@ -127,8 +124,8 @@ public class Erc20TransfersCall extends AbstractCall {
             }
             specialRewardReceivers.addInFrame(frame, op, recordBuilder.getAssessedCustomFees());
             final var encodedOutput = (from == null)
-                    ? ERC_20_TRANSFER.getOutputs().encodeElements(true)
-                    : ERC_20_TRANSFER_FROM.getOutputs().encodeElements(true);
+                    ? ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))
+                    : ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true));
             recordBuilder.contractCallResult(ContractFunctionResult.newBuilder()
                     .contractCallResult(Bytes.wrap(encodedOutput.array()))
                     .build());

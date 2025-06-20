@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.schedule;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asScheduleString;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
@@ -30,14 +16,19 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
+import com.hedera.services.bdd.spec.keys.KeyRole;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.schedule.ScheduleUtils;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.SchedulableTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleCreateTransactionBody;
+import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
@@ -58,13 +49,18 @@ import org.apache.logging.log4j.Logger;
 public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiScheduleCreate<T>> {
     private static final Logger log = LogManager.getLogger(HapiScheduleCreate.class);
 
+    private static final long NA = -1;
+
+    private long longTermExpiry = NA;
+    private long longTermLifetime = NA;
+    private boolean asCallableSchedule = false;
     private boolean advertiseCreation = false;
     private boolean recordScheduledTxn = false;
     private boolean skipRegistryUpdate = false;
     private boolean scheduleNoFunction = false;
     private boolean saveExpectedScheduledTxnId = false;
     private boolean useSentinelKeyListForAdminKey = false;
-    private ByteString bytesSigned = ByteString.EMPTY;
+    private final ByteString bytesSigned = ByteString.EMPTY;
 
     @Nullable
     private List<Key> explicitInitialSigners = null;
@@ -72,10 +68,12 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
     private List<String> initialSigners = Collections.emptyList();
     private Optional<String> adminKey = Optional.empty();
     private Optional<String> payerAccountID = Optional.empty();
+    private Optional<Boolean> withNonExistingPayerAccountID = Optional.empty();
     private Optional<String> entityMemo = Optional.empty();
     private Optional<Boolean> waitForExpiry = Optional.empty();
     private Optional<Pair<String, Long>> expirationTimeRelativeTo = Optional.empty();
     private Optional<BiConsumer<String, byte[]>> successCb = Optional.empty();
+    private Optional<Consumer<ScheduleID>> newScheduleIdObserver = Optional.empty();
     private AtomicReference<SchedulableTransactionBody> scheduledTxn = new AtomicReference<>();
 
     private final String scheduleEntity;
@@ -87,6 +85,12 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
                 .sansTxnId()
                 .sansNodeAccount()
                 .signedBy();
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
+    }
+
+    public HapiScheduleCreate<T> asCallableSchedule() {
+        asCallableSchedule = true;
+        return this;
     }
 
     public HapiScheduleCreate<T> advertisingCreation() {
@@ -129,8 +133,18 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         return this;
     }
 
+    public HapiScheduleCreate<T> exposingCreatedIdTo(final Consumer<ScheduleID> newScheduleIdObserver) {
+        this.newScheduleIdObserver = Optional.of(newScheduleIdObserver);
+        return this;
+    }
+
     public HapiScheduleCreate<T> designatingPayer(String s) {
         payerAccountID = Optional.of(s);
+        return this;
+    }
+
+    public HapiScheduleCreate<T> withNonExistingDesignatingPayer() {
+        withNonExistingPayerAccountID = Optional.of(true);
         return this;
     }
 
@@ -156,6 +170,16 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
 
     public HapiScheduleCreate<T> waitForExpiry(boolean value) {
         this.waitForExpiry = Optional.of(value);
+        return this;
+    }
+
+    public HapiScheduleCreate<T> expiringAt(final long expiry) {
+        this.longTermExpiry = expiry;
+        return this;
+    }
+
+    public HapiScheduleCreate<T> expiringIn(final long lifetime) {
+        this.longTermLifetime = lifetime;
         return this;
     }
 
@@ -202,7 +226,16 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
 
                             waitForExpiry.ifPresent(b::setWaitForExpiry);
 
-                            if (expirationTimeRelativeTo.isPresent()) {
+                            if (longTermExpiry != NA) {
+                                b.setExpirationTime(Timestamp.newBuilder()
+                                        .setSeconds(longTermExpiry)
+                                        .build());
+                            } else if (longTermLifetime != NA) {
+                                final var approxNow = spec.consensusTime();
+                                b.setExpirationTime(Timestamp.newBuilder()
+                                        .setSeconds(approxNow.getEpochSecond() + longTermLifetime)
+                                        .build());
+                            } else if (expirationTimeRelativeTo.isPresent()) {
                                 var expiry = getRelativeExpiry(
                                         spec,
                                         expirationTimeRelativeTo.get().getKey(),
@@ -215,6 +248,12 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
                             payerAccountID.ifPresent(a -> {
                                 var payer = TxnUtils.asId(a, spec);
                                 b.setPayerAccountID(payer);
+                            });
+                            withNonExistingPayerAccountID.ifPresent(a -> {
+                                var nonExistingPayer = AccountID.newBuilder()
+                                        .setAccountNum(7431)
+                                        .build();
+                                b.setPayerAccountID(nonExistingPayer);
                             });
                         });
         return b -> b.setScheduleCreate(opBody);
@@ -265,14 +304,18 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
                     scheduleEntity,
                     createdSchedule().get());
         }
-        successCb.ifPresent(cb -> cb.accept(asScheduleString(lastReceipt.getScheduleID()), bytesSigned.toByteArray()));
+        final var scheduleId = lastReceipt.getScheduleID();
+        successCb.ifPresent(cb -> cb.accept(asScheduleString(scheduleId), bytesSigned.toByteArray()));
         if (skipRegistryUpdate) {
             return;
         }
-        var registry = spec.registry();
-        registry.saveScheduleId(scheduleEntity, lastReceipt.getScheduleID());
-        adminKey.ifPresent(
-                k -> registry.saveAdminKey(scheduleEntity, spec.registry().getKey(k)));
+        final var registry = spec.registry();
+        registry.saveScheduleId(scheduleEntity, scheduleId);
+
+        newScheduleIdObserver.ifPresent(obs -> obs.accept(scheduleId));
+
+        adminKey.ifPresent(k -> registry.saveRoleKey(
+                scheduleEntity, KeyRole.ADMIN, spec.registry().getKey(k)));
         if (saveExpectedScheduledTxnId) {
             if (verboseLoggingOn) {
                 log.info("Returned receipt for scheduled txn is {}", lastReceipt.getScheduledTransactionID());
@@ -288,9 +331,17 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         if (advertiseCreation) {
             String banner = "\n\n"
                     + bannerWith(String.format(
-                            "Created schedule '%s' with id '0.0.%d'.",
-                            scheduleEntity, lastReceipt.getScheduleID().getScheduleNum()));
+                            "Created schedule '%s' with id '%s'.", scheduleEntity, asScheduleString(scheduleId)));
             log.info(banner);
+        }
+        if (asCallableSchedule) {
+            registry.saveContractId(
+                    scheduleEntity,
+                    ContractID.newBuilder()
+                            .setShardNum(scheduleId.getShardNum())
+                            .setRealmNum(scheduleId.getRealmNum())
+                            .setContractNum(scheduleId.getScheduleNum())
+                            .build());
         }
     }
 

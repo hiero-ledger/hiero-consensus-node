@@ -945,7 +945,7 @@ Outputs:
 
 1. If voting is closed for the target roster or the vote is a second vote from the originating node, do nothing.
 2. Add the `TssVoteTransaction` to the list for the target roster.
-3. If the voting threshold is met by at least 1/2 consensus weight voting yes:
+3. If the voting threshold is met by at least 1/3 consensus weight voting yes:
    1. add the target roster hash to the` `votingClosed` set.
    2. Non-Dynamic Address Book Semantics
       1. if `keyActiveRoster` is false, do nothing here, rely on the startup logic to rotate the candidate roster to

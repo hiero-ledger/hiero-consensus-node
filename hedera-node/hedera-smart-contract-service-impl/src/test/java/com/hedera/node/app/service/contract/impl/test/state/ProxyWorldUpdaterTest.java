@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.FAILURE_DURING_LAZY_ACCOUNT_CREATION;
@@ -24,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OUTPUT_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PERMITTED_ADDRESS_CALLER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.aliasFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -43,7 +29,6 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
@@ -57,7 +42,6 @@ import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
-import com.hedera.node.app.service.contract.impl.utils.SystemContractUtils;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import java.util.List;
 import java.util.Optional;
@@ -131,10 +115,10 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void collectingAndRefundingFeesDelegate() {
-        subject.collectFee(RELAYER_ID, 1L);
-        subject.refundFee(SENDER_ID, 1L);
-        verify(hederaOperations).collectFee(RELAYER_ID, 1L);
-        verify(hederaOperations).refundFee(SENDER_ID, 1L);
+        subject.collectGasFee(RELAYER_ID, 1L, false);
+        subject.refundGasFee(SENDER_ID, 1L);
+        verify(hederaOperations).collectGasFee(RELAYER_ID, 1L, false);
+        verify(hederaOperations).refundGasFee(SENDER_ID, 1L);
     }
 
     @Test
@@ -148,7 +132,7 @@ class ProxyWorldUpdaterTest {
     void getsHederaAccountByNumber() {
         final var num = ADDRESS_6.toBigInteger().longValueExact();
         final var numericId = AccountID.newBuilder().accountNum(num).build();
-        given(evmFrameState.getAddress(num)).willReturn(ADDRESS_6);
+        given(evmFrameState.getAddress(numericId)).willReturn(ADDRESS_6);
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(proxyEvmContract);
         assertSame(proxyEvmContract, subject.getHederaAccount(numericId));
     }
@@ -167,7 +151,7 @@ class ProxyWorldUpdaterTest {
     void returnsNullHederaAccountIfMissing() {
         final var num = ADDRESS_6.toBigInteger().longValueExact();
         final var numericId = AccountID.newBuilder().accountNum(num).build();
-        doThrow(IllegalArgumentException.class).when(evmFrameState).getAddress(num);
+        doThrow(IllegalArgumentException.class).when(evmFrameState).getAddress(numericId);
         assertNull(subject.getHederaAccount(numericId));
     }
 
@@ -361,6 +345,7 @@ class ProxyWorldUpdaterTest {
     @Test
     void canResolvePendingCreationHederaId() {
         given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         subject.setupInternalAliasedCreate(ADDRESS_6, SOME_EVM_ADDRESS);
 
@@ -507,19 +492,6 @@ class ProxyWorldUpdaterTest {
     void delegatesEntropy() {
         given(hederaOperations.entropy()).willReturn(OUTPUT_DATA);
         assertEquals(pbjToTuweniBytes(OUTPUT_DATA), subject.entropy());
-    }
-
-    @Test
-    void externalizeSystemContractResultTest() {
-        var contractFunctionResult = SystemContractUtils.successResultOfZeroValueTraceable(
-                0,
-                org.apache.tuweni.bytes.Bytes.EMPTY,
-                100L,
-                org.apache.tuweni.bytes.Bytes.EMPTY,
-                AccountID.newBuilder().build());
-
-        subject.externalizeSystemContractResults(contractFunctionResult, ResponseCodeEnum.SUCCESS);
-        verify(systemContractOperations).externalizeResult(contractFunctionResult, ResponseCodeEnum.SUCCESS);
     }
 
     @Test

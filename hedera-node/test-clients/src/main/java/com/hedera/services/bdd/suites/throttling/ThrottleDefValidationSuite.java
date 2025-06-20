@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.throttling;
 
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
@@ -33,6 +18,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -94,5 +80,12 @@ public class ThrottleDefValidationSuite {
     @Order(6)
     final Stream<DynamicTest> ensureDevLimitsRestored() {
         return hapiTest(withOpContext((spec, opLog) -> throttleRestorationOp.restoreContentsIfNeeded(spec)));
+    }
+
+    @HapiTest
+    @Order(7)
+    final Stream<DynamicTest> leastCommonMultipleOverflow() {
+        return hapiTest(
+                overridingThrottlesFails("testSystemFiles/lcm-overflow-throttles.json", THROTTLE_GROUP_LCM_OVERFLOW));
     }
 }

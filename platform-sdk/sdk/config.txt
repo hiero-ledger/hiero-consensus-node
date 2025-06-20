@@ -16,7 +16,7 @@ swirld, 123
 # app,		FCMStatsTestingTool.jar,	 signed, syncDelay, transPerEventMax, transPerSecToCreate
 # app,		FCMStatsTestingTool.jar,		 0,      0,         -1,               250
 # app,		PlatformTestingTool.jar, FCMFCQ-Basic-1k-10m.json
-# app,		MigrationTestingTool.jar, 4685095852903873060, 5000,	4
+# app,		MigrationTestingTool.jar, 4685095852903873060, 100000, 1000
 # app,		ISSTestingTool.jar
 # app,		AddressBookTestingTool.jar,
 # app,		ConsistencyTestingTool.jar,
@@ -62,12 +62,8 @@ swirld, 123
 # address,  37, ], node],     1, 127.0.0.1, 15338, 127.0.0.1, 15338
 # address,  38, <, node<,     1, 127.0.0.1, 15339, 127.0.0.1, 15339
 
-nextNodeId, 4
-
 # The above addresses assume all are running on the same computer.
 # If multiple computers are being used, then the listed IP addresses should be changed.
-
-# genesisFreezeTime, -1
 
 ###############################################################################################
 # The first line can be “swirld, “ and then a name for this swirld (shared world / ledger),
@@ -130,9 +126,9 @@ nextNodeId, 4
 #                               (Only use 127.0.0.1 if ALL the members are on the same machine)
 #         external port       - in range 50000-65535
 #
-#         stream IP address   - (optioanl) four numbers, each in the range 0-255, separated by dots
+#         stream IP address   - (optional) four numbers, each in the range 0-255, separated by dots
 #                               (Only use 127.0.0.1 if ALL the members are on the same machine)
-#         stream port         - (optioanl) in range 50000-65535
+#         stream port         - (optional) in range 50000-65535
 #
 #
 # Each member should be listed only once, on a single line. If all the members are on the same

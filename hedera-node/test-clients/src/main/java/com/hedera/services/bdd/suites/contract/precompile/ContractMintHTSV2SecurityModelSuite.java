@@ -1,24 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -67,7 +52,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractMintHTSV2SecurityModelSuite {
-    private static final long GAS_TO_OFFER = 4_000_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final String TOKEN_TREASURY = "treasury";
     private static final KeyShape TRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
     private static final String CONTRACT_KEY = "ContractKey";
@@ -122,21 +107,20 @@ public class ContractMintHTSV2SecurityModelSuite {
         final var amount = 10L;
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
 
-        return defaultHapiSpec("V2Security002FungibleTokenMintPositive")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER2),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                        uploadInitCode(HTS_CALLS),
-                        contractCreate(HTS_CALLS))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                uploadInitCode(HTS_CALLS),
+                contractCreate(HTS_CALLS),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // Create a key with shape contract and the contractId of HTSCalls contract
                         newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
@@ -231,21 +215,20 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is minted - total supply should be increased
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(4 * amount),
                         // Assert the token is mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 4 * amount))))
-                .then(
-                        // Verify that each test case has 1 successful child record
-                        getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(TREASURY_MINTS)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)));
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 4 * amount))),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(TREASURY_MINTS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -253,24 +236,23 @@ public class ContractMintHTSV2SecurityModelSuite {
         final var amount = 1;
         final AtomicReference<TokenID> nonFungible = new AtomicReference<>();
 
-        return defaultHapiSpec("V2Security003NonFungibleTokenMintPositive")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER2),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
-                        uploadInitCode(HTS_CALLS),
-                        contractCreate(HTS_CALLS),
-                        uploadInitCode(MINT_CONTRACT),
-                        sourcing(() -> contractCreate(
-                                MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get())))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
+                uploadInitCode(HTS_CALLS),
+                contractCreate(HTS_CALLS),
+                uploadInitCode(MINT_CONTRACT),
+                sourcing(() ->
+                        contractCreate(MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get())))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // Create a key with shape contract and the contractId of HTSCalls contract
                         newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(HTS_CALLS)),
@@ -367,21 +349,20 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is minted - total supply should be increased
                         getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(4 * amount),
                         // Assert the token is mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 4 * amount))))
-                .then(
-                        // Verify that each test case has 1 successful child record
-                        getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(TREASURY_MINTS)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)),
-                        getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(SUCCESS)));
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 4 * amount))),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_MINTS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(TREASURY_MINTS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_MINTS_WITH_THRESHOLD_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -389,23 +370,22 @@ public class ContractMintHTSV2SecurityModelSuite {
         final var amount = 10L;
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
 
-        return defaultHapiSpec("V2Security002FungibleTokenMintNegative")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                        uploadInitCode(HTS_CALLS),
-                        contractCreate(HTS_CALLS),
-                        uploadInitCode(MINT_CONTRACT),
-                        sourcing(() -> contractCreate(
-                                MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(fungible.get())))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                uploadInitCode(HTS_CALLS),
+                contractCreate(HTS_CALLS),
+                uploadInitCode(MINT_CONTRACT),
+                sourcing(() ->
+                        contractCreate(MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(fungible.get())))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         // Test Case 1: Signer paying and signing a token mint transaction, when the token
                         // is expected to  be minted in the token treasury account
@@ -485,41 +465,39 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is NOT minted - total supply should be 0
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0L),
                         // Assert the token is NOT mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L))))
-                .then(
-                        // Verify that each test case has 1 child record with the correct error message
-                        getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L))),
+                // Verify that each test case has 1 child record with the correct error message
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
     final Stream<DynamicTest> V2Security003NonFungibleTokenMintInTreasuryNegative() {
         final AtomicReference<TokenID> nonFungible = new AtomicReference<>();
 
-        return defaultHapiSpec("V2Security003NonFungibleTokenMintNegative")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
-                        uploadInitCode(HTS_CALLS),
-                        contractCreate(HTS_CALLS),
-                        uploadInitCode(MINT_CONTRACT),
-                        sourcing(() -> contractCreate(
-                                MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get())))))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
+                uploadInitCode(HTS_CALLS),
+                contractCreate(HTS_CALLS),
+                uploadInitCode(MINT_CONTRACT),
+                sourcing(() ->
+                        contractCreate(MINT_CONTRACT, HapiParserUtil.asHeadlongAddress(asAddress(nonFungible.get())))),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(THRESHOLD_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, HTS_CALLS))),
                         // Test Case 1: Signer paying and signing a token mint transaction, when the token
@@ -599,41 +577,39 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is NOT minted - total supply should be 0
                         getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0L),
                         // Assert the token is NOT mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L))))
-                .then(
-                        // Verify that each test case has 1 child record with the correct error message
-                        getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
-                        getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
-                                .andAllChildRecords()
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L))),
+                // Verify that each test case has 1 child record with the correct error message
+                getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
     }
 
     @HapiTest
     final Stream<DynamicTest> V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegatecall() {
-        return defaultHapiSpec("V2Security035TokenWithDelegateContractKeyCanNotMintFromDelegatecal")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY),
-                        uploadInitCode(MINT_TOKEN_VIA_DELEGATE_CALL),
-                        contractCreate(MINT_TOKEN_VIA_DELEGATE_CALL))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY),
+                uploadInitCode(MINT_TOKEN_VIA_DELEGATE_CALL),
+                contractCreate(MINT_TOKEN_VIA_DELEGATE_CALL),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MINT_TOKEN_VIA_DELEGATE_CALL)),
                         tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
@@ -741,8 +717,8 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is NOT minted - total supply should be 0
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                         // Assert the token is NOT mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L))))
-                .then(withOpContext((spec, opLog) -> {
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L))),
+                withOpContext((spec, opLog) -> {
                     allRunFor(
                             spec,
                             // Verify that each test case has 1 top level call with the correct status
@@ -766,28 +742,27 @@ public class ContractMintHTSV2SecurityModelSuite {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
         final AtomicReference<TokenID> nonFungible = new AtomicReference<>();
 
-        return defaultHapiSpec("V2Security040TokenWithDelegateContractKeyCanNotMintFromStaticcall")
-                .given(
-                        cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
-                        uploadInitCode(MINT_TOKEN_VIA_STATIC_CALL, MINT_TOKEN_VIA_NESTED_STATIC_CALL, SERVICE_CONTRACT),
-                        contractCreate(MINT_TOKEN_VIA_STATIC_CALL),
-                        contractCreate(SERVICE_CONTRACT))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_MILLION_HBARS),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
+                uploadInitCode(MINT_TOKEN_VIA_STATIC_CALL, MINT_TOKEN_VIA_NESTED_STATIC_CALL, SERVICE_CONTRACT),
+                contractCreate(MINT_TOKEN_VIA_STATIC_CALL),
+                contractCreate(SERVICE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCreate(
                                 MINT_TOKEN_VIA_NESTED_STATIC_CALL,
@@ -836,12 +811,9 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is NOT minted - total supply should be 0
                         getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                         // Assert the token is NOT mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L))))
-                .then(
-                        emptyChildRecordsCheck(
-                                STATIC_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
-                        emptyChildRecordsCheck(
-                                STATIC_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L))),
+                emptyChildRecordsCheck(STATIC_CALL_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
+                emptyChildRecordsCheck(STATIC_CALL_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
@@ -850,29 +822,28 @@ public class ContractMintHTSV2SecurityModelSuite {
         final AtomicReference<TokenID> nonFungible = new AtomicReference<>();
         final String precompileAddress = "0000000000000000000000000000000000000167";
 
-        return defaultHapiSpec("V2Security040TokenWithDelegateContractKeyCanNotMintFromCallcode")
-                .given(
-                        newKeyNamed(THRESHOLD_KEY),
-                        cryptoCreate(TOKEN_TREASURY).key(THRESHOLD_KEY).balance(THOUSAND_HBAR),
-                        cryptoCreate(RECEIVER),
-                        cryptoCreate(SIGNER).balance(THOUSAND_HBAR),
-                        tokenCreate(FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
-                        tokenCreate(NON_FUNGIBLE_TOKEN)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .initialSupply(0)
-                                .treasury(TOKEN_TREASURY)
-                                .adminKey(TOKEN_TREASURY)
-                                .supplyKey(TOKEN_TREASURY)
-                                .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
-                        uploadInitCode(MINT_TOKEN_VIA_CALLCODE),
-                        contractCreate(MINT_TOKEN_VIA_CALLCODE))
-                .when(withOpContext((spec, opLog) -> allRunFor(
+        return hapiTest(
+                newKeyNamed(THRESHOLD_KEY),
+                cryptoCreate(TOKEN_TREASURY).key(THRESHOLD_KEY).balance(THOUSAND_HBAR),
+                cryptoCreate(RECEIVER),
+                cryptoCreate(SIGNER).balance(THOUSAND_HBAR),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> nonFungible.set(asToken(idLit))),
+                uploadInitCode(MINT_TOKEN_VIA_CALLCODE),
+                contractCreate(MINT_TOKEN_VIA_CALLCODE),
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MINT_TOKEN_VIA_CALLCODE))),
@@ -887,8 +858,10 @@ public class ContractMintHTSV2SecurityModelSuite {
                                         asHeadlongAddress(precompileAddress),
                                         Bytes.wrap(MintTranslator.MINT_V2
                                                         .encodeCallWithArgs(
-                                                                asHeadlongAddress(asAddress(spec.registry()
-                                                                        .getTokenID(FUNGIBLE_TOKEN))),
+                                                                asHeadlongAddress(
+                                                                        asAddress(
+                                                                                spec.registry()
+                                                                                        .getTokenID(FUNGIBLE_TOKEN))),
                                                                 1L,
                                                                 EMPTY_METADATA)
                                                         .array())
@@ -905,7 +878,7 @@ public class ContractMintHTSV2SecurityModelSuite {
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(0),
                         // Assert the token is NOT mined in the token treasury account
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
-                        // `THRESHOLD_KEY` is the arleady existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
+                        // `THRESHOLD_KEY` is the already existing admin key for `NON_FUNGIBLE_TOKEN` and we need to
                         // sign with it
                         tokenUpdate(NON_FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(THRESHOLD_KEY),
                         // Test Case 2: Treasury account paying and signing a non fungible TOKEN MINT TRANSACTION,
@@ -917,8 +890,11 @@ public class ContractMintHTSV2SecurityModelSuite {
                                         asHeadlongAddress("0000000000000000000000000000000000000167"),
                                         Bytes.wrap(MintTranslator.MINT_V2
                                                         .encodeCallWithArgs(
-                                                                asHeadlongAddress(asAddress(spec.registry()
-                                                                        .getTokenID(NON_FUNGIBLE_TOKEN))),
+                                                                asHeadlongAddress(
+                                                                        asAddress(
+                                                                                spec.registry()
+                                                                                        .getTokenID(
+                                                                                                NON_FUNGIBLE_TOKEN))),
                                                                 1L,
                                                                 TEST_METADATA_2)
                                                         .array())
@@ -934,9 +910,8 @@ public class ContractMintHTSV2SecurityModelSuite {
                         // Assert that the token is NOT minted - total supply should be 0
                         getTokenInfo(NON_FUNGIBLE_TOKEN).hasTotalSupply(0),
                         // Assert the token is NOT mined in the token treasury account
-                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L))))
-                .then(
-                        childRecordsCheck(CALLCODE_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
-                        childRecordsCheck(CALLCODE_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L))),
+                childRecordsCheck(CALLCODE_WHEN_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED),
+                childRecordsCheck(CALLCODE_WHEN_NON_FUNGIBLE_TOKEN_HAS_CONTRACT_ID, CONTRACT_REVERT_EXECUTED));
     }
 }

@@ -1,35 +1,13 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.utility.Clearable;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.event.AncientMode;
-import com.swirlds.platform.event.PlatformEvent;
-import com.swirlds.platform.eventhandling.EventConfig;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.EventDescriptorWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayDeque;
@@ -49,6 +27,11 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.Clearable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * The primary purpose of the shadowgraph is to unlink events when it is safe to do so. In order to decide when it is
@@ -99,11 +82,6 @@ public class Shadowgraph implements Clearable {
     private final int numberOfNodes;
 
     /**
-     * Describes the current ancient mode.
-     */
-    private final AncientMode ancientMode;
-
-    /**
      * The most recent event window we know about.
      */
     private EventWindow eventWindow;
@@ -117,21 +95,15 @@ public class Shadowgraph implements Clearable {
      * Constructor.
      *
      * @param platformContext    the platform context
-     * @param addressBook        the address book
+     * @param numberOfNodes      numberOfNodes
      * @param intakeEventCounter tracks events in the intake pipeline
      */
     public Shadowgraph(
             @NonNull final PlatformContext platformContext,
-            @NonNull final AddressBook addressBook,
+            @NonNull final int numberOfNodes,
             @NonNull final IntakeEventCounter intakeEventCounter) {
-
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-
         this.metrics = new ShadowgraphMetrics(platformContext);
-        this.numberOfNodes = addressBook.getSize();
+        this.numberOfNodes = numberOfNodes;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         tips = new HashSet<>();
         hashToShadowEvent = new HashMap<>();
@@ -146,11 +118,11 @@ public class Shadowgraph implements Clearable {
      */
     private void startWithEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = eventWindow;
-        oldestUnexpiredIndicator = eventWindow.getExpiredThreshold();
+        oldestUnexpiredIndicator = eventWindow.expiredThreshold();
         logger.info(
                 STARTUP.getMarker(),
                 "Shadowgraph starting from expiration threshold {}",
-                eventWindow.getExpiredThreshold());
+                eventWindow.expiredThreshold());
     }
 
     /**
@@ -158,7 +130,7 @@ public class Shadowgraph implements Clearable {
      */
     public synchronized void clear() {
         eventWindow = null;
-        oldestUnexpiredIndicator = ancientMode.getGenesisIndicator();
+        oldestUnexpiredIndicator = ROUND_FIRST;
         disconnectShadowEvents();
         tips.clear();
         hashToShadowEvent.clear();
@@ -193,7 +165,7 @@ public class Shadowgraph implements Clearable {
         final ShadowgraphReservation lastReservation = reservationList.getLast();
 
         final long previouslyReservedThreshold = lastReservation.getReservedThreshold();
-        final long thresholdWeWantToReserve = eventWindow.getExpiredThreshold();
+        final long thresholdWeWantToReserve = eventWindow.expiredThreshold();
 
         if (previouslyReservedThreshold == thresholdWeWantToReserve) {
 
@@ -360,14 +332,14 @@ public class Shadowgraph implements Clearable {
             return;
         }
 
-        final long expiredThreshold = eventWindow.getExpiredThreshold();
+        final long expiredThreshold = eventWindow.expiredThreshold();
 
-        if (expiredThreshold < eventWindow.getExpiredThreshold()) {
+        if (expiredThreshold < eventWindow.expiredThreshold()) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "A request to expire below {} is less than request of {}. Ignoring expiration request",
                     expiredThreshold,
-                    eventWindow.getExpiredThreshold());
+                    eventWindow.expiredThreshold());
             // The value of expireBelow must never decrease, so if we receive an invalid request like this, ignore it
             return;
         }
@@ -378,10 +350,10 @@ public class Shadowgraph implements Clearable {
         long oldestReservedIndicator = pruneReservationList();
 
         if (oldestReservedIndicator == NO_RESERVATION) {
-            oldestReservedIndicator = eventWindow.getExpiredThreshold();
+            oldestReservedIndicator = eventWindow.expiredThreshold();
         }
 
-        metrics.updateIndicatorsWaitingForExpiry(eventWindow.getExpiredThreshold() - oldestReservedIndicator);
+        metrics.updateIndicatorsWaitingForExpiry(eventWindow.expiredThreshold() - oldestReservedIndicator);
 
         // Expire events that can and should be expired, starting with the oldest non-expired ancient indicator
         // and working up until we reach an indicator that should not or cannot be expired.
@@ -389,17 +361,11 @@ public class Shadowgraph implements Clearable {
         // This process must be separate from iterating through the reservations because even if there are no
         // reservations, expiry should still function correctly.
 
-        final long minimumIndicatorToKeep = Math.min(eventWindow.getExpiredThreshold(), oldestReservedIndicator);
+        final long minimumIndicatorToKeep = Math.min(eventWindow.expiredThreshold(), oldestReservedIndicator);
 
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
-            // shadowsToExpire should never be null, but check just in case.
-            if (shadowsToExpire == null) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "There were no events with ancient indicator {} to expire.",
-                        oldestUnexpiredIndicator);
-            } else {
+            if (shadowsToExpire != null) {
                 shadowsToExpire.forEach(this::expire);
             }
             oldestUnexpiredIndicator++;
@@ -425,7 +391,7 @@ public class Shadowgraph implements Clearable {
                 // As soon as we find a reserved indicator, stop iterating
                 oldestReservedIndicator = reservation.getReservedThreshold();
                 break;
-            } else if (reservedIndicator < eventWindow.getExpiredThreshold()) {
+            } else if (reservedIndicator < eventWindow.expiredThreshold()) {
                 // If the number of reservations is 0 and the
                 // indicator should be expired, remove the reservation
                 iterator.remove();
@@ -561,7 +527,7 @@ public class Shadowgraph implements Clearable {
                             () -> event,
                             () -> event.getSelfParent() == null,
                             () -> s.getSelfParent() == null,
-                            () -> eventWindow.getExpiredThreshold(),
+                            () -> eventWindow.expiredThreshold(),
                             () -> oldestUnexpiredIndicator,
                             () -> tips.stream()
                                     .map(sh -> sh.getEvent().getDescriptor().toString())
@@ -595,7 +561,7 @@ public class Shadowgraph implements Clearable {
     }
 
     private ShadowgraphReservation newReservation() {
-        final ShadowgraphReservation reservation = new ShadowgraphReservation(eventWindow.getExpiredThreshold());
+        final ShadowgraphReservation reservation = new ShadowgraphReservation(eventWindow.expiredThreshold());
         reservationList.addLast(reservation);
         return reservation;
     }
@@ -630,7 +596,7 @@ public class Shadowgraph implements Clearable {
 
         hashToShadowEvent.put(se.getEventBaseHash(), se);
 
-        final long ancientIndicator = event.getAncientIndicator(ancientMode);
+        final long ancientIndicator = event.getBirthRound();
         if (!indicatorToShadowEvent.containsKey(ancientIndicator)) {
             indicatorToShadowEvent.put(ancientIndicator, new HashSet<>());
         }
@@ -646,7 +612,7 @@ public class Shadowgraph implements Clearable {
      * @return true iff the given event is expired
      */
     private boolean expired(final EventDescriptorWrapper event) {
-        return event.getAncientIndicator(ancientMode) < oldestUnexpiredIndicator;
+        return event.birthRound() < oldestUnexpiredIndicator;
     }
 
     /*
@@ -716,7 +682,7 @@ public class Shadowgraph implements Clearable {
             final boolean knownOP = shadow(otherParent) != null;
             final boolean expiredOP = expired(otherParent);
             if (!knownOP && !expiredOP) {
-                logger.warn(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
+                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
             }
         }
 
@@ -724,7 +690,7 @@ public class Shadowgraph implements Clearable {
             final boolean knownSP = shadow(e.getSelfParent()) != null;
             final boolean expiredSP = expired(e.getSelfParent());
             if (!knownSP && !expiredSP) {
-                logger.warn(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
+                logger.info(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
             }
         }
 

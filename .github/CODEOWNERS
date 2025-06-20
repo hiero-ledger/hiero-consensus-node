@@ -2,20 +2,25 @@
 ##### Global Protection Rule ######
 ###################################
 # NOTE: This rule is overriden by the more specific rules below. This is the catch-all rule for all files not covered by the more specific rules below.
-*                                               @hashgraph/devops-ci @hashgraph/release-engineering-managers
+*                                               @hiero-ledger/github-maintainers
 #########################
 ##### Example apps ######
 #########################
-# Platform-Base Example app
-/example-apps/**/module-info.java               @hashgraph/platform-base @hashgraph/devops-ci
-/example-apps/swirlds-platform-base-example/    @hashgraph/platform-base
+# Foundation Base Example app
+/example-apps/**/module-info.java               @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/example-apps/swirlds-platform-base-example/    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
+############################
+##### State Validator ######
+############################
+/hedera-state-validator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 #########################
 ##### HAPI protobuf #####
 #########################
 
-/hapi/                                          @hashgraph/hedera-base @hashgraph/hedera-services @hashgraph/hedera-smart-contracts-core @hashgraph/platform-hashgraph @hashgraph/platform-data @hashgraph/platform-base @hashgraph/platform-architects
+/hapi/                                          @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/hapi/hedera-protobufs/services                 @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
 
 
 #########################
@@ -23,70 +28,79 @@
 #########################
 
 # Hedera Node Root Protections
-/hedera-node/                                   @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/README.md                          @hashgraph/hedera-base @hashgraph/hedera-services @hashgraph/devops-ci @hashgraph/release-engineering-managers
+/hedera-node/                                   @hiero-ledger/hiero-consensus-node-execution-codeowners
 
 # Hedera Node Deployments - Configuration & Grafana Dashboards
-/hedera-node/configuration/**                   @rbair23 @dalvizu @poulok @netopyr @Nana-EC @SimiHunjan @steven-sheehy @nathanklick
-/hedera-node/configuration/dev/**               @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/infrastructure/**                  @hashgraph/release-engineering-managers @hashgraph/devops-ci @hashgraph/devops @hashgraph/hedera-base @hashgraph/hedera-services
+/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @beeradb
+/hedera-node/configuration/dev/**               @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/infrastructure/**                  @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners
 
 # Hedera Node Docker Definitions
-/hedera-node/docker/                            @hashgraph/hedera-base @hashgraph/hedera-services @hashgraph/devops-ci @hashgraph/release-engineering @hashgraph/release-engineering-managers
+/hedera-node/docker/                            @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/github-maintainers
 
 # Hedera Node Modules
-/hedera-node/hapi*/                             @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-admin*/                     @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-app*/                       @hashgraph/hedera-base
-/hedera-node/hedera-consensus*/                 @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-file*/                      @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-network*/                   @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-schedule*/                  @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-smart-contract*/            @hashgraph/hedera-smart-contracts-core @tinker-michaelj
-/hedera-node/hedera-token*/                     @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-util*/                      @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/hedera-staking*/                   @hashgraph/hedera-base @hashgraph/hedera-services
-/hedera-node/test-clients/                      @hashgraph/hedera-base @hashgraph/hedera-services @hashgraph/hedera-smart-contracts-core
-/hedera-node/**/module-info.java                @hashgraph/hedera-base @hashgraph/hedera-services @hashgraph/devops-ci
+/hedera-node/hapi*/                             @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-admin*/                     @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-app*/                       @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-consensus*/                 @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-file*/                      @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-network*/                   @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-schedule*/                  @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-smart-contract*/            @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @tinker-michaelj
+/hedera-node/hedera-token*/                     @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-util*/                      @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-staking*/                   @hiero-ledger/hiero-consensus-node-execution-codeowners
+/hedera-node/test-clients/                      @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+
+# Documentation
+/hedera-node/docs/design/services/smart-contract-service    @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 ###############################
 ##### Hedera Cryptography #####
 ###############################
-/hedera-cryptography/                           @hashgraph/platform-cryptography
+# add @rsinha as an explicit codeowner once hiero-invite has been added
+/hedera-cryptography/                               @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 #########################
 ##### Platform SDK ######
 #########################
 
 # Platform SDK Root Protections
-/platform-sdk/                                  @hashgraph/platform-hashgraph @hashgraph/platform-data @hashgraph/platform-base @hashgraph/platform-architects
-/platform-sdk/README.md                         @hashgraph/platform-hashgraph @hashgraph/devops-ci @hashgraph/release-engineering-managers
+/platform-sdk/                                      @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/README.md                             @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 # Platform SDK Modules
-/platform-sdk/platform-apps/                    @hashgraph/platform-hashgraph
-/platform-sdk/swirlds-base/                     @hashgraph/platform-base
-/platform-sdk/swirlds-benchmarks/               @hashgraph/platform-data @hashgraph/platform-architects
-/platform-sdk/swirlds-cli/                      @hashgraph/platform-hashgraph
-/platform-sdk/swirlds-common/                   @hashgraph/platform-hashgraph @hashgraph/platform-base @hashgraph/platform-data
-/platform-sdk/swirlds-config-*/                 @hashgraph/platform-base
-/platform-sdk/swirlds-fchashmap/                @hashgraph/platform-data @hashgraph/platform-architects
-/platform-sdk/swirlds-fcqueue/                  @hashgraph/platform-data @hashgraph/platform-architects
-/platform-sdk/swirlds-merkledb/                 @hashgraph/platform-data @hashgraph/platform-architects
-/platform-sdk/swirlds-logging/                  @hashgraph/platform-hashgraph @hashgraph/platform-base
-/platform-sdk/swirlds-logging-*/                @hashgraph/platform-base
-/platform-sdk/swirlds-merkle/                   @hashgraph/platform-data @hashgraph/platform-architects
-/platform-sdk/swirlds-platform-core/            @hashgraph/platform-hashgraph
-/platform-sdk/swirlds-unit-tests/common/        @hashgraph/platform-hashgraph @hashgraph/platform-base
-/platform-sdk/swirlds-unit-tests/core/          @hashgraph/platform-hashgraph @hashgraph/platform-base
-/platform-sdk/swirlds-unit-tests/structures/    @hashgraph/platform-data @hashgraph/platform-architects  @hashgraph/platform-base
-/platform-sdk/swirlds-virtualmap/               @hashgraph/platform-data @hashgraph/platform-architects
-/platform-sdk/**/module-info.java               @hashgraph/platform-hashgraph @hashgraph/platform-base @hashgraph/devops-ci @hashgraph/release-engineering-managers
+/platform-sdk/consensus-*/                          @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/platform-apps/                        @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-base/                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-benchmarks/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-cli/                          @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-component-framework/          @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-config-*/                     @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-fchashmap/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-fcqueue/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-logging/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-logging-*/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-merkle/                       @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-merkledb/                     @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-metrics-*/                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-platform-core/                @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-state-*/                      @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-unit-tests/structures/        @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/**/module-info.java                   @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
+
+####################
+#####   HAPI  ######
+####################
+/hapi/                                              @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 # Documentation
-/platform-sdk/docs/platformWiki.md              @hashgraph/platform-hashgraph @hashgraph/platform-data @hashgraph/platform-base
-/platform-sdk/docs/base                         @hashgraph/platform-base
-/platform-sdk/docs/components                   @hashgraph/platform-hashgraph
-/platform-sdk/docs/core                         @hashgraph/platform-hashgraph
+/platform-sdk/docs/platformWiki.md                  @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/docs/base                             @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/platform-sdk/docs/components                       @hiero-ledger/hiero-consensus-node-consensus-codeowners
+/platform-sdk/docs/core                             @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 #########################
 #####  Core Files  ######
@@ -95,38 +109,40 @@
 # NOTE: Must be placed last to ensure enforcement over all other rules
 
 # Protection Rules for Github Configuration Files and Actions Workflows
-/.github/                                       @hashgraph/devops-ci @hashgraph/release-engineering-managers
-/.github/workflows/                             @hashgraph/devops-ci @hashgraph/devops-ci-committers
+/.github/                                           @hiero-ledger/github-maintainers
+/.github/workflows/                                 @hiero-ledger/github-maintainers
+/.github/workflows/node-zxf-deploy-integration.yaml @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
+/.github/workflows/node-zxf-deploy-preview.yaml     @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
 
 # Legacy Maven project files
-**/pom.xml                                      @hashgraph/devops-ci
+**/pom.xml                                          @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-devops-codeowners
 
 # Gradle project files and inline plugins
-/gradle/                                        @hashgraph/devops-ci @hashgraph/devops-ci-committers
-gradlew                                         @hashgraph/devops-ci @hashgraph/devops-ci-committers
-gradlew.bat                                     @hashgraph/devops-ci @hashgraph/devops-ci-committers
-**/build-logic/                                 @hashgraph/devops-ci @hashgraph/devops-ci-committers
-**/gradle.*                                     @hashgraph/devops-ci @hashgraph/devops-ci-committers
-**/*.gradle.*                                   @hashgraph/devops-ci @hashgraph/devops-ci-committers
+/gradle/                                            @hiero-ledger/github-maintainers
+gradlew                                             @hiero-ledger/github-maintainers
+gradlew.bat                                         @hiero-ledger/github-maintainers
+**/build-logic/                                     @hiero-ledger/github-maintainers
+**/gradle.*                                         @hiero-ledger/github-maintainers
+**/*.gradle.*                                       @hiero-ledger/github-maintainers
 
 # Codacy Tool Configurations
-/config/                                        @hashgraph/devops-ci @hashgraph/release-engineering-managers
-.remarkrc                                       @hashgraph/devops-ci @hashgraph/release-engineering-managers
+/config/                                            @hiero-ledger/github-maintainers
+.remarkrc                                           @hiero-ledger/github-maintainers
 
 # Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
-/CODEOWNERS                                     @hashgraph/release-engineering-managers
+/CODEOWNERS                                         @hiero-ledger/github-maintainers
 
 # Protect the repository root files
-/README.md                                      @hashgraph/devops-ci @hashgraph/release-engineering-managers
-**/LICENSE                                      @hashgraph/release-engineering-managers
+/README.md                                          @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
+**/LICENSE                                          @hiero-ledger/github-maintainers
 
 # CodeCov configuration
-**/codecov.yml                                  @hashgraph/devops-ci @hashgraph/release-engineering-managers
+**/codecov.yml                                      @hiero-ledger/github-maintainers
 
 # Git Ignore definitions
-**/.gitignore                                   @hashgraph/devops-ci @hashgraph/release-engineering-managers
-**/.gitignore.*                                 @hashgraph/devops-ci @hashgraph/release-engineering-managers
+**/.gitignore                                       @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
+**/.gitignore.*                                     @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 # Legacy CircleCI configuration
-.circleci.settings.xml                          @hashgraph/devops-ci @hashgraph/release-engineering-managers
-/.circleci/                                     @hashgraph/devops-ci @hashgraph/release-engineering-managers
+.circleci.settings.xml                              @hiero-ledger/github-maintainers 
+/.circleci/                                         @hiero-ledger/github-maintainers

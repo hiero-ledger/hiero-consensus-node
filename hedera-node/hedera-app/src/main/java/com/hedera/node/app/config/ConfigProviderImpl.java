@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.config;
 
 import static java.util.Objects.requireNonNull;
@@ -26,8 +11,6 @@ import com.hedera.node.config.sources.PropertyConfigSource;
 import com.hedera.node.config.sources.SettingsConfigSource;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.threading.locks.AutoClosableLock;
-import com.swirlds.common.threading.locks.Locks;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -40,6 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.locks.AutoClosableLock;
+import org.hiero.base.concurrent.locks.Locks;
 
 /**
  * Implementation of the {@link ConfigProvider} interface.
@@ -58,6 +43,8 @@ public class ConfigProviderImpl extends ConfigProviderBase {
     private final AutoClosableLock updateLock = Locks.createAutoLock();
 
     private final ConfigMetrics configMetrics;
+
+    private final Map<String, String> overrideValues;
 
     /**
      * Create a new instance, particularly from dependency injection.
@@ -92,6 +79,9 @@ public class ConfigProviderImpl extends ConfigProviderBase {
         addFileSources(builder, useGenesisSource);
         if (overrideValues != null) {
             overrideValues.forEach(builder::withValue);
+            this.overrideValues = Map.copyOf(overrideValues);
+        } else {
+            this.overrideValues = Map.of();
         }
         final Configuration config = builder.build();
         configuration = new AtomicReference<>(new VersionedConfigImpl(config, 0));
@@ -124,6 +114,7 @@ public class ConfigProviderImpl extends ConfigProviderBase {
             addFileSources(builder, false);
             addByteSource(builder, networkProperties);
             addByteSource(builder, permissions);
+            overrideValues.forEach(builder::withValue);
             final Configuration config = builder.build();
             configuration.set(
                     new VersionedConfigImpl(config, this.configuration.get().getVersion() + 1));

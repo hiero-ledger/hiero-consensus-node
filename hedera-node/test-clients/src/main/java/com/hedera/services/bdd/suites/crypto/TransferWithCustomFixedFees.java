@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -45,9 +31,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountUpdateSuite.TRANSFER_TXN_2;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_MUST_BE_POSITIVE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -56,6 +47,7 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -95,25 +87,24 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHbarCustomFee() {
-        return defaultHapiSpec("transferFungibleWithFixedHbarCustomFee")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("transferTx")
-                        .payingWith(tokenOwner))
-                .then(withOpContext((spec, log) -> {
+                        .payingWith(tokenOwner),
+                withOpContext((spec, log) -> {
                     final var record = getTxnRecord("transferTx");
                     allRunFor(spec, record);
                     final var txFee = record.getResponseRecord().getTransactionFee();
@@ -131,144 +122,133 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHbarCustomFeeNotEnoughBalance() {
-        return defaultHapiSpec("transferFungibleWithFixedHbarCustomFeeNotEnoughBalance")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(ONE_HUNDRED_HBARS, hbarCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(ONE_HUNDRED_HBARS, hbarCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE))
-                .then(
-                        getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
-                        getAccountBalance(hbarCollector).hasTinyBars(0));
+                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
+                getAccountBalance(hbarCollector).hasTinyBars(0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFee() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFee")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(tokenOwner))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, 999)
-                                .hasTokenBalance(feeDenom, tokenTotal - htsFee),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
+                        .payingWith(tokenOwner),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, 999)
+                        .hasTokenBalance(feeDenom, tokenTotal - htsFee),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeNotEnoughBalanceFeeToken() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFeeNotEnoughBalanceFeeToken()")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(1),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(1),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, tokenTotal)
-                                .hasTokenBalance(feeDenom, 1),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, tokenTotal)
+                        .hasTokenBalance(feeDenom, 1),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeNotEnoughBalanceTransferToken() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFeeNotEnoughBalanceTransferToken()")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(2),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(2, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(2, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(3, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(2),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(2, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(2, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(3, fungibleToken).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, 2)
-                                .hasTokenBalance(feeDenom, 2),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+                        .hasKnownStatus(INSUFFICIENT_TOKEN_BALANCE),
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, 2).hasTokenBalance(feeDenom, 2),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHbarCustomFee() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHbarCustomFee")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("transferTx")
-                        .payingWith(tokenOwner))
-                .then(withOpContext((spec, log) -> {
+                        .payingWith(tokenOwner),
+                withOpContext((spec, log) -> {
                     final var record = getTxnRecord("transferTx");
                     allRunFor(spec, record);
                     final var txFee = record.getResponseRecord().getTransactionFee();
@@ -286,132 +266,124 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHbarCustomFeeNotEnoughBalance() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHbarCustomFeeNotEnoughBalance")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHbarFee(THOUSAND_HBAR, hbarCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHbarFee(THOUSAND_HBAR, hbarCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE))
-                .then(
-                        getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 1),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
-                        getAccountBalance(hbarCollector).hasTinyBars(0));
+                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
+                getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 1),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
+                getAccountBalance(hbarCollector).hasTinyBars(0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHtsCustomFee() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHtsCustomFee")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(tokenOwner))
-                .then(
-                        getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
+                        .payingWith(tokenOwner),
+                getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHtsCustomFeeNotEnoughBalanceFeeToken() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHtsCustomFeeNotEnoughBalanceFeeToken")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(1),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(2, feeDenom, htsCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(1),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(2, feeDenom, htsCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .payingWith(tokenOwner)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(nonFungibleToken, 1)
-                                .hasTokenBalance(feeDenom, 1),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(nonFungibleToken, 1)
+                        .hasTokenBalance(feeDenom, 1),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHbarCustomFee() {
-        return defaultHapiSpec("transferApprovedFungibleWithFixedHbarCustomFee")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(spender, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(
-                        cryptoApproveAllowance()
-                                .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("allowanceTx")
-                                .payingWith(tokenOwner),
-                        getAccountDetails(tokenOwner)
-                                .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 10L)),
-                        cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(spender)
-                                .signedBy(spender))
-                .then(withOpContext((spec, log) -> {
+        return hapiTest(
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(spender, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("allowanceTx")
+                        .payingWith(tokenOwner),
+                getAccountDetails(tokenOwner)
+                        .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 10L)),
+                cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(spender)
+                        .signedBy(spender),
+                withOpContext((spec, log) -> {
                     final var allowanceRecord = getTxnRecord("allowanceTx");
                     allRunFor(spec, allowanceRecord);
                     final var allowanceFee = allowanceRecord.getResponseRecord().getTransactionFee();
@@ -432,197 +404,178 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHbarCustomFeeNoAllowance() {
-        return defaultHapiSpec("transferApprovedFungibleWithFixedHbarCustomFeeNoAllowance")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(spender, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(spender, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(spender)
                         .signedBy(spender)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE))
-                .then(
-                        getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal),
-                        getAccountBalance(spender).hasTokenBalance(fungibleToken, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
-                        getAccountBalance(hbarCollector).hasTinyBars(0));
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal),
+                getAccountBalance(spender).hasTokenBalance(fungibleToken, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
+                getAccountBalance(hbarCollector).hasTinyBars(0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHtsCustomFeeAsOwner() {
-        return defaultHapiSpec("transferApprovedFungibleWithFixedHtsCustomFeeAsOwner")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(spender).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(tokenOwner, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(spender, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
-                        cryptoTransfer(moving(200L, feeDenom).between(spender, tokenOwner)))
-                .when(
-                        cryptoApproveAllowance()
-                                .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(tokenOwner),
-                        getAccountDetails(tokenOwner)
-                                .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 10L)),
-                        cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(spender)
-                                .signedBy(spender))
-                .then(
-                        getAccountDetails(tokenOwner)
-                                .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 9L)),
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, 999)
-                                .hasTokenBalance(feeDenom, 200L - htsFee),
-                        getAccountBalance(spender)
-                                .hasTokenBalance(fungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 800L),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(spender).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(spender, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(200L, feeDenom).between(spender, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(tokenOwner),
+                getAccountDetails(tokenOwner)
+                        .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 10L)),
+                cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(spender)
+                        .signedBy(spender),
+                getAccountDetails(tokenOwner)
+                        .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 9L)),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, 999)
+                        .hasTokenBalance(feeDenom, 200L - htsFee),
+                getAccountBalance(spender).hasTokenBalance(fungibleToken, 0).hasTokenBalance(feeDenom, 800L),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHtsCustomFeeAsSpender() {
-        return defaultHapiSpec("transferApprovedFungibleWithFixedHtsCustomFeeAsSpender")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(spender, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(spender, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(
-                        cryptoApproveAllowance()
-                                .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .signedBy(tokenOwner)
-                                .payingWith(tokenOwner),
-                        getAccountDetails(tokenOwner)
-                                .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 10L)),
-                        cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(spender)
-                                .signedBy(spender))
-                .then(
-                        getAccountDetails(tokenOwner)
-                                .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 9L)),
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, 999)
-                                .hasTokenBalance(feeDenom, tokenTotal - htsFee),
-                        getAccountBalance(spender)
-                                .hasTokenBalance(fungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(spender, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(spender, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(tokenOwner)
+                        .payingWith(tokenOwner),
+                getAccountDetails(tokenOwner)
+                        .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 10L)),
+                cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(spender)
+                        .signedBy(spender),
+                getAccountDetails(tokenOwner)
+                        .has(accountDetailsWith().tokenAllowancesContaining(fungibleToken, spender, 9L)),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, 999)
+                        .hasTokenBalance(feeDenom, tokenTotal - htsFee),
+                getAccountBalance(spender).hasTokenBalance(fungibleToken, 0).hasTokenBalance(feeDenom, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedFungibleWithFixedHtsCustomFeeNoAllowance() {
-        return defaultHapiSpec("transferApprovedFungibleWithFixedHtsCustomFeeNoAllowance")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(spender, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(spender, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(spender, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(spender, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingWithAllowance(1L, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(spender)
                         .signedBy(spender)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, tokenTotal)
-                                .hasTokenBalance(feeDenom, tokenTotal),
-                        getAccountBalance(spender)
-                                .hasTokenBalance(fungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, tokenTotal)
+                        .hasTokenBalance(feeDenom, tokenTotal),
+                getAccountBalance(spender).hasTokenBalance(fungibleToken, 0).hasTokenBalance(feeDenom, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 0),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHbarCustomFee() {
-        return defaultHapiSpec("transferApprovedNonFungibleWithFixedHbarCustomFee")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        tokenAssociate(spender, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(
-                        cryptoApproveAllowance()
-                                .addNftAllowance(tokenOwner, nonFungibleToken, spender, false, List.of(1L))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("allowanceTx")
-                                .payingWith(tokenOwner),
-                        cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L)
-                                        .between(tokenOwner, tokenReceiver))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(spender)
-                                .signedBy(spender))
-                .then(withOpContext((spec, log) -> {
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(spender, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addNftAllowance(tokenOwner, nonFungibleToken, spender, false, List.of(1L))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .via("allowanceTx")
+                        .payingWith(tokenOwner),
+                cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(spender)
+                        .signedBy(spender),
+                withOpContext((spec, log) -> {
                     final var allowanceRecord = getTxnRecord("allowanceTx");
                     allRunFor(spec, allowanceRecord);
                     final var allowanceFee = allowanceRecord.getResponseRecord().getTransactionFee();
@@ -641,392 +594,349 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHbarCustomFeeNoAllowance() {
-        return defaultHapiSpec("transferApprovedNonFungibleWithFixedHbarCustomFeeNoAllowance")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        tokenAssociate(spender, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(
-                                movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(spender, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(spender)
                         .signedBy(spender)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE))
-                .then(
-                        getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 1),
-                        getAccountBalance(spender).hasTokenBalance(nonFungibleToken, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
-                        getAccountBalance(hbarCollector).hasTinyBars(0));
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 1),
+                getAccountBalance(spender).hasTokenBalance(nonFungibleToken, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
+                getAccountBalance(hbarCollector).hasTinyBars(0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHtsCustomFeeAsOwner() {
-        return defaultHapiSpec("transferApprovedNonFungibleWithFixedHtsCustomFeeAsOwner")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(spender).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(tokenOwner, feeDenom),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        tokenAssociate(spender, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
-                        cryptoTransfer(moving(200L, feeDenom).between(spender, tokenOwner)))
-                .when(
-                        cryptoApproveAllowance()
-                                .addNftAllowance(tokenOwner, nonFungibleToken, spender, false, List.of(1L))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(tokenOwner),
-                        cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L)
-                                        .between(tokenOwner, tokenReceiver))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(spender)
-                                .signedBy(spender))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 200L - htsFee),
-                        getAccountBalance(spender)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 800L),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(spender).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(spender, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(200L, feeDenom).between(spender, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addNftAllowance(tokenOwner, nonFungibleToken, spender, false, List.of(1L))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(tokenOwner),
+                cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(spender)
+                        .signedBy(spender),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(nonFungibleToken, 0)
+                        .hasTokenBalance(feeDenom, 200L - htsFee),
+                getAccountBalance(spender).hasTokenBalance(nonFungibleToken, 0).hasTokenBalance(feeDenom, 800L),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHtsCustomFeeAsSpender() {
-        return defaultHapiSpec("transferApprovedNonFungibleWithFixedHtsCustomFeeAsSpender")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(spender, feeDenom),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        tokenAssociate(spender, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(
-                        cryptoApproveAllowance()
-                                .addNftAllowance(tokenOwner, nonFungibleToken, spender, false, List.of(1L))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(tokenOwner),
-                        cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L)
-                                        .between(tokenOwner, tokenReceiver))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(spender)
-                                .signedBy(spender))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, tokenTotal - htsFee),
-                        getAccountBalance(spender)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(spender, feeDenom),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(spender, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoApproveAllowance()
+                        .addNftAllowance(tokenOwner, nonFungibleToken, spender, false, List.of(1L))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(tokenOwner),
+                cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(spender)
+                        .signedBy(spender),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(nonFungibleToken, 0)
+                        .hasTokenBalance(feeDenom, tokenTotal - htsFee),
+                getAccountBalance(spender).hasTokenBalance(nonFungibleToken, 0).hasTokenBalance(feeDenom, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferApprovedNonFungibleWithFixedHtsCustomFeeNoAllowance() {
-        return defaultHapiSpec("transferApprovedNonFungibleWithFixedHtsCustomFeeNoAllowance")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(spender, feeDenom),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        tokenAssociate(spender, nonFungibleToken),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(
-                                movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(spender, feeDenom),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                tokenAssociate(spender, nonFungibleToken),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUniqueWithAllowance(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(spender)
                         .signedBy(spender)
-                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(nonFungibleToken, 1)
-                                .hasTokenBalance(feeDenom, tokenTotal),
-                        getAccountBalance(spender)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 0),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(nonFungibleToken, 1)
+                        .hasTokenBalance(feeDenom, tokenTotal),
+                getAccountBalance(spender).hasTokenBalance(nonFungibleToken, 0).hasTokenBalance(feeDenom, 0),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 0),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithThreeFixedHtsCustomFeesWithoutAllCollectorsExempt() {
         final long amountToSend = 400L;
-        return defaultHapiSpec("transferFungibleWithThreeFixedHtsCustomFeesWithoutAllCollectorsExempt")
-                .given(
-                        cryptoCreate(alice).balance(0L),
-                        cryptoCreate(bob).balance(0L),
-                        cryptoCreate(carol).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal * 10L),
-                        tokenAssociate(alice, feeDenom),
-                        tokenAssociate(bob, feeDenom),
-                        tokenAssociate(carol, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(aliceFee, feeDenom, alice))
-                                .withCustom(fixedHtsFee(bobFee, feeDenom, bob))
-                                .withCustom(fixedHtsFee(carolFee, feeDenom, carol)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(alice, fungibleToken),
-                        tokenAssociate(bob, fungibleToken),
-                        tokenAssociate(carol, fungibleToken),
-                        cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, alice)),
-                        cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, bob)),
-                        cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, carol)))
-                .when(
-                        cryptoTransfer(moving(amountToSend, fungibleToken).between(tokenTreasury, alice)),
-                        cryptoTransfer(moving(amountToSend / 2, fungibleToken).between(alice, bob)),
-                        cryptoTransfer(moving(amountToSend / 4, fungibleToken).between(bob, carol)))
-                .then(
-                        getAccountBalance(alice)
-                                .hasTokenBalance(fungibleToken, 200)
-                                .hasTokenBalance(feeDenom, 600),
-                        getAccountBalance(bob)
-                                .hasTokenBalance(fungibleToken, 100)
-                                .hasTokenBalance(feeDenom, 800),
-                        getAccountBalance(carol)
-                                .hasTokenBalance(fungibleToken, 100)
-                                .hasTokenBalance(feeDenom, 1600));
+        return hapiTest(
+                cryptoCreate(alice).balance(0L),
+                cryptoCreate(bob).balance(0L),
+                cryptoCreate(carol).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal * 10L),
+                tokenAssociate(alice, feeDenom),
+                tokenAssociate(bob, feeDenom),
+                tokenAssociate(carol, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(aliceFee, feeDenom, alice))
+                        .withCustom(fixedHtsFee(bobFee, feeDenom, bob))
+                        .withCustom(fixedHtsFee(carolFee, feeDenom, carol)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(alice, fungibleToken),
+                tokenAssociate(bob, fungibleToken),
+                tokenAssociate(carol, fungibleToken),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, alice)),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, bob)),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, carol)),
+                cryptoTransfer(moving(amountToSend, fungibleToken).between(tokenTreasury, alice)),
+                cryptoTransfer(moving(amountToSend / 2, fungibleToken).between(alice, bob)),
+                cryptoTransfer(moving(amountToSend / 4, fungibleToken).between(bob, carol)),
+                getAccountBalance(alice).hasTokenBalance(fungibleToken, 200).hasTokenBalance(feeDenom, 600),
+                getAccountBalance(bob).hasTokenBalance(fungibleToken, 100).hasTokenBalance(feeDenom, 800),
+                getAccountBalance(carol).hasTokenBalance(fungibleToken, 100).hasTokenBalance(feeDenom, 1600));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithThreeFixedHtsCustomFeesWithAllCollectorsExempt() {
         final long amountToSend = 400L;
-        return defaultHapiSpec("transferFungibleWithThreeFixedHtsCustomFeesWithAllCollectorsExempt")
-                .given(
-                        cryptoCreate(alice).balance(0L),
-                        cryptoCreate(bob).balance(0L),
-                        cryptoCreate(carol).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal * 10L),
-                        tokenAssociate(alice, feeDenom),
-                        tokenAssociate(bob, feeDenom),
-                        tokenAssociate(carol, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(aliceFee, feeDenom, alice, true))
-                                .withCustom(fixedHtsFee(bobFee, feeDenom, bob, true))
-                                .withCustom(fixedHtsFee(carolFee, feeDenom, carol, true)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(alice, fungibleToken),
-                        tokenAssociate(bob, fungibleToken),
-                        tokenAssociate(carol, fungibleToken),
-                        cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, alice)),
-                        cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, bob)),
-                        cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, carol)))
-                .when(
-                        cryptoTransfer(moving(amountToSend, fungibleToken).between(tokenTreasury, alice)),
-                        cryptoTransfer(moving(amountToSend / 2, fungibleToken).between(alice, bob)),
-                        cryptoTransfer(moving(amountToSend / 4, fungibleToken).between(bob, carol)))
-                .then(
-                        getAccountBalance(alice)
-                                .hasTokenBalance(fungibleToken, 200)
-                                .hasTokenBalance(feeDenom, 1000),
-                        getAccountBalance(bob)
-                                .hasTokenBalance(fungibleToken, 100)
-                                .hasTokenBalance(feeDenom, 1000),
-                        getAccountBalance(carol)
-                                .hasTokenBalance(fungibleToken, 100)
-                                .hasTokenBalance(feeDenom, 1000));
+        return hapiTest(
+                cryptoCreate(alice).balance(0L),
+                cryptoCreate(bob).balance(0L),
+                cryptoCreate(carol).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal * 10L),
+                tokenAssociate(alice, feeDenom),
+                tokenAssociate(bob, feeDenom),
+                tokenAssociate(carol, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(aliceFee, feeDenom, alice, true))
+                        .withCustom(fixedHtsFee(bobFee, feeDenom, bob, true))
+                        .withCustom(fixedHtsFee(carolFee, feeDenom, carol, true)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(alice, fungibleToken),
+                tokenAssociate(bob, fungibleToken),
+                tokenAssociate(carol, fungibleToken),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, alice)),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, bob)),
+                cryptoTransfer(moving(1000, feeDenom).between(tokenOwner, carol)),
+                cryptoTransfer(moving(amountToSend, fungibleToken).between(tokenTreasury, alice)),
+                cryptoTransfer(moving(amountToSend / 2, fungibleToken).between(alice, bob)),
+                cryptoTransfer(moving(amountToSend / 4, fungibleToken).between(bob, carol)),
+                getAccountBalance(alice).hasTokenBalance(fungibleToken, 200).hasTokenBalance(feeDenom, 1000),
+                getAccountBalance(bob).hasTokenBalance(fungibleToken, 100).hasTokenBalance(feeDenom, 1000),
+                getAccountBalance(carol).hasTokenBalance(fungibleToken, 100).hasTokenBalance(feeDenom, 1000));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFees2Layers() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFees2Layers")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(htsCollector2),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(htsCollector2, fungibleToken),
-                        tokenCreate(fungibleToken2)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(tokenReceiver, fungibleToken2),
-                        tokenAssociate(tokenOwner, fungibleToken2),
-                        cryptoTransfer(
-                                moving(tokenTotal, fungibleToken2).between(tokenTreasury, tokenOwner),
-                                moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(1, fungibleToken2).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(htsCollector2),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(htsCollector2, fungibleToken),
+                tokenCreate(fungibleToken2)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(tokenReceiver, fungibleToken2),
+                tokenAssociate(tokenOwner, fungibleToken2),
+                cryptoTransfer(
+                        moving(tokenTotal, fungibleToken2).between(tokenTreasury, tokenOwner),
+                        moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken2).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(tokenOwner))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken2, 999)
-                                .hasTokenBalance(fungibleToken, tokenTotal - htsFee)
-                                .hasTokenBalance(feeDenom, tokenTotal - htsFee),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken2, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee),
-                        getAccountBalance(htsCollector2).hasTokenBalance(fungibleToken, htsFee));
+                        .payingWith(tokenOwner),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken2, 999)
+                        .hasTokenBalance(fungibleToken, tokenTotal - htsFee)
+                        .hasTokenBalance(feeDenom, tokenTotal - htsFee),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken2, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee),
+                getAccountBalance(htsCollector2).hasTokenBalance(fungibleToken, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHtsCustomFees2Layers() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHtsCustomFees2Layers")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(htsCollector2),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(htsCollector2, fungibleToken),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken),
-                        cryptoTransfer(
-                                movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner),
-                                moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(htsCollector2),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(htsCollector2, fungibleToken),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                cryptoTransfer(
+                        movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner),
+                        moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(tokenOwner))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(fungibleToken, tokenTotal - htsFee)
-                                .hasTokenBalance(feeDenom, tokenTotal - htsFee),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee),
-                        getAccountBalance(htsCollector2).hasTokenBalance(fungibleToken, htsFee));
+                        .payingWith(tokenOwner),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(nonFungibleToken, 0)
+                        .hasTokenBalance(fungibleToken, tokenTotal - htsFee)
+                        .hasTokenBalance(feeDenom, tokenTotal - htsFee),
+                getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee),
+                getAccountBalance(htsCollector2).hasTokenBalance(fungibleToken, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFees3LayersShouldFail() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFees3LayersShouldFail")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(htsCollector2),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(tokenOwner, feeDenom),
-                        tokenCreate(feeDenom2)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(htsCollector, feeDenom2),
-                        tokenAssociate(tokenOwner, feeDenom2),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom2, htsCollector)),
-                        tokenAssociate(htsCollector2, fungibleToken),
-                        tokenCreate(fungibleToken2)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(tokenReceiver, fungibleToken2),
-                        tokenAssociate(tokenOwner, fungibleToken2))
-                .when(cryptoTransfer(
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(htsCollector2),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenCreate(feeDenom2)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(htsCollector, feeDenom2),
+                tokenAssociate(tokenOwner, feeDenom2),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom2, htsCollector)),
+                tokenAssociate(htsCollector2, fungibleToken),
+                tokenCreate(fungibleToken2)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(tokenReceiver, fungibleToken2),
+                tokenAssociate(tokenOwner, fungibleToken2),
+                cryptoTransfer(
                         moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner),
-                        moving(tokenTotal, fungibleToken2).between(tokenTreasury, tokenOwner)))
-                .then(cryptoTransfer(moving(1, fungibleToken2).between(tokenOwner, tokenReceiver))
+                        moving(tokenTotal, fungibleToken2).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken2).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
                         .hasKnownStatus(CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH));
@@ -1034,46 +944,45 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHtsCustomFees3LayersShouldFail() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHtsCustomFees3LayersShouldFail")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(htsCollector2),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(tokenOwner, feeDenom),
-                        tokenCreate(feeDenom2)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(htsCollector, feeDenom2),
-                        tokenAssociate(tokenOwner, feeDenom2),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom2, htsCollector)),
-                        tokenAssociate(htsCollector2, fungibleToken),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(tokenReceiver, nonFungibleToken),
-                        tokenAssociate(tokenOwner, nonFungibleToken))
-                .when(cryptoTransfer(
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(htsCollector2),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenCreate(feeDenom2)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(htsCollector, feeDenom2),
+                tokenAssociate(tokenOwner, feeDenom2),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom2, htsCollector)),
+                tokenAssociate(htsCollector2, fungibleToken),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(htsFee, fungibleToken, htsCollector2)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                cryptoTransfer(
                         moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner),
-                        movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)))
-                .then(cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
+                        movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
                         .hasKnownStatus(CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH));
@@ -1123,8 +1032,8 @@ public class TransferWithCustomFixedFees {
                 fungibleToken19,
                 fungibleToken20);
 
-        return defaultHapiSpec("transferMaxFungibleWith10FixedHtsCustomFees2Layers")
-                .given(withOpContext((spec, log) -> {
+        return hapiTest(
+                withOpContext((spec, log) -> {
                     final ArrayList<SpecOperation> ops = new ArrayList<>();
                     var collectorCreate = cryptoCreate(htsCollector);
                     var collector2Create = cryptoCreate(htsCollector2);
@@ -1185,241 +1094,224 @@ public class TransferWithCustomFixedFees {
                     var transferToOwner = cryptoTransfer(
                             moving(9223372036854775807L, fungibleToken).between(tokenTreasury, tokenOwner));
                     allRunFor(spec, fungibleToTransfer, ownerAssociate, receiverAssociate, transferToOwner);
-                }))
-                .when(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+                }),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(tokenOwner))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, 9223372036854775806L)
-                                .hasTokenBalance(fungibleToken2, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken3, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken4, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken5, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken6, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken7, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken8, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken9, specificTokenTotal - htsFee)
-                                .hasTokenBalance(fungibleToken10, specificTokenTotal - htsFee),
-                        getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
-                        getAccountBalance(htsCollector2)
-                                .hasTokenBalance(fungibleToken2, htsFee)
-                                .hasTokenBalance(fungibleToken3, htsFee)
-                                .hasTokenBalance(fungibleToken4, htsFee)
-                                .hasTokenBalance(fungibleToken5, htsFee)
-                                .hasTokenBalance(fungibleToken6, htsFee)
-                                .hasTokenBalance(fungibleToken7, htsFee)
-                                .hasTokenBalance(fungibleToken8, htsFee)
-                                .hasTokenBalance(fungibleToken9, htsFee)
-                                .hasTokenBalance(fungibleToken10, htsFee));
+                        .payingWith(tokenOwner),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, 9223372036854775806L)
+                        .hasTokenBalance(fungibleToken2, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken3, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken4, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken5, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken6, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken7, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken8, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken9, specificTokenTotal - htsFee)
+                        .hasTokenBalance(fungibleToken10, specificTokenTotal - htsFee),
+                getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
+                getAccountBalance(htsCollector2)
+                        .hasTokenBalance(fungibleToken2, htsFee)
+                        .hasTokenBalance(fungibleToken3, htsFee)
+                        .hasTokenBalance(fungibleToken4, htsFee)
+                        .hasTokenBalance(fungibleToken5, htsFee)
+                        .hasTokenBalance(fungibleToken6, htsFee)
+                        .hasTokenBalance(fungibleToken7, htsFee)
+                        .hasTokenBalance(fungibleToken8, htsFee)
+                        .hasTokenBalance(fungibleToken9, htsFee)
+                        .hasTokenBalance(fungibleToken10, htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> multipleTransfersWithMultipleCustomFees() {
-        return defaultHapiSpec("multipleTransfersWithMultipleCustomFees")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(htsCollector).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(htsCollector2),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenTreasury),
-                        cryptoCreate(alice).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(bob).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(carol),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenCreate(feeDenom2).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenAssociate(htsCollector2, feeDenom2),
-                        tokenAssociate(alice, feeDenom),
-                        tokenAssociate(alice, feeDenom2),
-                        tokenAssociate(bob, feeDenom),
-                        tokenAssociate(bob, feeDenom2),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .payingWith(htsCollector)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector))
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector))
-                                .withCustom(fractionalFee(
-                                        numerator, denominator, minHtsFee, OptionalLong.of(maxHtsFee), htsCollector)),
-                        tokenAssociate(alice, fungibleToken),
-                        tokenAssociate(bob, fungibleToken),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(50L, feeDenom, htsCollector))
-                                .withCustom(fixedHtsFee(htsFee, feeDenom2, htsCollector2)),
-                        mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                        tokenAssociate(alice, nonFungibleToken),
-                        tokenAssociate(bob, nonFungibleToken),
-                        tokenAssociate(carol, nonFungibleToken),
-                        cryptoTransfer(
-                                moving(tokenTotal, feeDenom).between(tokenOwner, alice),
-                                moving(tokenTotal, feeDenom2).between(tokenOwner, alice),
-                                moving(tokenTotal, fungibleToken).between(tokenTreasury, alice),
-                                movingUnique(nonFungibleToken, 1L).between(tokenTreasury, alice)),
-                        // make 2 transfers - one with the same HTS token as custom fee and one with different HTS token
-                        // as custom fee
-                        cryptoTransfer(moving(10L, fungibleToken).between(alice, bob))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(alice),
-                        cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(alice, bob))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(alice),
-                        // check balances
-                        getAccountBalance(alice)
-                                .hasTokenBalance(fungibleToken, tokenTotal - 10L)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, tokenTotal - htsFee - 50L)
-                                .hasTokenBalance(feeDenom2, tokenTotal - htsFee),
-                        getAccountBalance(bob)
-                                .hasTokenBalance(fungibleToken, 8L)
-                                .hasTokenBalance(nonFungibleToken, 1)
-                                .hasTokenBalance(feeDenom, 0)
-                                .hasTokenBalance(feeDenom2, 0),
-                        getAccountBalance(hbarCollector).hasTinyBars(hbarFee),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee + 50L),
-                        getAccountBalance(htsCollector2).hasTokenBalance(feeDenom2, htsFee))
-                .when(
-                        // transfer some hts custom fee tokens to bob as he is a sender and needs to pay with them
-                        cryptoTransfer(
-                                moving(100L, feeDenom).between(alice, bob),
-                                moving(200L, feeDenom2).between(alice, bob)),
-                        // make 2 transfers in a single tx with different senders and receivers
-                        cryptoTransfer(
-                                        moving(10L, fungibleToken).between(alice, bob),
-                                        movingUnique(nonFungibleToken, 1L).between(bob, carol))
-                                .fee(ONE_HUNDRED_HBARS)
-                                .signedBy(alice, bob)
-                                .payingWith(alice))
-                .then(
-                        // check balances
-                        getAccountBalance(alice)
-                                .hasTokenBalance(fungibleToken, tokenTotal - 2 * 10L)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, tokenTotal - 2 * htsFee - 50L - 100L)
-                                .hasTokenBalance(feeDenom2, tokenTotal - htsFee - 200L),
-                        getAccountBalance(bob)
-                                .hasTokenBalance(fungibleToken, 16L)
-                                .hasTokenBalance(nonFungibleToken, 0)
-                                .hasTokenBalance(feeDenom, 50L)
-                                .hasTokenBalance(feeDenom2, 100L),
-                        getAccountBalance(carol)
-                                .hasTokenBalance(fungibleToken, 0L)
-                                .hasTokenBalance(nonFungibleToken, 1)
-                                .hasTokenBalance(feeDenom, 0)
-                                .hasTokenBalance(feeDenom2, 0),
-                        getAccountBalance(hbarCollector).hasTinyBars(2 * hbarFee),
-                        getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 2 * htsFee + 2 * 50L),
-                        getAccountBalance(htsCollector2).hasTokenBalance(feeDenom2, 2 * htsFee));
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(htsCollector).balance(ONE_MILLION_HBARS),
+                cryptoCreate(htsCollector2),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(alice).balance(ONE_MILLION_HBARS),
+                cryptoCreate(bob).balance(ONE_MILLION_HBARS),
+                cryptoCreate(carol),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenCreate(feeDenom2).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenAssociate(htsCollector2, feeDenom2),
+                tokenAssociate(alice, feeDenom),
+                tokenAssociate(alice, feeDenom2),
+                tokenAssociate(bob, feeDenom),
+                tokenAssociate(bob, feeDenom2),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .payingWith(htsCollector)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector))
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector))
+                        .withCustom(fractionalFee(
+                                numerator, denominator, minHtsFee, OptionalLong.of(maxHtsFee), htsCollector)),
+                tokenAssociate(alice, fungibleToken),
+                tokenAssociate(bob, fungibleToken),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(50L, feeDenom, htsCollector))
+                        .withCustom(fixedHtsFee(htsFee, feeDenom2, htsCollector2)),
+                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
+                tokenAssociate(alice, nonFungibleToken),
+                tokenAssociate(bob, nonFungibleToken),
+                tokenAssociate(carol, nonFungibleToken),
+                cryptoTransfer(
+                        moving(tokenTotal, feeDenom).between(tokenOwner, alice),
+                        moving(tokenTotal, feeDenom2).between(tokenOwner, alice),
+                        moving(tokenTotal, fungibleToken).between(tokenTreasury, alice),
+                        movingUnique(nonFungibleToken, 1L).between(tokenTreasury, alice)),
+                // make 2 transfers - one with the same HTS token as custom fee and one with different HTS token
+                // as custom fee
+                cryptoTransfer(moving(10L, fungibleToken).between(alice, bob))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(alice),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(alice, bob))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(alice),
+                // check balances
+                getAccountBalance(alice)
+                        .hasTokenBalance(fungibleToken, tokenTotal - 10L)
+                        .hasTokenBalance(nonFungibleToken, 0)
+                        .hasTokenBalance(feeDenom, tokenTotal - htsFee - 50L)
+                        .hasTokenBalance(feeDenom2, tokenTotal - htsFee),
+                getAccountBalance(bob)
+                        .hasTokenBalance(fungibleToken, 8L)
+                        .hasTokenBalance(nonFungibleToken, 1)
+                        .hasTokenBalance(feeDenom, 0)
+                        .hasTokenBalance(feeDenom2, 0),
+                getAccountBalance(hbarCollector).hasTinyBars(hbarFee),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, htsFee + 50L),
+                getAccountBalance(htsCollector2).hasTokenBalance(feeDenom2, htsFee),
+                // transfer some hts custom fee tokens to bob as he is a sender and needs to pay with them
+                cryptoTransfer(
+                        moving(100L, feeDenom).between(alice, bob),
+                        moving(200L, feeDenom2).between(alice, bob)),
+                // make 2 transfers in a single tx with different senders and receivers
+                cryptoTransfer(
+                                moving(10L, fungibleToken).between(alice, bob),
+                                movingUnique(nonFungibleToken, 1L).between(bob, carol))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .signedBy(alice, bob)
+                        .payingWith(alice),
+                // check balances
+                getAccountBalance(alice)
+                        .hasTokenBalance(fungibleToken, tokenTotal - 2 * 10L)
+                        .hasTokenBalance(nonFungibleToken, 0)
+                        .hasTokenBalance(feeDenom, tokenTotal - 2 * htsFee - 50L - 100L)
+                        .hasTokenBalance(feeDenom2, tokenTotal - htsFee - 200L),
+                getAccountBalance(bob)
+                        .hasTokenBalance(fungibleToken, 16L)
+                        .hasTokenBalance(nonFungibleToken, 0)
+                        .hasTokenBalance(feeDenom, 50L)
+                        .hasTokenBalance(feeDenom2, 100L),
+                getAccountBalance(carol)
+                        .hasTokenBalance(fungibleToken, 0L)
+                        .hasTokenBalance(nonFungibleToken, 1)
+                        .hasTokenBalance(feeDenom, 0)
+                        .hasTokenBalance(feeDenom2, 0),
+                getAccountBalance(hbarCollector).hasTinyBars(2 * hbarFee),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 2 * htsFee + 2 * 50L),
+                getAccountBalance(htsCollector2).hasTokenBalance(feeDenom2, 2 * htsFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHbarCustomFeeAmount0() {
-        return defaultHapiSpec("transferFungibleWithFixedHbarCustomFeeAmount0")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(0, hbarCollector))
-                                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE))
-                .when()
-                .then();
+        return hapiTest(
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(0, hbarCollector))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeAmount0() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFeeAmount0")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(0, feeDenom, htsCollector))
-                                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE))
-                .when()
-                .then();
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(0, feeDenom, htsCollector))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHbarCustomFeeAmount0() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHbarCustomFeeAmount0")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHbarFee(0, hbarCollector))
-                                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE))
-                .when()
-                .then();
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHbarFee(0, hbarCollector))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleWithFixedHtsCustomFeeAmount0() {
-        return defaultHapiSpec("transferNonFungibleWithFixedHtsCustomFeeAmount0")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(nonFungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(NFT_KEY)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .initialSupply(0)
-                                .withCustom(fixedHtsFee(0, feeDenom, htsCollector))
-                                .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE))
-                .when()
-                .then();
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .withCustom(fixedHtsFee(0, feeDenom, htsCollector))
+                        .hasKnownStatus(CUSTOM_FEE_MUST_BE_POSITIVE));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHbarCustomFeeSenderHasOnlyGasAmount() {
         final var gasAmount = 1669096L;
-        return defaultHapiSpec("transferFungibleWithFixedHbarCustomFeeSenderHasOnlyGasAmount")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(gasAmount),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(gasAmount, hbarCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when()
-                .then(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(gasAmount),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(gasAmount, hbarCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
@@ -1427,33 +1319,31 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeTotalSupply0() {
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFeeTotalSupply0")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(spender).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(0L),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(1, feeDenom, htsCollector)),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(spender, fungibleToken))
-                .when(
-                        cryptoApproveAllowance()
-                                .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(tokenOwner),
-                        cryptoApproveAllowance()
-                                .addTokenAllowance(tokenOwner, feeDenom, spender, 10L)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .payingWith(tokenOwner))
-                .then(cryptoTransfer(movingWithAllowance(10L, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(spender).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(0L),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(1, feeDenom, htsCollector)),
+                tokenAssociate(tokenOwner, fungibleToken),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(spender, fungibleToken),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, fungibleToken, spender, 10L)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(tokenOwner),
+                cryptoApproveAllowance()
+                        .addTokenAllowance(tokenOwner, feeDenom, spender, 10L)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(tokenOwner),
+                cryptoTransfer(movingWithAllowance(10L, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .signedBy(spender)
                         .payingWith(spender)
@@ -1463,22 +1353,21 @@ public class TransferWithCustomFixedFees {
     @HapiTest
     final Stream<DynamicTest> transferFungibleWithFixedHtsCustomFeeNotEnoughForGasAndFee() {
         final var gasAmount = 1669096L;
-        return defaultHapiSpec("transferFungibleWithFixedHtsCustomFeeNotEnoughForGasAndFee")
-                .given(
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenOwner).balance(gasAmount),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .tokenType(TokenType.FUNGIBLE_COMMON)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHbarFee(ONE_HBAR, hbarCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when()
-                .then(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenOwner).balance(gasAmount),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHbarFee(ONE_HBAR, hbarCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(1000, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
@@ -1486,55 +1375,51 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferWithFractionalCustomFee() {
-        return defaultHapiSpec("transferWithFractionalCustomFee")
-                .given(
-                        cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .payingWith(htsCollector)
-                                .withCustom(fixedHbarFee(hbarFee, hbarCollector))
-                                .withCustom(fractionalFee(
-                                        numerator, denominator, minHtsFee, OptionalLong.of(maxHtsFee), htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(cryptoTransfer(moving(3, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .payingWith(htsCollector)
+                        .withCustom(fixedHbarFee(hbarFee, hbarCollector))
+                        .withCustom(fractionalFee(
+                                numerator, denominator, minHtsFee, OptionalLong.of(maxHtsFee), htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(3, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(tokenOwner))
-                .then(
-                        getAccountBalance(tokenOwner)
-                                .hasTokenBalance(fungibleToken, 997)
-                                .hasTokenBalance(feeDenom, tokenTotal),
-                        getAccountBalance(hbarCollector).hasTinyBars(hbarFee));
+                        .payingWith(tokenOwner),
+                getAccountBalance(tokenOwner)
+                        .hasTokenBalance(fungibleToken, 997)
+                        .hasTokenBalance(feeDenom, tokenTotal),
+                getAccountBalance(hbarCollector).hasTinyBars(hbarFee));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferWithInsufficientCustomFee() {
-        return defaultHapiSpec("transferWithInsufficientCustomFee")
-                .given(
-                        cryptoCreate(htsCollector),
-                        cryptoCreate(hbarCollector).balance(0L),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(10),
-                        tokenAssociate(htsCollector, feeDenom),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
-                        tokenAssociate(tokenReceiver, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when()
-                .then(cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
+        return hapiTest(
+                cryptoCreate(htsCollector),
+                cryptoCreate(hbarCollector).balance(0L),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(10),
+                tokenAssociate(htsCollector, feeDenom),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .withCustom(fixedHtsFee(htsFee, feeDenom, htsCollector)),
+                tokenAssociate(tokenReceiver, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1, fungibleToken).between(tokenOwner, tokenReceiver))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(tokenOwner)
                         .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
@@ -1542,112 +1427,87 @@ public class TransferWithCustomFixedFees {
 
     @HapiTest
     final Stream<DynamicTest> transferMultipleTimesWithFixedFeeInHBarShouldVerifyEachTransferIsPaid() {
-        return defaultHapiSpec("transferMultipleTimesWithFixedFeeShouldVerifyEachTransferIsPaid")
-                .given(
-                        cryptoCreate(hbarCollector).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenTreasury).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(alice).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(bob).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(carol).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(ivan),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .payingWith(tokenTreasury)
-                                .withCustom(fixedHbarFee(1L, hbarCollector)),
-                        tokenAssociate(alice, fungibleToken),
-                        tokenAssociate(bob, fungibleToken),
-                        tokenAssociate(carol, fungibleToken),
-                        tokenAssociate(ivan, fungibleToken),
-                        tokenAssociate(tokenOwner, fungibleToken),
-                        cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)))
-                .when(
-                        cryptoTransfer(moving(10L, fungibleToken).between(tokenOwner, alice))
-                                .fee(1L),
-                        cryptoTransfer(moving(5L, fungibleToken).between(alice, bob))
-                                .fee(1L),
-                        cryptoTransfer(moving(2L, fungibleToken).between(bob, carol))
-                                .fee(1L),
-                        cryptoTransfer(moving(1L, fungibleToken).between(carol, ivan))
-                                .fee(1L))
-                .then(
-                        getAccountBalance(hbarCollector).hasTinyBars(ONE_HUNDRED_HBARS + 4L),
-                        getAccountBalance(alice)
-                                .hasTokenBalance(fungibleToken, 5L)
-                                .hasTinyBars(ONE_MILLION_HBARS - 1L),
-                        getAccountBalance(bob)
-                                .hasTokenBalance(fungibleToken, 3L)
-                                .hasTinyBars(ONE_MILLION_HBARS - 1L),
-                        getAccountBalance(carol)
-                                .hasTokenBalance(fungibleToken, 1L)
-                                .hasTinyBars(ONE_MILLION_HBARS - 1L));
+        return hapiTest(
+                cryptoCreate(hbarCollector).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenTreasury).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(alice).balance(ONE_MILLION_HBARS),
+                cryptoCreate(bob).balance(ONE_MILLION_HBARS),
+                cryptoCreate(carol).balance(ONE_MILLION_HBARS),
+                cryptoCreate(ivan),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .payingWith(tokenTreasury)
+                        .withCustom(fixedHbarFee(1L, hbarCollector)),
+                tokenAssociate(alice, fungibleToken),
+                tokenAssociate(bob, fungibleToken),
+                tokenAssociate(carol, fungibleToken),
+                tokenAssociate(ivan, fungibleToken),
+                tokenAssociate(tokenOwner, fungibleToken),
+                cryptoTransfer(moving(tokenTotal, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(10L, fungibleToken).between(tokenOwner, alice))
+                        .fee(1L),
+                cryptoTransfer(moving(5L, fungibleToken).between(alice, bob)).fee(1L),
+                cryptoTransfer(moving(2L, fungibleToken).between(bob, carol)).fee(1L),
+                cryptoTransfer(moving(1L, fungibleToken).between(carol, ivan)).fee(1L),
+                getAccountBalance(hbarCollector).hasTinyBars(ONE_HUNDRED_HBARS + 4L),
+                getAccountBalance(alice).hasTokenBalance(fungibleToken, 5L).hasTinyBars(ONE_MILLION_HBARS - 1L),
+                getAccountBalance(bob).hasTokenBalance(fungibleToken, 3L).hasTinyBars(ONE_MILLION_HBARS - 1L),
+                getAccountBalance(carol).hasTokenBalance(fungibleToken, 1L).hasTinyBars(ONE_MILLION_HBARS - 1L));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferMultipleTimesWithFixedFeeInCustomFungibleTokenShouldVerifyEachTransferIsPaid() {
-        return defaultHapiSpec("transferMultipleTimesWithFixedFeeInCustomFungibleTokenShouldVerifyEachTransferIsPaid")
-                .given(
-                        cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenOwner),
-                        cryptoCreate(alice),
-                        cryptoCreate(bob),
-                        cryptoCreate(carol),
-                        cryptoCreate(ivan),
-                        tokenCreate(fungibleToken)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .payingWith(tokenTreasury),
-                        tokenAssociate(htsCollector, fungibleToken),
-                        tokenCreate(fungibleToken2)
-                                .treasury(tokenTreasury)
-                                .initialSupply(tokenTotal)
-                                .payingWith(tokenTreasury)
-                                .withCustom(fixedHtsFee(1L, fungibleToken, htsCollector)),
-                        tokenAssociate(alice, fungibleToken, fungibleToken2),
-                        tokenAssociate(bob, fungibleToken, fungibleToken2),
-                        tokenAssociate(carol, fungibleToken, fungibleToken2),
-                        tokenAssociate(ivan, fungibleToken, fungibleToken2),
-                        tokenAssociate(tokenOwner, fungibleToken, fungibleToken2),
-                        cryptoTransfer(moving(50L, fungibleToken).between(tokenTreasury, tokenOwner)),
-                        cryptoTransfer(moving(50L, fungibleToken2).between(tokenTreasury, tokenOwner)),
-                        cryptoTransfer(moving(1L, fungibleToken).between(tokenTreasury, alice)),
-                        cryptoTransfer(moving(1L, fungibleToken).between(tokenTreasury, bob)),
-                        cryptoTransfer(moving(1L, fungibleToken).between(tokenTreasury, carol)))
-                .when(
-                        cryptoTransfer(moving(10L, fungibleToken2).between(tokenOwner, alice))
-                                .fee(1L),
-                        cryptoTransfer(moving(5L, fungibleToken2).between(alice, bob))
-                                .fee(1L),
-                        cryptoTransfer(moving(2L, fungibleToken2).between(bob, carol))
-                                .fee(1L),
-                        cryptoTransfer(moving(1L, fungibleToken2).between(carol, ivan))
-                                .fee(1L))
-                .then(
-                        getAccountBalance(htsCollector).hasTokenBalance(fungibleToken, 4L),
-                        getAccountBalance(alice)
-                                .hasTokenBalance(fungibleToken2, 5L)
-                                .hasTokenBalance(fungibleToken, 0L),
-                        getAccountBalance(bob)
-                                .hasTokenBalance(fungibleToken2, 3L)
-                                .hasTokenBalance(fungibleToken, 0L),
-                        getAccountBalance(carol)
-                                .hasTokenBalance(fungibleToken2, 1L)
-                                .hasTokenBalance(fungibleToken, 0L),
-                        getAccountBalance(ivan).hasTokenBalance(fungibleToken, 0L));
+        return hapiTest(
+                cryptoCreate(htsCollector).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenTreasury).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenOwner),
+                cryptoCreate(alice),
+                cryptoCreate(bob),
+                cryptoCreate(carol),
+                cryptoCreate(ivan),
+                tokenCreate(fungibleToken)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .payingWith(tokenTreasury),
+                tokenAssociate(htsCollector, fungibleToken),
+                tokenCreate(fungibleToken2)
+                        .treasury(tokenTreasury)
+                        .initialSupply(tokenTotal)
+                        .payingWith(tokenTreasury)
+                        .withCustom(fixedHtsFee(1L, fungibleToken, htsCollector)),
+                tokenAssociate(alice, fungibleToken, fungibleToken2),
+                tokenAssociate(bob, fungibleToken, fungibleToken2),
+                tokenAssociate(carol, fungibleToken, fungibleToken2),
+                tokenAssociate(ivan, fungibleToken, fungibleToken2),
+                tokenAssociate(tokenOwner, fungibleToken, fungibleToken2),
+                cryptoTransfer(moving(50L, fungibleToken).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(50L, fungibleToken2).between(tokenTreasury, tokenOwner)),
+                cryptoTransfer(moving(1L, fungibleToken).between(tokenTreasury, alice)),
+                cryptoTransfer(moving(1L, fungibleToken).between(tokenTreasury, bob)),
+                cryptoTransfer(moving(1L, fungibleToken).between(tokenTreasury, carol)),
+                cryptoTransfer(moving(10L, fungibleToken2).between(tokenOwner, alice))
+                        .fee(1L),
+                cryptoTransfer(moving(5L, fungibleToken2).between(alice, bob)).fee(1L),
+                cryptoTransfer(moving(2L, fungibleToken2).between(bob, carol)).fee(1L),
+                cryptoTransfer(moving(1L, fungibleToken2).between(carol, ivan)).fee(1L),
+                getAccountBalance(htsCollector).hasTokenBalance(fungibleToken, 4L),
+                getAccountBalance(alice).hasTokenBalance(fungibleToken2, 5L).hasTokenBalance(fungibleToken, 0L),
+                getAccountBalance(bob).hasTokenBalance(fungibleToken2, 3L).hasTokenBalance(fungibleToken, 0L),
+                getAccountBalance(carol).hasTokenBalance(fungibleToken2, 1L).hasTokenBalance(fungibleToken, 0L),
+                getAccountBalance(ivan).hasTokenBalance(fungibleToken, 0L));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleToHollowAccountWithFixedHBarFee() {
-        return defaultHapiSpec("transferFungibleToHollowAccountWithFixedHBarFee")
-                .given(
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(tokenTreasury).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenOwner),
-                        cryptoCreate(alice))
-                .when(createHollowAccountFrom(SECP_256K1_SOURCE_KEY))
-                .then(withOpContext((spec, opLog) -> {
+        return hapiTest(flattened(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(tokenTreasury).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenOwner),
+                cryptoCreate(alice),
+                createHollowAccountFrom(SECP_256K1_SOURCE_KEY),
+                withOpContext((spec, opLog) -> {
                     final var hollowAccountCollector =
                             spec.registry().getAccountIdName(spec.registry().getAccountAlias(SECP_256K1_SOURCE_KEY));
 
@@ -1666,20 +1526,19 @@ public class TransferWithCustomFixedFees {
                             getAccountBalance(hollowAccountCollector).hasTinyBars(ONE_HUNDRED_HBARS + hbarFee),
                             getAccountBalance(tokenOwner).hasTokenBalance(fungibleToken, tokenTotal - 10L),
                             getAccountBalance(alice).hasTokenBalance(fungibleToken, 10L));
-                }));
+                })));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferFungibleToHollowAccountWithFixedHtsFee() {
-        return defaultHapiSpec("transferFungibleToHollowAccountWithFixedHtsFee")
-                .given(
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal))
-                .when(createHollowAccountFrom(SECP_256K1_SOURCE_KEY))
-                .then(withOpContext((spec, opLog) -> {
+        return hapiTest(flattened(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                createHollowAccountFrom(SECP_256K1_SOURCE_KEY),
+                withOpContext((spec, opLog) -> {
                     final var hollowAccountCollector =
                             spec.registry().getAccountIdName(spec.registry().getAccountAlias(SECP_256K1_SOURCE_KEY));
                     allRunFor(
@@ -1704,20 +1563,19 @@ public class TransferWithCustomFixedFees {
                                     .hasTokenBalance(feeDenom, tokenTotal - htsFee),
                             getAccountBalance(tokenReceiver).hasTokenBalance(fungibleToken, 1),
                             getAccountBalance(hollowAccountCollector).hasTokenBalance(feeDenom, htsFee));
-                }));
+                })));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleToHollowAccountWithFixedHBarFee() {
-        return defaultHapiSpec("transferNonFungibleToHollowAccountWithFixedHBarFee")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(tokenTreasury).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(tokenOwner),
-                        cryptoCreate(alice))
-                .when(createHollowAccountFrom(SECP_256K1_SOURCE_KEY))
-                .then(withOpContext((spec, opLog) -> {
+        return hapiTest(flattened(
+                newKeyNamed(NFT_KEY),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(tokenTreasury).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(tokenOwner),
+                cryptoCreate(alice),
+                createHollowAccountFrom(SECP_256K1_SOURCE_KEY),
+                withOpContext((spec, opLog) -> {
                     final var hollowAccountCollector =
                             spec.registry().getAccountIdName(spec.registry().getAccountAlias(SECP_256K1_SOURCE_KEY));
 
@@ -1739,21 +1597,20 @@ public class TransferWithCustomFixedFees {
                             getAccountBalance(hollowAccountCollector).hasTinyBars(ONE_HUNDRED_HBARS + hbarFee),
                             getAccountBalance(tokenOwner).hasTokenBalance(nonFungibleToken, 0L),
                             getAccountBalance(alice).hasTokenBalance(nonFungibleToken, 1L));
-                }));
+                })));
     }
 
     @HapiTest
     final Stream<DynamicTest> transferNonFungibleToHollowAccountWithFixedHtsFee() {
-        return defaultHapiSpec("transferNonFungibleToHollowAccountWithFixedHtsFee")
-                .given(
-                        newKeyNamed(NFT_KEY),
-                        newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                        cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
-                        cryptoCreate(tokenReceiver),
-                        cryptoCreate(tokenTreasury),
-                        tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal))
-                .when(createHollowAccountFrom(SECP_256K1_SOURCE_KEY))
-                .then(withOpContext((spec, opLog) -> {
+        return hapiTest(flattened(
+                newKeyNamed(NFT_KEY),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(tokenOwner).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenReceiver),
+                cryptoCreate(tokenTreasury),
+                tokenCreate(feeDenom).treasury(tokenOwner).initialSupply(tokenTotal),
+                createHollowAccountFrom(SECP_256K1_SOURCE_KEY),
+                withOpContext((spec, opLog) -> {
                     final var hollowAccountCollector =
                             spec.registry().getAccountIdName(spec.registry().getAccountAlias(SECP_256K1_SOURCE_KEY));
                     allRunFor(
@@ -1781,6 +1638,6 @@ public class TransferWithCustomFixedFees {
                                     .hasTokenBalance(feeDenom, tokenTotal - htsFee),
                             getAccountBalance(tokenReceiver).hasTokenBalance(nonFungibleToken, 1L),
                             getAccountBalance(hollowAccountCollector).hasTokenBalance(feeDenom, htsFee));
-                }));
+                })));
     }
 }

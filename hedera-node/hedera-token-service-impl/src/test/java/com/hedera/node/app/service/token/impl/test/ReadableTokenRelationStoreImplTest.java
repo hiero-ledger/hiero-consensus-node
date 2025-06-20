@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,8 +10,10 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import org.assertj.core.api.Assertions;
@@ -56,6 +43,9 @@ class ReadableTokenRelationStoreImplTest {
     @Mock
     private ReadableKVState<EntityIDPair, TokenRelation> tokenRelState;
 
+    @Mock
+    protected ReadableEntityCounters readableEntityCounters;
+
     private ReadableTokenRelationStoreImpl subject;
 
     @BeforeEach
@@ -63,13 +53,14 @@ class ReadableTokenRelationStoreImplTest {
         given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
                 .willReturn(tokenRelState);
 
-        subject = new ReadableTokenRelationStoreImpl(states);
+        subject = new ReadableTokenRelationStoreImpl(states, readableEntityCounters);
     }
 
     @Test
     void testNullConstructorArgs() {
         //noinspection DataFlowIssue
-        assertThrows(NullPointerException.class, () -> new ReadableTokenRelationStoreImpl(null));
+        assertThrows(
+                NullPointerException.class, () -> new ReadableTokenRelationStoreImpl(null, readableEntityCounters));
     }
 
     @Test
@@ -96,7 +87,8 @@ class ReadableTokenRelationStoreImplTest {
     @Test
     void testSizeOfState() {
         final var expectedSize = 3L;
-        given(tokenRelState.size()).willReturn(expectedSize);
+        given(readableEntityCounters.getCounterFor(EntityType.TOKEN_ASSOCIATION))
+                .willReturn(expectedSize);
 
         final var result = subject.sizeOfState();
         Assertions.assertThat(result).isEqualTo(expectedSize);
@@ -106,7 +98,7 @@ class ReadableTokenRelationStoreImplTest {
     void warmWarmsUnderlyingState(@Mock ReadableKVState<EntityIDPair, TokenRelation> tokenRelations) {
         given(states.<EntityIDPair, TokenRelation>get(V0490TokenSchema.TOKEN_RELS_KEY))
                 .willReturn(tokenRelations);
-        final var tokenRelationStore = new ReadableTokenRelationStoreImpl(states);
+        final var tokenRelationStore = new ReadableTokenRelationStoreImpl(states, readableEntityCounters);
         tokenRelationStore.warm(ACCOUNT_20_ID, TOKEN_10_ID);
         verify(tokenRelations).warm(KEY);
     }

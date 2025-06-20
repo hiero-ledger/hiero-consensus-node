@@ -1,34 +1,22 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.internal;
 
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.utility.Clearable;
 import com.swirlds.platform.consensus.CandidateWitness;
-import com.swirlds.platform.consensus.ConsensusConstants;
+import com.swirlds.platform.consensus.DeGen;
+import com.swirlds.platform.consensus.LocalConsensusGeneration;
 import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.Clearable;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * An internal platform event.
@@ -93,12 +81,17 @@ public class EventImpl implements Clearable {
      */
     private boolean[] votes;
 
+    /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
+    private int cGen = LocalConsensusGeneration.GENERATION_UNDEFINED;
+
+    /** The deterministic generation, see {@link DeGen} */
+    private int deGen = 0;
+
     public EventImpl(
             @NonNull final PlatformEvent platformEvent,
             @Nullable final EventImpl selfParent,
             @Nullable final EventImpl otherParent) {
         Objects.requireNonNull(platformEvent, "baseEvent");
-        Objects.requireNonNull(platformEvent.getSignature(), "signature");
         this.selfParent = selfParent;
         this.otherParent = otherParent;
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
@@ -414,6 +407,25 @@ public class EventImpl implements Clearable {
     }
 
     /**
+     * Get the vote for a specific election index.
+     *
+     * @param electionIndex the index of the election to retrieve the vote for
+     * @return true if it's a YES vote, false if it's a NO vote
+     */
+    public boolean getVote(final int electionIndex) {
+        return votes != null && votes.length > electionIndex && votes[electionIndex];
+    }
+
+    /**
+     * Get the size of the votes array.
+     *
+     * @return the number of elements in the votes array. If the votes array is null, returns 0.
+     */
+    public int getVotesSize() {
+        return votes == null ? 0 : votes.length;
+    }
+
+    /**
      * Set this witness' vote on the witness provided
      *
      * @param witness the witness being voted on
@@ -449,6 +461,7 @@ public class EventImpl implements Clearable {
     public void clearMetadata() {
         clearJudgeFlags();
         clearNonJudgeMetadata();
+        DeGen.clearDeGen(this);
     }
 
     private void clearJudgeFlags() {
@@ -516,8 +529,18 @@ public class EventImpl implements Clearable {
      *
      * @return the generation of this event
      */
+    @Deprecated(forRemoval = true)
     public long getGeneration() {
         return baseEvent.getGeneration();
+    }
+
+    /**
+     * Get the non-deterministic generation of this event
+     *
+     * @return the non-deterministic generation of this event
+     */
+    public long getNGen() {
+        return baseEvent.getNGen();
     }
 
     /**
@@ -535,6 +558,46 @@ public class EventImpl implements Clearable {
     @NonNull
     public NodeId getCreatorId() {
         return baseEvent.getCreatorId();
+    }
+
+    /**
+     * Returns the local consensus generation (cGen) of this event.
+     *
+     * @return the local consensus generation
+     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     */
+    public int getCGen() {
+        return cGen;
+    }
+
+    /**
+     * Sets the local consensus generation (cGen) of this event.
+     *
+     * @param cGen the local consensus generation to set
+     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     */
+    public void setCGen(final int cGen) {
+        this.cGen = cGen;
+    }
+
+    /**
+     * Returns the deterministic generation (deGen) of this event.
+     *
+     * @return the deterministic generation
+     * @see com.swirlds.platform.consensus.DeGen
+     */
+    public int getDeGen() {
+        return deGen;
+    }
+
+    /**
+     * Sets the deterministic generation (deGen) of this event.
+     *
+     * @param deGen the deterministic generation to set
+     * @see com.swirlds.platform.consensus.DeGen
+     */
+    public void setDeGen(final int deGen) {
+        this.deGen = deGen;
     }
 
     //
@@ -563,6 +626,20 @@ public class EventImpl implements Clearable {
 
     @Override
     public String toString() {
-        return baseEvent.toString();
+        final StringBuilder sb = new StringBuilder();
+        baseEvent.getDescriptor().shortString(sb);
+        final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
+        for (final EventDescriptorWrapper parent : allParents) {
+            parent.shortString(sb);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Create a short string representation of this event without any parent information.
+     * @return a short string
+     */
+    public String shortString() {
+        return baseEvent.getDescriptor().shortString();
     }
 }

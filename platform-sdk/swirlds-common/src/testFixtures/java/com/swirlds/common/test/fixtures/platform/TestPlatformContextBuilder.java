@@ -1,33 +1,16 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.concurrent.ExecutorFactory;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
@@ -39,6 +22,7 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.hiero.base.concurrent.ExecutorFactory;
 
 /**
  * A simple builder to create a {@link PlatformContext} for unit tests.
@@ -48,10 +32,9 @@ public final class TestPlatformContextBuilder {
     private static final Metrics defaultMetrics = new NoOpMetrics();
     private static final Configuration defaultConfig =
             ConfigurationBuilder.create().autoDiscoverExtensions().build();
-    private static final Cryptography defaultCryptography = CryptographyHolder.get();
+    private static final MerkleCryptography defaultMerkleCryptography = MerkleCryptographyFactory.create(defaultConfig);
     private Configuration configuration;
     private Metrics metrics;
-    private Cryptography cryptography;
     private Time time = Time.getCurrent();
     private FileSystemManager fileSystemManager;
     private RecycleBin recycleBin;
@@ -89,17 +72,6 @@ public final class TestPlatformContextBuilder {
     @NonNull
     public TestPlatformContextBuilder withMetrics(@Nullable final Metrics metrics) {
         this.metrics = metrics;
-        return this;
-    }
-
-    /**
-     * Set the {@link Cryptography} to use. If null or not set, uses a default cryptography instance.
-     *
-     * @param cryptography the cryptography to use
-     */
-    @NonNull
-    public TestPlatformContextBuilder withCryptography(@Nullable final Cryptography cryptography) {
-        this.cryptography = cryptography;
         return this;
     }
 
@@ -148,17 +120,16 @@ public final class TestPlatformContextBuilder {
             this.configuration = defaultConfig;
         }
         if (metrics == null) {
-            this.metrics = defaultMetrics; // FUTURE WORK: replace this with NoOp Metrics
+            this.metrics = defaultMetrics;
         }
-        if (this.cryptography == null) {
-            this.cryptography = defaultCryptography;
-        }
-
         if (recycleBin == null) {
             this.recycleBin = new NoOpRecycleBin();
         }
         if (this.fileSystemManager == null) {
             this.fileSystemManager = getTestFileSystemManager();
+        }
+        if (merkleCryptography == null) {
+            this.merkleCryptography = defaultMerkleCryptography;
         }
 
         final ExecutorFactory executorFactory = ExecutorFactory.create("test", new UncaughtExceptionHandler() {
@@ -173,12 +144,6 @@ public final class TestPlatformContextBuilder {
             @Override
             public Configuration getConfiguration() {
                 return configuration;
-            }
-
-            @NonNull
-            @Override
-            public Cryptography getCryptography() {
-                return cryptography;
             }
 
             @NonNull

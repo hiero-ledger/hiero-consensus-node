@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
@@ -25,26 +10,23 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.swirlds.config.api.Configuration;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
 /**
- * Manages the call attempted by a {@link Bytes} payload received by the {@link HtsSystemContract}.
- * Translates a valid attempt into an appropriate {@link Call} subclass, giving the {@link Call}
- * everything it will need to execute.
+ * Manages the call attempted by a {@link Bytes} payload received by the {@link HtsSystemContract}. Translates a valid
+ * attempt into an appropriate {@link Call} subclass, giving the {@link Call} everything it will need to execute.
  */
 public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
+    /** Selector for redirectForToken(address,bytes) method. */
     public static final Function REDIRECT_FOR_TOKEN = new Function("redirectForToken(address,bytes)");
 
     // The id address of the account authorizing the call, in the sense
@@ -59,55 +41,26 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     @Nullable
     private final Token redirectToken;
 
-    // too many parameters
-    @SuppressWarnings("java:S107")
-    public HtsCallAttempt(
-            @NonNull final Bytes input,
-            @NonNull final Address senderAddress,
-            @NonNull final Address authorizingAddress,
-            final boolean onlyDelegatableContractKeysActive,
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final Configuration configuration,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final VerificationStrategies verificationStrategies,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final List<CallTranslator<HtsCallAttempt>> callTranslators,
-            final boolean isStaticCall) {
-        super(
-                input,
-                senderAddress,
-                authorizingAddress,
-                onlyDelegatableContractKeysActive,
-                enhancement,
-                configuration,
-                addressIdConverter,
-                verificationStrategies,
-                gasCalculator,
-                callTranslators,
-                isStaticCall,
-                REDIRECT_FOR_TOKEN);
+    public HtsCallAttempt(@NonNull final Bytes input, @NonNull final CallAttemptOptions<HtsCallAttempt> options) {
+        super(input, options, REDIRECT_FOR_TOKEN);
         if (isRedirect()) {
             this.redirectToken = linkedToken(redirectAddress);
         } else {
             redirectToken = null;
         }
-        this.authorizingId =
-                (authorizingAddress != senderAddress) ? addressIdConverter.convertSender(authorizingAddress) : senderId;
+        this.authorizingId = (options.authorizingAddress() != senderAddress())
+                ? addressIdConverter().convertSender(options.authorizingAddress())
+                : senderId;
+    }
+
+    @Override
+    protected SystemContract systemContractKind() {
+        return SystemContractMethod.SystemContract.HTS;
     }
 
     @Override
     protected HtsCallAttempt self() {
         return this;
-    }
-
-    /**
-     * Returns whether this is a token redirect.
-     *
-     * @return whether this is a token redirect
-     * @throws IllegalStateException if this is not a valid call
-     */
-    public boolean isTokenRedirect() {
-        return isRedirect();
     }
 
     /**
@@ -169,7 +122,9 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     public @Nullable Token linkedToken(@NonNull final byte[] evmAddress) {
         requireNonNull(evmAddress);
         if (isLongZeroAddress(evmAddress)) {
-            return enhancement.nativeOperations().getToken(numberOfLongZero(evmAddress));
+            return enhancement()
+                    .nativeOperations()
+                    .getToken(nativeOperations().entityIdFactory().newTokenId(numberOfLongZero(evmAddress)));
         } else {
             // No point in looking up a token that can't exist
             return null;

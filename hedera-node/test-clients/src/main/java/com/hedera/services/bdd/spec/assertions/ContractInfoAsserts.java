@@ -1,22 +1,6 @@
-/*
- * Copyright (C) 2020-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.assertions;
 
-import static com.hedera.services.bdd.suites.HapiSuite.STANDIN_CONTRACT_ID_KEY;
 import static com.hederahashgraph.api.proto.java.ContractGetInfoResponse.ContractInfo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -214,12 +198,6 @@ public class ContractInfoAsserts extends BaseErroringAssertsProvider<ContractInf
         return this;
     }
 
-    public ContractInfoAsserts hasStandinContractKey() {
-        registerProvider((spec, o) ->
-                assertEquals(STANDIN_CONTRACT_ID_KEY, object2ContractInfo(o).getAdminKey(), BAD_ADMIN_KEY));
-        return this;
-    }
-
     public ContractInfoAsserts defaultAdminKey() {
         registerProvider((spec, o) -> {
             final var contractId = object2ContractInfo(o).getContractID();
@@ -233,7 +211,12 @@ public class ContractInfoAsserts extends BaseErroringAssertsProvider<ContractInf
         registerProvider((spec, o) -> {
             final var actualKey = object2ContractInfo(o).getAdminKey();
             assertTrue(actualKey.hasContractID(), "Expected a contract admin key, got " + actualKey);
-            if (TxnUtils.isIdLiteral(name)) {
+            if (TxnUtils.isNumericLiteral(name)) {
+                assertEquals(
+                        HapiPropertySource.asContract(spec.shard(), spec.realm(), Long.parseLong(name)),
+                        actualKey.getContractID(),
+                        "Wrong immutable contract key");
+            } else if (TxnUtils.isIdLiteral(name)) {
                 assertEquals(
                         HapiPropertySource.asContract(name), actualKey.getContractID(), "Wrong immutable contract key");
             } else {

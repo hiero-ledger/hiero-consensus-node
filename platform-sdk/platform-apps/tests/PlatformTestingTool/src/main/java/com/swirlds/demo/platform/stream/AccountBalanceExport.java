@@ -1,33 +1,15 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.platform.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.crypto.Signature;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.demo.merkle.map.MapValueData;
 import com.swirlds.demo.platform.PlatformTestingToolState;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -41,10 +23,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Signature;
 
 public class AccountBalanceExport {
 
@@ -55,18 +37,11 @@ public class AccountBalanceExport {
     private static final String lineSperator = "line.separator";
 
     private final long exportPeriodSec;
-    private final HashMap<String, NodeId> nodeAccounts;
 
     private Instant previousTimestamp = null;
 
-    public AccountBalanceExport(final AddressBook addressBook, final long exportPeriodSec) {
+    public AccountBalanceExport(final long exportPeriodSec) {
         this.exportPeriodSec = exportPeriodSec;
-
-        this.nodeAccounts = new HashMap<>();
-        for (final Address address : addressBook) {
-            // memo contains the node accountID string
-            this.nodeAccounts.put(address.getMemo(), address.getNodeId());
-        }
     }
 
     /**
@@ -214,7 +189,7 @@ public class AccountBalanceExport {
         byte[] fileHash = getFileHash(balanceFileName);
         Signature signature = platform.sign(fileHash);
 
-        String sigFileName = generateSigFile(balanceFileName, signature.getSignatureBytes(), fileHash);
+        final String sigFileName = generateSigFile(balanceFileName, signature.getBytes(), fileHash);
         if (sigFileName != null) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Generated signature file for {}", balanceFileName);
@@ -226,11 +201,12 @@ public class AccountBalanceExport {
      * Create a signature file for a RecordStream/AccountBalance file;
      * This signature file contains the Hash of the file to be signed, and a signature signed by the node's Key
      *
-     * @param fileName
-     * @param signature
-     * @param fileHash
+     * @param fileName       the name of the file to be signed
+     * @param signatureBytes the signature bytes
+     * @param fileHash       the hash of the file to be signed
      */
-    public static String generateSigFile(String fileName, byte[] signature, byte[] fileHash) {
+    private static String generateSigFile(final String fileName, final Bytes signatureBytes, byte[] fileHash) {
+        final byte[] signature = signatureBytes.toByteArray();
         try {
             String newFileName = fileName + "_sig";
 

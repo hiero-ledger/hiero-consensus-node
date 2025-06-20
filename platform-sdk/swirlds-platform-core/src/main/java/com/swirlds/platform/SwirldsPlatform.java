@@ -1,37 +1,20 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
-import static com.swirlds.common.utility.CompareTo.isLessThan;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
-import static com.swirlds.platform.event.preconsensus.PcesBirthRoundMigration.migratePcesToBirthRoundMode;
-import static com.swirlds.platform.state.BirthRoundStateMigration.modifyStateForBirthRoundMigration;
-import static com.swirlds.platform.state.address.AddressBookMetrics.registerAddressBookMetrics;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.getSavedStateFiles;
+import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
+import static org.hiero.base.CompareTo.isLessThan;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.crypto.Signature;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
@@ -43,55 +26,51 @@ import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.EventWindow;
-import com.swirlds.platform.crypto.KeysAndCerts;
-import com.swirlds.platform.crypto.PlatformSigner;
-import com.swirlds.platform.event.AncientMode;
+import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.EventCounter;
-import com.swirlds.platform.event.PlatformEvent;
+import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
-import com.swirlds.platform.eventhandling.EventConfig;
-import com.swirlds.platform.gossip.SyncGossip;
 import com.swirlds.platform.metrics.RuntimeMetrics;
-import com.swirlds.platform.pool.TransactionPoolNexus;
 import com.swirlds.platform.publisher.DefaultPlatformPublisher;
 import com.swirlds.platform.publisher.PlatformPublisher;
-import com.swirlds.platform.state.MerkleRoot;
-import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateMetrics;
 import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
+import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.SwirldState;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.system.events.BirthRoundMigrationShim;
-import com.swirlds.platform.system.events.DefaultBirthRoundMigrationShim;
 import com.swirlds.platform.system.status.actions.DoneReplayingEventsAction;
 import com.swirlds.platform.system.status.actions.StartedReplayingEventsAction;
 import com.swirlds.platform.wiring.PlatformWiring;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -109,7 +88,7 @@ public class SwirldsPlatform implements Platform {
     /**
      * the current nodes in the network and their information
      */
-    private final AddressBook currentAddressBook;
+    private final Roster currentRoster;
 
     /**
      * the object that contains all key pairs and CSPRNG state for this member
@@ -135,11 +114,6 @@ public class SwirldsPlatform implements Platform {
      * new state is created, before it is hashed.
      */
     private final SignedStateNexus latestImmutableStateNexus = new LockFreeStateNexus();
-
-    /**
-     * Handles all interaction with {@link SwirldState}
-     */
-    private final SwirldStateManager swirldStateManager;
 
     /**
      * For passing notifications between the platform and the application.
@@ -171,6 +145,8 @@ public class SwirldsPlatform implements Platform {
      */
     private final PlatformWiring platformWiring;
 
+    private final long pcesReplayLowerBound;
+
     /**
      * Constructor.
      *
@@ -180,44 +156,36 @@ public class SwirldsPlatform implements Platform {
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
         platformContext = blocks.platformContext();
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
+        final ConsensusStateEventHandler consensusStateEventHandler = blocks.consensusStateEventHandler();
 
         // The reservation on this state is held by the caller of this constructor.
         final SignedState initialState = blocks.initialState().get();
 
-        // This method is a no-op if we are not in birth round mode, or if we have already migrated.
-        final SoftwareVersion appVersion = blocks.appVersion();
-        modifyStateForBirthRoundMigration(initialState, ancientMode, appVersion);
+        final PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
 
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD) {
-            try {
-                // This method is a no-op if we have already completed birth round migration or if we are at genesis.
-                migratePcesToBirthRoundMode(
-                        platformContext,
-                        blocks.selfId(),
-                        initialState.getRound(),
-                        initialState
-                                .getState()
-                                .getReadablePlatformState()
-                                .getLowestJudgeGenerationBeforeBirthRoundMode());
-            } catch (final IOException e) {
-                throw new UncheckedIOException("Birth round migration failed during PCES migration.", e);
-            }
-        }
+        // Set these fields to zero so they can be removed in a future version.
+        // These fields were required for birth round migration which has taken place.
+        blocks.platformStateFacade().bulkUpdateOf(initialState.getState(), v -> {
+            v.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().build());
+            v.setLastRoundBeforeBirthRoundMode(0);
+            v.setLowestJudgeGenerationBeforeBirthRoundMode(0);
+        });
 
         selfId = blocks.selfId();
+
+        // This will be initialized to a non-null value if birth round migration is performed. This is necessary
+        // in order to ensure that new PCES file writer detects the special migrated PCES file and starts new files with
+        // the correct sequence number.
+        final InlinePcesWriter inlinePcesWriter = null;
+
         initialPcesFiles = blocks.initialPcesFiles();
+
         notificationEngine = blocks.notificationEngine();
 
-        currentAddressBook = initialState.getAddressBook();
+        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
+        currentRoster = blocks.rosterHistory().getCurrentRoster();
 
-        platformWiring = new PlatformWiring(platformContext, blocks.model(), blocks.applicationCallbacks());
-
-        registerAddressBookMetrics(platformContext.getMetrics(), currentAddressBook, selfId);
+        registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
 
         RuntimeMetrics.setup(platformContext.getMetrics());
 
@@ -232,6 +200,8 @@ public class SwirldsPlatform implements Platform {
         final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
         final StateSignatureCollector stateSignatureCollector =
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
+
+        this.platformWiring = blocks.platformWiring();
 
         blocks.statusActionSubmitterReference()
                 .set(x -> platformWiring.getStatusActionSubmitter().submitStatusAction(x));
@@ -248,31 +218,18 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState);
+        initializeState(this, platformContext, initialState, consensusStateEventHandler, platformStateFacade);
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
-        swirldStateManager = blocks.swirldStateManager();
+        /**
+         * Handles all interaction with {@link ConsensusStateEventHandler}
+         */
+        SwirldStateManager swirldStateManager = blocks.swirldStateManager();
         swirldStateManager.setInitialState(initialState.getState());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        final boolean useOldStyleIntakeQueue = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .useOldStyleIntakeQueue();
-
-        final LongSupplier intakeQueueSizeSupplier;
-        if (useOldStyleIntakeQueue) {
-            final SyncGossip gossip = (SyncGossip) builder.buildGossip();
-            intakeQueueSizeSupplier = () -> gossip.getOldStyleIntakeQueueSize();
-        } else {
-            intakeQueueSizeSupplier = platformWiring.getIntakeQueueSizeSupplier();
-        }
-
-        blocks.intakeQueueSizeSupplierSupplier().set(intakeQueueSizeSupplier);
-        blocks.isInFreezePeriodReference().set(swirldStateManager::isInFreezePeriod);
-
-        final BirthRoundMigrationShim birthRoundMigrationShim = buildBirthRoundMigrationShim(initialState, ancientMode);
+        blocks.freezeCheckHolder().setFreezeCheckRef(swirldStateManager::isInFreezePeriod);
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
@@ -283,7 +240,7 @@ public class SwirldsPlatform implements Platform {
                 pcesReplayer,
                 stateSignatureCollector,
                 eventWindowManager,
-                birthRoundMigrationShim,
+                inlinePcesWriter,
                 latestImmutableStateNexus,
                 latestCompleteStateNexus,
                 savedStateController,
@@ -291,9 +248,9 @@ public class SwirldsPlatform implements Platform {
                 publisher);
 
         final Hash legacyRunningEventHash =
-                initialState.getState().getReadablePlatformState().getLegacyRunningEventHash() == null
-                        ? platformContext.getCryptography().getNullHash()
-                        : initialState.getState().getReadablePlatformState().getLegacyRunningEventHash();
+                platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
+                        ? Cryptography.NULL_HASH
+                        : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
         platformWiring.updateRunningHash(runningEventHashOverride);
@@ -303,12 +260,14 @@ public class SwirldsPlatform implements Platform {
                 .getConfiguration()
                 .getConfigData(StateConfig.class)
                 .getMainClassName(blocks.mainClassName());
+        final SignedStateFilePath statePath =
+                new SignedStateFilePath(platformContext.getConfiguration().getConfigData(StateCommonConfig.class));
         final List<SavedStateInfo> savedStates =
-                getSavedStateFiles(platformContext, actualMainClassName, selfId, blocks.swirldName());
+                statePath.getSavedStateFiles(actualMainClassName, selfId, blocks.swirldName());
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
-                    savedStates.get(savedStates.size() - 1).metadata().minimumGenerationNonAncient();
+                    savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
             platformWiring.getPcesMinimumGenerationToStoreInput().inject(minimumGenerationNonAncientForOldestState);
         }
 
@@ -321,10 +280,9 @@ public class SwirldsPlatform implements Platform {
         if (startedFromGenesis) {
             initialAncientThreshold = 0;
             startingRound = 0;
-            platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow(ancientMode));
+            platformWiring.updateEventWindow(EventWindow.getGenesisEventWindow());
         } else {
-            initialAncientThreshold =
-                    initialState.getState().getReadablePlatformState().getAncientThreshold();
+            initialAncientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
             platformWiring.sendStateToHashLogger(initialState);
@@ -334,17 +292,15 @@ public class SwirldsPlatform implements Platform {
 
             savedStateController.registerSignedStateFromDisk(initialState);
 
-            platformWiring.consensusSnapshotOverride(Objects.requireNonNull(
-                    initialState.getState().getReadablePlatformState().getSnapshot()));
+            final ConsensusSnapshot consensusSnapshot =
+                    Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(initialState.getState()));
+            platformWiring.consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
-            platformWiring.updateEventWindow(new EventWindow(
-                    initialState.getRound(),
-                    initialAncientThreshold,
-                    initialAncientThreshold,
-                    AncientMode.getAncientMode(platformContext)));
+            platformWiring.updateEventWindow(
+                    EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
             platformWiring.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 
@@ -358,37 +314,19 @@ public class SwirldsPlatform implements Platform {
                 swirldStateManager,
                 latestImmutableStateNexus,
                 savedStateController,
-                currentAddressBook);
+                currentRoster,
+                consensusStateEventHandler,
+                platformStateFacade);
 
         blocks.loadReconnectStateReference().set(reconnectStateLoader::loadReconnectState);
         blocks.clearAllPipelinesForReconnectReference().set(platformWiring::clear);
         blocks.latestImmutableStateProviderReference().set(latestImmutableStateNexus::getState);
-    }
 
-    /**
-     * Builds the birth round migration shim if necessary.
-     *
-     * @param initialState the initial state
-     * @param ancientMode  the ancient mode
-     * @return the birth round migration shim, or null if it is not needed
-     */
-    @Nullable
-    private BirthRoundMigrationShim buildBirthRoundMigrationShim(
-            @NonNull final SignedState initialState, @NonNull final AncientMode ancientMode) {
-
-        if (ancientMode == AncientMode.GENERATION_THRESHOLD) {
-            // We don't need the shim if we haven't migrated to birth round mode.
-            return null;
+        if (!initialState.isGenesisState()) {
+            pcesReplayLowerBound = initialAncientThreshold;
+        } else {
+            pcesReplayLowerBound = 0;
         }
-
-        final MerkleRoot state = initialState.getState();
-        final PlatformStateAccessor platformState = state.getReadablePlatformState();
-
-        return new DefaultBirthRoundMigrationShim(
-                platformContext,
-                platformState.getFirstVersionInBirthRoundMode(),
-                platformState.getLastRoundBeforeBirthRoundMode(),
-                platformState.getLowestJudgeGenerationBeforeBirthRoundMode());
     }
 
     /**
@@ -455,12 +393,9 @@ public class SwirldsPlatform implements Platform {
         platformWiring.getStatusActionSubmitter().submitStatusAction(new StartedReplayingEventsAction());
 
         final IOIterator<PlatformEvent> iterator =
-                initialPcesFiles.getEventIterator(initialAncientThreshold, startingRound);
+                initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
 
-        logger.info(
-                STARTUP.getMarker(),
-                "replaying preconsensus event stream starting at generation {}",
-                initialAncientThreshold);
+        logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
 
         platformWiring.getPcesReplayerIteratorInput().inject(iterator);
 
@@ -517,8 +452,8 @@ public class SwirldsPlatform implements Platform {
      */
     @Override
     @NonNull
-    public AddressBook getAddressBook() {
-        return currentAddressBook;
+    public Roster getRoster() {
+        return currentRoster;
     }
 
     /**
@@ -527,10 +462,10 @@ public class SwirldsPlatform implements Platform {
     @SuppressWarnings("unchecked")
     @Override
     @NonNull
-    public <T extends SwirldState> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
+    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(@NonNull final String reason) {
         final ReservedSignedState wrapper = latestImmutableStateNexus.getState(reason);
         return wrapper == null
                 ? AutoCloseableWrapper.empty()
-                : new AutoCloseableWrapper<>((T) wrapper.get().getState().getSwirldState(), wrapper::close);
+                : new AutoCloseableWrapper<>((T) wrapper.get().getState(), wrapper::close);
     }
 }

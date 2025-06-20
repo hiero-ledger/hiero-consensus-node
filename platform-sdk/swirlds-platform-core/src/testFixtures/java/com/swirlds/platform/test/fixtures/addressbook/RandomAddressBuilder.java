@@ -1,31 +1,16 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.common.test.fixtures.RandomUtils.randomIp;
-import static com.swirlds.common.test.fixtures.RandomUtils.randomString;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.randomString;
 
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.platform.crypto.SerializableX509Certificate;
-import com.swirlds.platform.system.address.Address;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A builder for creating random {@link Address} instances.
@@ -74,7 +59,7 @@ public class RandomAddressBuilder {
         // Future work: use randotron utility methods once randotron changes merge
 
         if (nodeId == null) {
-            nodeId = new NodeId(random.nextLong(0, Long.MAX_VALUE));
+            nodeId = NodeId.of(random.nextLong(0, Long.MAX_VALUE));
         }
 
         if (weight == null) {
@@ -82,7 +67,7 @@ public class RandomAddressBuilder {
         }
 
         if (port == null) {
-            port = random.nextInt(0, 65535);
+            port = random.nextInt(1, 65535);
         }
 
         if (hostname == null) {

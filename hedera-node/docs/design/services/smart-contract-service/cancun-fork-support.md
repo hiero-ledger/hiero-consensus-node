@@ -36,7 +36,7 @@ Generally speaking there are four strategies that will be used:
   specifications change (e.g., `SELFDESTRUCT`)
 * As a Hedera developer, I want to preserve maximum future design space to adopt, or not adopt, blobs.
 * As an end user, I want prompt and accurate failures if I attempt to use Blob features in Hedera.
-  * And as a smart contract develop I want attempts to _use_ internal blob-support features (e.g.,
+  * And as a smart contract developer I want attempts to _use_ internal blob-support features (e.g.,
     opcodes `VERSIONEDHASH` and `BLOBBASEFEE`) to behave in a predictable manner
 
 ## Goals

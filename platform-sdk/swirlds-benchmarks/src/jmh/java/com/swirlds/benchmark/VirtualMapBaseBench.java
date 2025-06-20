@@ -1,30 +1,13 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.crypto.DigestType;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
@@ -43,6 +26,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.openjdk.jmh.annotations.TearDown;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
@@ -107,10 +93,13 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     }
 
     protected VirtualMap<BenchmarkKey, BenchmarkValue> createEmptyMap(String label) {
-        MerkleDbTableConfig tableConfig =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384).preferDiskIndices(false);
-        MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig);
-        return new VirtualMap<>(label, new BenchmarkKeySerializer(), new BenchmarkValueSerializer(), dataSourceBuilder);
+        final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
+        // Start with a relatively low virtual map size hint and let MerkleDb resize its HDHM
+        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
+                (short) 1, DigestType.SHA_384, maxKey / 2, merkleDbConfig.hashesRamToDiskThreshold());
+        MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+        return new VirtualMap<>(
+                label, new BenchmarkKeySerializer(), new BenchmarkValueSerializer(), dataSourceBuilder, configuration);
     }
 
     protected VirtualMap<BenchmarkKey, BenchmarkValue> createMap(final long[] map) {
@@ -170,7 +159,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                                 virtualMap.serialize(out, savedDir);
                             }
                             virtualMap.release();
-                            if (!getConfig().saveDataDirectory()) {
+                            if (!getBenchmarkConfig().saveDataDirectory()) {
                                 Utils.deleteRecursively(savedDir);
                             }
 
@@ -208,7 +197,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
         logger.info("Flushed map in {} ms", System.currentTimeMillis() - start);
 
-        if (getConfig().saveDataDirectory()) {
+        if (getBenchmarkConfig().saveDataDirectory()) {
             curMap = saveMap(curMap);
         }
 
@@ -333,20 +322,20 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             }
             savedDir = nextSavedDir;
         }
+        VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = null;
         if (savedDir != null) {
             try {
                 logger.info("Restoring map {} from {}", label, savedDir);
-                final VirtualMap<BenchmarkKey, BenchmarkValue> virtualMap = new VirtualMap<>();
-                try (final SerializableDataInputStream in =
+                virtualMap = new VirtualMap<>(configuration);
+                try (SerializableDataInputStream in =
                         new SerializableDataInputStream(Files.newInputStream(savedDir.resolve(label + SERDE_SUFFIX)))) {
                     virtualMap.deserialize(in, savedDir, virtualMap.getVersion());
                 }
                 logger.info("Restored map {} from {}", label, savedDir);
-                return virtualMap;
             } catch (IOException ex) {
                 logger.error("Error loading saved map: {}", ex.getMessage());
             }
         }
-        return null;
+        return virtualMap;
     }
 }

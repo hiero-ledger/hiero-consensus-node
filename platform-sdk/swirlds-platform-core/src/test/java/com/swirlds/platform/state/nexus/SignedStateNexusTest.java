@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.nexus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.consensus.ConsensusConstants;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
@@ -35,6 +20,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
@@ -48,6 +36,16 @@ class SignedStateNexusTest {
 
     private static Stream<SignedStateNexus> raceConditionInstances() {
         return Stream.of(new LockFreeStateNexus(), new EmergencyStateNexus());
+    }
+
+    @BeforeEach
+    void setUp() {
+        MerkleDb.resetDefaultInstancePath();
+    }
+
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 
     @ParameterizedTest
@@ -133,12 +131,14 @@ class SignedStateNexusTest {
 
     private static ReservedSignedState mockState() {
         final ReservedSignedState state = Mockito.mock(ReservedSignedState.class);
+        MerkleDb.resetDefaultInstancePath();
         final SignedState ss = new RandomSignedStateGenerator().build();
         Mockito.when(state.get()).thenReturn(ss);
         return state;
     }
 
     private static ReservedSignedState realState() {
+        MerkleDb.resetDefaultInstancePath();
         return new RandomSignedStateGenerator().build().reserve("test");
     }
 }

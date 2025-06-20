@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.signature.impl;
 
 import static com.hedera.node.app.fixtures.signature.ExpandedSignaturePairFactory.ecdsaPair;
@@ -22,7 +7,6 @@ import static com.hedera.node.app.fixtures.signature.ExpandedSignaturePairFactor
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.KECCAK_256_HASH;
 import static com.hedera.node.app.spi.signatures.SignatureVerifier.MessageType.RAW;
 import static java.util.Collections.emptySet;
-import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,12 +20,12 @@ import com.hedera.node.app.signature.ExpandedSignaturePair;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.crypto.Cryptography;
-import com.swirlds.common.crypto.TransactionSignature;
-import com.swirlds.common.crypto.VerificationStatus;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.TransactionSignature;
+import org.hiero.base.crypto.VerificationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -129,7 +113,6 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
         doAnswer((Answer<Void>) invocation -> {
                     final TransactionSignature signature = invocation.getArgument(0);
                     signature.setSignatureStatus(VerificationStatus.VALID);
-                    signature.setFuture(completedFuture(null));
                     return null;
                 })
                 .when(cryptoEngine)
@@ -175,24 +158,19 @@ final class SignatureVerifierImplTest extends AppTestBase implements Scenarios {
         for (int i = 0; i < 3; i++) {
             final var expandedSigPair = itr.next();
             final var txSig = txSigs.get(i);
-            final var contents = Bytes.wrap(txSig.getContents());
             if (messageType == RAW) {
-                assertThat(contents.slice(txSig.getMessageOffset(), txSig.getMessageLength())
+                assertThat(txSig.getMessage()
                                 .matchesPrefix(i == 1 ? signedBytes : keccakSignedBytes)) // index 1 is ed25519
                         .isTrue();
             } else {
                 // For a KECCAK_256_HASH message type, the signed bytes are always the given hash
-                assertThat(contents.slice(txSig.getMessageOffset(), txSig.getMessageLength())
-                                .matchesPrefix(signedBytes))
-                        .isTrue();
+                assertThat(txSig.getMessage().matchesPrefix(signedBytes)).isTrue();
             }
 
-            assertThat(contents.slice(txSig.getSignatureOffset(), txSig.getSignatureLength())
-                            .matchesPrefix(expandedSigPair.signature()))
+            assertThat(txSig.getSignature().matchesPrefix(expandedSigPair.signature()))
                     .isTrue();
 
-            assertThat(contents.slice(txSig.getPublicKeyOffset(), txSig.getPublicKeyLength())
-                            .matchesPrefix(expandedSigPair.keyBytes()))
+            assertThat(txSig.getPublicKey().matchesPrefix(expandedSigPair.keyBytes()))
                     .isTrue();
         }
     }

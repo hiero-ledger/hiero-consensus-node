@@ -1,22 +1,8 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.util;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.AdapterUtils.mockStates;
@@ -74,7 +60,6 @@ import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_TREASURY_KT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_WIPE_KT;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TREASURY_PAYER;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -100,7 +85,8 @@ import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableTokenRelationStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -111,6 +97,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
@@ -155,6 +142,9 @@ public class SigReqAdapterUtils {
                     .build())
             .build();
 
+    @Mock
+    private ReadableEntityCounters readableEntityCounters;
+
     /**
      * Returns the {@link ReadableTokenStore} containing the "well-known" tokens that exist in a
      * {@code SigRequirementsTest} scenario. This allows us to re-use these scenarios in unit tests
@@ -164,7 +154,7 @@ public class SigReqAdapterUtils {
      */
     public static ReadableTokenStore wellKnownTokenStoreAt() {
         final var state = wellKnownTokenState();
-        return new ReadableTokenStoreImpl(mockStates(Map.of(TOKENS_KEY, state)));
+        return new ReadableTokenStoreImpl(mockStates(Map.of(TOKENS_KEY, state)), mock(ReadableEntityCounters.class));
     }
 
     /**
@@ -175,9 +165,7 @@ public class SigReqAdapterUtils {
      */
     public static WritableTokenStore wellKnownWritableTokenStoreAt() {
         return new WritableTokenStore(
-                mockWritableStates(Map.of(TOKENS_KEY, wellKnownTokenState())),
-                CONFIGURATION,
-                mock(StoreMetricsService.class));
+                mockWritableStates(Map.of(TOKENS_KEY, wellKnownTokenState())), mock(WritableEntityCounters.class));
     }
 
     private static WritableKVState<TokenID, Token> wellKnownTokenState() {
@@ -214,11 +202,7 @@ public class SigReqAdapterUtils {
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .pauseKey(TOKEN_PAUSE_KT.asPbjKey())
                         .paused(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(3)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_FREEZE),
@@ -231,11 +215,7 @@ public class SigReqAdapterUtils {
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .freezeKey(TOKEN_FREEZE_KT.asPbjKey())
                         .accountsFrozenByDefault(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(3)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(3).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_KYC),
@@ -247,11 +227,7 @@ public class SigReqAdapterUtils {
                         .name("KYCTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .kycKey(TOKEN_KYC_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_FEE_SCHEDULE_KEY),
@@ -263,11 +239,7 @@ public class SigReqAdapterUtils {
                         .name("FEE_SCHEDULETOKENNAME")
                         .feeScheduleKey(TOKEN_FEE_SCHEDULE_KT.asPbjKey())
                         .accountsKycGrantedByDefault(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_ROYALTY_FEE_AND_FALLBACK),
@@ -300,11 +272,7 @@ public class SigReqAdapterUtils {
                         .name("SUPPLYTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .supplyKey(TOKEN_SUPPLY_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(KNOWN_TOKEN_WITH_WIPE),
@@ -316,11 +284,7 @@ public class SigReqAdapterUtils {
                         .name("WIPETOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .wipeKey(TOKEN_WIPE_KT.asPbjKey())
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         destination.put(
                 toPbj(DELETED_TOKEN),
@@ -332,11 +296,7 @@ public class SigReqAdapterUtils {
                         .name("DELETEDTOKENNAME")
                         .adminKey(TOKEN_ADMIN_KT.asPbjKey())
                         .deleted(true)
-                        .treasuryAccountId(AccountID.newBuilder()
-                                .shardNum(1)
-                                .realmNum(2)
-                                .accountNum(4)
-                                .build())
+                        .treasuryAccountId(AccountID.newBuilder().accountNum(4).build())
                         .build());
         return new MapWritableKVState<>("TOKENS", destination);
     }
@@ -381,9 +341,7 @@ public class SigReqAdapterUtils {
 
         final var wrappedState = new MapWritableKVState<>(TOKEN_RELS_KEY, destination);
         return new WritableTokenRelationStore(
-                mockWritableStates(Map.of(TOKEN_RELS_KEY, wrappedState)),
-                CONFIGURATION,
-                mock(StoreMetricsService.class));
+                mockWritableStates(Map.of(TOKEN_RELS_KEY, wrappedState)), mock(WritableEntityCounters.class));
     }
 
     /**
@@ -393,7 +351,8 @@ public class SigReqAdapterUtils {
      */
     public static ReadableAccountStoreImpl wellKnownAccountStoreAt() {
         return new ReadableAccountStoreImpl(
-                mockStates(Map.of(ACCOUNTS_KEY, wrappedAccountState(), ALIASES_KEY, wellKnownAliasState())));
+                mockStates(Map.of(ACCOUNTS_KEY, wrappedAccountState(), ALIASES_KEY, wellKnownAliasState())),
+                mock(ReadableEntityCounters.class));
     }
 
     /**
@@ -404,8 +363,7 @@ public class SigReqAdapterUtils {
     public static WritableAccountStore wellKnownWritableAccountStoreAt() {
         return new WritableAccountStore(
                 mockWritableStates(Map.of(ACCOUNTS_KEY, wrappedAccountState(), ALIASES_KEY, wellKnownAliasState())),
-                CONFIGURATION,
-                mock(StoreMetricsService.class));
+                mock(WritableEntityCounters.class));
     }
 
     private static WritableKVState<AccountID, Account> wrappedAccountState() {

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,11 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.constructable.ConstructableIgnored;
-import com.swirlds.common.crypto.CryptographyHolder;
-import com.swirlds.common.crypto.Hash;
-import com.swirlds.common.io.streams.SerializableDataInputStream;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -48,6 +28,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableIgnored;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.Hash;
+import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -351,15 +337,16 @@ class PartialNodeTests {
     @MethodSource("merkleNodes")
     @DisplayName("Hash Test")
     void hashTest(final NodeImpl<MerkleNode> nodeImpl) {
+        final Cryptography cryptography = CryptographyProvider.getInstance();
         final MerkleNode node = nodeImpl.constructor.get();
 
         assertNull(node.getHash(), "node should start with null hash");
-        final Hash hash1 = CryptographyHolder.get().getNullHash();
+        final Hash hash1 = Cryptography.NULL_HASH;
         node.setHash(hash1);
         assertSame(hash1, node.getHash(), "unexpected hash");
 
         final byte[] bytes = new byte[100];
-        final Hash hash2 = CryptographyHolder.get().digestSync(bytes);
+        final Hash hash2 = cryptography.digestSync(bytes);
         node.setHash(hash2);
         assertSame(hash2, node.getHash(), "unexpected hash");
 

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip904;
 
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -32,18 +17,15 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.OwningEntity;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
-import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
-import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.operations.transactions.AirdropOperation;
@@ -86,17 +68,6 @@ public class AirdropSigReqsTest {
         lifecycle.overrideInClass(Map.of(
                 "tokens.airdrops.enabled", "true",
                 "entities.unlimitedAutoAssociationsEnabled", "true"));
-    }
-
-    @HapiTest
-    @DisplayName("require a receiver contract to have a cryptographic admin key")
-    final Stream<DynamicTest> contractMustHaveCryptoAdminKey(
-            @Contract(contract = "Multipurpose", isImmutable = true) SpecContract immutableContract,
-            @Contract(contract = "PayReceivable") SpecContract mutableContract) {
-        return hapiTest(
-                airdropTo(mutableContract).with(txn -> txn.via("successAirdrop")),
-                getTxnRecord("successAirdrop").hasPriority(recordWith().pendingAirdropsCount(2)),
-                airdropTo(immutableContract).andAssert(txn -> txn.hasKnownStatus(NOT_SUPPORTED)));
     }
 
     @HapiTest

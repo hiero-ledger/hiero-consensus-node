@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.datasource;
 
-import com.swirlds.common.io.SelfSerializable;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import org.hiero.base.io.SelfSerializable;
 
 /**
  * Manages {@link VirtualDataSource} instances. An instance of a data source builder is provided
@@ -43,6 +29,7 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * @return
      * 		An opened {@link VirtualDataSource}.
      */
+    @NonNull
     VirtualDataSource build(String label, final boolean withDbCompactionEnabled);
 
     /**
@@ -60,16 +47,21 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * 		The dataSource to invoke snapshot on. Cannot be null
      * @param makeCopyActive
      *      Indicates whether to make the copy active or keep the original data source active
+     * @param offlineUse
+     *      Indicates that the copied data source should use as little resources as possible. Data
+     *      source copies created for offline use should not be used for performance critical tasks
      * @return
      * 		An opened {@link VirtualDataSource}
      */
-    VirtualDataSource copy(VirtualDataSource snapshotMe, boolean makeCopyActive);
+    @NonNull
+    VirtualDataSource copy(VirtualDataSource snapshotMe, boolean makeCopyActive, boolean offlineUse);
 
     /**
      * Builds a new {@link VirtualDataSource} using the configuration of this builder by creating
-     * a snapshot of the given data source in the specified folder. If the destination folder is
-     * {@code null}, the snapshot is taken into an unspecified, usually temp, folder. The new data
-     * source doesn't have background file compaction enabled.
+     * a snapshot of the given data source in the specified folder. The new data source doesn't
+     * have background file compaction enabled. Such snapshots should not be used for any time
+     * critical operations, since snapshot data sources are expected to consume as little resources
+     * as possible (e.g. use on-disk rather than in-memory indices) and therefore may be slow.
      *
      * <p>This method is used when a virtual map is written to disk during state serialization.
      *
@@ -78,7 +70,7 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * @param snapshotMe
      * 		The dataSource to invoke snapshot on. Cannot be null
      */
-    void snapshot(Path destination, VirtualDataSource snapshotMe);
+    void snapshot(@NonNull Path destination, VirtualDataSource snapshotMe);
 
     /**
      * Builds a new {@link VirtualDataSource} using the configuration of this builder and
@@ -95,5 +87,6 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * @return
      * 		An opened {@link VirtualDataSource}
      */
+    @NonNull
     VirtualDataSource restore(String label, Path source);
 }

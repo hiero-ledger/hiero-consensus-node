@@ -1,33 +1,12 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.io.extendable.ExtendableOutputStream;
-import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
-import com.swirlds.common.io.streams.SerializableDataOutputStream;
-import com.swirlds.platform.event.PlatformEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Represents a preconsensus event file that can be written to.
@@ -38,10 +17,7 @@ public class PcesMutableFile {
      */
     private final PcesFile descriptor;
 
-    /**
-     * Counts the bytes written to the file.
-     */
-    private final CountingStreamExtension counter;
+    private final PcesFileWriter writer;
 
     /**
      * The highest ancient indicator of all events written to the file.
@@ -49,16 +25,13 @@ public class PcesMutableFile {
     private long highestAncientIdentifierInFile;
 
     /**
-     * The output stream to write to.
-     */
-    private final SerializableDataOutputStream out;
-
-    /**
      * Create a new preconsensus event file that can be written to.
      *
      * @param descriptor a description of the file
+     * @param pcesFileWriterType the type of writer
      */
-    PcesMutableFile(@NonNull final PcesFile descriptor) throws IOException {
+    PcesMutableFile(@NonNull final PcesFile descriptor, final @NonNull PcesFileWriterType pcesFileWriterType)
+            throws IOException {
         if (Files.exists(descriptor.getPath())) {
             throw new IOException("File " + descriptor.getPath() + " already exists");
         }
@@ -66,12 +39,8 @@ public class PcesMutableFile {
         Files.createDirectories(descriptor.getPath().getParent());
 
         this.descriptor = descriptor;
-        counter = new CountingStreamExtension(false);
-        out = new SerializableDataOutputStream(new ExtendableOutputStream(
-                new BufferedOutputStream(
-                        new FileOutputStream(descriptor.getPath().toFile())),
-                counter));
-        out.writeInt(PcesFileVersion.currentVersionNumber());
+        this.writer = pcesFileWriterType.createWriter(descriptor.getPath());
+        writer.writeVersion(PcesFileVersion.currentVersionNumber());
         highestAncientIdentifierInFile = descriptor.getLowerBound();
     }
 
@@ -90,14 +59,14 @@ public class PcesMutableFile {
      *
      * @param event the event to write
      */
-    public void writeEvent(final PlatformEvent event) throws IOException {
-        if (!descriptor.canContain(event.getAncientIndicator(descriptor.getFileType()))) {
+    public long writeEvent(final PlatformEvent event) throws IOException {
+        if (!descriptor.canContain(event.getBirthRound())) {
             throw new IllegalStateException("Cannot write event " + event.getHash() + " with ancient indicator "
-                    + event.getAncientIndicator(descriptor.getFileType()) + " to file " + descriptor);
+                    + event.getBirthRound() + " to file " + descriptor);
         }
-        out.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
-        highestAncientIdentifierInFile =
-                Math.max(highestAncientIdentifierInFile, event.getAncientIndicator(descriptor.getFileType()));
+        long size = writer.writeEvent(event.getGossipEvent());
+        highestAncientIdentifierInFile = Math.max(highestAncientIdentifierInFile, event.getBirthRound());
+        return size;
     }
 
     /**
@@ -130,14 +99,21 @@ public class PcesMutableFile {
      * Flush the file.
      */
     public void flush() throws IOException {
-        out.flush();
+        writer.flush();
+    }
+
+    /**
+     * Sync the buffer with the file system.
+     */
+    public void sync() throws IOException {
+        writer.sync();
     }
 
     /**
      * Close the file.
      */
     public void close() throws IOException {
-        out.close();
+        writer.close();
     }
 
     /**
@@ -146,7 +122,7 @@ public class PcesMutableFile {
      * @return the size of the file in bytes
      */
     public long fileSize() {
-        return counter.getCount();
+        return writer.fileSize();
     }
 
     /**

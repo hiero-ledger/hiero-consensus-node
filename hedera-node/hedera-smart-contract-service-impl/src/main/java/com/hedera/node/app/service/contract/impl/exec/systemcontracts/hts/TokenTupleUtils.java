@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.ZERO_ACCOUNT_ID;
@@ -28,10 +13,12 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
@@ -68,6 +55,14 @@ public class TokenTupleUtils {
                 Math.max(0, token.autoRenewSeconds()));
     }
 
+    @NonNull
+    public static Tuple expiryTupleFor(@NonNull final TokenCreateTransactionBody token) {
+        return Tuple.of(
+                token.expiry().seconds(),
+                headlongAddressOf(token.autoRenewAccountOrElse(ZERO_ACCOUNT_ID)),
+                Math.max(0, token.autoRenewPeriodOrElse(Duration.DEFAULT).seconds()));
+    }
+
     /**
      * Returns a tuple containing the response code, fixedFees, fractionalFees and the royaltyFees for the token
      *
@@ -94,7 +89,23 @@ public class TokenTupleUtils {
      */
     @SuppressWarnings("DataFlowIssue")
     @NonNull
-    private static List<Tuple> fixedFeesTupleListFor(@NonNull final Token token) {
+    private static List<? extends Tuple> fixedFeesTupleListFor(@NonNull final Token token) {
+        //
+        assert token.customFees() != null;
+        return token.customFees().stream()
+                .filter(CustomFee::hasFixedFee)
+                .map(fee -> Tuple.of(
+                        fee.fixedFeeOrElse(FixedFee.DEFAULT).amount(),
+                        headlongAddressOf(fee.fixedFee().denominatingTokenIdOrElse(ZERO_TOKEN_ID)),
+                        !fee.fixedFeeOrElse(FixedFee.DEFAULT).hasDenominatingTokenId(),
+                        false,
+                        headlongAddressOf(fee.feeCollectorAccountIdOrElse(ZERO_ACCOUNT_ID))))
+                .toList();
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @NonNull
+    private static List<? extends Tuple> fixedFeesTupleListFor(@NonNull final TokenCreateTransactionBody token) {
         //
         assert token.customFees() != null;
         return token.customFees().stream()
@@ -116,7 +127,28 @@ public class TokenTupleUtils {
      */
     @SuppressWarnings("DataFlowIssue")
     @NonNull
-    private static List<Tuple> fractionalFeesTupleListFor(@NonNull final Token token) {
+    private static List<? extends Tuple> fractionalFeesTupleListFor(@NonNull final Token token) {
+        // array of struct FractionalFee { uint32 numerator; uint32 denominator; uint32 minimumAmount; uint32
+        // maximumAmount; bool netOfTransfers; address feeCollector; }
+        return token.customFees().stream()
+                .filter(CustomFee::hasFractionalFee)
+                .map(fee -> Tuple.of(
+                        fee.fractionalFeeOrElse(FractionalFee.DEFAULT)
+                                .fractionalAmountOrElse(ZERO_FRACTION)
+                                .numerator(),
+                        fee.fractionalFeeOrElse(FractionalFee.DEFAULT)
+                                .fractionalAmountOrElse(ZERO_FRACTION)
+                                .denominator(),
+                        fee.fractionalFeeOrElse(FractionalFee.DEFAULT).minimumAmount(),
+                        fee.fractionalFeeOrElse(FractionalFee.DEFAULT).maximumAmount(),
+                        fee.fractionalFeeOrElse(FractionalFee.DEFAULT).netOfTransfers(),
+                        headlongAddressOf(fee.feeCollectorAccountIdOrElse(ZERO_ACCOUNT_ID))))
+                .toList();
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @NonNull
+    private static List<? extends Tuple> fractionalFeesTupleListFor(@NonNull final TokenCreateTransactionBody token) {
         // array of struct FractionalFee { uint32 numerator; uint32 denominator; uint32 minimumAmount; uint32
         // maximumAmount; bool netOfTransfers; address feeCollector; }
         return token.customFees().stream()
@@ -143,7 +175,40 @@ public class TokenTupleUtils {
      */
     @SuppressWarnings("DataFlowIssue")
     @NonNull
-    private static List<Tuple> royaltyFeesTupleListFor(@NonNull final Token token) {
+    private static List<? extends Tuple> royaltyFeesTupleListFor(@NonNull final Token token) {
+        // array of struct RoyaltyFee { uint32 numerator; uint32 denominator; uint32 amount; address tokenId; bool
+        // useHbarsForPayment; address feeCollector; }
+        return token.customFees().stream()
+                .filter(CustomFee::hasRoyaltyFee)
+                .map(fee -> {
+                    final var hasFallbackDenominatingTokenId = fee.royaltyFeeOrElse(RoyaltyFee.DEFAULT)
+                            .fallbackFeeOrElse(ZERO_FIXED_FEE)
+                            .hasDenominatingTokenId();
+                    final var denominatingTokenId = hasFallbackDenominatingTokenId
+                            ? fee.royaltyFeeOrElse(RoyaltyFee.DEFAULT)
+                                    .fallbackFee()
+                                    .denominatingTokenId()
+                            : ZERO_TOKEN_ID;
+                    return Tuple.of(
+                            fee.royaltyFeeOrElse(RoyaltyFee.DEFAULT)
+                                    .exchangeValueFractionOrElse(ZERO_FRACTION)
+                                    .numerator(),
+                            fee.royaltyFeeOrElse(RoyaltyFee.DEFAULT)
+                                    .exchangeValueFractionOrElse(ZERO_FRACTION)
+                                    .denominator(),
+                            fee.royaltyFeeOrElse(RoyaltyFee.DEFAULT)
+                                    .fallbackFeeOrElse(ZERO_FIXED_FEE)
+                                    .amount(),
+                            headlongAddressOf(denominatingTokenId),
+                            !hasFallbackDenominatingTokenId,
+                            headlongAddressOf(fee.feeCollectorAccountIdOrElse(ZERO_ACCOUNT_ID)));
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @NonNull
+    private static List<? extends Tuple> royaltyFeesTupleListFor(@NonNull final TokenCreateTransactionBody token) {
         // array of struct RoyaltyFee { uint32 numerator; uint32 denominator; uint32 amount; address tokenId; bool
         // useHbarsForPayment; address feeCollector; }
         return token.customFees().stream()
@@ -186,14 +251,35 @@ public class TokenTupleUtils {
         final var fractionalFees = fractionalFeesTupleListFor(token);
         final var royaltyFees = royaltyFeesTupleListFor(token);
 
-        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleForV2(token);
+        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleFor16c(token);
 
-        return Tuple.of(
+        return Tuple.from(
                 hederaToken,
                 token.totalSupply(),
                 token.deleted(),
                 token.accountsKycGrantedByDefault(),
                 token.paused(),
+                fixedFees.toArray(new Tuple[fixedFees.size()]),
+                fractionalFees.toArray(new Tuple[fractionalFees.size()]),
+                royaltyFees.toArray(new Tuple[royaltyFees.size()]),
+                ledgerId);
+    }
+
+    @NonNull
+    public static Tuple tokenInfoTupleFor(
+            @NonNull final TokenCreateTransactionBody token, @NonNull final String ledgerId, int version) {
+        final var fixedFees = fixedFeesTupleListFor(token);
+        final var fractionalFees = fractionalFeesTupleListFor(token);
+        final var royaltyFees = royaltyFeesTupleListFor(token);
+
+        final var hederaToken = version == 1 ? hederaTokenTupleFor(token) : hederaTokenTupleFor16c(token);
+
+        return Tuple.from(
+                hederaToken,
+                token.initialSupply(),
+                false,
+                false,
+                false,
                 fixedFees.toArray(new Tuple[fixedFees.size()]),
                 fractionalFees.toArray(new Tuple[fractionalFees.size()]),
                 royaltyFees.toArray(new Tuple[royaltyFees.size()]),
@@ -209,6 +295,12 @@ public class TokenTupleUtils {
     @NonNull
     public static Tuple fungibleTokenInfoTupleFor(
             @NonNull final Token token, @NonNull final String ledgerId, int version) {
+        return Tuple.of(tokenInfoTupleFor(token, ledgerId, version), token.decimals());
+    }
+
+    @NonNull
+    public static Tuple fungibleTokenInfoTupleFor(
+            @NonNull final TokenCreateTransactionBody token, @NonNull final String ledgerId, int version) {
         return Tuple.of(tokenInfoTupleFor(token, ledgerId, version), token.decimals());
     }
 
@@ -240,6 +332,24 @@ public class TokenTupleUtils {
                 nft.mintTimeOrElse(new Timestamp(0, 0)).seconds(),
                 nftMetaData,
                 priorityAddressOf(nft.spenderIdOrElse(ZERO_ACCOUNT_ID), nativeOperations));
+    }
+
+    @NonNull
+    public static Tuple nftTokenInfoTupleFor(
+            @NonNull final TokenCreateTransactionBody token, @NonNull final String ledgerId, int version) {
+        requireNonNull(token);
+        requireNonNull(ledgerId);
+
+        final var nftMetaData = token.metadata() != null ? token.metadata().toByteArray() : Bytes.EMPTY.toByteArray();
+        return Tuple.of(
+                tokenInfoTupleFor(token, ledgerId, version),
+                0L,
+                // The odd construct allowing a token to not have a treasury account set is to accommodate
+                // Token.DEFAULT being passed into this method, which a few Call implementations do
+                headlongAddressOf(token.treasuryOrElse(ZERO_ACCOUNT_ID)),
+                new Timestamp(0, 0).seconds(),
+                nftMetaData,
+                headlongAddressOf(token.treasuryOrElse(ZERO_ACCOUNT_ID)));
     }
 
     private static Address priorityAddressOf(
@@ -277,7 +387,7 @@ public class TokenTupleUtils {
      */
     @NonNull
     private static Tuple hederaTokenTupleFor(@NonNull final Token token) {
-        return Tuple.of(
+        return Tuple.from(
                 token.name(),
                 token.symbol(),
                 headlongAddressOf(token.treasuryAccountIdOrElse(ZERO_ACCOUNT_ID)),
@@ -285,6 +395,20 @@ public class TokenTupleUtils {
                 token.supplyType().protoOrdinal() == TokenSupplyType.FINITE_VALUE,
                 token.maxSupply(),
                 token.accountsFrozenByDefault(),
+                prepareKeyList(token, false),
+                expiryTupleFor(token));
+    }
+
+    @NonNull
+    private static Tuple hederaTokenTupleFor(@NonNull final TokenCreateTransactionBody token) {
+        return Tuple.from(
+                token.name(),
+                token.symbol(),
+                headlongAddressOf(token.treasuryOrElse(ZERO_ACCOUNT_ID)),
+                token.memo(),
+                token.supplyType().protoOrdinal() == TokenSupplyType.FINITE_VALUE,
+                token.maxSupply(),
+                token.freezeDefault(),
                 prepareKeyList(token, false),
                 expiryTupleFor(token));
     }
@@ -306,11 +430,28 @@ public class TokenTupleUtils {
         return keyList.toArray(Tuple[]::new);
     }
 
+    private static Tuple[] prepareKeyList(@NonNull final TokenCreateTransactionBody token, final boolean isV2) {
+        final var keyList = new java.util.ArrayList<>(List.of(
+                typedKeyTupleFor(TokenKeyType.ADMIN_KEY.bigIntegerValue(), token.adminKeyOrElse(Key.DEFAULT)),
+                typedKeyTupleFor(TokenKeyType.KYC_KEY.bigIntegerValue(), token.kycKeyOrElse(Key.DEFAULT)),
+                typedKeyTupleFor(TokenKeyType.FREEZE_KEY.bigIntegerValue(), token.freezeKeyOrElse(Key.DEFAULT)),
+                typedKeyTupleFor(TokenKeyType.WIPE_KEY.bigIntegerValue(), token.wipeKeyOrElse(Key.DEFAULT)),
+                typedKeyTupleFor(TokenKeyType.SUPPLY_KEY.bigIntegerValue(), token.supplyKeyOrElse(Key.DEFAULT)),
+                typedKeyTupleFor(
+                        TokenKeyType.FEE_SCHEDULE_KEY.bigIntegerValue(), token.feeScheduleKeyOrElse(Key.DEFAULT)),
+                typedKeyTupleFor(TokenKeyType.PAUSE_KEY.bigIntegerValue(), token.pauseKeyOrElse(Key.DEFAULT))));
+        if (isV2) {
+            keyList.add(typedKeyTupleFor(
+                    TokenKeyType.METADATA_KEY.bigIntegerValue(), token.metadataKeyOrElse(Key.DEFAULT)));
+        }
+        return keyList.toArray(Tuple[]::new);
+    }
+
     @NonNull
-    private static Tuple hederaTokenTupleForV2(@NonNull final Token token) {
+    private static Tuple hederaTokenTupleFor16c(@NonNull final Token token) {
         final var tokenMetaData =
                 token.metadata().length() > 0 ? token.metadata().toByteArray() : Bytes.EMPTY.toByteArray();
-        return Tuple.of(
+        return Tuple.from(
                 token.name(),
                 token.symbol(),
                 headlongAddressOf(token.treasuryAccountIdOrElse(ZERO_ACCOUNT_ID)),
@@ -318,6 +459,23 @@ public class TokenTupleUtils {
                 token.supplyType().protoOrdinal() == TokenSupplyType.FINITE_VALUE,
                 token.maxSupply(),
                 token.accountsFrozenByDefault(),
+                prepareKeyList(token, true),
+                expiryTupleFor(token),
+                tokenMetaData);
+    }
+
+    @NonNull
+    private static Tuple hederaTokenTupleFor16c(@NonNull final TokenCreateTransactionBody token) {
+        final var tokenMetaData =
+                token.metadata().length() > 0 ? token.metadata().toByteArray() : Bytes.EMPTY.toByteArray();
+        return Tuple.from(
+                token.name(),
+                token.symbol(),
+                headlongAddressOf(token.treasuryOrElse(ZERO_ACCOUNT_ID)),
+                token.memo(),
+                token.supplyType().protoOrdinal() == TokenSupplyType.FINITE_VALUE,
+                token.maxSupply(),
+                token.freezeDefault(),
                 prepareKeyList(token, true),
                 expiryTupleFor(token),
                 tokenMetaData);

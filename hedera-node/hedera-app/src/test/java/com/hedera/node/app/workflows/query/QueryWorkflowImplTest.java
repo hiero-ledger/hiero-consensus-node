@@ -1,23 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_INFO;
+import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
@@ -32,10 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -70,6 +58,7 @@ import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
@@ -88,10 +77,14 @@ import com.swirlds.state.State;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.time.InstantSource;
+import java.util.List;
 import java.util.function.Function;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -144,8 +137,11 @@ class QueryWorkflowImplTest extends AppTestBase {
     @Mock(strictness = LENIENT)
     private SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
 
+    @Mock
+    private OpWorkflowMetrics opWorkflowMetrics;
+
     private VersionedConfiguration configuration;
-    private Transaction payment;
+    private Bytes serializedPayment;
     private TransactionBody txBody;
     private Bytes requestBuffer;
     private TransactionInfo transactionInfo;
@@ -157,12 +153,16 @@ class QueryWorkflowImplTest extends AppTestBase {
         setupStandardStates();
 
         when(stateAccessor.apply(any())).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
-        requestBuffer = Bytes.wrap(new byte[] {1, 2, 3});
-        payment = Transaction.newBuilder().build();
+        final var transactionID =
+                TransactionID.newBuilder().accountID(ALICE.accountID()).build();
+        txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
+        final var payment = Transaction.newBuilder().body(txBody).build();
+        serializedPayment = Transaction.PROTOBUF.toBytes(payment);
         final var queryHeader = QueryHeader.newBuilder().payment(payment).build();
         final var query = Query.newBuilder()
                 .fileGetInfo(FileGetInfoQuery.newBuilder().header(queryHeader))
                 .build();
+        requestBuffer = Query.PROTOBUF.toBytes(query);
         when(queryParser.parseStrict((ReadableSequentialData) notNull())).thenReturn(query);
 
         configuration = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), DEFAULT_CONFIG_VERSION);
@@ -170,14 +170,17 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         when(feeManager.createFeeCalculator(eq(FILE_GET_INFO), any(), any())).thenReturn(feeCalculator);
 
-        final var transactionID =
-                TransactionID.newBuilder().accountID(ALICE.accountID()).build();
-        txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
-
         final var signatureMap = SignatureMap.newBuilder().build();
         transactionInfo = new TransactionInfo(
-                payment, txBody, signatureMap, payment.signedTransactionBytes(), CRYPTO_TRANSFER, null);
-        when(ingestChecker.runAllChecks(state, payment, configuration)).thenReturn(transactionInfo);
+                payment, txBody, signatureMap, payment.signedTransactionBytes(), CRYPTO_TRANSFER, serializedPayment);
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
         when(handler.extractHeader(query)).thenReturn(queryHeader);
         when(handler.createEmptyResponse(any())).thenAnswer((Answer<Response>) invocation -> {
@@ -211,7 +214,14 @@ class QueryWorkflowImplTest extends AppTestBase {
                 exchangeRateManager,
                 feeManager,
                 synchronizedThrottleAccumulator,
-                instantSource);
+                instantSource,
+                opWorkflowMetrics,
+                true);
+    }
+
+    @AfterEach
+    void tearDown() {
+        state.release();
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -230,7 +240,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -245,7 +257,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -260,7 +274,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -275,7 +291,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -290,7 +308,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -305,22 +325,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new QueryWorkflowImpl(
-                        stateAccessor,
-                        submissionManager,
-                        queryChecker,
-                        ingestChecker,
-                        dispatcher,
-                        null,
-                        configProvider,
-                        recordCache,
-                        authorizer,
-                        exchangeRateManager,
-                        feeManager,
-                        synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -335,7 +342,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -350,7 +359,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -365,7 +376,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -380,7 +393,26 @@ class QueryWorkflowImplTest extends AppTestBase {
                         null,
                         feeManager,
                         synchronizedThrottleAccumulator,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryWorkflowImpl(
+                        stateAccessor,
+                        submissionManager,
+                        queryChecker,
+                        ingestChecker,
+                        dispatcher,
+                        queryParser,
+                        configProvider,
+                        recordCache,
+                        authorizer,
+                        exchangeRateManager,
+                        null,
+                        synchronizedThrottleAccumulator,
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryWorkflowImpl(
                         stateAccessor,
@@ -395,8 +427,45 @@ class QueryWorkflowImplTest extends AppTestBase {
                         exchangeRateManager,
                         feeManager,
                         null,
-                        instantSource))
+                        instantSource,
+                        opWorkflowMetrics,
+                        true))
                 .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryWorkflowImpl(
+                        stateAccessor,
+                        submissionManager,
+                        queryChecker,
+                        ingestChecker,
+                        dispatcher,
+                        queryParser,
+                        configProvider,
+                        recordCache,
+                        authorizer,
+                        exchangeRateManager,
+                        feeManager,
+                        synchronizedThrottleAccumulator,
+                        null,
+                        opWorkflowMetrics,
+                        true))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryWorkflowImpl(
+                        stateAccessor,
+                        submissionManager,
+                        queryChecker,
+                        ingestChecker,
+                        dispatcher,
+                        queryParser,
+                        configProvider,
+                        recordCache,
+                        authorizer,
+                        exchangeRateManager,
+                        feeManager,
+                        synchronizedThrottleAccumulator,
+                        instantSource,
+                        null,
+                        true))
+                .isInstanceOf(NullPointerException.class);
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -409,11 +478,29 @@ class QueryWorkflowImplTest extends AppTestBase {
         // then
         assertThatThrownBy(() -> workflow.handleQuery(null, responseBuffer)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> workflow.handleQuery(requestBuffer, null)).isInstanceOf(NullPointerException.class);
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
-    @Test
-    void testSuccessIfPaymentNotRequired() throws ParseException {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testSuccessIfPaymentNotRequired(boolean shouldCharge) throws ParseException {
         // given
+        workflow = new QueryWorkflowImpl(
+                stateAccessor,
+                submissionManager,
+                queryChecker,
+                ingestChecker,
+                dispatcher,
+                queryParser,
+                configProvider,
+                recordCache,
+                authorizer,
+                exchangeRateManager,
+                feeManager,
+                synchronizedThrottleAccumulator,
+                instantSource,
+                opWorkflowMetrics,
+                shouldCharge);
         final var responseBuffer = newEmptyBuffer();
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
@@ -424,11 +511,38 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
-    @Test
-    void testSuccessIfPaymentRequired() throws ParseException {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void testSuccessIfPaymentRequired(boolean shouldCharge) throws ParseException, PreCheckException {
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
         // given
+        workflow = new QueryWorkflowImpl(
+                stateAccessor,
+                submissionManager,
+                queryChecker,
+                ingestChecker,
+                dispatcher,
+                queryParser,
+                configProvider,
+                recordCache,
+                authorizer,
+                exchangeRateManager,
+                feeManager,
+                synchronizedThrottleAccumulator,
+                instantSource,
+                opWorkflowMetrics,
+                shouldCharge);
         given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         given(handler.requiresNodePayment(any())).willReturn(true);
         when(handler.findResponse(any(), any()))
@@ -448,10 +562,20 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
     void testSuccessIfPaymentRequiredAndNotProvided() throws ParseException, PreCheckException {
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
         final var queryHeader =
                 QueryHeader.newBuilder().payment((Transaction) null).build();
         final var query = Query.newBuilder()
@@ -468,7 +592,9 @@ class QueryWorkflowImplTest extends AppTestBase {
                                 .header(ResponseHeader.newBuilder().build())
                                 .build())
                         .build());
-        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE)).when(queryChecker).validateCryptoTransfer(transactionInfo);
+        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
+                .when(queryChecker)
+                .validateCryptoTransfer(eq(transactionInfo));
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -480,6 +606,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(INSUFFICIENT_TX_FEE);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -516,6 +644,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
         assertThat(header.responseType()).isEqualTo(COST_ANSWER);
         assertThat(header.cost()).isEqualTo(fees.totalFee());
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -529,6 +659,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThatThrownBy(() -> workflow.handleQuery(requestBuffer, responseBuffer))
                 .isInstanceOf(StatusRuntimeException.class)
                 .hasFieldOrPropertyWithValue("status", Status.INVALID_ARGUMENT);
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -542,6 +673,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThatThrownBy(() -> workflow.handleQuery(requestBuffer, responseBuffer))
                 .isInstanceOf(StatusRuntimeException.class)
                 .hasFieldOrPropertyWithValue("status", Status.INVALID_ARGUMENT);
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -553,12 +685,13 @@ class QueryWorkflowImplTest extends AppTestBase {
 
         // then
         assertThrows(StatusRuntimeException.class, () -> workflow.handleQuery(requestBuffer, responseBuffer));
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
     void testInvalidNodeFails() throws PreCheckException, ParseException {
         // given
-        doThrow(new PreCheckException(INVALID_NODE_ACCOUNT)).when(ingestChecker).checkNodeState();
+        doThrow(new PreCheckException(INVALID_NODE_ACCOUNT)).when(ingestChecker).verifyPlatformActive();
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -570,6 +703,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(INVALID_NODE_ACCOUNT);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -597,12 +732,14 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(NOT_SUPPORTED);
         assertThat(header.responseType()).isEqualTo(ANSWER_STATE_PROOF);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
     void testThrottleFails() throws ParseException {
         // given
-        when(synchronizedThrottleAccumulator.shouldThrottle(eq(HederaFunctionality.FILE_GET_INFO), any(), any()))
+        when(synchronizedThrottleAccumulator.shouldThrottle(eq(HederaFunctionality.FILE_GET_INFO), any(), any(), any()))
                 .thenReturn(true);
         final var responseBuffer = newEmptyBuffer();
 
@@ -615,15 +752,54 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(BUSY);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics).incrementThrottled(FILE_GET_INFO);
+    }
+
+    @Test
+    void testThrottleDoesNotFailWhenWorkflowShouldNotCharge() throws ParseException {
+        // given
+        workflow = new QueryWorkflowImpl(
+                stateAccessor,
+                submissionManager,
+                queryChecker,
+                ingestChecker,
+                dispatcher,
+                queryParser,
+                configProvider,
+                recordCache,
+                authorizer,
+                exchangeRateManager,
+                feeManager,
+                synchronizedThrottleAccumulator,
+                instantSource,
+                opWorkflowMetrics,
+                false);
+        when(synchronizedThrottleAccumulator.shouldThrottle(eq(HederaFunctionality.FILE_GET_INFO), any(), any(), any()))
+                .thenReturn(true);
+        final var responseBuffer = newEmptyBuffer();
+
+        // when
+        workflow.handleQuery(requestBuffer, responseBuffer);
+
+        // then
+        final var response = parseResponse(responseBuffer);
+        final var header = response.fileGetInfoOrThrow().headerOrThrow();
+        assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(OK);
+        assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
+        assertThat(header.cost()).isZero();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
     void testPaidQueryWithInvalidTransactionFails() throws PreCheckException, ParseException {
         // given
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
-        doThrow(new PreCheckException(INVALID_TRANSACTION_BODY))
+        doAnswer(invocationOnMock -> {
+                    throw new PreCheckException(INVALID_TRANSACTION_BODY);
+                })
                 .when(ingestChecker)
-                .runAllChecks(state, payment, configuration);
+                .runAllChecks(any(), any(), any(), any());
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -635,13 +811,25 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(INVALID_TRANSACTION_BODY);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
     void testPaidQueryWithInvalidCryptoTransferFails() throws PreCheckException, ParseException {
         // given
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
-        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE)).when(queryChecker).validateCryptoTransfer(transactionInfo);
+        doThrow(new PreCheckException(INSUFFICIENT_TX_FEE))
+                .when(queryChecker)
+                .validateCryptoTransfer(eq(transactionInfo));
         final var responseBuffer = newEmptyBuffer();
 
         // when
@@ -653,6 +841,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(INSUFFICIENT_TX_FEE);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -668,6 +858,14 @@ class QueryWorkflowImplTest extends AppTestBase {
                         .build());
         final var responseBuffer = newEmptyBuffer();
         given(authorizer.isSuperUser(ALICE.accountID())).willReturn(true);
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
 
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
@@ -680,6 +878,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.cost()).isZero();
 
         verify(submissionManager, never()).submit(any(), any());
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -690,6 +890,14 @@ class QueryWorkflowImplTest extends AppTestBase {
                 .when(queryChecker)
                 .checkPermissions(ALICE.accountID(), HederaFunctionality.FILE_GET_INFO);
         final var responseBuffer = newEmptyBuffer();
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
 
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
@@ -700,11 +908,21 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(NOT_SUPPORTED);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
     void testPaidQueryWithInsufficientBalanceFails() throws PreCheckException, ParseException {
         // given
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
         given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(1L, 20L, 300L));
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         when(queryChecker.estimateTxFees(
@@ -724,6 +942,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(INSUFFICIENT_TX_FEE);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isEqualTo(12345L);
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -763,6 +983,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(NOT_SUPPORTED);
         assertThat(header.responseType()).isEqualTo(COST_ANSWER);
         assertThat(header.cost()).isZero();
+        verify(opWorkflowMetrics).updateDuration(eq(NETWORK_GET_EXECUTION_TIME), anyInt());
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -785,6 +1007,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.cost()).isZero();
         final var queryContext = captor.getValue();
         assertThat(queryContext.payer()).isNull();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
     @Test
@@ -793,9 +1017,17 @@ class QueryWorkflowImplTest extends AppTestBase {
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
         doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
                 .when(submissionManager)
-                .submit(txBody, payment.bodyBytes());
+                .submit(txBody, serializedPayment);
         given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
         final var responseBuffer = newEmptyBuffer();
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
 
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
@@ -806,6 +1038,12 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(PLATFORM_TRANSACTION_NOT_CREATED);
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
+        verifyMetricsSent();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    private void verifyMetricsSent() {
+        verify(opWorkflowMetrics).updateDuration(eq(FILE_GET_INFO), anyInt());
     }
 
     private static Response parseResponse(BufferedData responseBuffer) throws ParseException {

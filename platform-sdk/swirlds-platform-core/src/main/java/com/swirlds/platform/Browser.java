@@ -1,29 +1,16 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
-import static com.swirlds.platform.builder.PlatformBuildConstants.LOG4J_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.addPlatforms;
@@ -33,32 +20,27 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.setBrowserW
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setStateHierarchy;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.showBrowserWindow;
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
-import static com.swirlds.platform.system.address.AddressBookUtils.createRoster;
+import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.system.address.AddressBookUtils.initializeAddressBook;
-import static com.swirlds.platform.util.BootstrapUtils.checkNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.crypto.CryptographyFactory;
-import com.swirlds.common.crypto.CryptographyHolder;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.platform.NodeId;
-import com.swirlds.common.startup.Log4jSetup;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.crypto.CryptoConstants;
-import com.swirlds.platform.crypto.KeysAndCerts;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
@@ -67,24 +49,34 @@ import com.swirlds.platform.gui.internal.WinBrowser;
 import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
+import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.SystemExitUtils;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
@@ -147,13 +139,7 @@ public class Browser {
             return;
         }
 
-        final Path log4jPath = getAbsolutePath(LOG4J_FILE_NAME);
-        try {
-            Log4jSetup.startLoggingFramework(log4jPath).await();
-        } catch (final InterruptedException e) {
-            CommonUtils.tellUserConsole("Interrupted while waiting for log4j to initialize");
-            Thread.currentThread().interrupt();
-        }
+        initLogging();
 
         logger = LogManager.getLogger(Browser.class);
 
@@ -174,20 +160,26 @@ public class Browser {
     private static void launchUnhandled(@NonNull final CommandLineArgs commandLineArgs, final boolean pcesRecovery)
             throws Exception {
         Objects.requireNonNull(commandLineArgs);
+        final ConfigurationBuilder bootstrapConfigBuilder =
+                ConfigurationBuilder.create().withSource(SystemEnvironmentConfigSource.getInstance());
+        BootstrapUtils.setupConfigBuilder(bootstrapConfigBuilder, getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME));
+        final Configuration bootstrapConfiguration = bootstrapConfigBuilder.build();
 
-        final PathsConfig defaultPathsConfig = ConfigurationBuilder.create()
-                .withConfigDataType(PathsConfig.class)
-                .build()
-                .getConfigData(PathsConfig.class);
+        final PathsConfig defaultPathsConfig = bootstrapConfiguration.getConfigData(PathsConfig.class);
 
         // Load config.txt file, parse application jar file name, main class name, address book, and parameters
         final ApplicationDefinition appDefinition =
                 ApplicationDefinitionLoader.loadDefault(defaultPathsConfig, getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
 
         // Determine which nodes to run locally
+        final AddressBook appAddressBook = appDefinition.getConfigAddressBook();
+        final List<NodeId> configNodesToRun =
+                bootstrapConfiguration.getConfigData(BasicConfig.class).nodesToRun();
+        final Set<NodeId> cliNodesToRun = commandLineArgs.localNodesToStart();
+        final Set<NodeId> validNodeIds = appAddressBook.getNodeIdSet();
         final List<NodeId> nodesToRun =
-                getNodesToRun(appDefinition.getConfigAddressBook(), commandLineArgs.localNodesToStart());
-        checkNodesToRun(nodesToRun);
+                getNodesToRun(cliNodesToRun, configNodesToRun, () -> validNodeIds, validNodeIds::contains);
+        logger.info(STARTUP.getMarker(), "The following nodes {} are set to run locally", nodesToRun);
 
         // Load all SwirldMain instances for locally run nodes.
         final Map<NodeId, SwirldMain> appMains = loadSwirldMains(appDefinition, nodesToRun);
@@ -205,13 +197,8 @@ public class Browser {
             final InfoSwirld infoSwirld = new InfoSwirld(infoApp, new byte[CryptoConstants.HASH_SIZE_BYTES]);
             new InfoMember(infoSwirld, "Node" + nodesToRun.getFirst().id());
 
-            // Duplicating config here is ugly, but Browser is test only code now.
-            // In the future we should clean it up, but it's not urgent to do so.
-            final ConfigurationBuilder guiConfigBuilder = ConfigurationBuilder.create();
-            BootstrapUtils.setupConfigBuilder(guiConfigBuilder, getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME));
-            final Configuration guiConfig = guiConfigBuilder.build();
-
-            guiEventStorage = new GuiEventStorage(guiConfig, appDefinition.getConfigAddressBook());
+            initNodeSecurity(appDefinition.getConfigAddressBook(), bootstrapConfiguration, Set.copyOf(nodesToRun));
+            guiEventStorage = new GuiEventStorage(bootstrapConfiguration, appDefinition.getConfigAddressBook());
 
             guiSource = new StandardGuiSource(appDefinition.getConfigAddressBook(), guiEventStorage);
         } else {
@@ -230,80 +217,95 @@ public class Browser {
                 configBuilder.withConfigDataType(configType);
             }
 
-            rethrowIO(() ->
-                    BootstrapUtils.setupConfigBuilder(configBuilder, getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME)));
+            rethrowIO(() -> BootstrapUtils.setupConfigBuilder(
+                    configBuilder,
+                    getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME),
+                    getAbsolutePath(DEFAULT_OVERRIDES_YAML_FILE_NAME)));
             final Configuration configuration = configBuilder.build();
 
             setupGlobalMetrics(configuration);
             guiMetrics = getMetricsProvider().createPlatformMetrics(nodeId);
 
-            final var recycleBin = RecycleBin.create(
+            final RecycleBin recycleBin = RecycleBin.create(
                     guiMetrics,
                     configuration,
                     getStaticThreadManager(),
                     Time.getCurrent(),
                     FileSystemManager.create(configuration),
                     nodeId);
-            final var cryptography = CryptographyFactory.create();
-            CryptographyHolder.set(cryptography);
-            final KeysAndCerts keysAndCerts = initNodeSecurity(appDefinition.getConfigAddressBook(), configuration)
+            final Cryptography cryptography = CryptographyProvider.getInstance();
+            final KeysAndCerts keysAndCerts = initNodeSecurity(
+                            appDefinition.getConfigAddressBook(), configuration, Set.copyOf(nodesToRun))
                     .get(nodeId);
 
             // the AddressBook is not changed after this point, so we calculate the hash now
             cryptography.digestSync(appDefinition.getConfigAddressBook());
 
             // Set the MerkleCryptography instance for this node
-            final var merkleCryptography = MerkleCryptographyFactory.create(configuration, CryptographyHolder.get());
-            MerkleCryptoFactory.set(merkleCryptography);
+            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
+
+            // Register with the ConstructableRegistry classes which need configuration.
+            BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
 
             // Create platform context
-            final var platformContext = PlatformContext.create(
+            final PlatformContext platformContext = PlatformContext.create(
                     configuration,
                     Time.getCurrent(),
                     guiMetrics,
-                    cryptography,
                     FileSystemManager.create(configuration),
                     recycleBin,
-                    MerkleCryptographyFactory.create(configuration, CryptographyHolder.get()));
+                    merkleCryptography);
+            // Each platform needs a different temporary state on disk.
+            MerkleDb.resetDefaultInstancePath();
+            PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
+            ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
-                    platformContext,
-                    appMain.getSoftwareVersion(),
-                    appMain::newMerkleStateRoot,
-                    SignedStateFileUtils::readState,
+                    recycleBin,
+                    appMain.getSemanticVersion(),
+                    appMain::newStateRoot,
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
-                    appDefinition.getConfigAddressBook());
-            final var initialState = reservedState.state();
-            final var stateHash = reservedState.hash();
+                    appDefinition.getConfigAddressBook(),
+                    platformStateFacade,
+                    platformContext);
+            final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book
             final AddressBook addressBook = initializeAddressBook(
                     nodeId,
-                    appMain.getSoftwareVersion(),
+                    appMain.getSemanticVersion(),
                     initialState,
                     appDefinition.getConfigAddressBook(),
-                    platformContext);
+                    platformContext,
+                    consensusStateEventHandler,
+                    platformStateFacade);
 
             // Build the platform with the given values
+            final State state = initialState.get().getState();
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
-                    appMain.getSoftwareVersion(),
+                    appMain.getSemanticVersion(),
                     initialState,
-                    nodeId);
+                    consensusStateEventHandler,
+                    nodeId,
+                    AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
+                    rosterHistory,
+                    platformStateFacade);
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
             }
+            builder.withSystemTransactionEncoderCallback(appMain::encodeSystemTransaction);
+
             // Build platform using the Inversion of Control pattern by injecting all needed
             // dependencies into the PlatformBuilder.
             final SwirldsPlatform platform = (SwirldsPlatform) builder.withConfiguration(configuration)
                     .withPlatformContext(platformContext)
-                    .withConfiguration(configuration)
-                    .withAddressBook(addressBook)
-                    .withRoster(createRoster(appDefinition.getConfigAddressBook()))
                     .withKeysAndCerts(keysAndCerts)
                     .build();
             platforms.put(nodeId, platform);
@@ -322,7 +324,7 @@ public class Browser {
             // PCES recovery is only expected to be done on a single node
             // due to the structure of Browser atm, it makes more sense to enable the feature for multiple platforms
             platforms.values().forEach(SwirldsPlatform::performPcesRecovery);
-            SystemExitUtils.exitSystem(SystemExitCode.NO_ERROR, "PCES recovery done");
+            exitSystem(SystemExitCode.NO_ERROR, "PCES recovery done");
         }
 
         startPlatforms(new ArrayList<>(platforms.values()), appMains);

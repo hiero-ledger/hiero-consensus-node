@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -35,7 +20,7 @@ public final class ScheduleUtils {
     static final String CREATE_TXN = "createTx";
     static final String CREATION = "creation";
     static final String DEFERRED_XFER = "deferredXfer";
-    static final String DESIGNATING_PAYER = "1.2.3";
+    static final String DESIGNATING_PAYER = "111.222.333";
     static final String ENTITY_MEMO = "This was Mr. Bleaney's room. He stayed";
     static final String FAILED_XFER = "failedXfer";
     static final String FAILING_TXN = "failingTxn";
@@ -49,15 +34,15 @@ public final class ScheduleUtils {
     static final String ONLY_BODY_AND_MEMO = "onlyBodyAndMemo";
     static final String ONLY_BODY_AND_PAYER = "onlyBodyAndPayer";
     static final String ORIGINAL = "original";
-    static final String OTHER_PAYER = "otherPayer";
+    public static final String OTHER_PAYER = "otherPayer";
     static final String PAYER = "payer";
     static final String PAYING_ACCOUNT = "payingAccount";
     static final String PAYING_ACCOUNT_2 = "payingAccount2";
-    static final String PAYING_SENDER = "payingSender";
+    public static final String PAYING_SENDER = "payingSender";
     static final String RANDOM_KEY = "randomKey";
     static final String RANDOM_MSG =
             "Little did they care who danced between / And little she by whom her dance was seen";
-    static final String RECEIVER = "receiver";
+    public static final String RECEIVER = "receiver";
     static final String RECEIVER_A = "receiverA";
     static final String RECEIVER_B = "receiverB";
     static final String RECEIVER_C = "receiverC";
@@ -75,7 +60,7 @@ public final class ScheduleUtils {
     static final String SHARED_KEY = "sharedKey";
     static final String SIGN_TX = "signTx";
     static final String SIGN_TXN = "signTx";
-    static final String SIMPLE_UPDATE = "SimpleUpdate";
+    public static final String SIMPLE_UPDATE = "SimpleUpdate";
     static final String SIMPLE_XFER_SCHEDULE = "simpleXferSchedule";
     static final String SOMEBODY = "somebody";
     static final String SUCCESS_TXN = "successTxn";
@@ -171,6 +156,12 @@ public final class ScheduleUtils {
             scheduleBuilder.setScheduleDelete(txn.getScheduleDelete());
         } else if (txn.hasCryptoApproveAllowance()) {
             scheduleBuilder.setCryptoApproveAllowance(txn.getCryptoApproveAllowance());
+        } else if (txn.hasNodeCreate()) {
+            scheduleBuilder.setNodeCreate(txn.getNodeCreate());
+        } else if (txn.hasNodeDelete()) {
+            scheduleBuilder.setNodeDelete(txn.getNodeDelete());
+        } else if (txn.hasNodeUpdate()) {
+            scheduleBuilder.setNodeUpdate(txn.getNodeUpdate());
         }
         return scheduleBuilder.build();
     }

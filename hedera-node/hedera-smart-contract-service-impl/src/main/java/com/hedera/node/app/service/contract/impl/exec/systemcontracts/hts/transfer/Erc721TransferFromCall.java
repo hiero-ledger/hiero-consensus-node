@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -26,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -57,6 +43,18 @@ public class Erc721TransferFromCall extends AbstractCall {
     private final AddressIdConverter addressIdConverter;
     private final SpecialRewardReceivers specialRewardReceivers;
 
+    /**
+     * @param serialNo the serial number of the ERC721 token
+     * @param from the address of the account from which the token will be transferred
+     * @param to the address of the account to which the token will be transferred
+     * @param tokenId the token id of the token to be transferred
+     * @param verificationStrategy the verification strategy used in this call
+     * @param enhancement the enhancement used in this call
+     * @param gasCalculator the gas calculator used in this call
+     * @param senderId the sender id of the sending account
+     * @param addressIdConverter the address ID converter for this call
+     * @param specialRewardReceivers the special reward receiver
+     */
     // too many parameters
     @SuppressWarnings("java:S107")
     public Erc721TransferFromCall(
@@ -89,8 +87,7 @@ public class Erc721TransferFromCall extends AbstractCall {
             return reversionWith(INVALID_TOKEN_ID, gasCalculator.canonicalGasRequirement(DispatchType.TRANSFER_NFT));
         }
         final var syntheticTransfer = syntheticTransfer(senderId);
-        final var gasRequirement = transferGasRequirement(
-                syntheticTransfer, gasCalculator, enhancement, senderId, ERC_721_TRANSFER_FROM.selector());
+        final var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticTransfer, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var status = recordBuilder.status();
@@ -105,7 +102,8 @@ public class Erc721TransferFromCall extends AbstractCall {
                     .get(0);
             logSuccessfulNftTransfer(tokenId, nftTransfer, readableAccountStore(), frame);
             return gasOnly(
-                    successResult(ERC_721_TRANSFER_FROM.getOutputs().encodeElements(), gasRequirement, recordBuilder),
+                    successResult(
+                            ERC_721_TRANSFER_FROM.getOutputs().encode(Tuple.EMPTY), gasRequirement, recordBuilder),
                     status,
                     false);
         }
@@ -132,8 +130,8 @@ public class Erc721TransferFromCall extends AbstractCall {
 
     @Nullable
     private AccountID getOwner() {
-        final var nft = nativeOperations().getNft(tokenId.tokenNum(), serialNo);
-        final var token = nativeOperations().getToken(tokenId.tokenNum());
+        final var nft = nativeOperations().getNft(tokenId, serialNo);
+        final var token = nativeOperations().getToken(tokenId);
         return nft != null ? nft.ownerIdOrElse(token.treasuryAccountIdOrThrow()) : null;
     }
 }

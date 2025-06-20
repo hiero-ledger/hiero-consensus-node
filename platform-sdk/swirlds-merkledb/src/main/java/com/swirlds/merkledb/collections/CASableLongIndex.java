@@ -1,25 +1,13 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.BooleanSupplier;
 
 /**
  * An interface for classes that provide long index functionality. Such long indices must
  * support Compare-And-Swap operations and iterations over all valid index entries.
- *
  * Implementation can use atomic CAS or straightforward logic in single-threaded case.
  */
 public interface CASableLongIndex {
@@ -49,21 +37,29 @@ public interface CASableLongIndex {
     /**
      * Iterates over all valid index entries and calls the specified action for each of them.
      *
-     * @param action Action to call.
+     * <p>If a condition to check is provided, implementations should do their best checking it,
+     * but there is no guarantee it is checked before each entry in the list, or checked at all.
+     * If the condition is {@code false}, no more index entries are iterated over, and this
+     * method returns.
+     *
      * @param <T> Type of throwables allowed to throw by this method
+     * @param action Action to call
+     * @param whileCondition Optional condition to check if this method should be stopped
+     * @return {@code true} if all index items have been processed by this method
      * @throws InterruptedException If the thread running the method is interrupted
      * @throws T If an error occurs
      */
-    <T extends Throwable> void forEach(LongAction<T> action) throws InterruptedException, T;
+    <T extends Throwable> boolean forEach(@NonNull LongAction<T> action, @Nullable BooleanSupplier whileCondition)
+            throws InterruptedException, T;
 
     /**
-     * Action interface to use in {@link #forEach(LongAction)}. It could be a standard Java API
-     * interface like BiFunction, but all these APIs work with boxed Long type instead of
-     * primitive longs, which adds unnecessary load on GC. So let's use something more simple
+     * Action interface to use in {@link #forEach(LongAction, BooleanSupplier)}. It could be a standard Java
+     * API interface like BiFunction, but all these APIs work with boxed Long type instead of primitive
+     * longs, which adds unnecessary load on GC. So let's use something more simple
      *
      * @param <T> Type of throwable allowed to throw by the action
      */
-    public interface LongAction<T extends Throwable> {
+    interface LongAction<T extends Throwable> {
         void handle(long index, long value) throws InterruptedException, T;
     }
 }

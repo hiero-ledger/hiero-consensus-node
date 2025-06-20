@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
@@ -27,9 +12,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -55,11 +41,12 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
-import com.swirlds.platform.system.status.PlatformStatus;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -100,9 +87,6 @@ class IngestWorkflowImplTest extends AppTestBase {
     Supplier<AutoCloseableWrapper<State>> stateAccessor;
 
     @Mock(strictness = LENIENT)
-    TransactionChecker transactionChecker;
-
-    @Mock(strictness = LENIENT)
     IngestChecker ingestChecker;
 
     @Mock(strictness = LENIENT)
@@ -135,7 +119,6 @@ class IngestWorkflowImplTest extends AppTestBase {
 
         // Mock out the onset to always return a valid parsed object
         transaction = Transaction.newBuilder().body(transactionBody).build();
-        when(transactionChecker.parse(requestBuffer)).thenReturn(transaction);
         final var transactionInfo = new TransactionInfo(
                 transaction,
                 transactionBody,
@@ -143,31 +126,17 @@ class IngestWorkflowImplTest extends AppTestBase {
                 randomBytes(100), // Not used in this test, so random bytes is OK
                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
                 null);
-        when(ingestChecker.runAllChecks(state, transaction, configuration)).thenReturn(transactionInfo);
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
         // Create the workflow we are going to test with
-        workflow = new IngestWorkflowImpl(
-                stateAccessor, transactionChecker, ingestChecker, submissionManager, configProvider);
-    }
-
-    @SuppressWarnings("ConstantConditions")
-    @Test
-    void testConstructorWithInvalidArguments() {
-        assertThatThrownBy(() -> new IngestWorkflowImpl(
-                        null, transactionChecker, ingestChecker, submissionManager, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() ->
-                        new IngestWorkflowImpl(stateAccessor, null, ingestChecker, submissionManager, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new IngestWorkflowImpl(
-                        stateAccessor, transactionChecker, null, submissionManager, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() ->
-                        new IngestWorkflowImpl(stateAccessor, transactionChecker, ingestChecker, null, configProvider))
-                .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new IngestWorkflowImpl(
-                        stateAccessor, transactionChecker, ingestChecker, submissionManager, null))
-                .isInstanceOf(NullPointerException.class);
+        workflow = new IngestWorkflowImpl(stateAccessor, ingestChecker, submissionManager, configProvider);
     }
 
     @Test
@@ -199,7 +168,7 @@ class IngestWorkflowImplTest extends AppTestBase {
                 // Given a platform that is not ACTIVE
                 doThrow(new PreCheckException(PLATFORM_NOT_ACTIVE))
                         .when(ingestChecker)
-                        .checkNodeState();
+                        .verifyReadyForTransactions();
 
                 // When the transaction is submitted
                 workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -236,7 +205,11 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("If the transaction fails WorkflowOnset, a failure response is returned with the right error")
         void onsetFailsWithPreCheckException(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
             // Given a WorkflowOnset that will throw a PreCheckException with the given failure reason
-            when(transactionChecker.parse(any())).thenThrow(new PreCheckException(failureReason));
+            doAnswer(invocationOnMock -> {
+                        throw new PreCheckException(failureReason);
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -251,14 +224,17 @@ class IngestWorkflowImplTest extends AppTestBase {
         }
 
         @Test
-        @DisplayName("If some random exception is thrown from TransactionChecker, the exception is bubbled up")
+        @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a WorkflowOnset that will throw a RuntimeException
-            when(transactionChecker.parse(any())).thenThrow(new RuntimeException("parseAndCheck exception"));
+            doAnswer(invocationOnMock -> {
+                        throw new RuntimeException("parseAndCheck exception");
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
-
             // Then the response will indicate the platform rejected the transaction
             final TransactionResponse response = parseResponse(responseBuffer);
             assertThat(response.nodeTransactionPrecheckCode()).isEqualTo(FAIL_INVALID);
@@ -285,8 +261,11 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("When ingest checks fail, the transaction should be rejected")
         void testIngestChecksFail(ResponseCodeEnum failureReason) throws PreCheckException, ParseException {
             // Given a throttle on CONSENSUS_CREATE_TOPIC transactions (i.e. it is time to throttle)
-            when(ingestChecker.runAllChecks(state, transaction, configuration))
-                    .thenThrow(new PreCheckException(failureReason));
+            doAnswer(invocationOnMock -> {
+                        throw new PreCheckException(failureReason);
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -304,8 +283,11 @@ class IngestWorkflowImplTest extends AppTestBase {
         @DisplayName("If some random exception is thrown from IngestChecker, the exception is bubbled up")
         void randomException() throws PreCheckException, ParseException {
             // Given a ThrottleAccumulator that will throw a RuntimeException
-            when(ingestChecker.runAllChecks(state, transaction, configuration))
-                    .thenThrow(new RuntimeException("runAllChecks exception"));
+            doAnswer(invocationOnMock -> {
+                        throw new RuntimeException("runAllChecks exception");
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);

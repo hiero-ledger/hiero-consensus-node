@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.orderedRecordFilesFrom;
@@ -21,8 +6,9 @@ import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStrea
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.parseRecordFileConsensusTime;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.parseSidecarFileConsensusTimeAndSequenceNo;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.TEST_CLIENTS_PREFIX;
-import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.relocatedIfNotPresentWithCurrentPathPrefix;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.TEST_CLIENTS_PREFIX;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentWithCurrentPathPrefix;
+import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
@@ -35,9 +21,9 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -68,9 +54,7 @@ public enum StreamFileAccess {
     /** A bit of infrastructure that runs the polling loop for all the listeners. */
     private final FileAlterationMonitor monitor = new FileAlterationMonitor(MONITOR_INTERVAL_MS);
 
-    public record RecordStreamData(List<RecordWithSidecars> records, List<RecordStreamFile> files) {
-        public static RecordStreamData EMPTY_DATA = new RecordStreamData(List.of(), List.of());
-    }
+    public record RecordStreamData(List<RecordWithSidecars> records, List<RecordStreamFile> files) {}
 
     /**
      * Registers a listener for the record stream file at the given path. Returns a runnable that can
@@ -84,9 +68,23 @@ public enum StreamFileAccess {
         requireNonNull(path);
         requireNonNull(listener);
         try {
+            final List<File> maybeExistingFiles = new ArrayList<>();
+            if (listener.replayExistingFiles()) {
+                try (final var stream = Files.walk(path)) {
+                    maybeExistingFiles.addAll(
+                            stream.map(Path::toFile).filter(File::isFile).toList());
+                }
+            }
+            if (listener.replayExistingFiles()) {
+                final var mockAlterationListener = new StreamFileAlterationListener();
+                mockAlterationListener.subscribe(listener);
+                CompletableFuture.runAsync(() -> maybeExistingFiles.forEach(mockAlterationListener::onFileCreate));
+            }
             final var alterationListener =
                     getOrCreateListener(path.toAbsolutePath().normalize().toString());
             final var unsubscribe = alterationListener.subscribe(listener);
+            // WARNING - replay is only meant for something like @GenesisHapiTest where there is
+            // at most one subscriber and a small number of files to replay; use with caution
             return () -> {
                 try {
                     unsubscribe.run();
@@ -170,9 +168,7 @@ public enum StreamFileAccess {
                     fullRecordFiles.add(recordFile);
                     return new RecordWithSidecars(
                             recordFile,
-                            sidecarFilesByRecordFile
-                                    .getOrDefault(parseRecordFileConsensusTime(f), Collections.emptyList())
-                                    .stream()
+                            sidecarFilesByRecordFile.getOrDefault(parseRecordFileConsensusTime(f), emptyList()).stream()
                                     .map(StreamFileAccess::ensurePresentSidecarFile)
                                     .toList());
                 })

@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
@@ -26,7 +11,6 @@ import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.consensus.EventWindow;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.shadowgraph.SyncResult;
 import com.swirlds.platform.gossip.shadowgraph.SyncTiming;
@@ -39,6 +23,7 @@ import com.swirlds.platform.stats.MaxStat;
 import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
  * Interface to update relevant sync statistics
@@ -113,12 +98,6 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because gossip is halted");
     private final CountPerSecond doNotSyncHalted;
 
-    private static final CountPerSecond.Config DO_NOT_SYNC_INTAKE_QUEUE_CONFIG = new CountPerSecond.Config(
-                    PLATFORM_CATEGORY, "doNotSyncIntakeQueue")
-            .withUnit("hz")
-            .withDescription("Number of times per second we do not sync because the intake queue is too full");
-    private final CountPerSecond doNotSyncIntakeQueue;
-
     private static final CountPerSecond.Config DO_NOT_SYNC_FALLEN_BEHIND_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "doNotSyncFallenBehind")
             .withUnit("hz")
@@ -175,7 +154,6 @@ public class SyncMetrics {
         doNoSyncPlatformStatus = new CountPerSecond(metrics, DO_NOT_SYNC_PLATFORM_STATUS);
         doNotSyncCooldown = new CountPerSecond(metrics, DO_NOT_SYNC_COOLDOWN_CONFIG);
         doNotSyncHalted = new CountPerSecond(metrics, DO_NOT_SYNC_HALTED_CONFIG);
-        doNotSyncIntakeQueue = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_QUEUE_CONFIG);
         doNotSyncFallenBehind = new CountPerSecond(metrics, DO_NOT_SYNC_FALLEN_BEHIND_CONFIG);
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
@@ -265,7 +243,7 @@ public class SyncMetrics {
      * @param other event window of their graph at the start of the sync
      */
     public void eventWindow(@NonNull final EventWindow self, @NonNull final EventWindow other) {
-        syncIndicatorDiff.update(self.getAncientThreshold() - other.getAncientThreshold());
+        syncIndicatorDiff.update(self.ancientThreshold() - other.ancientThreshold());
     }
 
     /**
@@ -410,13 +388,6 @@ public class SyncMetrics {
      */
     public void doNotSyncHalted() {
         doNotSyncHalted.count();
-    }
-
-    /**
-     * Signal that we chose not to sync because the intake queue is too full.
-     */
-    public void doNotSyncIntakeQueue() {
-        doNotSyncIntakeQueue.count();
     }
 
     /**

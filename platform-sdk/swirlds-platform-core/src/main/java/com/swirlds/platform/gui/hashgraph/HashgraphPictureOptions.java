@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gui.hashgraph;
 
 /**
@@ -36,6 +21,16 @@ public interface HashgraphPictureOptions {
     boolean writeRoundCreated();
 
     /**
+     * @return should the vote be written
+     */
+    boolean writeVote();
+
+    /**
+     * @return should the event hash be written for every event
+     */
+    boolean writeEventHash();
+
+    /**
      * @return should round received be written for every event
      */
     boolean writeRoundReceived();
@@ -51,9 +46,24 @@ public interface HashgraphPictureOptions {
     boolean writeConsensusTimeStamp();
 
     /**
-     * @return should the generation be written for every event
+     * @return should the non-deterministic generation be written for every event
      */
-    boolean writeGeneration();
+    boolean writeNGen();
+
+    /**
+     * @return should the birth round be written for every event
+     */
+    boolean writeBirthRound();
+
+    /**
+     * @return should branch numbers be written for every branched event (if any)
+     */
+    boolean writeBranches();
+
+    /**
+     * @return should the DeGen be written for every event
+     */
+    boolean writeDeGen();
 
     /**
      * @return should simple colors be used in the picture

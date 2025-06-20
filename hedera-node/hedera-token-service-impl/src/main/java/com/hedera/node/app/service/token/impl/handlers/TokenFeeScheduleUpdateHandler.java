@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
@@ -24,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDU
 import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -33,7 +19,6 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -49,6 +34,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -74,13 +60,23 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         this.customFeesValidator = customFeesValidator;
     }
 
+    @Override
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var txn = context.body();
+        requireNonNull(txn);
+        final var op = txn.tokenFeeScheduleUpdateOrThrow();
+        if (!op.hasTokenId()) {
+            throw new PreCheckException(INVALID_TOKEN_ID);
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        pureChecks(context.body());
 
         final var op = context.body().tokenFeeScheduleUpdateOrThrow();
         final var tokenId = op.tokenIdOrElse(TokenID.DEFAULT);
@@ -127,14 +123,19 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         }
         // validate custom fees before committing
         customFeesValidator.validateForFeeScheduleUpdate(
-                token, readableAccountStore, readableTokenRelsStore, tokenStore, op.customFees());
+                token,
+                readableAccountStore,
+                readableTokenRelsStore,
+                tokenStore,
+                op.customFees(),
+                context.expiryValidator());
         // set the custom fees on token
         final var copy = token.copyBuilder().customFees(op.customFees());
         // add token to the modifications map
         tokenStore.put(copy.build());
 
-        final var record = context.savepointStack().getBaseBuilder(TokenBaseStreamBuilder.class);
-        record.tokenType(token.tokenType());
+        final var tokenBaseStreamBuilder = context.savepointStack().getBaseBuilder(TokenBaseStreamBuilder.class);
+        tokenBaseStreamBuilder.tokenType(token.tokenType());
     }
 
     /**
@@ -153,14 +154,6 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         validateTrue(token.hasFeeScheduleKey(), TOKEN_HAS_NO_FEE_SCHEDULE_KEY);
         validateTrue(op.customFees().size() <= config.maxCustomFeesAllowed(), CUSTOM_FEES_LIST_TOO_LONG);
         return token;
-    }
-
-    @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        final var op = txn.tokenFeeScheduleUpdateOrThrow();
-        if (!op.hasTokenId()) {
-            throw new PreCheckException(INVALID_TOKEN_ID);
-        }
     }
 
     @NonNull
@@ -192,8 +185,9 @@ public class TokenFeeScheduleUpdateHandler implements TransactionHandler {
         final var effConsTime =
                 body.transactionIDOrThrow().transactionValidStartOrThrow().seconds();
         final var lifetime = Math.max(0, token == null ? 0 : token.expirationSecond() - effConsTime);
+        final List<CustomFee> customFees = token == null ? emptyList() : token.customFees();
 
-        final var existingFeeReprBytes = currentFeeScheduleSize(token.customFees(), tokenOpsUsage);
+        final var existingFeeReprBytes = currentFeeScheduleSize(customFees, tokenOpsUsage);
         final var rbsDelta = ESTIMATOR_UTILS.changeInBsUsage(existingFeeReprBytes, lifetime, newReprBytes, lifetime);
         return feeContext
                 .feeCalculatorFactory()

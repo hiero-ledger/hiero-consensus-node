@@ -1,25 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.config.singleton.ConfigurationHolder;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
@@ -44,8 +29,8 @@ class DataFileReaderCloseTest {
 
     @BeforeAll
     static void setup() throws IOException {
-        final Path dir = LegacyTemporaryFileBuilder.buildTemporaryFile("readerIsOpenTest");
-        final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
+        final Path dir = LegacyTemporaryFileBuilder.buildTemporaryFile("readerIsOpenTest", CONFIGURATION);
+        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         collection = new DataFileCollection(dbConfig, dir, "store", null);
     }
 
@@ -57,9 +42,10 @@ class DataFileReaderCloseTest {
     @Test
     void readerIsOpenTest() throws Exception {
         final int COUNT = 100;
+        collection.updateValidKeyRange(0, COUNT - 1);
         collection.startWriting();
-        final LongList index = new LongListOffHeap();
-        index.updateValidRange(0, COUNT);
+        final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
+        index.updateValidRange(0, COUNT - 1);
         for (int i = 0; i < COUNT; i++) {
             final int fi = i;
             index.put(
@@ -72,7 +58,7 @@ class DataFileReaderCloseTest {
                             2 * Long.BYTES));
         }
         //noinspection resource
-        collection.endWriting(0, COUNT - 1);
+        collection.endWriting();
         final AtomicBoolean readingThreadStarted = new AtomicBoolean(false);
         final AtomicReference<IOException> exceptionOccurred = new AtomicReference<>();
         final Thread readingThread = new Thread(() -> {
@@ -112,9 +98,11 @@ class DataFileReaderCloseTest {
 
     @Test
     void readWhileFinishWritingTest() throws IOException {
-        final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("readWhileFinishWritingTest");
-        final MerkleDbConfig dbConfig = ConfigurationHolder.getConfigData(MerkleDbConfig.class);
-        for (int i = 0; i < 100; i++) {
+        final Path tmpDir =
+                LegacyTemporaryFileBuilder.buildTemporaryDirectory("readWhileFinishWritingTest", CONFIGURATION);
+        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final int COUNT = 100;
+        for (int i = 0; i < COUNT; i++) {
             Path filePath = null;
             final int fi = i;
             try {
@@ -122,7 +110,7 @@ class DataFileReaderCloseTest {
                         new DataFileWriter("test", tmpDir, i, Instant.now(), INITIAL_COMPACTION_LEVEL);
                 filePath = writer.getPath();
                 final DataFileMetadata metadata = writer.getMetadata();
-                final LongList index = new LongListOffHeap();
+                final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
                 index.updateValidRange(0, i);
                 index.put(
                         0,
@@ -137,7 +125,7 @@ class DataFileReaderCloseTest {
                 IntStream.of(0, 1).parallel().forEach(t -> {
                     try {
                         if (t == 1) {
-                            writer.finishWriting();
+                            writer.close();
                         } else {
                             final BufferedData itemBytes = reader.readDataItem(index.get(0));
                             Assertions.assertEquals(fi, itemBytes.readLong());

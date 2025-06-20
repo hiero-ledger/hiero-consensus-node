@@ -49,7 +49,8 @@
 	"DEFAULT": 0.0001
   },
   "ConsensusCreateTopic": {
-	"DEFAULT": 0.01
+	"DEFAULT": 0.01,
+    "TOPIC_CREATE_WITH_CUSTOM_FEES": 2.00
   },
   "ConsensusUpdateTopic": {
 	"DEFAULT": 0.00022
@@ -58,7 +59,8 @@
 	"DEFAULT": 0.005
   },
   "ConsensusSubmitMessage": {
-	"DEFAULT": 0.0001
+	"DEFAULT": 0.0001,
+    "SUBMIT_MESSAGE_WITH_CUSTOM_FEES": 0.05
   },
   "ConsensusGetTopicInfo": {
 	"DEFAULT": 0.0001
@@ -222,6 +224,9 @@
     "DEFAULT": 0.001
   },
   "NodeDelete": {
+    "DEFAULT": 0.001
+  },
+  "AtomicBatch": {
     "DEFAULT": 0.001
   }
 }

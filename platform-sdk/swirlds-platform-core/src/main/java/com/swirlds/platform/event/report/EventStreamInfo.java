@@ -1,23 +1,8 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.report;
 
-import com.swirlds.platform.system.events.CesEvent;
 import java.time.Instant;
+import org.hiero.consensus.model.event.CesEvent;
 
 /**
  * Information about an event stream.
@@ -28,10 +13,6 @@ import java.time.Instant;
  * 		the timestamp at the end of the period reported
  * @param eventCount
  * 		the number of events in this period
- * @param transactionCount
- * 		the total number of transactions in this period
- * @param systemTransactionCount
- * 		the number of system transactions in this period
  * @param applicationTransactionCount
  * 		the number of application transactions in this period
  * @param fileCount
@@ -50,8 +31,6 @@ public record EventStreamInfo(
         Instant end,
         long roundCount,
         long eventCount,
-        long transactionCount,
-        long systemTransactionCount,
         long applicationTransactionCount,
         long fileCount,
         long byteCount,

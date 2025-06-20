@@ -1,0 +1,9 @@
+gossip:
+  randomStringValue: "random"
+  randomIntValue: 42
+other:
+  randomStringValue: "random2"
+  randomIntValue: 43
+a.b:
+    randomStringValue: "random3"
+    randomIntValue: 44

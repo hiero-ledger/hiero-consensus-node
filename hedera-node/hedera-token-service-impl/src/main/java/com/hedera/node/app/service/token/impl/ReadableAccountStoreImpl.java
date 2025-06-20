@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl;
 
 import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
@@ -26,10 +11,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.ids.ReadableEntityCounters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -72,14 +60,17 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
      */
     private final ReadableKVState<ProtoBytes, AccountID> aliases;
 
+    private final ReadableEntityCounters entityCounters;
+
     /**
      * Create a new {@link ReadableAccountStoreImpl} instance.
      *
      * @param states The state to use.
      */
-    public ReadableAccountStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableAccountStoreImpl(@NonNull final ReadableStates states, ReadableEntityCounters entityCounters) {
         this.accountState = states.get("ACCOUNTS");
         this.aliases = states.get("ALIASES");
+        this.entityCounters = requireNonNull(entityCounters);
     }
 
     /** Get the account state. Convenience method for auto-casting to the right kind of state (readable vs. writable) */
@@ -108,13 +99,13 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
 
     @Override
     @Nullable
-    public AccountID getAccountIDByAlias(@NonNull final Bytes alias) {
-        return aliases.get(new ProtoBytes(alias));
+    public AccountID getAccountIDByAlias(final long shardNum, final long realmNum, @NonNull final Bytes alias) {
+        return lookupAlias(shardNum, realmNum, alias);
     }
 
     @Override
-    public boolean containsAlias(@NonNull Bytes alias) {
-        return aliases.contains(new ProtoBytes(alias));
+    public boolean containsAlias(final long shardNum, final long realmNum, @NonNull Bytes alias) {
+        return getAccountIDByAlias(shardNum, realmNum, alias) != null;
     }
 
     @Override
@@ -171,7 +162,17 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
 
     @Override
     public long getNumberOfAccounts() {
-        return accountState.size();
+        return entityCounters.getCounterFor(EntityType.ACCOUNT);
+    }
+
+    /**
+     * Returns the number of aliases in the state. It also includes modifications in the {@link
+     * WritableKVState}.
+     *
+     * @return the number of aliases in the state
+     */
+    public long sizeOfAliasesState() {
+        return entityCounters.getCounterFor(EntityType.ALIAS);
     }
 
     /**
@@ -188,33 +189,40 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
         return switch (accountOneOf.kind()) {
             case ACCOUNT_NUM -> id;
             case ALIAS -> {
-                // An alias may either be long-zero (in which case it isn't in our alias map), or it may be
-                // any other form of valid alias (in which case it will be in the map). So we do a quick check
-                // first to see if it is a valid long zero, and if not, then we look it up in the map.
                 final Bytes alias = accountOneOf.as();
-                if (isEntityNumAlias(alias)) {
-                    yield id.copyBuilder()
-                            .accountNum(extractIdFromAddressAlias(alias))
-                            .build();
-                }
-
-                // Since it wasn't long-zero, we will just look up in the aliases map. It may be an EVM address alias,
-                // in which case it is in the map, or it may be a protobuf-encoded key alias, in which case it *may*
-                // also be in the map. When someone gives us a protobuf-encoded ECDSA key, we store both the alias to
-                // the ECDSA key *and* the EVM address in the alias map. But if somebody only gives us the EVM address,
-                // we cannot compute the ECDSA key from it, so we only store the EVM address in the alias map. So if we
-                // do this look up and cannot find the answer, then we have to check if the key is an ECDSA key, and
-                // if it is, we have to compute the EVM address from it, and then look up the EVM address in the map.
-                final var found = aliases.get(new ProtoBytes(alias));
-                if (found != null) yield found;
-                yield aliases.get(new ProtoBytes(extractEvmAddress(asKeyFromAliasOrElse(alias, null))));
+                yield lookupAlias(id.shardNum(), id.realmNum(), alias);
             }
             case UNSET -> null;
         };
     }
 
+    @Nullable
+    private AccountID lookupAlias(final long shardNum, long realmNum, final Bytes alias) {
+        // An alias may either be long-zero (in which case it isn't in our alias map), or it may be
+        // any other form of valid alias (in which case it will be in the map). So we do a quick check
+        // first to see if it is a valid long zero, and if not, then we look it up in the map.
+        if (isEntityNumAlias(alias)) {
+            return AccountID.newBuilder()
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
+                    .accountNum(extractIdFromAddressAlias(alias))
+                    .build();
+        }
+
+        // Since it wasn't long-zero, we will just look up in the aliases map. It may be an EVM address alias,
+        // in which case it is in the map, or it may be a protobuf-encoded key alias, in which case it *may*
+        // also be in the map. When someone gives us a protobuf-encoded ECDSA key, we store both the alias to
+        // the ECDSA key *and* the EVM address in the alias map. But if somebody only gives us the EVM address,
+        // we cannot compute the ECDSA key from it, so we only store the EVM address in the alias map. So if we
+        // do this look up and cannot find the answer, then we have to check if the key is an ECDSA key, and
+        // if it is, we have to compute the EVM address from it, and then look up the EVM address in the map.
+        final var found = aliases.get(new ProtoBytes(alias));
+        if (found != null) return found;
+        return aliases.get(new ProtoBytes(extractEvmAddress(asKeyFromAliasOrElse(alias, null))));
+    }
+
     public long sizeOfAccountState() {
-        return accountState().size();
+        return entityCounters.getCounterFor(EntityType.ACCOUNT);
     }
 
     @Override

@@ -1,46 +1,69 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators;
 
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toCollection;
+
+import com.hedera.hapi.node.base.Key;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Assertions;
 
 public class HgcaaLogValidator {
+    private static final String OVERRIDE_PREFIX = "Override admin key for";
+    private static final String OVERRIDE_NODE_ADMIN_KEY_PATTERN = OVERRIDE_PREFIX + " node%d is :: %s";
     private static final String WARN = "WARN";
     private static final String ERROR = "ERROR";
     private static final String POSSIBLY_CATASTROPHIC = "Possibly CATASTROPHIC";
     private final String logFileLocation;
+    private final Map<Long, Key> overrideNodeAdminKeys;
 
-    public HgcaaLogValidator(final String logFileLocation) {
-        this.logFileLocation = logFileLocation;
+    public static void main(String[] args) throws IOException {
+        final var node0Dir = Paths.get("hedera-node/test-clients")
+                .resolve(workingDirFor(0, "hapi"))
+                .toAbsolutePath()
+                .normalize();
+        final var validator =
+                new HgcaaLogValidator(node0Dir.resolve("output/hgcaa.log").toString(), Map.of());
+        validator.validate();
+    }
+
+    public HgcaaLogValidator(
+            @NonNull final String logFileLocation, @NonNull final Map<Long, Key> overrideNodeAdminKeys) {
+        this.logFileLocation = requireNonNull(logFileLocation);
+        this.overrideNodeAdminKeys = requireNonNull(overrideNodeAdminKeys);
     }
 
     public void validate() throws IOException {
         final List<String> problemLines = new ArrayList<>();
         final var problemTracker = new ProblemTracker();
+        final Set<String> missingNodeAdminKeyOverrides = overrideNodeAdminKeys.entrySet().stream()
+                .map(e -> String.format(OVERRIDE_NODE_ADMIN_KEY_PATTERN, e.getKey(), e.getValue()))
+                .collect(toCollection(HashSet<String>::new));
+        final Consumer<String> adminKeyOverrides = l -> {
+            if (l.contains(OVERRIDE_PREFIX)) {
+                missingNodeAdminKeyOverrides.removeIf(l::contains);
+            }
+        };
         try (final var stream = Files.lines(Paths.get(logFileLocation))) {
-            stream.filter(problemTracker::isProblem)
+            stream.peek(adminKeyOverrides)
+                    .filter(problemTracker::isProblem)
                     .map(problemTracker::indented)
                     .forEach(problemLines::add);
         }
+        missingNodeAdminKeyOverrides.forEach(o -> {
+            problemLines.add("MISSING - " + o);
+            problemTracker.numProblems++;
+        });
         if (!problemLines.isEmpty()) {
             Assertions.fail("Found " + problemTracker.numProblems + " problems in log file '" + logFileLocation + "':\n"
                     + String.join("\n", problemLines));
@@ -53,13 +76,28 @@ public class HgcaaLogValidator {
         private static final String PROBLEM_DELIMITER = "\n========================================\n";
 
         private static final List<List<String>> PROBLEM_PATTERNS_TO_IGNORE = List.of(
+                List.of("NodeMetadataHelper"),
                 List.of("not in the address book"),
                 List.of("Specified TLS cert", "doesn't exist"),
                 // Stopping an embedded node can interrupt signature verification of background traffic
                 List.of("Interrupted while waiting for signature verification"),
                 List.of("Could not start TLS server, will continue without it"),
                 List.of("Properties file", "does not exist and won't be used as configuration source"),
-                List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"));
+                // Using a 1-minute staking period in CI can lead to periods with no transactions, breaking invariants
+                List.of("StakingRewardsHelper", "Pending rewards decreased"),
+                // Some PR checks don't stake any HBAR, so after crossing a staking boundary all nodes
+                // have zero weight and the RosterStore rejects a zero-weight roster as invalid
+                List.of("Candidate roster was rejected"),
+                List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"),
+                // Although we do want a little more visibility for these messages, they shouldn't fail a CI run
+                List.of("Proof future for construction", "must wait until previous finished"),
+                List.of("Ignoring forced handoff to incomplete construction"),
+                List.of("Completing signing attempt"),
+                List.of("No pending blocks found"),
+                List.of("Forcing handoff to construction", "with different target roster"),
+                List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
+                List.of("Ignoring invalid partial signature"),
+                List.of("Action stack prematurely empty"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

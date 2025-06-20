@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl.producers.formats.v7;
 
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.RECORD_STREAM_ITEMS;
@@ -29,11 +14,11 @@ import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.crypto.DigestType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -41,6 +26,7 @@ import java.io.UncheckedIOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * This is a prototype for a RecordFileWriter for a cleaned up version of V6 format, going to true protobuf and
@@ -152,8 +138,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
                     outputStream,
                     START_OBJECT_RUNNING_HASH,
                     startObjectRunningHash,
-                    com.hedera.hapi.streams.HashObject.PROTOBUF::write,
-                    com.hedera.hapi.streams.HashObject.PROTOBUF::measureRecord);
+                    com.hedera.hapi.streams.HashObject.PROTOBUF);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -191,6 +176,25 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
     }
 
     public static final class RecordStreamItemV7ProtoCodec implements Codec<RecordStreamItemV7> {
+
+        private static final RecordStreamItemV7 DEFAULT_VALUE = new RecordStreamItemV7(null, null, null, null, 0, 0);
+
+        @Override
+        public RecordStreamItemV7 getDefaultInstance() {
+            return DEFAULT_VALUE;
+        }
+
+        @NonNull
+        @Override
+        public RecordStreamItemV7 parse(
+                @NonNull ReadableSequentialData readableSequentialData,
+                boolean strictMode,
+                boolean parseUnknownFields,
+                int maxDepth)
+                throws ParseException {
+            return new RecordStreamItemV7(null, null, null, null, 0, 0);
+        }
+
         public @NonNull RecordStreamItemV7 parse(
                 @NonNull final ReadableSequentialData input, final boolean strictMode, final int maxDepth) {
             return new RecordStreamItemV7(null, null, null, null, 0, 0);

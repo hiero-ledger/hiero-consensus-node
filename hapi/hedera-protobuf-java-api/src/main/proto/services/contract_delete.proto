@@ -1,0 +1,87 @@
+/**
+ * # Contract Delete
+ * Delete a smart contract, transferring any remaining balance to a
+ * designated account.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.contract">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Delete a smart contract, and transfer any remaining HBAR balance to a
+ * designated account.
+ *
+ * If this call succeeds then all subsequent calls to that smart contract
+ * SHALL execute the `0x0` opcode, as required for EVM equivalence.
+ *
+ * ### Requirements
+ *  - An account or smart contract MUST be designated to receive all remaining
+ *    account balances.
+ *  - The smart contract MUST have an admin key set. If the contract does not
+ *    have `admin_key` set, then this transaction SHALL fail and response code
+ *    `MODIFYING_IMMUTABLE_CONTRACT` SHALL be set.
+ *  - If `admin_key` is, or contains, an empty `KeyList` key, it SHALL be
+ *    treated the same as an admin key that is not set.
+ *  - The `Key` set for `admin_key` on the smart contract MUST have a valid
+ *    signature set on this transaction.
+ *  - The designated receiving account MAY have `receiver_sig_required` set. If
+ *    that field is set, the receiver account MUST also sign this transaction.
+ *  - The field `permanent_removal` MUST NOT be set. That field is reserved for
+ *    internal system use when purging the smart contract from state. Any user
+ *    transaction with that field set SHALL be rejected and a response code
+ *    `PERMANENT_REMOVAL_REQUIRES_SYSTEM_INITIATION` SHALL be set.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message ContractDeleteTransactionBody {
+    /**
+     * The id of the contract to be deleted.
+     * <p>
+     * This field is REQUIRED.
+     */
+    ContractID contractID = 1;
+
+    oneof obtainers {
+        /**
+         * An Account ID recipient.
+         * <p>
+         * This account SHALL receive all HBAR and other tokens still owned by
+         * the contract that is removed.
+         */
+        AccountID transferAccountID = 2;
+
+        /**
+         * A contract ID recipient.
+         * <p>
+         * This contract SHALL receive all HBAR and other tokens still owned by
+         * the contract that is removed.
+         */
+        ContractID transferContractID = 3;
+    }
+
+    /**
+     * A flag indicating that this transaction is "synthetic"; initiated by the
+     * node software.
+     * <p>
+     * The consensus nodes create such "synthetic" transactions to both to
+     * properly manage state changes and to communicate those changes to other
+     * systems via the Block Stream.<br/>
+     * A user-initiated transaction MUST NOT set this flag.
+     */
+    bool permanent_removal = 4;
+}

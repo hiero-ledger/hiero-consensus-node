@@ -1,29 +1,17 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessful;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.nonNull;
@@ -32,9 +20,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
+import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
@@ -48,7 +35,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
-import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -65,24 +52,27 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#ETHEREUM_TRANSACTION}.
  */
 @Singleton
-public class EthereumTransactionHandler implements TransactionHandler {
+public class EthereumTransactionHandler extends AbstractContractTransactionHandler {
     private final byte[] EMPTY_ADDRESS = new byte[20];
     private final EthTxSigsCache ethereumSignatures;
     private final EthereumCallDataHydration callDataHydration;
-    private final Provider<TransactionComponent.Factory> provider;
-    private final GasCalculator gasCalculator;
-    private final SmartContractFeeBuilder usageEstimator = new SmartContractFeeBuilder();
 
+    /**
+     * @param ethereumSignatures the ethereum signatures
+     * @param callDataHydration the ethereum call data hydratino utility to be used for EthTxData
+     * @param provider the provider to be used
+     * @param gasCalculator the gas calculator to be used
+     */
     @Inject
     public EthereumTransactionHandler(
             @NonNull final EthTxSigsCache ethereumSignatures,
             @NonNull final EthereumCallDataHydration callDataHydration,
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final ContractServiceComponent component) {
+        super(provider, gasCalculator, component);
         this.ethereumSignatures = requireNonNull(ethereumSignatures);
         this.callDataHydration = requireNonNull(callDataHydration);
-        this.provider = requireNonNull(provider);
-        this.gasCalculator = requireNonNull(gasCalculator);
     }
 
     @Override
@@ -96,17 +86,32 @@ public class EthereumTransactionHandler implements TransactionHandler {
     }
 
     @Override
-    public void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
-        final var ethTxData = populateEthTxData(
-                requireNonNull(txn.ethereumTransactionOrThrow().ethereumData()).toByteArray());
-        validateTruePreCheck(nonNull(ethTxData), INVALID_ETHEREUM_TRANSACTION);
-        final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
-        final var intrinsicGas =
-                gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(callData), false);
-        validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
-        // Do not allow sending HBars to Burn Address
-        if (ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
-            validateFalsePreCheck(Arrays.equals(ethTxData.to(), EMPTY_ADDRESS), INVALID_SOLIDITY_ADDRESS);
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        try {
+            final var txn = context.body();
+            final var ethTxData = populateEthTxData(
+                    requireNonNull(txn.ethereumTransactionOrThrow().ethereumData())
+                            .toByteArray());
+            validateTruePreCheck(nonNull(ethTxData), INVALID_ETHEREUM_TRANSACTION);
+            final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
+            final var intrinsicGas =
+                    gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(callData), false);
+            validateTruePreCheck(ethTxData.gasLimit() >= intrinsicGas, INSUFFICIENT_GAS);
+            // Do not allow sending HBars to Burn Address
+            if (ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
+                validateFalsePreCheck(Arrays.equals(ethTxData.to(), EMPTY_ADDRESS), INVALID_SOLIDITY_ADDRESS);
+            }
+            // sanity check evm address if there is one
+            if (ethTxData.hasToAddress()) {
+                validateTruePreCheck(ethTxData.to().length == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
+            }
+        } catch (@NonNull final Exception e) {
+            bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);
+            if (e instanceof NullPointerException) {
+                component.contractMetrics().incrementRejectedType3EthTx();
+            }
+            throw e;
         }
     }
 
@@ -136,7 +141,7 @@ public class EthereumTransactionHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) throws HandleException {
         // Create the transaction-scoped component
-        final var component = provider.get().create(context, ETHEREUM_TRANSACTION);
+        final var component = getTransactionComponent(context, ETHEREUM_TRANSACTION);
 
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
@@ -148,12 +153,14 @@ public class EthereumTransactionHandler implements TransactionHandler {
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
         if (ethTxData.hasToAddress()) {
-            outcome.addCallDetailsTo(context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class));
+            final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
+            outcome.addCallDetailsTo(streamBuilder);
+            throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
-            outcome.addCreateDetailsTo(context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class));
+            final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
+            outcome.addCreateDetailsTo(streamBuilder);
+            throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
-
-        throwIfUnsuccessful(outcome.status());
     }
 
     /**
@@ -161,7 +168,7 @@ public class EthereumTransactionHandler implements TransactionHandler {
      * @param context the handle context
      */
     public void handleThrottled(@NonNull final HandleContext context) {
-        final var component = provider.get().create(context, ETHEREUM_TRANSACTION);
+        final var component = getTransactionComponent(context, ETHEREUM_TRANSACTION);
         final var ethTxData =
                 requireNonNull(requireNonNull(component.hydratedEthTxData()).ethTxData());
         context.savepointStack()
@@ -169,9 +176,8 @@ public class EthereumTransactionHandler implements TransactionHandler {
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
     }
 
-    @NonNull
     @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
+    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
         final var body = feeContext.body();
         return feeContext

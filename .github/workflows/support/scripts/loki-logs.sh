@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Use Loki API to chek if all nodes are up and running by searching "ACTIVE" message in swirlds.log
+# Use Loki API to check if all nodes are up and running by searching "ACTIVE" message in swirlds.log
 
 network=${1}
 maxnodes=${2:-7}

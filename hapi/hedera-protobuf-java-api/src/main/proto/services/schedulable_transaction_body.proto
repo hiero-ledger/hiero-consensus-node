@@ -1,0 +1,406 @@
+/**
+ * # Schedulable Transaction Body
+ * A message that replicates the `TransactionBody` message, with slight
+ * changes to exclude fields that cannot be scheduled via a `scheduleCreate`
+ * transaction.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.scheduled">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/system_delete.proto";
+import "services/system_undelete.proto";
+import "services/freeze.proto";
+
+import "services/contract_call.proto";
+import "services/contract_create.proto";
+import "services/contract_update.proto";
+
+import "services/crypto_create.proto";
+import "services/crypto_delete.proto";
+import "services/crypto_transfer.proto";
+import "services/crypto_update.proto";
+import "services/crypto_approve_allowance.proto";
+import "services/crypto_delete_allowance.proto";
+
+import "services/file_append.proto";
+import "services/file_create.proto";
+import "services/file_delete.proto";
+import "services/file_update.proto";
+
+import "services/contract_delete.proto";
+
+import "services/consensus_create_topic.proto";
+import "services/consensus_update_topic.proto";
+import "services/consensus_delete_topic.proto";
+import "services/consensus_submit_message.proto";
+
+import "services/token_create.proto";
+import "services/token_freeze_account.proto";
+import "services/token_unfreeze_account.proto";
+import "services/token_grant_kyc.proto";
+import "services/token_revoke_kyc.proto";
+import "services/token_delete.proto";
+import "services/token_update.proto";
+import "services/token_mint.proto";
+import "services/token_burn.proto";
+import "services/token_wipe_account.proto";
+import "services/token_associate.proto";
+import "services/token_dissociate.proto";
+import "services/token_fee_schedule_update.proto";
+import "services/token_pause.proto";
+import "services/token_unpause.proto";
+import "services/token_update_nfts.proto";
+import "services/token_reject.proto";
+import "services/token_cancel_airdrop.proto";
+import "services/token_claim_airdrop.proto";
+import "services/token_airdrop.proto";
+
+import "services/schedule_delete.proto";
+import "services/util_prng.proto";
+
+import "services/node_create.proto";
+import "services/node_update.proto";
+import "services/node_delete.proto";
+
+/**
+ * A schedulable transaction.
+ *
+ * The network configuration `scheduling.whitelist` limits which of these
+ * transaction types may actually be scheduled. As of version `0.50.0` of the
+ * consensus node software this list contains only `CryptoTransfer`,
+ * `ConsensusSubmitMessage`, `TokenBurn`, `TokenMint`,
+ * and `CryptoApproveAllowance`.
+ */
+message SchedulableTransactionBody {
+    /**
+     * A limit for the transaction fee the client is willing to pay.
+     * <p>
+     * The network SHALL NOT charge fees greater than this value.
+     */
+    uint64 transactionFee = 1;
+
+    /**
+     * A short description of the schedulable transaction.
+     * <p>
+     * This value, if set, MUST NOT exceed `transaction.maxMemoUtf8Bytes`
+     * (default 100) bytes when encoded as UTF-8.
+     */
+    string memo = 2;
+
+    oneof data {
+        /**
+         * Call a function defined on a smart contract.
+         */
+        ContractCallTransactionBody contractCall = 3;
+
+        /**
+         * Create a smart contract.
+         */
+        ContractCreateTransactionBody contractCreateInstance = 4;
+
+        /**
+         * Update a smart contract.
+         */
+        ContractUpdateTransactionBody contractUpdateInstance = 5;
+
+        /**
+         * Delete a smart contract and transfer remaining balance
+         * to a specified account.
+         */
+        ContractDeleteTransactionBody contractDeleteInstance = 6;
+
+        /**
+         * Create a new Hedera account.
+         */
+        CryptoCreateTransactionBody cryptoCreateAccount = 7;
+
+        /**
+         * Delete an Hedera account.<br/>
+         * This will mark the account as deleted, and transfer all remaining
+         * HBAR to a receiver account.
+         */
+        CryptoDeleteTransactionBody cryptoDelete = 8;
+
+        /**
+         * Transfer HBAR between accounts.
+         */
+        CryptoTransferTransactionBody cryptoTransfer = 9;
+
+        /**
+         * Modify an Hedera account.
+         */
+        CryptoUpdateTransactionBody cryptoUpdateAccount = 10;
+
+        /**
+         * Append data to the end of a file.
+         */
+        FileAppendTransactionBody fileAppend = 11;
+
+        /**
+         * Create a new file.
+         */
+        FileCreateTransactionBody fileCreate = 12;
+
+        /**
+         * Delete a file.<br/>
+         * This will remove the content of the file, and mark the file as
+         * deleted.
+         */
+        FileDeleteTransactionBody fileDelete = 13;
+
+        /**
+         * Modify a file.<br/>
+         * This may modify any metadata, and/or _replace_ the content.
+         */
+        FileUpdateTransactionBody fileUpdate = 14;
+
+        /**
+         * Delete a file as an Hedera administrative function.<br/>
+         * This is a privileged operation.
+         */
+        SystemDeleteTransactionBody systemDelete = 15;
+
+        /**
+         * Restore a file deleted via `systemDelete`.<br/>
+         * This is a privileged operation.
+         */
+        SystemUndeleteTransactionBody systemUndelete = 16;
+
+        /**
+         * Freeze the network.<br/>
+         * This is actually several possible operations, and the caller
+         * should examine the "freeze service" for more detail.<br/>
+         * This is a privileged operation.
+         */
+        FreezeTransactionBody freeze = 17;
+
+        /**
+         * Create a topic.
+         */
+        ConsensusCreateTopicTransactionBody consensusCreateTopic = 18;
+
+        /**
+         * Update a topic.
+         */
+        ConsensusUpdateTopicTransactionBody consensusUpdateTopic = 19;
+
+        /**
+         * Delete a topic.
+         */
+        ConsensusDeleteTopicTransactionBody consensusDeleteTopic = 20;
+
+        /**
+         * Submit a message to a topic.<br/>
+         * A message may be "chunked", and submitted in parts, if the total
+         * message size exceeds the limit for a single transaction.
+         */
+        ConsensusSubmitMessageTransactionBody consensusSubmitMessage = 21;
+
+        /**
+         * Create a new Hedera token.
+         */
+        TokenCreateTransactionBody tokenCreation = 22;
+
+        /**
+         * Freeze an account with respect to a token.<br/>
+         * A frozen account cannot transact in that token until unfrozen.
+         */
+        TokenFreezeAccountTransactionBody tokenFreeze = 23;
+
+        /**
+         * Unfreeze an account with respect to a token.
+         */
+        TokenUnfreezeAccountTransactionBody tokenUnfreeze = 24;
+
+        /**
+         * Grant KYC to an account with respect to a token.<br/>
+         * KYC is generally a "know your customer" assertion that a
+         * responsible entity has sufficient information to positively
+         * identify the account holder to relevant authorities.
+         */
+        TokenGrantKycTransactionBody tokenGrantKyc = 25;
+
+        /**
+         * Revoke KYC from an account with respect to a token.
+         */
+        TokenRevokeKycTransactionBody tokenRevokeKyc = 26;
+
+        /**
+         * Deletes an Hedera token.<br/>
+         * The token will be marked deleted.
+         */
+        TokenDeleteTransactionBody tokenDeletion = 27;
+
+        /**
+         * Update an Hedera token.<br/>
+         * Depending on what fields are to be modified, the signature
+         * requirements will vary. See `TokenUpdateTransactionBody` for
+         * further detail.
+         */
+        TokenUpdateTransactionBody tokenUpdate = 28;
+
+        /**
+         * Mint new tokens.<br/>
+         * All minted tokens will be delivered to the treasury account for
+         * the token type. The "mint key" for the token must sign this
+         * transaction.
+         */
+        TokenMintTransactionBody tokenMint = 29;
+
+        /**
+         * Burn tokens from the treasury account.<br/>
+         * The "burn key" for the token must sign this transaction.
+         */
+        TokenBurnTransactionBody tokenBurn = 30;
+
+        /**
+         * Wipe tokens from an account.<br/>
+         * This will remove a specified amount of fungible/common tokens or
+         * a specified list of non-fungible/unique serial numbered tokens
+         * of a given token type from an Hedera account. The removed tokens
+         * are _burned_ as if by a `tokenBurn` transaction.<br/>
+         * The "wipe key" for the token must sign this transaction.
+         */
+        TokenWipeAccountTransactionBody tokenWipe = 31;
+
+        /**
+         * Associate tokens to an account.
+         */
+        TokenAssociateTransactionBody tokenAssociate = 32;
+
+        /**
+         * Dissociate tokens from an account.
+         */
+        TokenDissociateTransactionBody tokenDissociate = 33;
+
+        /**
+         * Delete a schedule.<br/>
+         * The schedule will be marked as deleted.
+         */
+        ScheduleDeleteTransactionBody scheduleDelete = 34;
+
+        /**
+         * Pause a Token.<br/>
+         * This transaction must be signed by the "pause key" for the token.
+         */
+        TokenPauseTransactionBody token_pause = 35;
+
+        /**
+         * Unpause a Token.<br/>
+         * This transaction must be signed by the "pause key" for the token.
+         */
+        TokenUnpauseTransactionBody token_unpause = 36;
+
+        /**
+         * Add one or more approved allowances for spenders to transfer the
+         * paying account's hbar or tokens.
+         */
+        CryptoApproveAllowanceTransactionBody cryptoApproveAllowance = 37;
+
+        /**
+         * Delete one or more approvals for spenders to transfer the
+         * paying account's hbar or tokens.
+         */
+        CryptoDeleteAllowanceTransactionBody cryptoDeleteAllowance = 38;
+
+        /**
+         * Update the custom fee schedule for a token.<br/>
+         * This transaction must be signed by the "fee schedule key"
+         * for the token.
+         */
+        TokenFeeScheduleUpdateTransactionBody token_fee_schedule_update = 39;
+
+        /**
+         * Provide a deterministic pseudorandom number based on network state.
+         */
+        UtilPrngTransactionBody util_prng = 40;
+
+        /**
+         * Update one or more non-fungible/unique tokens.<br/>
+         * This will update metadata for one or more serial numbers within
+         * a collection (token type).
+         */
+        TokenUpdateNftsTransactionBody token_update_nfts = 41;
+
+        /**
+         * Create a new node in the network address book.<br/>
+         * This is a privileged operation.
+         */
+        com.hedera.hapi.node.addressbook.NodeCreateTransactionBody nodeCreate = 42;
+
+        /**
+         * Update a node in the network address book.<br/>
+         * This is a privileged operation.
+         */
+        com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody nodeUpdate = 43;
+
+        /**
+         * Delete a node from the network address book.<br/>
+         * This will mark the node as deleted.<br/>
+         * This is a privileged operation.
+         */
+        com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody nodeDelete = 44;
+
+        /**
+         * "Reject" undesired tokens.<br/>
+         * This transaction will transfer one or more tokens or token
+         * balances held by the requesting account to the treasury
+         * for each token type.
+         * <p>
+         * Each transfer MUST be one of the following:
+         * <ul>
+         *   <li>A single non-fungible/unique token.</li>
+         *   <li>The full balance held for a fungible/common
+         *       token type.</li>
+         * </ul>
+         * When complete, the requesting account SHALL NOT hold the
+         * rejected tokens.<br/>
+         * Custom fees and royalties defined for the tokens rejected
+         * SHALL NOT be charged for this transaction.
+         */
+        TokenRejectTransactionBody tokenReject = 45;
+
+        /**
+         * Cancel an "airdrop".<br/>
+         * This transaction cancels a pending airdrop for one or more
+         * recipients.
+         * <p>
+         * The airdrop(s) to cancel MUST be pending, and not claimed.<br/>
+         */
+        TokenCancelAirdropTransactionBody tokenCancelAirdrop = 46;
+
+        /**
+         * Claim an "airdrop".
+         * This transaction "claims" one or more pending "airdrops".
+         * <p>
+         * The airdrop(s) to claim MUST be pending, and not
+         * already claimed.<br/>
+         */
+        TokenClaimAirdropTransactionBody tokenClaimAirdrop = 47;
+
+        /**
+         * Send an "airdrop" of tokens to one or more recipients.
+         * <p>
+         * This transaction unilaterally "gifts" tokens by transferring them
+         * from a "sender" account to the "recipient" account(s). If any
+         * recipient is not already associated to the token to airdrop, or
+         * has set a "reciever signature required" flag, then that recipient
+         * is recorded as a "pending" airdrop which must be "claimed".  All
+         * other recipients receive the "airdropped" tokens immediately.
+         */
+        TokenAirdropTransactionBody tokenAirdrop = 48;
+    }
+}

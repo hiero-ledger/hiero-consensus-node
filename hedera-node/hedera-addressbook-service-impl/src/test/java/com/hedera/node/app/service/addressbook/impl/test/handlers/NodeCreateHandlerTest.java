@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.addressbook.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
@@ -22,14 +7,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERVICE_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
@@ -44,7 +30,6 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
@@ -61,11 +46,13 @@ import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -78,6 +65,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Mock(strictness = LENIENT)
     private HandleContext handleContext;
+
+    @Mock
+    private PureChecksContext pureChecksContext;
 
     @Mock
     private NodeCreateStreamBuilder recordBuilder;
@@ -94,36 +84,43 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     private TransactionBody txn;
     private NodeCreateHandler subject;
 
-    private List<X509Certificate> certList;
+    private static List<X509Certificate> certList;
+
+    @BeforeAll
+    static void beforeAll() {
+        certList = generateX509Certificates(3);
+    }
 
     @BeforeEach
     void setUp() {
         final var addressBookValidator = new AddressBookValidator();
         subject = new NodeCreateHandler(addressBookValidator);
-        certList = generateX509Certificates(4);
     }
 
     @Test
     @DisplayName("pureChecks fail when accountId is null")
     void accountIdCannotNull() {
-        txn = new NodeCreateBuilder().build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        txn = new NodeCreateBuilder().build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ACCOUNT_ID);
     }
 
     @Test
     @DisplayName("pureChecks fail when accountId not set")
     void accountIdNeedSet() {
-        txn = new NodeCreateBuilder().withAccountId(AccountID.DEFAULT).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        txn = new NodeCreateBuilder().withAccountId(AccountID.DEFAULT).build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ACCOUNT_ID);
     }
 
     @Test
     @DisplayName("pureChecks fail when accountId is alias")
     void accountIdCannotAlias() {
-        txn = new NodeCreateBuilder().withAccountId(alias).build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+        txn = new NodeCreateBuilder().withAccountId(alias).build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_NODE_ACCOUNT_ID);
     }
 
@@ -133,8 +130,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of())
-                .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_ENDPOINT);
     }
 
@@ -145,8 +143,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of())
-                .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_SERVICE_ENDPOINT);
     }
 
@@ -157,8 +156,10 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
-                .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+                .withGrpcWebProxyEndpoint(endpoint3)
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
     }
 
@@ -169,9 +170,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(1).getEncoded()))
-                .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(KEY_REQUIRED);
     }
 
@@ -182,10 +185,12 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(IMMUTABILITY_SENTINEL_KEY)
-                .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(KEY_REQUIRED);
     }
 
@@ -196,10 +201,12 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withAdminKey(invalidKey)
-                .build();
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(txn));
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(INVALID_ADMIN_KEY);
     }
 
@@ -210,15 +217,17 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1))
                 .withServiceEndpoint(List.of(endpoint2))
+                .withGrpcWebProxyEndpoint(endpoint3)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(2).getEncoded()))
                 .withAdminKey(key)
-                .build();
-        assertDoesNotThrow(() -> subject.pureChecks(txn));
+                .build(payerId);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
     void failsWhenMaxNodesExceeds() {
-        txn = new NodeCreateBuilder().withAccountId(accountId).build();
+        txn = new NodeCreateBuilder().withAccountId(accountId).build(payerId);
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithCurrentNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
@@ -227,8 +236,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
 
-        assertEquals(1, writableStore.sizeOfState());
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.MAX_NODES_CREATED, msg.getStatus());
         assertEquals(0, writableStore.modifiedNodes().size());
@@ -236,7 +245,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Test
     void accountIdMustInState() {
-        txn = new NodeCreateBuilder().withAccountId(accountId).build();
+        txn = new NodeCreateBuilder().withAccountId(accountId).build(payerId);
         given(accountStore.contains(accountId)).willReturn(false);
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithCurrentNodeInWritable();
@@ -257,7 +266,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withDescription("Description")
-                .build();
+                .build(payerId);
         setupHandle();
 
         refreshStoresWithCurrentNodeInWritable();
@@ -275,7 +284,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withDescription("Des\0cription")
-                .build();
+                .build(payerId);
         setupHandle();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
@@ -291,7 +300,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2, endpoint3))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -303,7 +312,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(null)
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -315,19 +324,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of())
-                .build();
-        setupHandle();
-
-        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
-        assertEquals(ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT, msg.getStatus());
-    }
-
-    @Test
-    void failsWhenGossipEndpointTooSmall() {
-        txn = new NodeCreateBuilder()
-                .withAccountId(accountId)
-                .withGossipEndpoint(List.of(endpoint1))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -339,7 +336,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint4))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -351,7 +348,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint5))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -363,7 +360,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint7))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -375,7 +372,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint6))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -387,7 +384,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint8))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -399,7 +396,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint9))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -412,7 +409,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint10))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -425,7 +422,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint2, endpoint3))
-                .build();
+                .build(payerId);
         setupHandle();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxGossipEndpoint", 2)
@@ -443,7 +440,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(null)
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -456,7 +453,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of())
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
@@ -469,7 +466,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint4))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var config = HederaTestConfigBuilder.create()
@@ -488,7 +485,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var config = HederaTestConfigBuilder.create()
@@ -508,14 +505,16 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAccountId(accountId)
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint1)
                 .withAdminKey(invalidKey)
-                .build();
+                .build(payerId);
         setupHandle();
 
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .withValue("nodes.maxServiceEndpoint", 2)
                 .withValue("nodes.maxFqdnSize", 100)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.attributeValidator()).willReturn(validator);
@@ -526,22 +525,25 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void hanldeWorkAsExpected() throws CertificateEncodingException {
+    void handleWorksAsExpected() throws CertificateEncodingException {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
                 .withDescription("Description")
                 .withGossipEndpoint(List.of(endpoint1, endpoint2))
                 .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGrpcWebProxyEndpoint(endpoint1)
                 .withGossipCaCertificate(Bytes.wrap(certList.get(0).getEncoded()))
                 .withGrpcCertificateHash(Bytes.wrap("hash"))
                 .withAdminKey(key)
-                .build();
+                .withDeclineReward(true)
+                .build(payerId);
         given(handleContext.body()).willReturn(txn);
         refreshStoresWithMoreNodeInWritable();
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
                 .withValue("nodes.maxGossipEndpoint", 4)
                 .withValue("nodes.maxServiceEndpoint", 3)
+                .withValue("nodes.webProxyEndpointsEnabled", true)
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
@@ -554,10 +556,10 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.attributeValidator()).willReturn(validator);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        final var createdNode = writableStore.get(4L);
+        final var createdNode = writableStore.get(0L);
         assertNotNull(createdNode);
-        verify(recordBuilder).nodeID(4L);
-        assertEquals(4, createdNode.nodeId());
+        verify(recordBuilder).nodeID(0L);
+        assertEquals(0L, createdNode.nodeId());
         assertEquals("Description", createdNode.description());
         assertArrayEquals(
                 (List.of(endpoint1, endpoint2)).toArray(),
@@ -569,12 +571,13 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 certList.get(0).getEncoded(), createdNode.gossipCaCertificate().toByteArray());
         assertArrayEquals("hash".getBytes(), createdNode.grpcCertificateHash().toByteArray());
         assertEquals(key, createdNode.adminKey());
+        assertTrue(createdNode.declineReward());
     }
 
     @Test
     void preHandleWorksWhenAdminKeyValid() throws PreCheckException {
-        mockPayerLookup(anotherKey);
-        txn = new NodeCreateBuilder().withAdminKey(key).build();
+        mockPayerLookup(anotherKey, payerId, accountStore);
+        txn = new NodeCreateBuilder().withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
@@ -584,8 +587,8 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @Test
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
-        mockPayerLookup(anotherKey);
-        txn = new NodeCreateBuilder().withAdminKey(invalidKey).build();
+        mockPayerLookup(anotherKey, payerId, accountStore);
+        txn = new NodeCreateBuilder().withAdminKey(invalidKey).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
         assertThat(context.payerKey()).isEqualTo(anotherKey);
@@ -625,13 +628,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
     }
 
-    private Key mockPayerLookup(Key key) {
-        final var account = mock(Account.class);
-        given(account.key()).willReturn(key);
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        return key;
-    }
-
     private class NodeCreateBuilder {
         private AccountID accountId = null;
         private String description = null;
@@ -639,15 +635,18 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         private List<ServiceEndpoint> serviceEndpoint = null;
 
+        private ServiceEndpoint grpcWebProxyEndpoint = null;
+
         private Bytes gossipCaCertificate = null;
 
         private Bytes grpcCertificateHash = null;
 
         private Key adminKey = null;
+        private boolean declineReward = false;
 
         private NodeCreateBuilder() {}
 
-        public TransactionBody build() {
+        public TransactionBody build(AccountID payerId) {
             final var txnId = TransactionID.newBuilder().accountID(payerId).transactionValidStart(consensusTimestamp);
             final var txnBody = NodeCreateTransactionBody.newBuilder();
             if (accountId != null) {
@@ -662,6 +661,9 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             if (serviceEndpoint != null) {
                 txnBody.serviceEndpoint(serviceEndpoint);
             }
+            if (grpcWebProxyEndpoint != null) {
+                txnBody.grpcProxyEndpoint(grpcWebProxyEndpoint);
+            }
             if (gossipCaCertificate != null) {
                 txnBody.gossipCaCertificate(gossipCaCertificate);
             }
@@ -671,6 +673,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             if (adminKey != null) {
                 txnBody.adminKey(adminKey);
             }
+            txnBody.declineReward(declineReward);
 
             return TransactionBody.newBuilder()
                     .transactionID(txnId)
@@ -698,6 +701,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
             return this;
         }
 
+        public NodeCreateBuilder withGrpcWebProxyEndpoint(final ServiceEndpoint proxyEndpoint) {
+            this.grpcWebProxyEndpoint = proxyEndpoint;
+            return this;
+        }
+
         public NodeCreateBuilder withGossipCaCertificate(final Bytes gossipCaCertificate) {
             this.gossipCaCertificate = gossipCaCertificate;
             return this;
@@ -710,6 +718,11 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
         public NodeCreateBuilder withAdminKey(final Key adminKey) {
             this.adminKey = adminKey;
+            return this;
+        }
+
+        public NodeCreateBuilder withDeclineReward(final boolean declineReward) {
+            this.declineReward = declineReward;
             return this;
         }
     }

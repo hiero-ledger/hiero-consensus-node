@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.manager;
 
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignatureBytes;
@@ -21,21 +6,28 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
 import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.address.AddressBook;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,9 +36,9 @@ import org.junit.jupiter.api.Test;
  */
 class PostconsensusSignaturesTest extends AbstractStateSignatureCollectorTest {
 
-    private final AddressBook addressBook = RandomAddressBookBuilder.create(random)
+    private final Roster roster = RandomRosterBuilder.create(random)
             .withSize(4)
-            .withWeightDistributionStrategy(RandomAddressBookBuilder.WeightDistributionStrategy.BALANCED)
+            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
             .build();
 
     /**
@@ -69,6 +61,16 @@ class PostconsensusSignaturesTest extends AbstractStateSignatureCollectorTest {
         };
     }
 
+    @BeforeEach
+    void setUp() {
+        MerkleDb.resetDefaultInstancePath();
+    }
+
+    @AfterEach
+    void tearDown() {
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
+    }
+
     @Test
     @DisplayName("Postconsensus signatures")
     void postconsensusSignatureTests() throws InterruptedException {
@@ -85,8 +87,9 @@ class PostconsensusSignaturesTest extends AbstractStateSignatureCollectorTest {
         // Create a series of signed states.
         final List<SignedState> states = new ArrayList<>();
         for (int round = 0; round < count; round++) {
+            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
-                    .setAddressBook(addressBook)
+                    .setRoster(roster)
                     .setRound(round)
                     .setSignatures(new HashMap<>())
                     .build();
@@ -101,15 +104,15 @@ class PostconsensusSignaturesTest extends AbstractStateSignatureCollectorTest {
 
             manager.addReservedState(signedState.reserve("test"));
 
-            for (int node = 0; node < addressBook.getSize(); node++) {
+            for (int node = 0; node < roster.rosterEntries().size(); node++) {
+                final RosterEntry rosterNode = roster.rosterEntries().get(node);
                 manager.handlePostconsensusSignatureTransaction(
-                        addressBook.getNodeId(node),
+                        NodeId.of(rosterNode.nodeId()),
                         StateSignatureTransaction.newBuilder()
                                 .round(round)
                                 .signature(buildFakeSignatureBytes(
-                                        addressBook
-                                                .getAddress(addressBook.getNodeId(node))
-                                                .getSigPublicKey(),
+                                        RosterUtils.fetchGossipCaCertificate(rosterNode)
+                                                .getPublicKey(),
                                         states.get(round).getState().getHash()))
                                 .hash(states.get(round).getState().getHash().getBytes())
                                 .build());

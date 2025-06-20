@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
 import static com.swirlds.platform.state.address.AddressBookInitializer.CONFIG_ADDRESS_BOOK_HEADER;
@@ -22,31 +7,39 @@ import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_AD
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_NULL;
 import static com.swirlds.platform.state.address.AddressBookInitializer.STATE_ADDRESS_BOOK_USED;
 import static com.swirlds.platform.state.address.AddressBookInitializer.USED_ADDRESS_BOOK_HEADER;
+import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
+import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
+import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.MockitoAnnotations.openMocks;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.platform.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.AddressBookConfig_;
-import com.swirlds.platform.state.MerkleRoot;
+import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.address.AddressBookInitializer;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.SoftwareVersion;
-import com.swirlds.platform.system.SwirldState;
-import com.swirlds.platform.system.address.Address;
-import com.swirlds.platform.system.address.AddressBook;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -57,16 +50,29 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.stubbing.OngoingStubbing;
+import org.mockito.Mock;
+import org.mockito.stubbing.Stubber;
 
 class AddressBookInitializerTest {
 
     @TempDir
     Path testDirectory;
+
+    @Mock
+    ConsensusStateEventHandler consensusStateEventHandler;
+
+    @BeforeEach
+    public void setUp() {
+        openMocks(this);
+    }
 
     @Test
     @DisplayName("Force the use of the config address book")
@@ -76,24 +82,25 @@ class AddressBookInitializerTest {
         final AddressBook configAddressBook = getRandomAddressBook(randotron);
         final SignedState signedState = getMockSignedState7WeightRandomAddressBook(randotron);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(2),
+                NodeId.of(0),
                 // no software upgrade
                 false,
                 signedState,
                 configAddressBook,
-                getPlatformContext(true));
+                getPlatformContext(true),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
                 configAddressBook,
                 inititializedAddressBook,
                 "The initial address book must equal the config address book.");
         assertEquals(
-                signedState.getAddressBook(),
+                signedStateAddressBook,
                 initializer.getPreviousAddressBook(),
                 "The previous address book must equal the state address book.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         assertTrue(initializer.hasAddressBookChanged());
     }
 
@@ -106,21 +113,22 @@ class AddressBookInitializerTest {
         // initial state has no address books set.
         final SignedState signedState = getMockSignedState(10, null, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(2),
+                NodeId.of(0),
                 // no software upgrade
                 false,
                 signedState,
                 configAddressBook,
-                getPlatformContext(false));
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
                 configAddressBook,
                 inititializedAddressBook,
                 "The initial address book must equal the expected address book.");
         assertNull(initializer.getPreviousAddressBook(), "The previous address book should be null.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         assertTrue(initializer.hasAddressBookChanged());
     }
 
@@ -133,21 +141,22 @@ class AddressBookInitializerTest {
         // genesis state address book is set to null to test the code path where it may be null.
         final SignedState signedState = getMockSignedState(10, null, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(2),
+                NodeId.of(0),
                 // no software upgrade
                 false,
                 signedState,
                 configAddressBook,
-                getPlatformContext(false));
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
                 configAddressBook,
                 inititializedAddressBook,
                 "The initial address book must equal the config address book.");
         assertNull(initializer.getPreviousAddressBook(), "The previous address book should be null.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         assertTrue(initializer.hasAddressBookChanged());
     }
 
@@ -156,24 +165,26 @@ class AddressBookInitializerTest {
     void noStateLoadedFromDiskGenesisStateChangedAddressBook() throws IOException {
         final Randotron randotron = Randotron.create();
         clearTestDirectory();
-        final AddressBook configAddressBook = getRandomAddressBook(randotron);
-        final SignedState signedState = getMockSignedState(7, configAddressBook, null, true);
+        final Roster roster = getRandomRoster(randotron);
+        final AddressBook configAddressBook = buildAddressBook(roster);
+        final SignedState signedState = getMockSignedState(7, roster, null, true);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(2),
+                NodeId.of(0),
                 // no software upgrade
                 false,
                 signedState,
                 configAddressBook,
-                getPlatformContext(false));
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
                 configAddressBook,
                 inititializedAddressBook,
                 "The initial address book must equal the config address book.");
         assertNull(initializer.getPreviousAddressBook(), "The previous address book should be null.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         // Even when the genesis state has the correct address book, we always adopt the config.txt address book and
         // indicate an address book change.
         assertTrue(initializer.hasAddressBookChanged());
@@ -186,121 +197,139 @@ class AddressBookInitializerTest {
         clearTestDirectory();
         // start state with previous address book
         final SignedState signedState =
-                getMockSignedState(2, getRandomAddressBook(randotron), getRandomAddressBook(randotron), false);
-        final AddressBook configAddressBook = copyWithWeightChanges(signedState.getAddressBook(), 10);
+                getMockSignedState(2, getRandomRoster(randotron), getRandomAddressBook(randotron), false);
+        final AddressBook configAddressBook = copyWithWeightChanges(buildAddressBook(signedState.getRoster()), 10);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(2),
+                NodeId.of(0),
                 // no software upgrade
                 false,
                 signedState,
                 configAddressBook,
-                getPlatformContext(false));
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
         assertEquals(
-                signedState.getAddressBook(),
+                signedStateAddressBook,
                 inititializedAddressBook,
                 "The initial address book must equal the state address book.");
-        assertEquals(
+        assertEqualsAsRosters(
                 null,
                 initializer.getPreviousAddressBook(),
                 "When there is no upgrade, the address book should not change");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         // The addressBooks remain unchanged when there is no software upgrade.
         assertFalse(initializer.hasAddressBookChanged());
     }
 
+    /**
+     * Compare AddressBooks after converting them to rosters to exclude fields unsupported by the Roster
+     * (memo, selfName, agreeCert, etc.)
+     *
+     * @param expected expected AddressBook
+     * @param actual actual AddressBook
+     * @param message error message
+     */
+    void assertEqualsAsRosters(final AddressBook expected, final AddressBook actual, final String message) {
+        final Roster expectedRoster = RosterRetriever.buildRoster(expected);
+        final Roster actualRoster = RosterRetriever.buildRoster(actual);
+        assertEquals(expectedRoster, actualRoster, message);
+    }
+
     @Test
-    @DisplayName("Version upgrade, SwirldState set 0 weight.")
-    void versionUpgradeSwirldStateZeroWeight() throws IOException {
+    @DisplayName("Version upgrade, state set 0 weight.")
+    void versionUpgradeStateZeroWeight() throws IOException {
         final Randotron randotron = Randotron.create();
         clearTestDirectory();
-        final SignedState signedState =
-                getMockSignedState(0, getRandomAddressBook(randotron), getRandomAddressBook(randotron), false);
-        final AddressBook configAddressBook = copyWithWeightChanges(signedState.getAddressBook(), 10);
+        final Roster roster = getRandomRoster(randotron);
+        final SignedState signedState = getMockSignedState(0, roster, getRandomAddressBook(randotron), false);
+        final AddressBook configAddressBook = copyWithWeightChanges(buildAddressBook(roster), 10);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(3),
+                NodeId.of(0),
                 // software upgrade
                 true,
                 signedState,
                 configAddressBook,
-                getPlatformContext(false));
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
+        final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
+        assertEquals(
+                configAddressBook,
+                inititializedAddressBook,
+                "The initial address book must equal the config address book.");
+        assertEquals(
+                signedStateAddressBook,
+                initializer.getPreviousAddressBook(),
+                "The previous address book must equal the state address book.");
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
+        assertTrue(initializer.hasAddressBookChanged());
+    }
+
+    @Test
+    @DisplayName("Version upgrade, state modified the address book.")
+    void versionUpgradeStateModifiedAddressBook() throws IOException {
+        final Randotron randotron = Randotron.create();
+        clearTestDirectory();
+        final Roster roster = getRandomRoster(randotron);
+        final SignedState signedState = getMockSignedState(2, roster, getRandomAddressBook(randotron), false);
+        final AddressBook signedStateAddressBook = buildAddressBook(roster);
+        final AddressBook configAddressBook = copyWithWeightChanges(signedStateAddressBook, 3);
+        final AddressBookInitializer initializer = new AddressBookInitializer(
+                NodeId.of(0),
+                // software upgrade
+                true,
+                signedState,
+                configAddressBook,
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         assertEquals(
                 configAddressBook,
                 inititializedAddressBook,
                 "The initial address book must equal the config address book.");
         assertEquals(
-                signedState.getAddressBook(),
+                signedStateAddressBook,
                 initializer.getPreviousAddressBook(),
                 "The previous address book must equal the state address book.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         assertTrue(initializer.hasAddressBookChanged());
     }
 
     @Test
-    @DisplayName("Version upgrade, Swirld State modified the address book.")
-    void versionUpgradeSwirldStateModifiedAddressBook() throws IOException {
-        final Randotron randotron = Randotron.create();
-        clearTestDirectory();
-        final SignedState signedState =
-                getMockSignedState(2, getRandomAddressBook(randotron), getRandomAddressBook(randotron), false);
-        final AddressBook configAddressBook = copyWithWeightChanges(signedState.getAddressBook(), 3);
-        final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(3),
-                // software upgrade
-                true,
-                signedState,
-                configAddressBook,
-                getPlatformContext(false));
-        final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
-        assertEquals(
-                configAddressBook,
-                inititializedAddressBook,
-                "The initial address book must equal the config address book.");
-        assertEquals(
-                signedState.getAddressBook(),
-                initializer.getPreviousAddressBook(),
-                "The previous address book must equal the state address book.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
-        assertTrue(initializer.hasAddressBookChanged());
-    }
-
-    @Test
-    @DisplayName("Version upgrade, Swirld State updates weight successfully.")
-    void versionUpgradeSwirldStateWeightUpdateWorks() throws IOException {
+    @DisplayName("Version upgrade, State updates weight successfully.")
+    void versionUpgradeStateWeightUpdateWorks() throws IOException {
         final Randotron randotron = Randotron.create();
         clearTestDirectory();
         final SignedState signedState = getMockSignedState7WeightRandomAddressBook(randotron);
-        final AddressBook configAddressBook = copyWithWeightChanges(signedState.getAddressBook(), 5);
+        final AddressBook signedStateAddressBook = buildAddressBook(signedState.getRoster());
+        final AddressBook configAddressBook = copyWithWeightChanges(signedStateAddressBook, 5);
         final AddressBookInitializer initializer = new AddressBookInitializer(
-                new NodeId(0),
-                getMockSoftwareVersion(3),
+                NodeId.of(0),
                 // software upgrade
                 true,
                 signedState,
                 configAddressBook,
-                getPlatformContext(false));
+                getPlatformContext(false),
+                consensusStateEventHandler,
+                TEST_PLATFORM_STATE_FACADE);
         final AddressBook inititializedAddressBook = initializer.getCurrentAddressBook();
         assertNotEquals(
                 configAddressBook,
                 inititializedAddressBook,
                 "The initial address book must not equal the config address book.");
         assertNotEquals(
-                signedState.getAddressBook(),
+                signedStateAddressBook,
                 inititializedAddressBook,
                 "The initial address book must not equal the state address book.");
         assertEquals(
-                signedState.getAddressBook(),
+                signedStateAddressBook,
                 initializer.getPreviousAddressBook(),
                 "The previous address book must equal the state address book.");
-        assertAddressBookFileContent(
-                initializer, configAddressBook, signedState.getAddressBook(), inititializedAddressBook);
+        assertAddressBookFileContent(initializer, configAddressBook, signedStateAddressBook, inititializedAddressBook);
         assertTrue(initializer.hasAddressBookChanged());
     }
 
@@ -320,69 +349,70 @@ class AddressBookInitializerTest {
     }
 
     /**
+     * Copies the address book while setting weight per address to the given weight value.
+     *
+     * @param addressBook The address book to copy
+     * @param weightValue The new weight value per address.
+     * @return the copy of the input address book with the given weight value per address.
+     */
+    private void updateWithWeightChanges(AddressBook addressBook, int weightValue) {
+        final AddressBook temp = new AddressBook();
+        for (Address address : addressBook) {
+            temp.add(address.copySetWeight(weightValue));
+        }
+        addressBook.clear();
+        for (Address address : temp) {
+            addressBook.add(address);
+        }
+    }
+
+    /**
      * Creates a mock SoftwareVersion matching the input version number.
      *
      * @param version the integer software version.
      * @return the SoftwareVersion matching the input version.
      */
-    private SoftwareVersion getMockSoftwareVersion(int version) {
-        final SoftwareVersion softwareVersion = mock(SoftwareVersion.class);
-        when(softwareVersion.getVersion()).thenReturn(version);
-        final AtomicReference<SoftwareVersion> softVersion = new AtomicReference<>();
-        when(softwareVersion.compareTo(argThat(sv -> {
-                    softVersion.set(sv);
-                    return true;
-                })))
-                .thenAnswer(i -> {
-                    SoftwareVersion other = softVersion.get();
-                    if (other == null) {
-                        return 1;
-                    } else {
-                        return Integer.compare(softwareVersion.getVersion(), other.getVersion());
-                    }
-                });
-        return softwareVersion;
+    private SemanticVersion getMockSoftwareVersion(int version) {
+        return SemanticVersion.newBuilder().minor(version).build();
     }
 
     /**
-     * Creates a mock signed state and a SwirldState that sets all addresses to have weight = 7.
+     * Creates a mock signed state and a State that sets all addresses to have weight = 7.
      *
      * @return The mock SignedState.
      */
     private SignedState getMockSignedState7WeightRandomAddressBook(@NonNull final Randotron randotron) {
-        return getMockSignedState(7, getRandomAddressBook(randotron), getRandomAddressBook(randotron), false);
+        return getMockSignedState(7, getRandomRoster(randotron), getRandomAddressBook(randotron), false);
     }
 
     /**
-     * Creates a mock signed state and a SwirldState that sets all addresses to the given weightValue.
+     * Creates a mock signed state and a State that sets all addresses to the given weightValue.
      *
-     * @param weightValue         The weight value that the SwirldState should set all addresses to in its updateWeight
+     * @param weightValue         The weight value that the State should set all addresses to in its updateWeight
      *                            method.
-     * @param currentAddressBook  The address book that should be returned by {@link SignedState#getAddressBook()} and
-     *                            {@link PlatformStateAccessor#getAddressBook()}
-     * @param previousAddressBook The address book that should be returned by
-     *                            {@link PlatformStateAccessor#getPreviousAddressBook()}
+     * @param currentRoster       The roster that should be returned by {@link SignedState#getRoster()} and used as current roster
+     * @param previousAddressBook The address book that should be used to derive the previous roster
      * @param fromGenesis         Whether the state should be from genesis or not.
-     * @return The mock SignedState and SwirldState configured to set all addresses with given weightValue.
+     * @return The mock SignedState and State configured to set all addresses with given weightValue.
      */
     private SignedState getMockSignedState(
             final int weightValue,
-            @Nullable final AddressBook currentAddressBook,
+            @Nullable final Roster currentRoster,
             @Nullable final AddressBook previousAddressBook,
             boolean fromGenesis) {
         final SignedState signedState = mock(SignedState.class);
-        final SoftwareVersion softwareVersion = getMockSoftwareVersion(2);
-        final SwirldState swirldState = getMockSwirldStateSupplier(weightValue).get();
-        when(signedState.getSwirldState()).thenReturn(swirldState);
+        final SemanticVersion softwareVersion = getMockSoftwareVersion(2);
+        configureUpdateWeightForStateEventHandler(weightValue);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final ReadableStates readableStates = mock(ReadableStates.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
         when(platformState.getCreationSoftwareVersion()).thenReturn(softwareVersion);
-        when(platformState.getAddressBook()).thenReturn(currentAddressBook);
-        when(platformState.getPreviousAddressBook()).thenReturn(previousAddressBook);
-        final MerkleRoot state = mock(MerkleRoot.class);
-        when(state.getReadablePlatformState()).thenReturn(platformState);
+        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
+        RosterServiceStateMock.setup(state, currentRoster, 1L, RosterRetriever.buildRoster(previousAddressBook));
+
         when(signedState.getState()).thenReturn(state);
         when(signedState.isGenesisState()).thenReturn(fromGenesis);
-        when(signedState.getAddressBook()).thenReturn(currentAddressBook);
+        when(signedState.getRoster()).thenReturn(currentRoster);
         return signedState;
     }
 
@@ -390,43 +420,49 @@ class AddressBookInitializerTest {
      * Creates a mock swirld state with the given scenario.
      *
      * @param scenario The scenario to load.
-     * @return A SwirldState which behaves according to the input scenario.
      */
-    private Supplier<SwirldState> getMockSwirldStateSupplier(int scenario) {
+    private void configureUpdateWeightForStateEventHandler(int scenario) {
 
         final AtomicReference<AddressBook> configAddressBook = new AtomicReference<>();
-        final SwirldState swirldState = mock(SwirldState.class);
 
-        final OngoingStubbing<AddressBook> stub = when(swirldState.updateWeight(
-                argThat(confAB -> {
-                    configAddressBook.set(confAB);
-                    return true;
-                }),
-                argThat(context -> true)));
+        final Stubber stubber;
 
         switch (scenario) {
             case 0:
-                stub.thenAnswer(foo -> copyWithWeightChanges(configAddressBook.get(), 0));
+                stubber = doAnswer(foo -> {
+                    updateWithWeightChanges(configAddressBook.get(), 0);
+                    return null;
+                });
                 break;
             case 1:
-                stub.thenAnswer(foo -> configAddressBook.get());
+                stubber = doAnswer(foo -> configAddressBook.get());
                 break;
             case 2:
-                stub.thenAnswer(foo -> configAddressBook
+                stubber = doAnswer(foo -> configAddressBook
                         .get()
                         .add(configAddressBook
                                 .get()
                                 .getAddress(configAddressBook.get().getNodeId(0))
-                                .copySetNodeId(configAddressBook.get().getNextNodeId())));
+                                .copySetNodeId(configAddressBook.get().getNextAvailableNodeId())));
                 break;
             case 7:
-                stub.thenAnswer(foo -> copyWithWeightChanges(configAddressBook.get(), 7));
+                stubber = doAnswer(foo -> {
+                    updateWithWeightChanges(configAddressBook.get(), 7);
+                    return null;
+                });
                 break;
             default:
-                stub.thenAnswer(foo -> copyWithWeightChanges(configAddressBook.get(), 10));
+                stubber = doAnswer(foo -> copyWithWeightChanges(configAddressBook.get(), 10));
         }
 
-        return () -> swirldState;
+        stubber.when(consensusStateEventHandler)
+                .onUpdateWeight(
+                        any(),
+                        argThat(confAB -> {
+                            configAddressBook.set(confAB);
+                            return true;
+                        }),
+                        argThat(context -> true));
     }
 
     /**
@@ -437,6 +473,11 @@ class AddressBookInitializerTest {
     @NonNull
     private AddressBook getRandomAddressBook(@NonNull final Random random) {
         return RandomAddressBookBuilder.create(random).withSize(5).build();
+    }
+
+    @NonNull
+    private Roster getRandomRoster(@NonNull final Random random) {
+        return RandomRosterBuilder.create(random).withSize(5).build();
     }
 
     /**
@@ -491,21 +532,21 @@ class AddressBookInitializerTest {
         final String usedFileContent = Files.readString(usedFile.toPath());
 
         // check used AddressBook content
-        final String usedAddressBookText = usedAddressBook.toConfigText();
+        final String usedAddressBookText = addressBookConfigText(usedAddressBook);
         assertEquals(
                 usedAddressBookText,
                 usedFileContent,
                 "The used file content is not the same as the used address book.");
 
         // check debug AddressBook content
-        final String configText = CONFIG_ADDRESS_BOOK_HEADER + "\n" + configAddressBook.toConfigText();
+        final String configText = CONFIG_ADDRESS_BOOK_HEADER + "\n" + addressBookConfigText(configAddressBook);
         assertTrue(
                 debugFileContent.contains(configText),
                 "The configAddressBook content is not:\n" + configText + "\n\n debugFileContent:\n" + debugFileContent);
 
         // check stateAddressBook content
         final String stateAddressBookText =
-                (stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : stateAddressBook.toConfigText());
+                (stateAddressBook == null ? STATE_ADDRESS_BOOK_NULL : addressBookConfigText(stateAddressBook));
         final String stateText = STATE_ADDRESS_BOOK_HEADER + "\n" + stateAddressBookText;
 
         assertTrue(
@@ -514,12 +555,12 @@ class AddressBookInitializerTest {
 
         // check usedAddressBook content
         String usedText = USED_ADDRESS_BOOK_HEADER + "\n";
-        if (usedAddressBook == configAddressBook) {
+        if (Objects.equals(usedAddressBook, configAddressBook)) {
             usedText += CONFIG_ADDRESS_BOOK_USED;
-        } else if (usedAddressBook == stateAddressBook) {
+        } else if (Objects.equals(usedAddressBook, stateAddressBook)) {
             usedText += STATE_ADDRESS_BOOK_USED;
         } else {
-            usedText += usedAddressBook.toConfigText();
+            usedText += addressBookConfigText(usedAddressBook);
         }
         assertTrue(
                 debugFileContent.contains(usedText),

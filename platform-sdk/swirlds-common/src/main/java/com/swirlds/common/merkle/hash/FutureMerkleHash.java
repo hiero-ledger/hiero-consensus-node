@@ -1,28 +1,14 @@
-/*
- * Copyright (C) 2016-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.hash;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.common.merkle.MerkleNode;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.hiero.base.crypto.Hash;
 
 /**
  * This future object is used by {@link MerkleHashBuilder#digestTreeAsync(MerkleNode)} to return a hash to the user.
@@ -51,10 +37,10 @@ public class FutureMerkleHash implements Future<Hash> {
     /**
      * This method is used to register that an exception was encountered while hashing the tree.
      */
-    public synchronized void cancelWithException(final Throwable exception) {
-        if (exception != null) {
+    public synchronized void cancelWithException(@NonNull final Throwable t) {
+        if (exception == null) {
             // Only the first exception gets rethrown
-            this.exception = exception;
+            exception = t;
             latch.countDown();
         }
     }

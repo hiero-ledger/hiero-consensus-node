@@ -1,24 +1,10 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.extensions.test;
 
 import com.swirlds.config.extensions.sources.MappedConfigSource;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import java.util.HashMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import org.junit.jupiter.api.Assertions;
@@ -48,7 +34,7 @@ class MappedConfigSourceTest {
         final var mappedConfigSource = new MappedConfigSource(configSource);
 
         // when
-        final var properties = mappedConfigSource.getProperties();
+        final var properties = getObjectObjectHashMap(mappedConfigSource);
 
         // then
         Assertions.assertNotNull(properties);
@@ -65,7 +51,7 @@ class MappedConfigSourceTest {
 
         // when
         mappedConfigSource.addMapping("b", "a");
-        final var properties = mappedConfigSource.getProperties();
+        final var properties = getObjectObjectHashMap(mappedConfigSource);
 
         // then
         Assertions.assertNotNull(properties);
@@ -97,7 +83,7 @@ class MappedConfigSourceTest {
         mappedConfigSource.addMapping("b", "not-available");
 
         // then
-        Assertions.assertEquals(1, mappedConfigSource.getProperties().size());
+        Assertions.assertEquals(1, mappedConfigSource.getPropertyNames().size());
         Assertions.assertEquals(Set.of("a"), mappedConfigSource.getPropertyNames());
     }
 
@@ -177,12 +163,18 @@ class MappedConfigSourceTest {
 
         // when
         mappedConfigSource.addMapping("foo.a", "a");
-        final var properties = mappedConfigSource.getProperties();
+        final var properties = getObjectObjectHashMap(mappedConfigSource);
 
         // then
         Assertions.assertNotNull(properties);
         Assertions.assertEquals(2, properties.keySet().size());
         Assertions.assertEquals("1", properties.get("a"));
         Assertions.assertEquals("2", properties.get("foo.a"));
+    }
+
+    private static HashMap<Object, Object> getObjectObjectHashMap(final MappedConfigSource mappedConfigSource) {
+        final var properties = new HashMap<>();
+        mappedConfigSource.getPropertyNames().forEach(p -> properties.put(p, mappedConfigSource.getValue(p)));
+        return properties;
     }
 }

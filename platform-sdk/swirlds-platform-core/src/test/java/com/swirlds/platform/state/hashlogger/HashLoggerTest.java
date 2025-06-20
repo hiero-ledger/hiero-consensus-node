@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2022-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
@@ -28,17 +13,18 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptoFactory;
+import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig_;
-import com.swirlds.platform.state.MerkleRoot;
+import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.system.address.AddressBook;
+import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +36,7 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
+    private TestPlatformStateFacade platformStateFacade;
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -64,11 +51,12 @@ public class HashLoggerTest {
     @BeforeEach
     public void setUp() {
         mockLogger = mock(Logger.class);
+        platformStateFacade = mock(TestPlatformStateFacade.class);
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
+        hashLogger = new DefaultHashLogger(platformContext, mockLogger, platformStateFacade);
         logged = new ArrayList<>();
 
         doAnswer(invocation -> {
@@ -128,7 +116,7 @@ public class HashLoggerTest {
                 .withConfiguration(configuration)
                 .build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
+        hashLogger = new DefaultHashLogger(platformContext, mockLogger, platformStateFacade);
         hashLogger.logHashes(createSignedState(1));
         assertThat(logged).isEmpty();
     }
@@ -137,28 +125,24 @@ public class HashLoggerTest {
     public void loggerWithDefaultConstructorWorks() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
+        final PlatformStateFacade platformStateFacade = mock(PlatformStateFacade.class);
 
         assertDoesNotThrow(() -> {
-            hashLogger = new DefaultHashLogger(platformContext);
+            hashLogger = new DefaultHashLogger(platformContext, platformStateFacade);
             hashLogger.logHashes(createSignedState(1));
         });
     }
 
     private ReservedSignedState createSignedState(final long round) {
         final MerkleNode merkleNode = MerkleTestUtils.buildLessSimpleTree();
-        MerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
+        TestMerkleCryptoFactory.getInstance().digestTreeSync(merkleNode);
         final SignedState signedState = mock(SignedState.class);
-        final MerkleRoot state = mock(MerkleRoot.class);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final MerkleNode stateRoot = mock(MerkleNode.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
-
-        final AddressBook addressBook = new AddressBook();
-        addressBook.setHash(merkleNode.getHash());
-
         when(platformState.getRound()).thenReturn(round);
-        when(platformState.getAddressBook()).thenReturn(addressBook);
-
-        when(state.getReadablePlatformState()).thenReturn(platformState);
-        when(state.getRoute()).thenReturn(merkleNode.getRoute());
+        when(state.getRoot()).thenReturn(stateRoot);
+        when(stateRoot.getRoute()).thenReturn(merkleNode.getRoute());
         when(state.getHash()).thenReturn(merkleNode.getHash());
 
         when(signedState.getState()).thenReturn(state);

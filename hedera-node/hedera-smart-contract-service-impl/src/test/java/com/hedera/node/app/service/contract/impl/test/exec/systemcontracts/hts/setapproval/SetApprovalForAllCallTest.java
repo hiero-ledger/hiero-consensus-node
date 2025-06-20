@@ -1,19 +1,4 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.setapproval;
 
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
@@ -34,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
@@ -61,12 +47,15 @@ public class SetApprovalForAllCallTest extends CallTestBase {
     @Mock
     private SystemContractGasCalculator gasCalculator;
 
+    @Mock
+    private ProxyWorldUpdater worldUpdater;
+
     private SetApprovalForAllCall subject;
 
     @BeforeEach
     void setup() {
         final Tuple tuple =
-                new Tuple(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, Boolean.TRUE);
+                Tuple.of(FUNGIBLE_TOKEN_HEADLONG_ADDRESS, UNAUTHORIZED_SPENDER_HEADLONG_ADDRESS, Boolean.TRUE);
         final byte[] inputBytes = Bytes.wrapByteBuffer(
                         SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL.encodeCall(tuple))
                 .toArray();
@@ -139,7 +128,7 @@ public class SetApprovalForAllCallTest extends CallTestBase {
         assertEquals(
                 asBytesResult(SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL
                         .getOutputs()
-                        .encodeElements(BigInteger.valueOf(expectedStatus.protoOrdinal()))),
+                        .encode(Tuple.singleton(BigInteger.valueOf(expectedStatus.protoOrdinal())))),
                 result.getOutput());
     }
 }

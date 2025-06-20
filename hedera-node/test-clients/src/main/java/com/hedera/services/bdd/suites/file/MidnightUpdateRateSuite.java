@@ -1,22 +1,7 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
@@ -45,34 +30,31 @@ public class MidnightUpdateRateSuite {
             .contents(spec -> spec.ratesProvider().rateSetWith(1, 12).toByteString());
 
     final Stream<DynamicTest> acct57UpdatesMidnightRateAtMidNight() throws ParseException {
-        return defaultHapiSpec("Acct57UpdatesMidnightRateAtMidNight")
-                .given(resetRatesOp, cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS)))
-                .when(
-                        // should be done just before midnight
-                        UtilVerbs.waitUntil("23:58"),
-                        fileUpdate(EXCHANGE_RATES)
-                                .contents(spec -> {
-                                    ByteString newRates = spec.ratesProvider()
-                                            .rateSetWith(10, 147)
-                                            .toByteString();
-                                    spec.registry().saveBytes("midnightRate", newRates);
-                                    return newRates;
-                                })
-                                .payingWith(EXCHANGE_RATE_CONTROL))
-                .then(
-                        // should be the first transaction after midnight
-                        UtilVerbs.sleepFor(300_000),
-                        fileUpdate(EXCHANGE_RATES)
-                                .contents(spec -> {
-                                    ByteString newRates = spec.ratesProvider()
-                                            .rateSetWith(10, 183)
-                                            .toByteString();
-                                    spec.registry().saveBytes("newRates", newRates);
-                                    return newRates;
-                                })
-                                .payingWith(EXCHANGE_RATE_CONTROL),
-                        getFileContents(EXCHANGE_RATES)
-                                .hasContents(spec -> spec.registry().getBytes("newRates")),
-                        resetRatesOp);
+        return hapiTest(
+                resetRatesOp,
+                cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS)),
+                // should be done just before midnight
+                UtilVerbs.waitUntil("23:58"),
+                fileUpdate(EXCHANGE_RATES)
+                        .contents(spec -> {
+                            ByteString newRates =
+                                    spec.ratesProvider().rateSetWith(10, 147).toByteString();
+                            spec.registry().saveBytes("midnightRate", newRates);
+                            return newRates;
+                        })
+                        .payingWith(EXCHANGE_RATE_CONTROL),
+                // should be the first transaction after midnight
+                UtilVerbs.sleepFor(300_000),
+                fileUpdate(EXCHANGE_RATES)
+                        .contents(spec -> {
+                            ByteString newRates =
+                                    spec.ratesProvider().rateSetWith(10, 183).toByteString();
+                            spec.registry().saveBytes("newRates", newRates);
+                            return newRates;
+                        })
+                        .payingWith(EXCHANGE_RATE_CONTROL),
+                getFileContents(EXCHANGE_RATES)
+                        .hasContents(spec -> spec.registry().getBytes("newRates")),
+                resetRatesOp);
     }
 }

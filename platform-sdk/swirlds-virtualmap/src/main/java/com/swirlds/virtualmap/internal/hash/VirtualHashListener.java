@@ -1,38 +1,29 @@
-/*
- * Copyright (C) 2021-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
-import com.swirlds.common.crypto.Hash;
 import com.swirlds.virtualmap.VirtualKey;
 import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Listens to various events that occur during the hashing process.
  */
 public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValue> {
+
     /**
      * Called when starting a new fresh hash operation.
+     *
+     * @param firstLeafPath
+     *      The first leaf path in the virtual tree
+     * @param lastLeafPath
+     *      The last leaf path in the virtual tree
      */
-    default void onHashingStarted() {}
+    default void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {}
 
     /**
      * Called after each node is hashed, internal or leaf. This is called between
-     * {@link #onHashingStarted()} and {@link #onHashingCompleted()}.
+     * {@link #onHashingStarted(long, long)} and {@link #onHashingCompleted()}.
      *
      * @param path
      * 		Node path
@@ -43,7 +34,7 @@ public interface VirtualHashListener<K extends VirtualKey, V extends VirtualValu
 
     /**
      * Called after each leaf node on a rank is hashed. This is called between
-     * {@link #onHashingStarted()} and {@link #onHashingCompleted()}.
+     * {@link #onHashingStarted(long, long)} and {@link #onHashingCompleted()}.
      *
      * @param leaf
      * 		A non-null leaf record representing the hashed leaf.

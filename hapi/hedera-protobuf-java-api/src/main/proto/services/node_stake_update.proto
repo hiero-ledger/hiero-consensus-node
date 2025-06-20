@@ -1,0 +1,261 @@
+/**
+ * # Node Stake Updates
+ * A system-initiated (i.e. internal) transaction to update stake information
+ * for nodes at the end of a staking period.
+ *
+ * Note that staking rewards are not paid immediately. The rewards are
+ * calculated, and the amount to be paid is reserved in the reward account,
+ * at the end of each staking period. The actual recipient accounts are then
+ * paid rewards when that account participates in any transaction that
+ * changes staking information or the account balance. This reduces the
+ * resources for calculating the staking rewards, quite dramatically,
+ * and provides an incentive for account owners to engage with the network,
+ * in at least a minor fashion, occasionally (typically annually).<br/>
+ * The unexpected change in balances, however, can be surprising to the
+ * account holder.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/timestamp.proto";
+
+/**
+ * A system initiated transaction to update staking information.
+ *
+ * This transaction SHALL be issued at the end of each staking period to update
+ * node stakes and reward limits.<br/>
+ * This transaction SHALL be a child of the first transaction to reach
+ * consensus following the end of the previous staking period.<br/>
+ * This transaction MUST NOT be sent by a client and SHALL be rejected if
+ * received by any node.<br/>
+ * This transaction SHALL be present in the record stream or block stream.
+ *
+ * ### Block Stream Effects
+ * None
+ */
+message NodeStakeUpdateTransactionBody {
+    /**
+     * A timestamp indicating the end of the staking period.
+     * <p>
+     * This value SHALL be one nanosecond prior to midnight prior to the
+     * consensus time of the parent transaction.
+     */
+    Timestamp end_of_staking_period = 1;
+
+    /**
+     * A list of `NodeStake` entries for each node at the beginning of the new
+     * staking period.
+     * <p>
+     * This list SHALL have one entry for each node participating in network
+     * consensus.
+     */
+    repeated NodeStake node_stake = 2;
+
+    /**
+     * A maximum reward rate for this staking period.
+     * <p>
+     * This SHALL be a ratio of tinybar to HBAR.<br/>
+     * An account SHALL NOT receive a reward greater than the product of this
+     * ratio and the total number of HBAR staked by that account.
+     */
+    int64 max_staking_reward_rate_per_hbar = 3;
+
+    /**
+     * A fraction of network and service fees paid to
+     * the "node" reward account.<br/>
+     * The node staking rewards are paid from the designated reward account
+     * `0.0.801`, which receives a fraction of network and service fees for
+     * each transaction. This field is the value of that fraction for the
+     * last staking period.
+     */
+    Fraction node_reward_fee_fraction = 4;
+
+    /**
+     * A limit to the number of staking periods held for inactive accounts.<br/>
+     * This is the maximum number of trailing staking periods for which an
+     * account can collect staking rewards.<br/>
+     * #### Example
+     * If this value is 365 with a calendar day period, then each account must
+     * collect rewards at least once per calendar year to receive the full
+     * amount of staking rewards earned.
+     * <p>
+     * Staking rewards SHALL be stored in network state for no more than
+     * `staking_periods_stored` staking periods.<br/>
+     * Each account MUST participate in at least one transaction that affects
+     * its balance, staking, or staking metadata within this time limit
+     * to receive all available staking rewards.
+     */
+    int64 staking_periods_stored = 5;
+
+    /**
+     * A number of minutes representing a staking period.<br/>
+     * <blockquote>Note<blockquote>
+     * For the special case of `1440` minutes, periods are treated as
+     * calendar days aligned to midnight UTC, rather than repeating `1440`
+     * minute periods left-aligned at the epoch.</blockquote></blockquote>
+     */
+    int64 staking_period = 6;
+
+    /**
+     * A fraction of network and service fees paid to
+     * the "general" reward account.<br/>
+     * The general staking rewards are paid from the designated reward account
+     * `0.0.800`, which receives a fraction of network and service fees for
+     * each transaction. This field is the value of that fraction for the
+     * last staking period.
+     */
+    Fraction staking_reward_fee_fraction = 7;
+
+    /**
+     * A minimum balance required to pay general staking rewards.
+     * <p>
+     * If the balance of the staking reward account `0.0.800` is below this
+     * threshold, staking rewards SHALL NOT be paid in full.
+     */
+    int64 staking_start_threshold = 8;
+
+    /**
+     * HIP-786 replaced this field with `max_total_reward`.<br/>
+     * This was a maximum total number of tinybars to be distributed as staking
+     * rewards in the staking period that just ended.
+     */
+    int64 staking_reward_rate = 9 [deprecated = true];
+
+    /**
+     * An amount reserved in the staking reward account.<br/>
+     * This is an amount "reserved" in the balance of account `0.0.800` that
+     * is already owed for pending rewards that were previously earned but
+     * have not yet been collected.<br/>
+     * This value is further detailed in HIP-786.
+     */
+    int64 reserved_staking_rewards = 10;
+
+    /**
+     * An available, unreserved, amount in the staking reward account.<br/>
+     * This is the balance of the staking reward account `0.0.800` at the close
+     * of the staking period that just ended, after reduction for all "reserved"
+     * funds necessary to pay previously earned rewards.<br/>
+     * This value is further detailed in HIP-786.
+     * <p>
+     * This value SHALL be used to calculate the reward ratio according to
+     * the formula detailed in HIP-782.
+     */
+    int64 unreserved_staking_reward_balance = 11;
+
+    /**
+     * A minimum balance required for maximum staking rewards.<br/>
+     * This value is further detailed in HIP-786.
+     * The formula to calculate staking rewards is detailed in HIP-782.
+     * <p>
+     * The value of `unreserved_staking_reward_balance` MUST match or exceed the
+     * value of this field to support the maximum staking reward ratio.<br/>
+     */
+    int64 reward_balance_threshold = 12;
+
+    /**
+     * A maximum network-wide stake that can earn full rewards.<br/>
+     * If the network-wide stake, in tinybar, exceeds this value, then staking
+     * rewards must be reduced to maintain "smooth" reward adjustments as
+     * defined in HIP-782.<br/>
+     * This value is further detailed in HIP-786.
+     * <p>
+     * If the total network-wide stake exceeds this value, the effective
+     * staking reward ratio MUST be reduced to maintain solvency of the
+     * staking reward account.
+     */
+    int64 max_stake_rewarded = 13;
+
+    /**
+     * A limit amount that could be paid as staking rewards.<br/>
+     * In the limit case, the network could pay at most this amount, in tinybar
+     * as staking rewards for the staking period that just ended, if all other
+     * conditions were met to perfection.<br/>
+     * <p>
+     * This value SHALL reflect the result of a maximum reward calculation that
+     * takes into account the balance thresholds and maximum stake thresholds
+     * as defined in HIP-782 and HIP-786.<br/>
+     * This value is a convenience. The actual defined calculation SHALL be
+     * authoritative in the unlikely event this value differs.
+     */
+    int64 max_total_reward = 14;
+}
+
+/**
+ * Staking information for one node at the end of a staking period.
+ *
+ * This SHALL be one entry in a list reported at the end of each
+ * full staking period.
+ */
+message NodeStake {
+    /**
+     * A limit to the amount of stake considered for consensus weight.
+     * <p>
+     * The amount of stake (whether accepting rewards or not) assigned to a
+     * node that exceeds this limit SHALL NOT be considered for
+     * consensus weight calculation.<br/>
+     * If stake to _reward_ for a node exceeds this threshold, then all
+     * accounts staking to that node SHALL receive a lower reward rate in
+     * proportion to the excess stake.
+     */
+    int64 max_stake = 1;
+
+    /**
+     * A minimum amount of HBAR staked to a node to receive rewards.
+     * <p>
+     * If the amount of stake (whether accepting rewards or not) assigned to
+     * a node at the start of a staking period is less than this threshold,
+     * then no rewards SHALL be paid to that node or to any accounts
+     * staking to that node.
+     */
+    int64 min_stake = 2;
+
+    /**
+     * A node identifier.<br/>
+     * This value uniquely identifies this node within the
+     * network address book.
+     */
+    int64 node_id = 3;
+
+    /**
+     * The rate of rewards, in tinybar per HBAR, for the staking reward
+     * period that just ended.
+     */
+    int64 reward_rate = 4;
+
+    /**
+     * A consensus weight assigned to this node for the next staking period.
+     */
+    int64 stake = 5;
+
+    /**
+     * The total amount staked to this node, while declining rewards.
+     * <p>
+     * This SHALL be the total staked amount, in tinybar, that is staked to
+     * this node with the value of the `decline_reward` set.<br/>
+     * This value MUST be calculated at the beginning of the staking period.
+     */
+    int64 stake_not_rewarded = 6;
+
+    /**
+     * The total amount staked to this node, while accepting rewards.
+     * <p>
+     * This SHALL be the total staked amount, in tinybar, that is staked to
+     * this node with the value of the `decline_reward` not set.<br/>
+     * This value MUST be calculated at the beginning of the staking period.
+     */
+    int64 stake_rewarded = 7;
+}

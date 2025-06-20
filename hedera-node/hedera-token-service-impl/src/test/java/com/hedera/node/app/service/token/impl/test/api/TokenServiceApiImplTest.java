@@ -1,22 +1,9 @@
-/*
- * Copyright (C) 2023-2024 Hedera Hashgraph, LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.api;
 
-import static com.hedera.node.app.spi.key.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_KEY;
+import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,13 +15,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.fixtures.FakeFeeRecordBuilder;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -42,20 +33,23 @@ import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fixtures.state.MapWritableStates;
-import com.hedera.node.app.spi.metrics.StoreMetricsService;
+import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableKVStateBase;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
-import com.swirlds.state.spi.info.NetworkInfo;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -66,8 +60,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenServiceApiImplTest {
-    private static final Key STANDIN_CONTRACT_KEY =
-            Key.newBuilder().contractID(ContractID.newBuilder().contractNum(0)).build();
     public static final Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
     private static final Bytes EVM_ADDRESS =
             com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("89abcdef89abcdef89abcdef89abcdef89abcdef");
@@ -99,6 +91,11 @@ class TokenServiceApiImplTest {
     private final WritableStates writableStates = new MapWritableStates(Map.of(
             V0490TokenSchema.ACCOUNTS_KEY, accountState,
             V0490TokenSchema.ALIASES_KEY, aliasesState));
+    private final WritableStates entityWritableStates = new MapWritableStates(Map.of(
+            ENTITY_ID_STATE_KEY,
+            new WritableSingletonStateBase<>(ENTITY_ID_STATE_KEY, () -> EntityNumber.DEFAULT, c -> {}),
+            ENTITY_COUNTS_KEY,
+            new WritableSingletonStateBase<>(ENTITY_COUNTS_KEY, () -> EntityCounts.DEFAULT, c -> {})));
     private WritableAccountStore accountStore;
 
     @Mock
@@ -108,14 +105,20 @@ class TokenServiceApiImplTest {
     private Predicate<CryptoTransferTransactionBody> customFeeTest;
 
     @Mock
-    private StoreMetricsService storeMetricsService;
+    private LongConsumer onNodeFee;
+
+    @Mock
+    private LongConsumer onNodeRefund;
+
+    private WritableEntityCounters entityCounters;
 
     private TokenServiceApiImpl subject;
 
     @BeforeEach
     void setUp() {
-        accountStore = new WritableAccountStore(writableStates, DEFAULT_CONFIG, storeMetricsService);
-        subject = new TokenServiceApiImpl(DEFAULT_CONFIG, storeMetricsService, writableStates, customFeeTest);
+        entityCounters = new WritableEntityIdStore(entityWritableStates);
+        accountStore = new WritableAccountStore(writableStates, entityCounters);
+        subject = new TokenServiceApiImpl(DEFAULT_CONFIG, writableStates, customFeeTest, entityCounters);
     }
 
     @Test
@@ -128,10 +131,10 @@ class TokenServiceApiImplTest {
     void delegatesStakingValidationAsExpected() {
         try (var mockedValidator = mockStatic(StakingValidator.class)) {
             subject.assertValidStakingElectionForCreation(
-                    true, false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
+                    false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo);
             mockedValidator.verify(
                     () -> StakingValidator.validateStakedIdForCreation(
-                            true, false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo),
+                            false, "STAKED_NODE_ID", null, 123L, accountStore, networkInfo),
                     times(1));
         }
     }
@@ -193,8 +196,10 @@ class TokenServiceApiImplTest {
 
     @Test
     void finalizesHollowAccountAsContractAsExpected() {
-        accountStore.put(Account.newBuilder()
+        final var numAssociations = 3;
+        accountStore.putAndIncrementCount(Account.newBuilder()
                 .accountId(CONTRACT_ACCOUNT_ID)
+                .numberAssociations(numAssociations)
                 .key(IMMUTABILITY_SENTINEL_KEY)
                 .build());
 
@@ -203,8 +208,9 @@ class TokenServiceApiImplTest {
         assertEquals(1, accountStore.sizeOfAccountState());
         final var finalizedAccount = accountStore.getContractById(CONTRACT_ID_BY_NUM);
         assertNotNull(finalizedAccount);
-        assertEquals(STANDIN_CONTRACT_KEY, finalizedAccount.key());
+        assertEquals(Key.newBuilder().contractID(CONTRACT_ID_BY_NUM).build(), finalizedAccount.key());
         assertTrue(finalizedAccount.smartContract());
+        assertEquals(finalizedAccount.maxAutoAssociations(), numAssociations);
     }
 
     @Test
@@ -220,7 +226,8 @@ class TokenServiceApiImplTest {
 
     @Test
     void createsExpectedContractWithAliasIfSet() {
-        accountStore.put(Account.newBuilder().accountId(CONTRACT_ACCOUNT_ID).build());
+        accountStore.putAndIncrementCount(
+                Account.newBuilder().accountId(CONTRACT_ACCOUNT_ID).build());
 
         assertNull(accountStore.getContractById(CONTRACT_ID_BY_NUM));
         subject.markAsContract(CONTRACT_ACCOUNT_ID, null);
@@ -231,7 +238,7 @@ class TokenServiceApiImplTest {
 
     @Test
     void marksDeletedByNumberIfSet() {
-        accountStore.put(Account.newBuilder()
+        accountStore.putAndIncrementCount(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(CONTRACT_ID_BY_NUM.contractNumOrThrow()))
                 .smartContract(true)
                 .build());
@@ -245,12 +252,12 @@ class TokenServiceApiImplTest {
 
     @Test
     void removesByAliasIfSet() {
-        accountStore.put(Account.newBuilder()
+        accountStore.putAndIncrementCount(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(CONTRACT_ID_BY_NUM.contractNumOrThrow()))
                 .alias(EVM_ADDRESS)
                 .smartContract(true)
                 .build());
-        accountStore.putAlias(EVM_ADDRESS, CONTRACT_ACCOUNT_ID);
+        accountStore.putAndIncrementCountAlias(EVM_ADDRESS, CONTRACT_ACCOUNT_ID);
 
         subject.deleteContract(CONTRACT_ID_BY_ALIAS);
 
@@ -265,13 +272,13 @@ class TokenServiceApiImplTest {
         // This scenario with two aliases referencing the same selfdestruct-ed contract is currently
         // impossible (since only auto-created accounts with ECDSA keys can have two aliases), but if
         // it somehow occurs, we might as well clean up both aliases
-        accountStore.put(Account.newBuilder()
+        accountStore.putAndIncrementCount(Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(CONTRACT_ID_BY_NUM.contractNumOrThrow()))
                 .alias(OTHER_EVM_ADDRESS)
                 .smartContract(true)
                 .build());
-        accountStore.putAlias(EVM_ADDRESS, CONTRACT_ACCOUNT_ID);
-        accountStore.putAlias(OTHER_EVM_ADDRESS, CONTRACT_ACCOUNT_ID);
+        accountStore.putAndIncrementCountAlias(EVM_ADDRESS, CONTRACT_ACCOUNT_ID);
+        accountStore.putAndIncrementCountAlias(OTHER_EVM_ADDRESS, CONTRACT_ACCOUNT_ID);
 
         subject.deleteContract(CONTRACT_ID_BY_ALIAS);
 
@@ -441,7 +448,6 @@ class TokenServiceApiImplTest {
         @BeforeEach
         void setUp() {
             configBuilder = HederaTestConfigBuilder.create()
-                    .withValue("staking.isEnabled", true)
                     .withValue("staking.fees.nodeRewardPercentage", 10)
                     .withValue("staking.fees.stakingRewardPercentage", 20)
                     .withValue("hedera.shard", 0)
@@ -472,58 +478,79 @@ class TokenServiceApiImplTest {
         @Test
         void withStakingRewards() {
             // Given that staking is enabled
-            final var config =
-                    configBuilder.withValue("staking.isEnabled", true).getOrCreateConfig();
+            final var config = configBuilder
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .getOrCreateConfig();
+            final Map<AccountID, Long> adjustments = new HashMap<>();
 
-            subject = new TokenServiceApiImpl(config, storeMetricsService, writableStates, customFeeTest);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we charge network+service fees of 10 tinybars and a node fee of 2 tinybars
-            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb);
+            subject.chargeFees(
+                    EOA_ACCOUNT_ID,
+                    NODE_ACCOUNT_ID,
+                    fees,
+                    rb,
+                    (id, amount) -> adjustments.merge(id, amount, Long::sum),
+                    onNodeFee);
 
             // Then we find that 10% go to node rewards, 20% to staking rewards, and the rest to the funding account
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
             assertThat(payerAccount.tinybarBalance()).isEqualTo(PAYER_BALANCE_AFTER_ALL_FEES);
+            assertThat(adjustments.get(EOA_ACCOUNT_ID)).isEqualTo(-ALL_FEES);
 
             final var nodeRewardAccount = requireNonNull(accountState.get(NODE_REWARD_ACCOUNT_ID));
             assertThat(nodeRewardAccount.tinybarBalance()).isEqualTo(1);
+            assertThat(adjustments.get(NODE_REWARD_ACCOUNT_ID)).isEqualTo(1);
 
             final var stakingRewardAccount = requireNonNull(accountState.get(STAKING_REWARD_ACCOUNT_ID));
             assertThat(stakingRewardAccount.tinybarBalance()).isEqualTo(2);
+            assertThat(adjustments.get(STAKING_REWARD_ACCOUNT_ID)).isEqualTo(2);
 
             final var fundingAccount = requireNonNull(accountState.get(FUNDING_ACCOUNT_ID));
             assertThat(fundingAccount.tinybarBalance()).isEqualTo(7);
+            assertThat(adjustments.get(FUNDING_ACCOUNT_ID)).isEqualTo(7);
 
             final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
             assertThat(nodeAccount.tinybarBalance()).isEqualTo(2);
+            assertThat(adjustments.get(NODE_ACCOUNT_ID)).isEqualTo(2);
+            verify(onNodeFee).accept(2L);
 
             assertThat(rb.transactionFee()).isEqualTo(ALL_FEES);
         }
 
         @Test
-        void withoutStakingRewards() {
-            // Given that staking is disabled
-            final var config =
-                    configBuilder.withValue("staking.isEnabled", false).getOrCreateConfig();
+        void balancesAreUnchangedAfterRefunds() {
+            // Given that staking is enabled
+            final var config = configBuilder
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .getOrCreateConfig();
 
-            subject = new TokenServiceApiImpl(config, storeMetricsService, writableStates, customFeeTest);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
-            // When we charge fees of 10 tinybars
-            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb);
+            // When we charge network+service fees of 10 tinybars and a node fee of 2 tinybars
+            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, (id, amount) -> {}, onNodeFee);
+            subject.refundFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, onNodeRefund);
 
-            // Then we find that all the fees go to the funding account
+            // Then we find that 10% go to node rewards, 20% to staking rewards, and the rest to the funding account
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
-            assertThat(payerAccount.tinybarBalance()).isEqualTo(PAYER_BALANCE_AFTER_ALL_FEES);
+            assertThat(payerAccount.tinybarBalance()).isEqualTo(ORIGINAL_PAYER_BALANCE);
 
             final var nodeRewardAccount = requireNonNull(accountState.get(NODE_REWARD_ACCOUNT_ID));
-            assertThat(nodeRewardAccount.tinybarBalance()).isZero();
+            assertThat(nodeRewardAccount.tinybarBalance()).isEqualTo(0L);
 
             final var stakingRewardAccount = requireNonNull(accountState.get(STAKING_REWARD_ACCOUNT_ID));
-            assertThat(stakingRewardAccount.tinybarBalance()).isZero();
+            assertThat(stakingRewardAccount.tinybarBalance()).isEqualTo(0);
 
             final var fundingAccount = requireNonNull(accountState.get(FUNDING_ACCOUNT_ID));
-            assertThat(fundingAccount.tinybarBalance()).isEqualTo(10);
+            assertThat(fundingAccount.tinybarBalance()).isEqualTo(0);
 
-            assertThat(rb.transactionFee()).isEqualTo(ALL_FEES);
+            final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
+            assertThat(nodeAccount.tinybarBalance()).isEqualTo(0);
+            verify(onNodeFee).accept(2L);
+            verify(onNodeRefund).accept(2L);
+
+            assertThat(rb.transactionFee()).isEqualTo(0L);
         }
 
         @Test
@@ -531,7 +558,7 @@ class TokenServiceApiImplTest {
             // When we try to charge a payer account that DOES NOT EXIST, then we get an IllegalStateException.
             final var unknownAccountId =
                     AccountID.newBuilder().accountNum(12345678L).build();
-            assertThatThrownBy(() -> subject.chargeFees(unknownAccountId, NODE_ACCOUNT_ID, fees, rb))
+            assertThatThrownBy(() -> subject.chargeFees(unknownAccountId, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Payer account %s does not exist", unknownAccountId);
         }
@@ -543,12 +570,13 @@ class TokenServiceApiImplTest {
                     AccountID.newBuilder().accountNum(12345678L).build();
             final var config = configBuilder
                     .withValue("ledger.fundingAccount", unknownAccountId.accountNumOrThrow())
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
 
-            subject = new TokenServiceApiImpl(config, storeMetricsService, writableStates, customFeeTest);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
-            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb))
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Funding account %s does not exist", unknownAccountId);
         }
@@ -560,12 +588,13 @@ class TokenServiceApiImplTest {
                     AccountID.newBuilder().accountNum(12345678L).build();
             final var config = configBuilder
                     .withValue("accounts.stakingRewardAccount", unknownAccountId.accountNumOrThrow())
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
 
-            subject = new TokenServiceApiImpl(config, storeMetricsService, writableStates, customFeeTest);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
-            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb))
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessage("Staking reward account %s does not exist", unknownAccountId);
         }
@@ -579,12 +608,12 @@ class TokenServiceApiImplTest {
                     .withValue("accounts.nodeRewardAccount", unknownAccountId.accountNumOrThrow())
                     .getOrCreateConfig();
 
-            subject = new TokenServiceApiImpl(config, storeMetricsService, writableStates, customFeeTest);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
 
             // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
-            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb))
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessage("Node reward account %s does not exist", unknownAccountId);
+                    .hasMessage("Node rewards account %s does not exist", unknownAccountId);
         }
 
         @Test
@@ -593,8 +622,8 @@ class TokenServiceApiImplTest {
             fees = new Fees(1000, 100, 0); // more than the 100 the user has
 
             subject = new TokenServiceApiImpl(
-                    configBuilder.getOrCreateConfig(), storeMetricsService, writableStates, customFeeTest);
-            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb);
+                    configBuilder.getOrCreateConfig(), writableStates, customFeeTest, entityCounters);
+            subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee);
 
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
             assertThat(payerAccount.tinybarBalance()).isEqualTo(0);
@@ -608,7 +637,7 @@ class TokenServiceApiImplTest {
 
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb));
+                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee));
         }
 
         @Test
@@ -618,7 +647,7 @@ class TokenServiceApiImplTest {
 
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb));
+                    () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee));
         }
     }
 }
