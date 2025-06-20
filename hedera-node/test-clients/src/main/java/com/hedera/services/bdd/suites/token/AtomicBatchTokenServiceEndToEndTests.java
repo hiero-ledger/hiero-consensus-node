@@ -237,7 +237,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     cryptoTransfer(moving(10, DUMMY).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
 
                     // create and mint non-fungible token
-                    createNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+                    createImmutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
                     mintNFT(NFT_FOR_END_TO_END, 0, 10),
 
                     // perform the atomic batch transaction
@@ -268,6 +268,402 @@ public class AtomicBatchTokenServiceEndToEndTests {
                                                     .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
                                             movingUnique(NFT_FOR_END_TO_END, 6L)
                                                     .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))))));
+        }
+
+        @HapiTest
+        @DisplayName("Mint, Associate and Transfer NFT token without custom fees success in batch")
+        public Stream<DynamicTest> mintAssociateAndTransferNFTWithoutCustomFeesSuccessInBatch() {
+
+            // create token mint transaction
+            final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
+                    .payingWith(OWNER)
+                    .via("mintTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var associateSecondReceiver = tokenAssociate(RECEIVER_ASSOCIATED_SECOND, NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("associateSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create transfer tokens inner transactions
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenAirdrops = tokenAirdrop(
+                    movingUnique(NFT_FOR_END_TO_END, 3L).between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
+                    movingUnique(NFT_FOR_END_TO_END, 4L)
+                            .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
+                    movingUnique(NFT_FOR_END_TO_END, 5L)
+                            .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                    movingUnique(NFT_FOR_END_TO_END, 6L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                    .payingWith(OWNER)
+                    .via("airdropsTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts,
+                    createAccountsAndKeys(),
+
+                    // fill in the 1 free auto-association slot
+                    createDummyToken(),
+                    cryptoTransfer(moving(10, DUMMY).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+
+                    // create non-fungible token
+                    createImmutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            mintNFT,
+                            associateFirstReceiver,
+                            associateSecondReceiver,
+                            tokenTransferFirstReceiver,
+                            tokenTransferSecondReceiver,
+                            tokenAirdrops)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
+                            .hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 6L),
+
+                    // validate pending token airdrops
+                    getTxnRecord("airdropsTxn")
+                            .hasPriority(recordWith()
+                                    .pendingAirdrops(includingNftPendingAirdrop(
+                                            movingUnique(NFT_FOR_END_TO_END, 5L)
+                                                    .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                                            movingUnique(NFT_FOR_END_TO_END, 6L)
+                                                    .between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))))));
+        }
+
+        @HapiTest
+        @DisplayName("Mint, Associate and Transfer Non-Existent NFT token without custom fees fails in batch")
+        public Stream<DynamicTest> mintAssociateAndTransferNonExistentNFTWithoutCustomFeesFailsInBatch() {
+
+            // create token mint transaction
+            final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
+                    .payingWith(OWNER)
+                    .via("mintTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create transfer tokens inner transactions
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_END_TO_END, 15L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts,
+                    createAccountsAndKeys(),
+
+                    // create non-fungible token
+                    createImmutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            mintNFT,
+                            associateFirstReceiver,
+                            tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_END_TO_END, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 0L)));
+        }
+
+        @HapiTest
+        @DisplayName("Mint, Associate, Transfer and Delete NFT token without custom fees success in batch")
+        public Stream<DynamicTest> mintAssociateTransferAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
+
+            // create token mint transaction
+            final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
+                    .payingWith(OWNER)
+                    .via("mintTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var associateSecondReceiver = tokenAssociate(RECEIVER_ASSOCIATED_SECOND, NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("associateSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create transfer tokens inner transactions
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var tokenTransferSecondReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // delete token inner transaction
+            final var deleteToken = tokenDelete(NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("deleteTxn")
+                    .signedBy(OWNER, adminKey)
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts,
+                    createAccountsAndKeys(),
+
+                    // create non-fungible token
+                    createMutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey, adminKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            mintNFT,
+                            associateFirstReceiver,
+                            associateSecondReceiver,
+                            tokenTransferFirstReceiver,
+                            tokenTransferSecondReceiver,
+                            deleteToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 8L),
+
+                    // confirm token was deleted
+                    cryptoTransfer(
+                            movingUnique(NFT_FOR_END_TO_END, 5L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                    .hasKnownStatus(TOKEN_WAS_DELETED)));
+        }
+
+        @HapiTest
+        @DisplayName("Mint, Burn and Delete NFT token without custom fees success in batch")
+        public Stream<DynamicTest> mintBurnAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
+
+            // create token mint transaction
+            final var mintNFT = mintNFT(NFT_FOR_END_TO_END, 0, 10)
+                    .payingWith(OWNER)
+                    .via("mintTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // create token burn inner transaction
+            final var burnNFT = burnToken(NFT_FOR_END_TO_END, List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L))
+                    .payingWith(OWNER)
+                    .via("burnTxn")
+                    .signedBy(OWNER, nftSupplyKey)
+                    .batchKey(BATCH_OPERATOR);
+
+            // delete token inner transaction
+            final var deleteToken = tokenDelete(NFT_FOR_END_TO_END)
+                    .payingWith(OWNER)
+                    .via("deleteTxn")
+                    .signedBy(OWNER, adminKey)
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys and accounts,
+                    createAccountsAndKeys(),
+
+                    // create non-fungible token
+                    createMutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey, adminKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            mintNFT,
+                            burnNFT,
+                            deleteToken)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 0L),
+
+                    // confirm token was deleted
+                    cryptoTransfer(
+                            movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            .hasKnownStatus(TOKEN_WAS_DELETED)));
+        }
+
+        @HapiTest
+        @DisplayName("Associate, Grant KYC and Transfer FT success in batch")
+        public Stream<DynamicTest> associateGrantKYCAndTransferFTSuccessInBatch() {
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC)
+                    .payingWith(OWNER)
+                    .signedBy(OWNER, kycKey, RECEIVER_ASSOCIATED_FIRST)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // grant KYC to the fungible token
+            final var grantTokenKYC = grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .signedBy(OWNER, kycKey)
+                    .via("grantKycTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                    moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .signedBy(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            associateFirstReceiver,
+                            grantTokenKYC,
+                            tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_TOKEN_KYC, 10L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_TOKEN_KYC, 90L),
+                    getAccountDetails(RECEIVER_ASSOCIATED_FIRST)
+                            .hasToken(relationshipWith(FT_FOR_TOKEN_KYC).kyc(Granted))));
+        }
+
+        @HapiTest
+        @DisplayName("Associate, Freeze Token and Transfer FT fails in batch")
+        public Stream<DynamicTest> associateFreezeAndTransferFTFailsInBatch() {
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE)
+                    .payingWith(OWNER)
+                    .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // freeze the fungible token
+            final var freezeToken = tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .signedBy(OWNER, freezeKey)
+                    .via("freezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .signedBy(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            associateFirstReceiver,
+                            freezeToken,
+                            tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 0L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 10L)));
+        }
+
+        @HapiTest
+        @DisplayName("Associate, Unfreeze Token and Transfer FT success in batch")
+        public Stream<DynamicTest> associateUnfreezeAndTransferFTSuccessInBatch() {
+
+            // create associate receiver inner transactions
+            final var associateFirstReceiver = tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE)
+                    .payingWith(OWNER)
+                    .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
+                    .via("associateFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // unfreeze the fungible token
+            final var unfreezeToken = tokenUnfreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                    .payingWith(OWNER)
+                    .signedBy(OWNER, freezeKey)
+                    .via("freezeTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            // transfer tokens to associated account
+            final var tokenTransferFirstReceiver = cryptoTransfer(
+                    movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .signedBy(OWNER)
+                    .via("transferFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create accounts and token
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            associateFirstReceiver,
+                            unfreezeToken,
+                            tokenTransferFirstReceiver)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(SUCCESS),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // validate account balances and token info
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 1L),
+                    getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_TOKEN_FREEZE, 9L)));
         }
 
         @HapiTest
@@ -308,7 +704,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     // create fungible token
                     createImmutableFT(FT_FOR_END_TO_END, OWNER),
                     // create and mint non-fungible token,
-                    createNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+                    createImmutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
                     mintNFT(NFT_FOR_END_TO_END, 0, 10),
 
                     // perform the atomic batch transaction
@@ -357,7 +753,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     // create fungible token
                     createImmutableFT(FT_FOR_END_TO_END, OWNER),
                     // create and mint non-fungible token,
-                    createNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+                    createImmutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
                     mintNFT(NFT_FOR_END_TO_END, 0, 10),
 
                     // perform the atomic batch transaction
@@ -2790,7 +3186,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .wipeKey(wipeKey);
     }
 
-    private HapiTokenCreate createNFT(String tokenName, String treasury, String supplyKey) {
+    private HapiTokenCreate createImmutableNFT(String tokenName, String treasury, String supplyKey) {
         return tokenCreate(tokenName)
                 .initialSupply(0)
                 .treasury(treasury)
