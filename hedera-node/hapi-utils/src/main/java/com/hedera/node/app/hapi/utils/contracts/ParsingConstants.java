@@ -11,7 +11,6 @@ public final class ParsingConstants {
     // data types
     public static final String INT_BOOL_PAIR_RETURN_TYPE = "(int32,bool)";
     public static final String ADDRESS = "(address)";
-    public static final String ARRAY_BRACKETS = "[]";
     public static final String BOOL = "(bool)";
     public static final String INT_BOOL_PAIR = "(int,bool)";
     public static final String BYTES32 = "(bytes32)";
@@ -40,26 +39,23 @@ public final class ParsingConstants {
     public static final String TOKEN_KEY = "(uint256," + KEY_VALUE + ")";
 
     public static final String HEDERA_TOKEN_V1 =
-            "(" + "string,string,address,string,bool,uint32,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY + ")";
+            "(" + "string,string,address,string,bool,uint32,bool," + TOKEN_KEY + "[]," + EXPIRY + ")";
     public static final String HEDERA_TOKEN_V2 =
-            "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY + ")";
+            "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + "[]," + EXPIRY + ")";
     public static final String HEDERA_TOKEN_V3 =
-            "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY_V2 + ")";
-    public static final String HEDERA_TOKEN_WITH_METADATA = "(" + "string,string,address,string,bool,int64,bool,"
-            + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY_V2 + ",bytes)";
+            "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + "[]," + EXPIRY_V2 + ")";
+    public static final String HEDERA_TOKEN_WITH_METADATA =
+            "(" + "string,string,address,string,bool,int64,bool," + TOKEN_KEY + "[]," + EXPIRY_V2 + ",bytes)";
 
     public static final String TOKEN_INFO = "("
             + HEDERA_TOKEN_V2
             + ",int64,bool,bool,bool,"
             + FIXED_FEE
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + FRACTIONAL_FEE
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + ROYALTY_FEE
-            + ARRAY_BRACKETS
-            + ",string"
+            + "[],string"
             + ")";
     public static final String RESPONSE_STATUS_AT_BEGINNING = "(int32,";
 
@@ -84,16 +80,8 @@ public final class ParsingConstants {
     public static final TupleType getTokenInfoType = TupleType.parse(RESPONSE_STATUS_AT_BEGINNING + TOKEN_INFO + ")");
     public static final TupleType getNonFungibleTokenInfoType =
             TupleType.parse(RESPONSE_STATUS_AT_BEGINNING + NON_FUNGIBLE_TOKEN_INFO + ")");
-    public static final TupleType getTokenCustomFeesType = TupleType.parse(RESPONSE_STATUS_AT_BEGINNING
-            + FIXED_FEE
-            + ARRAY_BRACKETS
-            + ","
-            + FRACTIONAL_FEE
-            + ARRAY_BRACKETS
-            + ","
-            + ROYALTY_FEE
-            + ARRAY_BRACKETS
-            + ")");
+    public static final TupleType getTokenCustomFeesType = TupleType.parse(
+            RESPONSE_STATUS_AT_BEGINNING + FIXED_FEE + "[]," + FRACTIONAL_FEE + "[]," + ROYALTY_FEE + "[])");
     public static final TupleType hapiAllowanceOfType = TupleType.parse("(int32,uint256)");
     public static final TupleType hapiGetApprovedType = TupleType.parse("(int32,bytes32)");
     public static final TupleType getTokenExpiryInfoType = TupleType.parse(RESPONSE_STATUS_AT_BEGINNING + EXPIRY + ")");
