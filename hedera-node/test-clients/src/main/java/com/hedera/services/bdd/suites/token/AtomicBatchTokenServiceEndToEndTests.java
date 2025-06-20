@@ -55,6 +55,8 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenMint;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -76,6 +78,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
     private static final String NFT_FOR_TOKEN_FREEZE = "nftForTokenFreeze";
     private static final String FT_FOR_TOKEN_BURN = "ftForTokenBurn";
     private static final String FT_FOR_TOKEN_KYC = "ftForTokenKyc";
+    private static final String DUMMY = "dummy";
     private static final String OWNER = "owner";
     private static final String RECEIVER_ASSOCIATED_FIRST = "receiverAssociatedFirst";
     private static final String RECEIVER_ASSOCIATED_SECOND = "receiverAssociatedSecond";
@@ -147,20 +150,14 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys and accounts
-                    createAccounts(),
+                    createAccountsAndKeys(),
 
                     // fill in the 1 free auto-association slot
-                    tokenCreate("dummy")
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L),
-                    cryptoTransfer(moving(10, "dummy").between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+                    createDummyToken(),
+                    cryptoTransfer(moving(10, DUMMY).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
 
                     // create fungible token
-                    tokenCreate(FT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(1000L),
+                    createImmutableFT(FT_FOR_END_TO_END, OWNER),
 
                     // perform the atomic batch transaction
                     atomicBatch(
@@ -180,7 +177,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     getAccountBalance(RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS).hasTokenBalance(FT_FOR_END_TO_END, 10L),
                     getAccountBalance(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                             .hasTokenBalance(FT_FOR_END_TO_END, 10L),
-                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 960L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 60L),
 
                     // validate pending token airdrops
                     getTxnRecord("airdropsTxn")
@@ -232,29 +229,16 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .batchKey(BATCH_OPERATOR);
 
             return hapiTest(flattened(
-                    // create keys and accounts
-                    newKeyNamed(nftSupplyKey),
-                    createAccounts(),
+                    // create keys and accounts,
+                    createAccountsAndKeys(),
 
                     // fill in the 1 free auto-association slot
-                    tokenCreate("dummy")
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L),
-                    cryptoTransfer(moving(10, "dummy").between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+                    createDummyToken(),
+                    cryptoTransfer(moving(10, DUMMY).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
 
                     // create and mint non-fungible token
-                    tokenCreate(NFT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_END_TO_END)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_END_TO_END,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_END_TO_END, 0, 10),
 
                     // perform the atomic batch transaction
                     atomicBatch(
@@ -315,33 +299,17 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys and accounts
-                    createAccounts(),
+                    createAccountsAndKeys(),
 
                     // fill in the 1 free auto-association slot
-                    tokenCreate("dummy")
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L),
-                    cryptoTransfer(moving(10, "dummy").between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+                    createDummyToken(),
+                    cryptoTransfer(moving(10, DUMMY).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
 
                     // create fungible token
-                    tokenCreate(FT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(1000L),
-                    // create and mint non-fungible token
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_END_TO_END)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_END_TO_END,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createImmutableFT(FT_FOR_END_TO_END, OWNER),
+                    // create and mint non-fungible token,
+                    createNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_END_TO_END, 0, 10),
 
                     // perform the atomic batch transaction
                     atomicBatch(associateFirstReceiver, associateSecondReceiver, tokenTransfers)
@@ -355,7 +323,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
                     getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_END_TO_END, 10L),
                     getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(NFT_FOR_END_TO_END, 1L),
-                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 980L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 80L),
                     getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 8L)));
         }
 
@@ -380,33 +348,17 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys and accounts
-                    createAccounts(),
+                    createAccountsAndKeys(),
 
                     // fill in the 1 free auto-association slot
-                    tokenCreate("dummy")
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L),
-                    cryptoTransfer(moving(10, "dummy").between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
+                    createDummyToken(),
+                    cryptoTransfer(moving(10, DUMMY).between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS)),
 
                     // create fungible token
-                    tokenCreate(FT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(1000L),
-                    // create and mint non-fungible token
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_END_TO_END)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_END_TO_END,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createImmutableFT(FT_FOR_END_TO_END, OWNER),
+                    // create and mint non-fungible token,
+                    createNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
+                    mintNFT(NFT_FOR_END_TO_END, 0, 10),
 
                     // perform the atomic batch transaction
                     atomicBatch(tokenAirdrops)
@@ -422,7 +374,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                             .hasTokenBalance(FT_FOR_END_TO_END, 10L),
                     getAccountBalance(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
                             .hasTokenBalance(NFT_FOR_END_TO_END, 1L),
-                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 980L),
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 80L),
                     getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 8L),
 
                     // validate pending token airdrops
@@ -460,13 +412,10 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create keys and accounts
-                    createAccounts(),
+                    createAccountsAndKeys(),
 
                     // create fungible token
-                    tokenCreate(FT_FOR_END_TO_END)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(1000L),
+                    createImmutableFT(FT_FOR_END_TO_END, OWNER),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
 
                     // perform the atomic batch transaction
@@ -512,15 +461,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_PAUSE),
                     tokenPause(FT_FOR_TOKEN_PAUSE),
@@ -567,15 +509,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_PAUSE),
 
@@ -628,15 +563,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_PAUSE),
                     tokenPause(FT_FOR_TOKEN_PAUSE),
@@ -687,15 +615,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_PAUSE),
 
@@ -741,15 +662,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_PAUSE),
                     tokenPause(FT_FOR_TOKEN_PAUSE),
@@ -790,15 +704,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
 
                     // perform the atomic batch transaction
@@ -836,14 +743,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey),
+                    createAccountsAndKeys(),
+                    createMutableFT(FT_FOR_TOKEN_PAUSE, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
 
                     // perform the atomic batch transaction
@@ -881,14 +782,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey),
+                    createAccountsAndKeys(),
+                    createMutableFT(FT_FOR_TOKEN_PAUSE, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
 
                     // perform the atomic batch transaction
@@ -934,16 +829,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    newKeyNamed(newPauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .pauseKey(pauseKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithPauseKey(FT_FOR_TOKEN_PAUSE, OWNER, adminKey, pauseKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_PAUSE),
 
                     // perform the atomic batch transaction
@@ -986,15 +873,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(pauseKey),
-                    newKeyNamed(newPauseKey),
-                    tokenCreate(FT_FOR_TOKEN_PAUSE)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey),
+                    createAccountsAndKeys(),
+                    createMutableFT(FT_FOR_TOKEN_PAUSE, OWNER, adminKey),
 
                     // perform the atomic batch transaction
                     atomicBatch(updatePauseKey, pauseFungibleToken)
@@ -1027,24 +907,10 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .batchKey(BATCH_OPERATOR);
 
             return hapiTest(flattened(
-                    // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    // create keys, accounts and token
+                    createAccountsAndKeys(),
+                    createImmutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
                     tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST),
 
@@ -1083,23 +949,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createImmutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1144,23 +996,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createImmutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
                     tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST),
 
@@ -1199,23 +1037,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1253,23 +1077,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
                     tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST),
 
@@ -1308,23 +1118,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1361,23 +1157,10 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     .batchKey(BATCH_OPERATOR);
 
             return hapiTest(flattened(
-                    // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    // create accounts, keys and token
+                    createAccountsAndKeys(),
+                    createMutableNFT(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1415,22 +1198,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFT(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1481,23 +1251,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, NFT_FOR_TOKEN_FREEZE),
                     tokenFreeze(NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST),
@@ -1551,24 +1307,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(newFreezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .freezeKey(freezeKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFTWithFreezeKey(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, freezeKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1607,23 +1348,9 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(freezeKey),
-                    newKeyNamed(newFreezeKey),
-                    newKeyNamed(nftSupplyKey),
-                    tokenCreate(NFT_FOR_TOKEN_FREEZE)
-                            .treasury(OWNER)
-                            .tokenType(NON_FUNGIBLE_UNIQUE)
-                            .initialSupply(0L)
-                            .name(NFT_FOR_TOKEN_FREEZE)
-                            .adminKey(adminKey)
-                            .supplyKey(nftSupplyKey),
-                    mintToken(
-                            NFT_FOR_TOKEN_FREEZE,
-                            IntStream.range(0, 10)
-                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                    .toList()),
+                    createAccountsAndKeys(),
+                    createMutableNFT(NFT_FOR_TOKEN_FREEZE, OWNER, nftSupplyKey, adminKey),
+                    mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_FOR_TOKEN_FREEZE),
 
                     // perform the atomic batch transaction
@@ -1669,17 +1396,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -1729,17 +1447,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -1787,17 +1496,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -1841,17 +1541,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -1903,17 +1594,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -1971,17 +1653,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2024,15 +1697,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2070,15 +1736,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2123,17 +1782,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2176,17 +1826,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2229,16 +1870,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(wipeKey),
-                    newKeyNamed(supplyKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2281,16 +1914,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(wipeKey),
-                    newKeyNamed(supplyKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2342,19 +1967,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    newKeyNamed(newSupplyKey),
-                    newKeyNamed(newWipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2391,14 +2005,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(newAdminKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey),
+                    createAccountsAndKeys(),
+                    createMutableFT(FT_FOR_TOKEN_BURN, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2455,19 +2063,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    newKeyNamed(newSupplyKey),
-                    newKeyNamed(newWipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .supplyKey(supplyKey)
-                            .wipeKey(wipeKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithSupplyAndWipeKey(FT_FOR_TOKEN_BURN, OWNER, adminKey, supplyKey, wipeKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2519,17 +2116,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(supplyKey),
-                    newKeyNamed(wipeKey),
-                    newKeyNamed(newSupplyKey),
-                    newKeyNamed(newWipeKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey),
+                    createAccountsAndKeys(),
+                    createMutableFT(FT_FOR_TOKEN_BURN, OWNER, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2566,13 +2154,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(newAdminKey),
-                    tokenCreate(FT_FOR_TOKEN_BURN)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L),
+                    createAccountsAndKeys(),
+                    createImmutableFT(FT_FOR_TOKEN_BURN, OWNER),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                     // perform the atomic batch transaction
@@ -2619,13 +2202,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
 
                     // perform the atomic batch transaction
@@ -2674,13 +2252,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_KYC),
 
@@ -2723,13 +2296,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
 
                     // perform the atomic batch transaction
@@ -2766,13 +2334,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
                     grantTokenKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_FIRST),
 
@@ -2829,13 +2392,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_KYC),
 
@@ -2881,13 +2439,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
 
                     // perform the atomic batch transaction
                     atomicBatch(grantTokenKYC, tokenTransferFirstReceiver)
@@ -2922,12 +2475,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L),
+                    createAccountsAndKeys(),
+                    createImmutableFT(FT_FOR_TOKEN_KYC, OWNER),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
 
                     // perform the atomic batch transaction
@@ -2971,13 +2520,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(kycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_TOKEN_KYC),
 
@@ -3029,16 +2573,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(kycKey),
-                    newKeyNamed(newKycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, adminKey, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
 
                     // perform the atomic batch transaction
@@ -3090,16 +2626,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(kycKey),
-                    newKeyNamed(newKycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(OWNER)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, adminKey, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
 
                     // perform the atomic batch transaction
@@ -3150,16 +2678,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             return hapiTest(flattened(
                     // create accounts and token
-                    createAccounts(),
-                    newKeyNamed(adminKey),
-                    newKeyNamed(kycKey),
-                    newKeyNamed(newKycKey),
-                    tokenCreate(FT_FOR_TOKEN_KYC)
-                            .treasury(RECEIVER_ASSOCIATED_SECOND)
-                            .tokenType(FUNGIBLE_COMMON)
-                            .initialSupply(100L)
-                            .adminKey(adminKey)
-                            .kycKey(kycKey),
+                    createAccountsAndKeys(),
+                    createMutableFTWithKyc(FT_FOR_TOKEN_KYC, RECEIVER_ASSOCIATED_SECOND, adminKey, kycKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_KYC),
                     tokenAssociate(OWNER, FT_FOR_TOKEN_KYC),
                     grantTokenKyc(FT_FOR_TOKEN_KYC, OWNER).payingWith(OWNER).via("grantKycTxn"),
@@ -3186,7 +2706,126 @@ public class AtomicBatchTokenServiceEndToEndTests {
         }
     }
 
-    private List<SpecOperation> createAccounts() {
+    private HapiTokenCreate createDummyToken() {
+        return tokenCreate(DUMMY)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(OWNER)
+                .initialSupply(100L);
+    }
+
+    private HapiTokenCreate createImmutableFT(String tokenName, String treasury) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L);
+    }
+
+    private HapiTokenCreate createImmutableFTWithKyc(String tokenName, String treasury, String kycKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .kycKey(kycKey);
+    }
+
+    private HapiTokenCreate createMutableFTWithKyc(String tokenName, String treasury, String adminKey, String kycKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .adminKey(adminKey)
+                .kycKey(kycKey);
+    }
+
+    private HapiTokenCreate createMutableFT(String tokenName, String treasury, String adminKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .adminKey(adminKey);
+    }
+
+    private HapiTokenCreate createMutableFTWithPauseKey(String tokenName, String treasury, String adminKey, String pauseKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .adminKey(adminKey)
+                .pauseKey(pauseKey);
+    }
+
+    private HapiTokenCreate createMutableFTWithSupplyAndWipeKey(String tokenName, String treasury, String adminKey, String supplyKey, String wipeKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .adminKey(adminKey)
+                .supplyKey(supplyKey)
+                .wipeKey(wipeKey);
+    }
+
+    private HapiTokenCreate createMutableFTWithSupplyKey(String tokenName, String treasury, String adminKey, String supplyKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .adminKey(adminKey)
+                .supplyKey(supplyKey);
+    }
+
+    private HapiTokenCreate createMutableFTWithWipeKey(String tokenName, String treasury, String adminKey, String wipeKey) {
+        return tokenCreate(tokenName)
+                .tokenType(FUNGIBLE_COMMON)
+                .treasury(treasury)
+                .initialSupply(100L)
+                .adminKey(adminKey)
+                .wipeKey(wipeKey);
+    }
+
+    private HapiTokenCreate createNFT(String tokenName, String treasury, String supplyKey) {
+        return tokenCreate(tokenName)
+                .initialSupply(0)
+                .treasury(treasury)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(supplyKey);
+    }
+
+    private HapiTokenCreate createMutableNFT(String tokenName, String treasury, String supplyKey, String adminKey) {
+        return tokenCreate(tokenName)
+                .initialSupply(0)
+                .treasury(treasury)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .adminKey(adminKey)
+                .supplyKey(supplyKey);
+    }
+
+    private HapiTokenCreate createImmutableNFTWithFreezeKey(String tokenName, String treasury, String supplyKey, String freezeKey) {
+        return tokenCreate(tokenName)
+                .initialSupply(0)
+                .treasury(treasury)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .supplyKey(supplyKey)
+                .freezeKey(freezeKey);
+    }
+
+    private HapiTokenCreate createMutableNFTWithFreezeKey(String tokenName, String treasury, String supplyKey, String freezeKey, String adminKey) {
+        return tokenCreate(tokenName)
+                .initialSupply(0)
+                .treasury(treasury)
+                .tokenType(NON_FUNGIBLE_UNIQUE)
+                .adminKey(adminKey)
+                .supplyKey(supplyKey)
+                .freezeKey(freezeKey);
+    }
+
+    private HapiTokenMint mintNFT(String tokenName, int rangeStart, int rangeEnd) {
+        return mintToken(tokenName,
+                IntStream.range(rangeStart, rangeEnd)
+                        .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                        .toList());
+    }
+
+    private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
@@ -3196,6 +2835,19 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 cryptoCreate(RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(10),
                 cryptoCreate(RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(-1),
                 cryptoCreate(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(0),
-                cryptoCreate(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(1));
+                cryptoCreate(RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(1),
+                newKeyNamed(nftSupplyKey),
+                newKeyNamed(supplyKey),
+                newKeyNamed(newSupplyKey),
+                newKeyNamed(pauseKey),
+                newKeyNamed(newPauseKey),
+                newKeyNamed(freezeKey),
+                newKeyNamed(newFreezeKey),
+                newKeyNamed(adminKey),
+                newKeyNamed(newAdminKey),
+                newKeyNamed(kycKey),
+                newKeyNamed(newKycKey),
+                newKeyNamed(wipeKey),
+                newKeyNamed(newWipeKey));
     }
 }
