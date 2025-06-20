@@ -12,6 +12,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -143,7 +144,8 @@ class ConfigDataFactory {
         }
         return (Set<T>) ConfigListUtils.createList(rawValue).stream()
                 .map(value -> converterService.convert(value, type))
-                .collect(Collectors.toSet());
+                // We want to retain the iteration order of items from the original list, so we use a LinkedHashSet:
+                .collect(Collectors.toCollection(() -> new LinkedHashSet<>()));
     }
 
     @SuppressWarnings("unchecked")
