@@ -119,7 +119,7 @@ public class NodeUpdateHandler implements TransactionHandler {
         }
         if (op.hasGrpcProxyEndpoint()) {
             validateTrue(nodeConfig.webProxyEndpointsEnabled(), GRPC_WEB_PROXY_NOT_SUPPORTED);
-            addressBookValidator.validateEndpoint(op.grpcProxyEndpoint(), nodeConfig);
+            addressBookValidator.validateFqdnEndpoint(op.grpcProxyEndpoint(), nodeConfig);
         }
 
         final var nodeBuilder = updateNode(op, existingNode);
