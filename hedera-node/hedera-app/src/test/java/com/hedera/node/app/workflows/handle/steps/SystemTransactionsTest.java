@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.spi.fixtures.Scenarios.NODE_1;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.verify;
+import static org.mockito.Mockito.times;
+
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -36,27 +46,16 @@ import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.time.Instant;
-import java.util.List;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.spi.fixtures.Scenarios.NODE_1;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.verify;
-import static org.mockito.Mockito.times;
 
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class SystemTransactionsTest {
@@ -166,8 +165,7 @@ class SystemTransactionsTest {
                 blockRecordManager,
                 blockStreamManager,
                 exchangeRateManager,
-                recordCache
-        );
+                recordCache);
     }
 
     @Test
@@ -186,7 +184,8 @@ class SystemTransactionsTest {
         given(state.getReadableStates(anyString())).willReturn(readableStates);
         given(readableStates.getSingleton(anyString())).willReturn((ReadableSingletonState<Object>) singletonState);
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any())).willReturn(parentTxn);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parentTxn);
         given(parentTxnFactory.createDispatch(any(), any(), any(), any())).willReturn(dispatch);
         given(dispatch.streamBuilder()).willReturn(streamBuilder);
         given(parentTxn.stack()).willReturn(stack);
@@ -200,7 +199,8 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(CONSENSUS_NOW, state);
 
-        verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), any(ReadableNodeStore.class));
+        verify(fileService)
+                .updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), any(ReadableNodeStore.class));
         verify(dispatchProcessor, times(4)).processDispatch(dispatch);
     }
 
@@ -217,7 +217,8 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(CONSENSUS_NOW, state);
 
-        verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), any(ReadableNodeStore.class));
+        verify(fileService)
+                .updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), any(ReadableNodeStore.class));
 
         final var infoLogs = logCaptor.infoLogs();
         assertThat(infoLogs.size()).isEqualTo(5);
@@ -246,7 +247,8 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(CONSENSUS_NOW, state);
 
-        verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), any(ReadableNodeStore.class));
+        verify(fileService)
+                .updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), any(ReadableNodeStore.class));
 
         final var errorLogs = logCaptor.errorLogs();
         assertThat(errorLogs.size()).isEqualTo(4);

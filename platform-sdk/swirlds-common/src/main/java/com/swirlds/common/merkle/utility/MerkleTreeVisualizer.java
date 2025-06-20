@@ -205,7 +205,7 @@ public class MerkleTreeVisualizer {
             }
 
             if (useHashes || useMnemonics) {
-                final Hash hash = Cryptography.NULL_HASH;
+                final Hash hash = node == null ? Cryptography.NULL_HASH : node.getHash();
                 final String hashString;
                 if (hash == null) {
                     hashString = "null";

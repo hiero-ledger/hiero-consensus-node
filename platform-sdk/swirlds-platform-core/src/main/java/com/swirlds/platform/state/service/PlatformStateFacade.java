@@ -12,24 +12,15 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.utility.Pair;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.PlatformStateModifier;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
-import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapMigration;
-import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.function.Consumer;
-import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
-import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -311,41 +302,12 @@ public class PlatformStateFacade {
     @NonNull
     public String getInfoString(@NonNull final State state, final int hashDepth) {
         final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
-
-        final VirtualMap vm = (VirtualMap) merkleNodeState.getRoot();
-        final RecordAccessor recordAccessor = vm.getRecords();
-
-        final StringBuilder sb = new StringBuilder();
-        InterruptableConsumer<Pair<Bytes, Bytes>> handler = (pair) -> {
-            final VirtualLeafBytes<?> virtualLeafBytes = recordAccessor.findLeafRecord(pair.left());
-            final var hash = recordAccessor.findHash(virtualLeafBytes.path());
-            String valueString = pair.right().toString();
-            String hashString = hash == null ? "null" : hash.toString().substring(0, 16);
-            Bytes bytes = Bytes.fromHex("001a");
-
-            String trimmedValueString = valueString.length() > 16 ? valueString.substring(0, 16) : valueString;
-            String finalValueString = bytes.equals(pair.left()) ? valueString : trimmedValueString;
-
-            sb.append("k=")
-                    .append(pair.left())
-                    .append(";v=")
-                    .append(finalValueString)
-                    .append(";path=")
-                    .append(virtualLeafBytes.path())
-                    .append(";hash=")
-                    .append(hashString)
-                    .append("\n");
-        };
-
-        try {
-            VirtualMapMigration.extractVirtualMapData(AdHocThreadManager.getStaticThreadManager(), vm, handler, 1);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
         return createInfoString(
-                        hashDepth, readablePlatformStateStore(state), Cryptography.NULL_HASH, merkleNodeState.getRoot())
-                .concat(sb.toString());
+                        hashDepth,
+                        readablePlatformStateStore(state),
+                        merkleNodeState.getHash(),
+                        merkleNodeState.getRoot())
+                .concat(merkleNodeState.getInfoJson());
     }
 
     private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {

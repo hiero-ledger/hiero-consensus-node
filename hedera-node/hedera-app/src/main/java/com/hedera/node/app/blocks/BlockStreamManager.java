@@ -8,13 +8,12 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.hashgraph.Round;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * Maintains the state and process objects needed to produce the block stream.
@@ -135,6 +134,9 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     @NonNull
     Instant lastHandleTime();
 
+    /**
+     * Returns the timestamp of the last execution processed by the block stream.
+     */
     @NonNull
     Instant lastExecutionTime();
 
@@ -156,6 +158,12 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      */
     void writeItem(@NonNull BlockItem item);
 
+    /**
+     * Writes a block item to the stream.
+     *
+     * @param itemSpec a function that takes a Timestamp and returns a BlockItem to be written
+     * @throws IllegalStateException if the stream is closed
+     */
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
 
     /**

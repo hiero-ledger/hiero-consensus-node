@@ -49,7 +49,7 @@ public class MigrationStateChanges {
     }
 
     /**
-     * If any key/value and queue changes have been made since the last call, inserts a {@link BlockItem}
+     * If any key/value changes have been made since the last call, inserts a {@link BlockItem}
      * boundary into the state changes, necessary so that block nodes can commit the same
      * transactional units into {@link com.swirlds.state.spi.WritableKVState} instances.
      */
