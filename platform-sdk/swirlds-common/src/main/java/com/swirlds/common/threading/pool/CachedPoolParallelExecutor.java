@@ -3,6 +3,8 @@ package com.swirlds.common.threading.pool;
 
 import com.swirlds.common.threading.framework.Stoppable;
 import com.swirlds.common.threading.manager.ThreadManager;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -10,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.concurrent.ThrowingRunnable;
 
 /**
  * An implementation that uses a CachedThreadPool to execute parallel tasks
@@ -27,10 +30,8 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
     private final ThreadFactory factory;
 
     /**
-     * @param threadManager
-     * 		responsible for managing thread lifecycles
-     * @param name
-     * 		the name given to the threads in the pool
+     * @param threadManager responsible for managing thread lifecycles
+     * @param name          the name given to the threads in the pool
      */
     public CachedPoolParallelExecutor(final ThreadManager threadManager, final String name) {
         factory = threadManager.createThreadFactory("parallel-executor", name);
@@ -77,8 +78,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
     }
 
     /**
-     * Not supported on CachedPoolParallelExecutor
-     * {@inheritDoc}
+     * Not supported on CachedPoolParallelExecutor {@inheritDoc}
      */
     @Override
     public boolean pause() {
@@ -86,8 +86,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
     }
 
     /**
-     * Not supported on CachedPoolParallelExecutor
-     * {@inheritDoc}
+     * Not supported on CachedPoolParallelExecutor {@inheritDoc}
      */
     @Override
     public boolean resume() {
@@ -96,7 +95,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
 
     /**
      * {@inheritDoc}
-     *
+     * <p>
      * From the point when join is called, no need tasks will be accepted for execution.
      */
     @Override
@@ -106,7 +105,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
 
     /**
      * {@inheritDoc}
-     *
+     * <p>
      * From the point when join is called, no need tasks will be accepted for execution.
      */
     @Override
@@ -117,7 +116,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
 
     /**
      * {@inheritDoc}
-     *
+     * <p>
      * From the point when join is called, no need tasks will be accepted for execution.
      */
     @Override
@@ -126,20 +125,7 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
     }
 
     /**
-     * Run two tasks in parallel, the first one in the current thread, and the second in a background thread.
-     *
-     * This method returns only after both have finished.
-     *
-     * @param foregroundTask
-     * 		a task to execute in parallel
-     * @param backgroundTask
-     * 		a task to execute in parallel
-     * @param onThrow
-     * 		a cleanup task to be executed if an exception gets thrown. if the foreground task throws an exception, this
-     * 		could be used to stop the background task, but not vice versa
-     * @throws ParallelExecutionException
-     * 		if either of the invoked tasks throws an exception. if both throw an exception, then the foregroundTask
-     * 		exception will be the cause and the backgroundTask exception will be the suppressed exception
+     * {@inheritDoc}
      */
     @Override
     public <T> T doParallel(
@@ -181,6 +167,52 @@ public class CachedPoolParallelExecutor implements ParallelExecutor, Stoppable {
         }
 
         return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void doParallel(
+            final Runnable onThrow, final ThrowingRunnable foregroundTask, final ThrowingRunnable... backgroundTasks)
+            throws ParallelExecutionException {
+
+        throwIfMutable("must be started first");
+
+        final List<Future<Void>> futures =
+                Arrays.stream(backgroundTasks).map(threadPool::submit).toList();
+
+        // exception to throw, if any of the tasks throw
+        ParallelExecutionException toThrow = null;
+
+        try {
+            foregroundTask.run();
+        } catch (final Throwable e) { // NOSONAR: Any exceptions & errors that occur needs to trigger onThrow.
+            toThrow = new ParallelExecutionException(e);
+            onThrow.run();
+        }
+
+        for (final Future<Void> future : futures) {
+            try {
+                future.get();
+            } catch (final InterruptedException | ExecutionException e) {
+                if (e instanceof InterruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+                if (toThrow == null) {
+                    toThrow = new ParallelExecutionException(e);
+                    onThrow.run();
+                } else {
+                    // if foregroundTask already threw an exception, we add this one as a suppressed exception
+                    toThrow.addSuppressed(e);
+                }
+            }
+        }
+
+        // if any of the tasks threw an exception then we throw
+        if (toThrow != null) {
+            throw toThrow;
+        }
     }
 
     /**
