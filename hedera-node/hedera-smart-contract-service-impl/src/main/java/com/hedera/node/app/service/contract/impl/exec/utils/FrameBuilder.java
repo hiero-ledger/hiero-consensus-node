@@ -15,6 +15,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HE
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PENDING_CREATION_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.PROPAGATED_CALL_FAILURE_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.THROTTLE_BY_OPS_DURATION;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TINYBAR_VALUES_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
@@ -135,6 +136,7 @@ public class FrameBuilder {
         if (sidecars.contains(CONTRACT_BYTECODE)) {
             contextEntries.put(BYTECODE_SIDECARS_VARIABLE, true);
         }
+        contextEntries.put(THROTTLE_BY_OPS_DURATION, contractConfig.throttleThrottleByOpsDuration());
         if (context.isTransaction()) {
             contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.streamBuilder());
             contextEntries.put(

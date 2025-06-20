@@ -29,6 +29,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadata;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
@@ -86,6 +87,7 @@ public class HandleHederaOperations implements HederaOperations {
     private final AccountsConfig accountsConfig;
     private final EntityIdFactory entityIdFactory;
     private final List<GasChargingEvent> gasChargingEvents = new ArrayList<>(1);
+    private final OpsDurationMetrics opsDurationMetrics;
 
     /**
      * The types of events that occur when charging gas.
@@ -121,7 +123,8 @@ public class HandleHederaOperations implements HederaOperations {
             @NonNull final HederaFunctionality functionality,
             @NonNull final PendingCreationMetadataRef pendingCreationMetadataRef,
             @NonNull final AccountsConfig accountsConfig,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final OpsDurationMetrics opsDurationMetrics) {
         this.contractsConfig = requireNonNull(contractsConfig);
         this.context = requireNonNull(context);
         this.tinybarValues = requireNonNull(tinybarValues);
@@ -131,6 +134,7 @@ public class HandleHederaOperations implements HederaOperations {
         this.pendingCreationMetadataRef = requireNonNull(pendingCreationMetadataRef);
         this.accountsConfig = requireNonNull(accountsConfig);
         this.entityIdFactory = requireNonNull(entityIdFactory);
+        this.opsDurationMetrics = requireNonNull(opsDurationMetrics);
     }
 
     /**
@@ -530,5 +534,10 @@ public class HandleHederaOperations implements HederaOperations {
     @Nullable
     public ThrottleAdviser getThrottleAdviser() {
         return context.throttleAdviser();
+    }
+
+    @Override
+    public OpsDurationMetrics opsDurationMetrics() {
+        return opsDurationMetrics;
     }
 }
