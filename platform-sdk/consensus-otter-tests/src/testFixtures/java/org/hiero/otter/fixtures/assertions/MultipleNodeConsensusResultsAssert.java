@@ -44,8 +44,8 @@ public class MultipleNodeConsensusResultsAssert
     }
 
     /**
-     * Verifies that all nodes reached consensus on the same, provided round.
-     * Naturally, this check only makes sense while the nodes are halted.
+     * Verifies that all nodes reached consensus on the same, provided round. Naturally, this check only makes sense
+     * while the nodes are halted.
      *
      * @param expected the expected last round
      * @return this assertion object for method chaining
@@ -79,10 +79,56 @@ public class MultipleNodeConsensusResultsAssert
     }
 
     /**
-     * Verifies that all nodes have produced the same rounds acknowledging that nodes may have progressed
-     * differently (up to a given maximum).
+     * Identifies the rounds which have reached consensus on all nodes and verifies that they are equal. If a node has
+     * not produced any rounds, this assertion will always pass.
      *
-     * @param expectedDifference the maximum percentage of rounds that some nodes may have progressed farther than others
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert roundsInCommonAreEqual() {
+        isNotNull();
+
+        // create list of actual rounds
+        final List<NodeRoundsResult> actualNodeRoundsResult = actual.results().stream()
+                .map(nodeResult -> new NodeRoundsResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
+                .toList();
+
+        // find list
+        final Optional<NodeRoundsResult> optionalFewestNodeRoundsResult =
+                actualNodeRoundsResult.stream().min(comparingInt(NodeRoundsResult::size));
+        if (optionalFewestNodeRoundsResult.isEmpty()) {
+            // no consensus rounds collected
+            return this;
+        }
+        final NodeRoundsResult fewestNodeRoundsResult = optionalFewestNodeRoundsResult.get();
+        final int shortestSize = fewestNodeRoundsResult.size();
+
+        for (final NodeRoundsResult roundsFromNodeToAssert : actualNodeRoundsResult) {
+            if (roundsFromNodeToAssert.nodeId().equals(fewestNodeRoundsResult.nodeId())) {
+                continue;
+            }
+
+            // Get the same rounds from this node as the node with the fewest rounds and compare them
+            final List<ConsensusRound> commonNodeRounds = roundsFromNodeToAssert.rounds().subList(0, shortestSize);
+            Assertions.assertThat(roundsFromNodeToAssert.rounds())
+                    .withFailMessage(
+                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
+                            roundsFromNodeToAssert.nodeId(),
+                            fewestNodeRoundsResult.nodeId(),
+                            roundsFromNodeToAssert.rounds(),
+                            commonNodeRounds)
+                    .containsExactlyElementsOf(commonNodeRounds);
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that all nodes have produced the same rounds acknowledging that nodes may have progressed differently
+     * (up to a given maximum).
+     *
+     * @param expectedDifference the maximum percentage of rounds that some nodes may have progressed farther than
+     *                           others
      * @return this assertion object for method chaining
      */
     @NonNull
@@ -91,21 +137,21 @@ public class MultipleNodeConsensusResultsAssert
         isNotNull();
 
         // create list of current rounds
-        final List<RoundListResult> currentRoundResults = actual.results().stream()
-                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
+        final List<NodeRoundsResult> currentRoundResults = actual.results().stream()
+                .map(nodeResult -> new NodeRoundsResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
                 .toList();
 
         // find longest and shortest list
-        final Optional<RoundListResult> optionalLongestResult =
-                currentRoundResults.stream().max(comparingInt(RoundListResult::size));
+        final Optional<NodeRoundsResult> optionalLongestResult =
+                currentRoundResults.stream().max(comparingInt(NodeRoundsResult::size));
         if (optionalLongestResult.isEmpty()) {
             // no consensus rounds collected
             return this;
         }
-        final RoundListResult longestResult = optionalLongestResult.get();
+        final NodeRoundsResult longestResult = optionalLongestResult.get();
         final int longestSize = longestResult.size();
         final int shortestSize = currentRoundResults.stream()
-                .min(comparingInt(RoundListResult::size))
+                .min(comparingInt(NodeRoundsResult::size))
                 .orElseThrow()
                 .size();
 
@@ -118,7 +164,7 @@ public class MultipleNodeConsensusResultsAssert
         }
 
         // Check that all nodes produced the same consensus rounds as are in the longest list
-        for (final RoundListResult currentNodeResult : currentRoundResults) {
+        for (final NodeRoundsResult currentNodeResult : currentRoundResults) {
             if (currentNodeResult.nodeId().equals(longestResult.nodeId())) {
                 continue;
             }
@@ -137,7 +183,7 @@ public class MultipleNodeConsensusResultsAssert
         return this;
     }
 
-    private record RoundListResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+    private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {
             return rounds.size();
         }
