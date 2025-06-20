@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -147,4 +148,23 @@ public interface Network {
      */
     @NonNull
     MultipleNodePcesResults getPcesResults();
+
+    /**
+     * Copies an initial state from the specified directory into each node's state directory.
+     *
+     * @param stateDirName the name of the directory containing the initial state to copy
+     */
+    void useInitialSnapshot(@NonNull final Path stateDirName);
+
+    /**
+     * Copies latest available snapshot to the specified directory.
+     *
+     * @param outputDirectory the path to the directory in where the files will be copied to
+     */
+    void copyStateSnapshotTo(@NonNull final Path outputDirectory);
+
+    /**
+     * Nodes with the same id will generate the same private keys in different starts
+     */
+    void withDeterministicKeyGeneration(boolean enabled);
 }

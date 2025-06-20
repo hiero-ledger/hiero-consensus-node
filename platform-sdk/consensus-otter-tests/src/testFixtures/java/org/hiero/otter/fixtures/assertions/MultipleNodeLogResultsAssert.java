@@ -83,4 +83,21 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
     public MultipleNodeLogResultsAssert hasNoErrorLevelMessages() {
         return noMessageWithLevelHigherThan(Level.WARN);
     }
+
+    /**
+     * Verifies that no log messages with a matching error level and regex exist.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeLogResultsAssert notMatchesLevelAndMessage(
+            @NonNull final Level level, @NonNull final String regex) {
+        isNotNull();
+
+        for (final SingleNodeLogResult result : actual.results()) {
+            OtterAssertions.assertThat(result).notMatchesLevelAndMessage(level, regex);
+        }
+
+        return this;
+    }
 }

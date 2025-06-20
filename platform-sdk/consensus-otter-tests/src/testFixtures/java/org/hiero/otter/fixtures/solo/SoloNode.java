@@ -12,6 +12,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.NodeFileSystem;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -168,6 +169,14 @@ public class SoloNode implements Node {
     @Override
     @NonNull
     public SingleNodePcesResult getPcesResult() {
+        throw new UnsupportedOperationException("Not implemented yet!");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull NodeFileSystem getNodeFiles() {
         throw new UnsupportedOperationException("Not implemented yet!");
     }
 

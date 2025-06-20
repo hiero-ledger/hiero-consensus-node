@@ -52,6 +52,7 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.NodeFileSystem;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
@@ -118,7 +119,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * @param keysAndCerts the keys and certificates of the node
      * @param network the simulated network
      * @param logging the logging instance for the node
-     * @param outputDirectory the output directory for the node
+     * @param rootOutputDirectory the base output directory for the node
      */
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -128,7 +129,8 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
-            @NonNull final Path outputDirectory) {
+            @NonNull final Path rootOutputDirectory) {
+        final Path outputDirectory = rootOutputDirectory.resolve("node-" + selfId.id());
         logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
@@ -287,7 +289,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     @NonNull
-    public NodeConfiguration getConfiguration() {
+    public NodeConfiguration<TurtleNodeConfiguration> getConfiguration() {
         return nodeConfiguration;
     }
 
@@ -326,6 +328,14 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @NonNull
     public SingleNodePcesResult getPcesResult() {
         return new SingleNodePcesResultImpl(selfId, platformContext);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull NodeFileSystem getNodeFiles() {
+        return new TurtleNodeFileSystem(this.selfId, nodeConfiguration.createConfiguration());
     }
 
     /**
@@ -424,7 +434,15 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+
+        if (!rosterHistory.getCurrentRoster().equals(roster)) {
+            // this means we have to update the roster in state
+            final var stateRound = initialState.get().getRound();
+            RosterUtils.setActiveRoster(state, roster, stateRound + 1);
+            rosterHistory = RosterUtils.createRosterHistory(state);
+        }
+
         final String eventStreamLoc = selfId.toString();
 
         final PlatformBuilder platformBuilder = PlatformBuilder.create(

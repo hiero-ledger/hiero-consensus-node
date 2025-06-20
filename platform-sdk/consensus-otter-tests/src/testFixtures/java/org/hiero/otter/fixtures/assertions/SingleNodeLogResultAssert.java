@@ -81,6 +81,27 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
     }
 
     /**
+     * Verifies that no log messages with a matching error level and regex exist.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert notMatchesLevelAndMessage(
+            @NonNull final Level level, @NonNull final String regex) {
+        isNotNull();
+
+        final List<StructuredLog> foundLogs = actual.logs().stream()
+                .filter(log -> log.level().equals(level))
+                .filter(log -> log.message().matches(regex))
+                .toList();
+
+        final String message =
+                "Expected to find no messages matching level:" + level + " regex:" + regex + "  but found:";
+        failWithMessage(message, foundLogs);
+
+        return this;
+    }
+    /**
      * Verifies that no log messages with a level higher than the specified level exist.
      *
      * @param level the maximum log level to allow
