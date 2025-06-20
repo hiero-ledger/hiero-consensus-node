@@ -77,7 +77,9 @@ public class UtilStateChange {
                         .setSlot(storageChange.getSlot())
                         .setValueRead(storageChange.getValueRead());
 
-                if (storageChange.getValueWritten() != null) {
+                if (storageChange.getValueWritten() != null
+                        && (!storageChange.getValueRead().isEmpty()
+                                || !storageChange.getValueWritten().getValue().isEmpty())) {
                     newStorageChange.setValueWritten(storageChange.getValueWritten());
                 }
 

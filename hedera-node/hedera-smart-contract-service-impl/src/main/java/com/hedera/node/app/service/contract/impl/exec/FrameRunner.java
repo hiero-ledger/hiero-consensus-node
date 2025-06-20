@@ -100,7 +100,8 @@ public class FrameRunner {
                     recipientMetadata.hederaId(),
                     asEvmContractId(entityIdFactory, recipientAddress),
                     frame,
-                    tracer);
+                    tracer,
+                    entityIdFactory);
         } else {
             return failureFrom(gasUsed, senderId, frame, recipientMetadata.postFailureHederaId(), tracer);
         }
