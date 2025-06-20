@@ -49,15 +49,15 @@ public class MigrationStateChanges {
     }
 
     /**
-     * If any key/value and queue changes have been made since the last call, inserts a {@link BlockItem}
+     * If any key/value changes have been made since the last call, inserts a {@link BlockItem}
      * boundary into the state changes, necessary so that block nodes can commit the same
      * transactional units into {@link com.swirlds.state.spi.WritableKVState} instances.
      */
     public void trackCommit() {
-        final var maybeKvAndQueueChanges = immediateStateChangeListener.getStateChanges();
-        if (!maybeKvAndQueueChanges.isEmpty()) {
-            stateChanges.add(new ArrayList<>(maybeKvAndQueueChanges));
-            immediateStateChangeListener.reset();
+        final var maybeKvChanges = immediateStateChangeListener.getKvStateChanges();
+        if (!maybeKvChanges.isEmpty()) {
+            stateChanges.add(new ArrayList<>(maybeKvChanges));
+            immediateStateChangeListener.resetKvStateChanges();
         }
     }
 

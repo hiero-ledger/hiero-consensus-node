@@ -3,7 +3,6 @@ package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
@@ -336,18 +335,16 @@ public class RecordCacheImpl implements HederaRecordCache {
     @Override
     public void commitRoundReceipts(
             @NonNull final State state,
-            @NonNull final Instant lastConsensus,
             @NonNull final Instant consensusNow,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final StreamMode streamMode) {
         requireNonNull(state);
-        requireNonNull(lastConsensus);
         requireNonNull(consensusNow);
         requireNonNull(blockStreamManager);
         requireNonNull(streamMode);
         if (streamMode != RECORDS) {
-            immediateStateChangeListener.reset();
+            immediateStateChangeListener.resetQueueStateChanges();
         }
         final var states = state.getWritableStates(NAME);
         final var queue = states.<TransactionReceiptEntries>getQueue(TXN_RECEIPT_QUEUE);
@@ -359,12 +356,11 @@ public class RecordCacheImpl implements HederaRecordCache {
             committable.commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getStateChanges();
+            final var changes = immediateStateChangeListener.getQueueStateChanges();
             if (!changes.isEmpty()) {
-                final var stateChangesItem = BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(asTimestamp(lastConsensus), new ArrayList<>(changes)))
-                        .build();
-                blockStreamManager.writeItem(stateChangesItem);
+                blockStreamManager.writeItem((now -> BlockItem.newBuilder()
+                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                        .build()));
             }
         }
     }

@@ -26,7 +26,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -97,10 +97,10 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
      * 		Cannot be null.
      * @param originalState
-     * 		A {@link VirtualMapState} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		unmodified <strong>original</strong> tree. Cannot be null.
      * @param reconnectState
-     * 		A {@link VirtualMapState} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
      * @param mapStats
@@ -110,8 +110,8 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             final ReconnectConfig reconnectConfig,
             final VirtualMap map,
             final RecordAccessor originalRecords,
-            final VirtualMapState originalState,
-            final VirtualMapState reconnectState,
+            final VirtualMapMetadata originalState,
+            final VirtualMapMetadata reconnectState,
             final ReconnectNodeRemover nodeRemover,
             @NonNull final ReconnectMapStats mapStats) {
         super(map, originalState, reconnectState);
@@ -245,7 +245,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
         if (node == ROOT_PATH) {
             // We send the first and last leaf path when reconnecting because we don't have access
             // to this information in the virtual root node at this point in the flow, even though
-            // the info has already been sent and resides in the ExternalVirtualMapState that is a sibling
+            // the info has already been sent and resides in the ExternalVirtualMapMetadata that is a sibling
             // of the VirtualRootNode. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();

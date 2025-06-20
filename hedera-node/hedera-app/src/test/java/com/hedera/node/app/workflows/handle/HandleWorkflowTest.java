@@ -195,8 +195,7 @@ class HandleWorkflowTest {
         verify(eventFromPresentCreator).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
-                .commitRoundReceipts(
-                        any(), any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
+                .commitRoundReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
     }
 
     @Test
@@ -478,7 +477,6 @@ class HandleWorkflowTest {
                 migrationStateChanges,
                 parentTxnFactory,
                 immediateStateChangeListener,
-                boundaryStateChangeListener,
                 scheduleService,
                 hintsService,
                 historyService,

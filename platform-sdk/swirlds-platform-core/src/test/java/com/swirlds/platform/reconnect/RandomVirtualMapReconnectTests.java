@@ -68,7 +68,10 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         MerkleDb.setDefaultPath(defaultVirtualMapPath);
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1, DigestType.SHA_384, 1_000_000, merkleDbConfig.hashesRamToDiskThreshold());
+                (short) 1,
+                DigestType.SHA_384,
+                merkleDbConfig.maxNumOfKeys(),
+                merkleDbConfig.hashesRamToDiskThreshold());
         return new MerkleDbDataSourceBuilder(defaultVirtualMapPath, tableConfig, CONFIGURATION);
     }
 
@@ -350,7 +353,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
         final Bytes zeroKey = TestKey.longToKey(0);
         teacherMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
         learnerMap.put(zeroKey, new TestValue("value0"), TestValueCodec.INSTANCE);
-        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
+        assertEquals(1L, sizeMetric.get(ValueType.VALUE));
 
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final Bytes key = TestKey.longToKey(123);
@@ -368,11 +371,11 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
         assertTrue(afterCopy.containsKey(key));
         assertEquals("value123", afterCopy.get(key, TestValueCodec.INSTANCE).getValue());
-        assertEquals(3L, sizeMetric.get(ValueType.VALUE));
+        assertEquals(2L, sizeMetric.get(ValueType.VALUE));
 
         final Bytes key2 = TestKey.longToKey(456);
         afterCopy.put(key2, new TestValue("value456"), TestValueCodec.INSTANCE);
-        assertEquals(4L, sizeMetric.get(ValueType.VALUE));
+        assertEquals(3L, sizeMetric.get(ValueType.VALUE));
 
         teacherCopy.release();
         afterCopy.release();

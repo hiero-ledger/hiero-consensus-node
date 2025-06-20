@@ -2,13 +2,10 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.SINGLETON_UPDATE;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.stateIdFor;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
+import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoString;
@@ -27,7 +24,6 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,16 +72,6 @@ class BoundaryStateChangeListenerTest {
         final var service = BlockStreamService.NAME;
         final var stateKey = V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
         assertEquals(stateIdFor(service, stateKey), listener.stateIdFor(service, stateKey));
-    }
-
-    @Test
-    void testFlushChanges() {
-        listener.setBoundaryTimestamp(Instant.now());
-        listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
-        BlockItem blockItem = listener.flushChanges();
-
-        assertNotNull(blockItem);
-        assertTrue(listener.allStateChanges().isEmpty());
     }
 
     @Test

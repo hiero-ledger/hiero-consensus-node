@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -160,10 +159,9 @@ class ParentTxnTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+        final var subject =
+                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
-        assertSame(ORDINARY_TRANSACTION, subject.type());
         assertSame(CONSENSUS_CREATE_TOPIC, subject.functionality());
         assertSame(CONSENSUS_NOW, subject.consensusNow());
         assertSame(state, subject.state());
@@ -184,8 +182,7 @@ class ParentTxnTest {
         given(txnInfo.functionality()).willReturn(STATE_SIGNATURE_TRANSACTION);
 
         final var factory = createUserTxnFactory();
-        assertNull(factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback));
+        assertNull(factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback));
     }
 
     @Test
@@ -207,8 +204,8 @@ class ParentTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+        final var subject =
+                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
@@ -240,8 +237,8 @@ class ParentTxnTest {
         given(dispatcher.dispatchComputeFees(any())).willReturn(Fees.FREE);
 
         final var factory = createUserTxnFactory();
-        final var subject = factory.createUserTxn(
-                state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, ORDINARY_TRANSACTION, stateSignatureTxnCallback);
+        final var subject =
+                factory.createUserTxn(state, creatorInfo, PLATFORM_TXN, CONSENSUS_NOW, stateSignatureTxnCallback);
 
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 

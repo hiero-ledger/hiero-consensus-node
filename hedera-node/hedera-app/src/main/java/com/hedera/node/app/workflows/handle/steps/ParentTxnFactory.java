@@ -7,7 +7,6 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
-import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.functionOfTxn;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getKeyVerifier;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getTxnInfoFrom;
@@ -168,7 +167,6 @@ public class ParentTxnFactory {
      * @param creatorInfo the node information of the creator
      * @param platformTxn the transaction itself
      * @param consensusNow the current consensus time
-     * @param type the type of the transaction
      * @param stateSignatureTxnCallback a callback to be called when encountering a {@link StateSignatureTransaction}
      * @return the new user transaction, or {@code null} if the transaction is not a user transaction
      */
@@ -177,15 +175,13 @@ public class ParentTxnFactory {
             @NonNull final NodeInfo creatorInfo,
             @NonNull final ConsensusTransaction platformTxn,
             @NonNull final Instant consensusNow,
-            @NonNull final TransactionType type,
             @NonNull final Consumer<StateSignatureTransaction> stateSignatureTxnCallback) {
         requireNonNull(state);
         requireNonNull(creatorInfo);
         requireNonNull(platformTxn);
         requireNonNull(consensusNow);
-        requireNonNull(type);
         final var config = configProvider.getConfiguration();
-        final var stack = createRootSavepointStack(state, type);
+        final var stack = createRootSavepointStack(state);
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, stateSignatureTxnCallback);
@@ -200,7 +196,6 @@ public class ParentTxnFactory {
         final var tokenContext = new TokenContextImpl(
                 config, stack, consensusNow, new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME)));
         return new ParentTxn(
-                type,
                 txnInfo.functionality(),
                 consensusNow,
                 state,
@@ -238,7 +233,7 @@ public class ParentTxnFactory {
         requireNonNull(payerId);
         requireNonNull(body);
         final var config = configProvider.getConfiguration();
-        final var stack = createRootSavepointStack(state, type);
+        final var stack = createRootSavepointStack(state);
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var functionality = functionOfTxn(body);
         final var preHandleResult =
@@ -246,7 +241,6 @@ public class ParentTxnFactory {
         final var entityIdStore = new WritableEntityIdStore(stack.getWritableStates(EntityIdService.NAME));
         final var tokenContext = new TokenContextImpl(config, stack, consensusNow, entityIdStore);
         return new ParentTxn(
-                type,
                 functionality,
                 consensusNow,
                 state,
@@ -393,19 +387,15 @@ public class ParentTxnFactory {
      * post-upgrade transactions have the maximum number of preceding records; and other transaction
      * types only support the number of preceding records specified in the network configuration.
      * @param state the state the stack is based on
-     * @param type the type of the transaction
      * @return the new root savepoint stack
      */
-    private SavepointStackImpl createRootSavepointStack(
-            @NonNull final State state, @NonNull final TransactionType type) {
+    private SavepointStackImpl createRootSavepointStack(@NonNull final State state) {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-        final var maxPrecedingRecords =
-                type == POST_UPGRADE_TRANSACTION ? Integer.MAX_VALUE : consensusConfig.handleMaxPrecedingRecords();
         return SavepointStackImpl.newRootStack(
                 state,
-                maxPrecedingRecords,
+                consensusConfig.handleMaxPrecedingRecords(),
                 consensusConfig.handleMaxFollowingRecords(),
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
