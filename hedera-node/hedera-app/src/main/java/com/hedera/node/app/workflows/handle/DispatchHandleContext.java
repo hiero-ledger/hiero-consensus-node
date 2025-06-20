@@ -396,7 +396,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public <T extends StreamBuilder> T dispatch(@NonNull final DispatchOptions<T> options) {
         requireNonNull(options);
         PreHandleResult childPreHandleResult = null;
-        PreHandleResult previousPreHandleResult = null;
 
         // Compute pre-handle results for the inner transactions and pass them to the child dispatch.
         final var batchInnerTxnBytes = options.dispatchMetadata().getMetadata(INNER_TRANSACTION_BYTES, Bytes.class);
@@ -404,9 +403,10 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 && preHandleResults != null
                 && !preHandleResults.isEmpty()
                 && batchInnerTxnBytes.isPresent()) {
-            previousPreHandleResult = preHandleResults.removeFirst();
+            final var previousPreHandleResult = preHandleResults.removeFirst();
             childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get(), previousPreHandleResult);
         }
+
         final var childDispatch = childDispatchFactory.createChildDispatch(
                 config,
                 stack,
