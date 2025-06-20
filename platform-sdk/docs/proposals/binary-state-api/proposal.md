@@ -121,7 +121,7 @@ public interface BinaryState extends FastCopyable {
      * @param value value object
      *
      */
-    <K, V> void putKv(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec, V value);
+    <K, V> void putKeyValuePair(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec, V value);
 
     /**
      * Removes the given key and its associated value from the map. Subsequent calls to {@link
@@ -130,7 +130,7 @@ public interface BinaryState extends FastCopyable {
      * @param id an id of the key/value type
      * @param key key bytes
      */
-    <K> void removeKv(int id, Codec<K> keyCodec, K key);
+    <K> void removeKeyValuePair(int id, Codec<K> keyCodec, K key);
 
     /**
      ** Gets the value associated with the given key. The
@@ -141,7 +141,7 @@ public interface BinaryState extends FastCopyable {
      * @param key key bytes
      * @param valueCodec a codec to convert value bytes into an object
      */
-    <K,V> V getKv(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec);
+    <K,V> V getValueByKey(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec);
 
     /**
      * Adds a value to the queue
