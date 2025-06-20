@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.google.common.primitives.Longs;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -58,6 +59,7 @@ import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
@@ -66,7 +68,9 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.LogsBloomFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -76,7 +80,33 @@ class ConversionUtilsTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    private static final com.hedera.pbj.runtime.io.buffer.Bytes FULL_32 =
+            com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(32));
     private static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+
+    @CsvSource({"0", "7", "23", "31", "32"})
+    @ParameterizedTest
+    void leftPadsZerosAsExpected(int n) {
+        final var start = n == 0
+                ? com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY
+                : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
+        final var padded = ConversionUtils.leftPad32(start);
+        assertEquals(FULL_32, padded);
+    }
+
+    @Test
+    void logInterConversionWorks() {
+        final List<com.hedera.pbj.runtime.io.buffer.Bytes> someStrippedTopics = IntStream.range(0, 3)
+                .mapToObj(i -> com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("12".repeat(i)))
+                .toList();
+        final List<com.hedera.pbj.runtime.io.buffer.Bytes> somePaddedTopics =
+                someStrippedTopics.stream().map(ConversionUtils::leftPad32).toList();
+        final var data = com.hedera.pbj.runtime.io.buffer.Bytes.wrap("DATA");
+        final var conciseLog = new EvmTransactionLog(CALLED_CONTRACT_ID, data, someStrippedTopics);
+        final var besuLog = ConversionUtils.asBesuLog(conciseLog, somePaddedTopics);
+        final var recovered = ConversionUtils.asHederaLog(entityIdFactory, besuLog);
+        assertEquals(conciseLog, recovered);
+    }
 
     @Test
     void outOfRangeBiValuesAreZero() {
@@ -111,7 +141,7 @@ class ConversionUtilsTest {
     void convertsNumberToLongZeroAddress() {
         final var number = 0x1234L;
         final var expected = Address.fromHexString("0x1234");
-        final var actual = ConversionUtils.asLongZeroAddress(entityIdFactory, number);
+        final var actual = ConversionUtils.asLongZeroAddress(number);
         assertEquals(expected, actual);
     }
 
@@ -247,8 +277,7 @@ class ConversionUtilsTest {
     @Test
     void convertContractIdToBesuAddressTest() {
         final var actual = ConversionUtils.contractIDToBesuAddress(entityIdFactory, CALLED_CONTRACT_ID);
-        assertEquals(
-                actual, asLongZeroAddress(entityIdFactory, Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
+        assertEquals(actual, asLongZeroAddress(Objects.requireNonNull(CALLED_CONTRACT_ID.contractNum())));
 
         final var actual2 = ConversionUtils.contractIDToBesuAddress(entityIdFactory, VALID_CONTRACT_ADDRESS);
         assertEquals(actual2, pbjToBesuAddress(Objects.requireNonNull(VALID_CONTRACT_ADDRESS.evmAddress())));

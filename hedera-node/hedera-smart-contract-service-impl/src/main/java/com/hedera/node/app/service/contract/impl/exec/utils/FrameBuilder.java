@@ -88,7 +88,7 @@ public class FrameBuilder {
             final long intrinsicGas) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var nominalCoinbase = asLongZeroAddress(worldUpdater.entityIdFactory(), ledgerConfig.fundingAccount());
+        final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
         final var contextVariables = contextVariablesFrom(config, context, intrinsicGas);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)

@@ -141,7 +141,7 @@ message InitcodeBookends {
  * A EVM transaction log; c.f. eth_getTransactionReceipt.<br/>
  * Stream consumers may compute bloom values from topics and data if desired.
  */
-message EVMTransactionLog {
+message EvmTransactionLog {
     /**
      * The contract emitting the log.
      */
@@ -185,7 +185,7 @@ message EVMTraceData {
     /**
      * Log events produced during the transaction, by contract id.
      */
-    repeated EVMTransactionLog logs = 4;
+    repeated EvmTransactionLog logs = 4;
 
     /**
      * Additional details of any error message in the EVM transaction result.

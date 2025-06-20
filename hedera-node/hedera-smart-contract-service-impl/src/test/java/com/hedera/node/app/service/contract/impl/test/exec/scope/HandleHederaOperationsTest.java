@@ -330,7 +330,8 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(captor.capture())).willReturn(contractCreateRecordBuilder);
@@ -402,7 +403,8 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(captor.capture())).willReturn(contractCreateRecordBuilder);
@@ -474,7 +476,8 @@ class HandleHederaOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
@@ -514,7 +517,8 @@ class HandleHederaOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
@@ -582,7 +586,7 @@ class HandleHederaOperationsTest {
         given(context.savepointStack()).willReturn(stack);
         given(stack.addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE))
                 .willReturn(contractCreateRecordBuilder);
-        given(contractCreateRecordBuilder.contractID(contractId)).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(contractId)).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.transaction(any(Transaction.class))).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
@@ -592,7 +596,7 @@ class HandleHederaOperationsTest {
         subject.externalizeHollowAccountMerge(contractId, VALID_CONTRACT_ADDRESS.evmAddress());
 
         // then
-        verify(contractCreateRecordBuilder).contractID(contractId);
+        verify(contractCreateRecordBuilder).createdContractID(contractId);
         verify(contractCreateRecordBuilder).contractCreateResult(any(ContractFunctionResult.class));
     }
 }

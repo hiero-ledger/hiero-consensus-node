@@ -22,7 +22,8 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap.internal.cache to
             com.swirlds.merkledb,
             com.swirlds.virtualmap.test.fixtures,
-            com.swirlds.platform.core.test.fixtures;
+            com.swirlds.platform.core.test.fixtures,
+            com.hedera.state.validator;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

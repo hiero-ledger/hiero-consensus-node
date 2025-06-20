@@ -13,7 +13,6 @@ import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -117,14 +116,21 @@ public class CommonPcesWriter {
         this.fileManager = Objects.requireNonNull(fileManager, "fileManager is required");
 
         final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
-        final EventConfig eventConfig = platformContext.getConfiguration().getConfigData(EventConfig.class);
 
         previousSpan = pcesConfig.bootstrapSpan();
         bootstrapSpanOverlapFactor = pcesConfig.bootstrapSpanOverlapFactor();
         spanOverlapFactor = pcesConfig.spanOverlapFactor();
         minimumSpan = pcesConfig.minimumSpan();
         preferredFileSizeMegabytes = pcesConfig.preferredFileSizeMegabytes();
-        pcesFileWriterType = pcesConfig.pcesFileWriterType();
+
+        // performance of FILE_CHANNEL is 150x slower on MacOS, but marginally better on Linux; it is so bad on Mac
+        // that basic tests cannot pass in some cases, so we need to make it system dependent, at same time allowing
+        // override if needed
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            pcesFileWriterType = pcesConfig.macPcesFileWriterType();
+        } else {
+            pcesFileWriterType = pcesConfig.pcesFileWriterType();
+        }
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
     }

@@ -98,8 +98,7 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
-        "hapiTestCrypto" to
-            "tss.hintsEnabled=true,blockStream.blockPeriod=1s,blockStream.writerMode=FILE_AND_GRPC",
+        "hapiTestCrypto" to "tss.hintsEnabled=true,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to "tss.historyEnabled=false",
         "hapiTestRestart" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s",
@@ -230,6 +229,7 @@ tasks.register<Test>("testSubprocess") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
+    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
@@ -345,6 +345,7 @@ tasks.register<Test>("testEmbedded") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    modularity.inferModulePath.set(false)
 }
 
 val prRepeatableCheckTags = mapOf("hapiRepeatableMisc" to "REPEATABLE")
@@ -388,6 +389,7 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

@@ -26,4 +26,10 @@ public class NoOpIntegerGauge extends AbstractNoOpMetric implements IntegerGauge
      */
     @Override
     public void set(final int newValue) {}
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void add(final int change) {}
 }

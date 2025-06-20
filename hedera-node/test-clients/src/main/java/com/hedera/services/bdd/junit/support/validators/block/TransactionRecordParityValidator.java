@@ -4,8 +4,6 @@ package com.hedera.services.bdd.junit.support.validators.block;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_DIR;
-import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_RECORD_STREAM_DIR;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
 
@@ -20,6 +18,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
@@ -73,13 +72,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .resolve(workingDirFor(0, "hapi").resolve("data"))
                 .toAbsolutePath()
                 .normalize();
-        final var blocksLoc = node0Data
-                .resolve("blockStreams/" + NODE_BLOCK_STREAM_DIR)
-                .toAbsolutePath()
-                .normalize();
+        final var blocksLoc =
+                node0Data.resolve("blockStreams/block-11.12.3").toAbsolutePath().normalize();
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blocksLoc);
         final var recordsLoc = node0Data
-                .resolve("recordStreams/" + NODE_RECORD_STREAM_DIR)
+                .resolve("recordStreams/record11.12.3")
                 .toAbsolutePath()
                 .normalize();
         final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordsLoc.toString(), "sidecar");
@@ -110,7 +107,8 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .toList();
         final var numStateChanges = new AtomicInteger();
         final List<SingleTransactionRecord> actualSingleTransactionRecords = blocks.stream()
-                .flatMap(block -> blockUnitSplit.split(block).stream())
+                .flatMap(block ->
+                        blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
                 .flatMap(unit -> translator.translate(unit).stream())
                 .toList();
