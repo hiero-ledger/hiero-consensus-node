@@ -220,6 +220,9 @@ class ConfigApiSetTests {
                 .withSource(new SimpleConfigSource("setinetaddresstest.testInetAddressSet", "1.1.1.1,2.2.2.2"))
                 .build();
 
+        final List<InetAddress> expectedOrder = List.of(
+                InetAddress.getByAddress(new byte[] {1, 1, 1, 1}), InetAddress.getByAddress(new byte[] {2, 2, 2, 2}));
+
         // Case #1: as a List
         // when
         final List<InetAddress> list =
@@ -228,18 +231,13 @@ class ConfigApiSetTests {
         // then
         assertNotNull(list);
         assertEquals(2, list.size());
-        assertEquals(
-                List.of(
-                        InetAddress.getByAddress(new byte[] {1, 1, 1, 1}),
-                        InetAddress.getByAddress(new byte[] {2, 2, 2, 2})),
-                list);
+        assertEquals(expectedOrder, list);
 
         // Case #2: as a Set
         // when/then
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> configuration.getValueSet("setinetaddresstest.testInetAddressSet", InetAddress.class),
-                "Unsupported, not-Comparable property type: class java.net.InetAddress");
+        final Set<InetAddress> set =
+                configuration.getValueSet("setinetaddresstest.testInetAddressSet", InetAddress.class);
+        verifyIterationOrder(set, expectedOrder);
     }
 
     @ConfigData("setinetaddresstest")
@@ -247,13 +245,23 @@ class ConfigApiSetTests {
             @ConfigProperty(value = "testInetAddressSet", defaultValue = "1.1.1.1,2.2.2.2") Set<InetAddress> testSet) {}
 
     @Test
-    void checkInetAddressSetInRecord() {
-        // InetAddress is not Comparable:
+    void checkInetAddressSetInRecord() throws UnknownHostException {
+        final List<InetAddress> expectedOrder = List.of(
+                InetAddress.getByAddress(new byte[] {1, 1, 1, 1}), InetAddress.getByAddress(new byte[] {2, 2, 2, 2}));
 
-        // given/when/then
-        assertThrows(IllegalStateException.class, () -> ConfigurationBuilder.create()
+        // InetAddress is not Comparable:
+        final Configuration configuration = ConfigurationBuilder.create()
                 .withSource(new SimpleConfigSource("setinetaddresstest.testInetAddressSet", "1.1.1.1,2.2.2.2"))
                 .withConfigDataType(SetInetAddressTestConfig.class)
-                .build());
+                .build();
+
+        // case 1: getValueSet
+        final Set<InetAddress> set =
+                configuration.getValueSet("setinetaddresstest.testInetAddressSet", InetAddress.class);
+        verifyIterationOrder(set, expectedOrder);
+
+        // case 2: getConfigData as record
+        final SetInetAddressTestConfig configData = configuration.getConfigData(SetInetAddressTestConfig.class);
+        verifyIterationOrder(configData.testSet(), expectedOrder);
     }
 }

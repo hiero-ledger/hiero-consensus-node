@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -171,7 +172,6 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
      * @param propertyType a non-null type of elements in the collection
      * @return null, or a set with a stable iteration order
      * @param <T> the type of elements in the set
-     * @throws IllegalArgumentException if the type of elements isn't Enum or Comparable
      */
     private <T> Set<T> createStableSet(@Nullable final Collection<T> collection, @NonNull final Class<T> propertyType) {
         if (collection == null) {
@@ -186,7 +186,8 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
         if (Comparable.class.isAssignableFrom(propertyType)) {
             return Collections.unmodifiableSortedSet(new TreeSet<>(collection));
         }
-        throw new IllegalArgumentException("Unsupported, not-Comparable property type: " + propertyType);
+        // For non-sortable elements, we retain the order in which they're listed in the original collection
+        return Collections.unmodifiableSet(new LinkedHashSet<>(collection));
     }
 
     @Override
