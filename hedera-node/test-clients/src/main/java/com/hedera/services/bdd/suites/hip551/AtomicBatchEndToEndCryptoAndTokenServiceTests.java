@@ -13,8 +13,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.List;
 import java.util.Map;
@@ -52,7 +50,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 @HapiTestLifecycle
-public class AtomicBatchEndToEndTests {
+public class AtomicBatchEndToEndCryptoAndTokenServiceTests {
     private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_END_TO_END = "ftForEndToEnd";
     private static final String NFT_FOR_END_TO_END = "nftForEndToEnd";
@@ -219,6 +217,84 @@ public class AtomicBatchEndToEndTests {
                             .hasKnownStatus(SUCCESS),
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 90L),
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 10L)));
+        }
+
+        @HapiTest
+        @DisplayName("Token Transfer from Treasury Account with Insufficient Token Balance Fails in Atomic Batch")
+        public Stream<DynamicTest> tokenTransferFromTreasuryAccountWithInsufficientBalanceFailsInAtomicBatch() {
+
+            // transfer token from treasury to receiver associated account
+            final var transferTokenFromTreasuryWithBalance = cryptoTransfer(
+                    moving(98, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferTokenFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var transferTokenFromTreasuryWithoutBalance = cryptoTransfer(
+                    moving(10, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferTokenSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys, tokens and accounts
+                    createAccountsAndKeys(),
+                    createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
+                    tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_END_TO_END),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            transferTokenFromTreasuryWithBalance,
+                            transferTokenFromTreasuryWithoutBalance)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // confirm token transfer is not successful and validate account balances
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 100L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 0L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_END_TO_END, 0L)));
+        }
+
+        @HapiTest
+        @DisplayName("Token Transfer from Treasury Account with Zero Token Balance Fails in Atomic Batch")
+        public Stream<DynamicTest> tokenTransferFromTreasuryAccountWithZeroBalanceFailsInAtomicBatch() {
+
+            // transfer token from treasury to receiver associated account
+            final var transferTokenFromTreasuryWithBalance = cryptoTransfer(
+                    moving(100, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    .payingWith(OWNER)
+                    .via("transferTokenFirstTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var transferTokenFromTreasuryWithoutBalance = cryptoTransfer(
+                    moving(1, FT_FOR_END_TO_END).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                    .payingWith(OWNER)
+                    .via("transferTokenSecondTxn")
+                    .batchKey(BATCH_OPERATOR);
+
+            return hapiTest(flattened(
+                    // create keys, tokens and accounts
+                    createAccountsAndKeys(),
+                    createFungibleTokenWithAdminKey(FT_FOR_END_TO_END, 100, OWNER, adminKey),
+                    tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_END_TO_END),
+                    tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_FOR_END_TO_END),
+
+                    // perform the atomic batch transaction
+                    atomicBatch(
+                            transferTokenFromTreasuryWithBalance,
+                            transferTokenFromTreasuryWithoutBalance)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // confirm token transfer is not successful and validate account balances
+                    getAccountBalance(OWNER).hasTokenBalance(FT_FOR_END_TO_END, 100L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FOR_END_TO_END, 0L),
+                    getAccountBalance(RECEIVER_ASSOCIATED_SECOND).hasTokenBalance(FT_FOR_END_TO_END, 0L)));
         }
 
         @HapiTest
@@ -792,13 +868,6 @@ public class AtomicBatchEndToEndTests {
                 .initialSupply(supply)
                 .treasury(treasury)
                 .adminKey(adminKey)
-                .tokenType(FUNGIBLE_COMMON);
-    }
-
-    private HapiTokenCreate createImmutableFungibleToken(String tokenName, long supply, String treasury) {
-        return tokenCreate(tokenName)
-                .initialSupply(supply)
-                .treasury(treasury)
                 .tokenType(FUNGIBLE_COMMON);
     }
 
