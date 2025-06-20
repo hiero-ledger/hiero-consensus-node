@@ -27,8 +27,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
@@ -589,95 +587,6 @@ public class AtomicBatchTest {
     @Nested
     @DisplayName("Batch Order And Execution - POSITIVE")
     class BatchOrderExecutionPositive {
-
-        @HapiTest
-        @DisplayName("Validate order of execution with successful schedule")
-        // BATCH_10
-        final Stream<DynamicTest> executionWithSchedule() {
-            final var sender = "sender";
-            final var receiver = "receiver";
-            final var schedule = "scheduledXfer";
-            final var scheduleCreateTxnId = "scheduledCreateTxnId";
-            final var scheduledTxnId = "scheduledTxnId";
-            final var signTxnId = "signTxnId";
-            final var secondInnerTxnId = "secondInnerTxnId";
-            final var batchOperator = "batchOperator";
-
-            return hapiTest(
-                    cryptoCreate(batchOperator),
-                    cryptoCreate(sender).balance(ONE_HBAR),
-                    cryptoCreate(receiver).balance(0L).receiverSigRequired(true),
-                    // store txn ids in spec registry for later order validation
-                    usableTxnIdNamed(scheduleCreateTxnId).payerId(sender),
-                    usableTxnIdNamed(scheduledTxnId)
-                            .asScheduled(scheduleCreateTxnId)
-                            .payerId(sender),
-                    usableTxnIdNamed(signTxnId).payerId(sender),
-                    usableTxnIdNamed(secondInnerTxnId).payerId(sender),
-                    // create a schedule
-                    scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
-                            .waitForExpiry(false)
-                            .txnId(scheduleCreateTxnId)
-                            .payingWith(sender),
-                    // execute batch with schedule sign
-                    atomicBatch(
-                                    scheduleSign(schedule)
-                                            .batchKey(batchOperator)
-                                            .txnId(signTxnId)
-                                            .alsoSigningWith(receiver)
-                                            .payingWith(sender),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .txnId(secondInnerTxnId)
-                                            .balance(1L)
-                                            .payingWith(sender))
-                            .signedByPayerAnd(batchOperator)
-                            // validate order of execution
-                            .validateTxnOrder(
-                                    signTxnId,
-                                    scheduledTxnId, // scheduled txn is executed right after a sign txn
-                                    secondInnerTxnId),
-                    getAccountBalance(receiver).logged());
-        }
-
-        @HapiTest
-        @DisplayName("Validate order of execution with failing schedule")
-        // BATCH_11
-        final Stream<DynamicTest> executionWithFailingSchedule() {
-            final var sender = "sender";
-            final var receiver = "receiver";
-            final var schedule = "scheduledXfer";
-            final var signTxnId = "signTxnId";
-            final var secondInnerTxnId = "secondInnerTxnId";
-            final var batchOperator = "batchOperator";
-
-            return hapiTest(
-                    cryptoCreate(batchOperator),
-                    cryptoCreate(sender).balance(ONE_HBAR),
-                    cryptoCreate(receiver).receiverSigRequired(true),
-                    // store txn ids in spec registry for later order validation
-                    usableTxnIdNamed(signTxnId).payerId(sender),
-                    usableTxnIdNamed(secondInnerTxnId).payerId(sender),
-                    // create a failing scheduled transaction (transfer more than the balance)
-                    scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, ONE_HUNDRED_HBARS))),
-                    // execute batch with schedule sign
-                    atomicBatch(
-                                    scheduleSign(schedule)
-                                            .batchKey(batchOperator)
-                                            .txnId(signTxnId)
-                                            .alsoSigningWith(receiver)
-                                            .payingWith(sender),
-                                    cryptoCreate("foo")
-                                            .batchKey(batchOperator)
-                                            .txnId(secondInnerTxnId)
-                                            .balance(1L)
-                                            .payingWith(sender))
-                            .signedByPayerAnd(batchOperator)
-                            // validate order of execution
-                            .validateTxnOrder(signTxnId, secondInnerTxnId),
-                    // validate the result of the inner txn
-                    getAccountBalance("foo").hasTinyBars(1L));
-        }
 
         @HapiTest
         @DisplayName("Validate batch valid start")

@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -93,36 +92,6 @@ public class AtomicBatchNegativeTest {
     @Nested
     @DisplayName("Order and Execution - NEGATIVE")
     class OrderAndExecutionNegative {
-
-        @HapiTest
-        @DisplayName("Batch containing schedule sign and failing inner transaction")
-        // BATCH_56
-        public Stream<DynamicTest> scheduleSignAndFailingInnerTxn() {
-            final var batchOperator = "batchOperator";
-            final var sender = "sender";
-            final var receiver = "receiver";
-
-            return hapiTest(
-                    cryptoCreate(batchOperator).balance(FIVE_HBARS),
-                    cryptoCreate(sender).balance(ONE_HBAR),
-                    cryptoCreate(receiver).balance(0L),
-
-                    // create a schedule
-                    scheduleCreate("schedule", cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
-                            .waitForExpiry(false),
-                    atomicBatch(
-                                    // sign the schedule
-                                    scheduleSign("schedule").payingWith(sender).batchKey(batchOperator),
-                                    // failing transfer
-                                    cryptoTransfer(tinyBarsFromTo(sender, receiver, ONE_HUNDRED_HBARS))
-                                            .batchKey(batchOperator))
-                            .payingWith(batchOperator)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
-                    // validate executed schedule was reverted
-                    getScheduleInfo("schedule").isNotExecuted(),
-                    getAccountBalance(receiver).hasTinyBars(0L));
-        }
 
         @HapiTest
         @DisplayName("Batch transactions reverts on failure")
@@ -987,5 +956,19 @@ public class AtomicBatchNegativeTest {
         return hapiTest(
                 cryptoCreate(batchOperator),
                 atomicBatch(innerCryptoTxn).payingWith(batchOperator).hasPrecheck(INVALID_NODE_ACCOUNT_ID));
+    }
+
+    @HapiTest
+    @DisplayName("schedule transactions are blacklisted in atomic batch")
+    public Stream<DynamicTest> scheduleBlackList() {
+        return hapiTest(
+                cryptoCreate("batchOperator"),
+                atomicBatch(scheduleCreate("schedule", cryptoCreate("foo")).batchKey("batchOperator"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST),
+                scheduleCreate("schedule", cryptoCreate("foo")),
+                atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
     }
 }
