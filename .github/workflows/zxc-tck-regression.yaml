@@ -110,7 +110,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@0.36.0
+        run: npm install -g @hashgraph/solo@0.37.1
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -157,6 +157,40 @@ jobs:
           cp .env.custom_node .env
           npm run test
         working-directory: platform-sdk/regression # required
+
+      - name: SDK TCK Regression Test Report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: SDK TCK Regression Test Report
+          path: "**/platform-sdk/regression/mochawesome-report/mochawesome.*"
+          retention-days: 7
+
+      # Collect run logs in a log file, ignore last job as it is the one that runs this workflow
+      - name: Collect run logs in a log file
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job ${job_id}..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == ${job_id}) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: Run Logs
+          path: run.log
 
       # Stop the TCK server
       - name: Stop tck-server

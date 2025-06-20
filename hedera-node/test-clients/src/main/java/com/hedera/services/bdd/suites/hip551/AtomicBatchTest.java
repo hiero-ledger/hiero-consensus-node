@@ -2,12 +2,16 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
@@ -34,9 +38,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
@@ -50,15 +58,20 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -68,16 +81,21 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
+@Tag(ADHOC)
 public class AtomicBatchTest {
     @HapiTest
     public Stream<DynamicTest> validateFeesForChildren() {
@@ -790,6 +808,220 @@ public class AtomicBatchTest {
                                             .batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator),
                     getAccountBalance(receiver).hasTinyBars(FIVE_HBARS * 2));
+        }
+    }
+
+    @Nested
+    @DisplayName("Validate usedGas amount for Precompile calls")
+    class ValidatePrecompileGasUsedForInnerTxnChildren {
+
+        @HapiTest
+        @DisplayName("Validate mint precompile gas used for inner transaction")
+        final Stream<DynamicTest> validateInnerCallToMintPrecompile() {
+            final var nft = "nft";
+            final var gasToOffer = 2_000_000L;
+            final var mintContract = "MintContract";
+            final var supplyKey = "supplyKey";
+            final AtomicReference<Address> tokenAddress = new AtomicReference<>();
+            final KeyShape listOfPredefinedAndContract = KeyShape.threshOf(1, PREDEFINED_SHAPE, CONTRACT);
+            final AtomicLong gasUsed = new AtomicLong(0);
+            final var nftMetadata = (Object) new byte[][] {genRandomBytes(100)};
+            return hapiTest(
+                    cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
+                    tokenCreate(nft)
+                            .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                            .initialSupply(0L)
+                            .supplyKey(ALICE)
+                            .adminKey(ALICE)
+                            .treasury(ALICE)
+                            .exposingAddressTo(tokenAddress::set),
+                    uploadInitCode(mintContract),
+                    sourcing(() -> contractCreate(mintContract, tokenAddress.get())
+                            .payingWith(ALICE)
+                            .gas(gasToOffer)),
+                    newKeyNamed(supplyKey).shape(listOfPredefinedAndContract.signedWith(sigs(ALICE, mintContract))),
+                    tokenUpdate(nft).supplyKey(supplyKey).signedByPayerAnd(ALICE),
+
+                    // mint NFT via precompile and save the used gas
+                    contractCall(mintContract, "mintNonFungibleToken", nftMetadata)
+                            .payingWith(ALICE)
+                            .alsoSigningWithFullPrefix(supplyKey)
+                            .gas(gasToOffer)
+                            .via("mint"),
+
+                    // save precompile gas used
+                    withOpContext((spec, op) -> {
+                        final var callRecord = getTxnRecord("mint").andAllChildRecords();
+                        allRunFor(spec, callRecord);
+                        gasUsed.set(callRecord
+                                .getFirstNonStakingChildRecord()
+                                .getContractCallResult()
+                                .getGasUsed());
+                    }),
+
+                    // mint NFT via precompile as inner batch txn
+                    atomicBatch(contractCall(mintContract, "mintNonFungibleToken", nftMetadata)
+                                    .batchKey(ALICE)
+                                    .payingWith(ALICE)
+                                    .alsoSigningWithFullPrefix(supplyKey)
+                                    .gas(gasToOffer)
+                                    .via("mintFromBatch"))
+                            .payingWith(ALICE),
+
+                    // validate precompile used gas is the same as in the previous call
+                    sourcing(() -> childRecordsCheck(
+                            "mintFromBatch",
+                            SUCCESS,
+                            recordWith()
+                                    .status(SUCCESS)
+                                    .contractCallResult(resultWith().gasUsed(gasUsed.get())))));
+        }
+
+        @HapiTest
+        @DisplayName("Validate associate precompile gas used for inner transaction")
+        final Stream<DynamicTest> validateInnerCallToAssociatePrecompile() {
+            final var account = "account";
+            final var account2 = "account2";
+            final var gasToOffer = 2_000_000L;
+            final var associateContract = "AssociateDissociate";
+            final AtomicLong gasUsed = new AtomicLong(0);
+            final KeyShape simpleContractKeyShape = KeyShape.threshOf(1, KeyShape.SIMPLE, CONTRACT);
+
+            final AtomicReference<Address> accountAddress = new AtomicReference<>();
+            final AtomicReference<Address> account2Address = new AtomicReference<>();
+            final AtomicReference<Address> tokenAddress = new AtomicReference<>();
+
+            return hapiTest(
+                    // deploy the contract
+                    uploadInitCode(associateContract),
+                    contractCreate(associateContract).gas(gasToOffer),
+
+                    // create account and token with proper keys and expose their addresses
+                    newKeyNamed("key").shape(simpleContractKeyShape.signedWith(sigs(ON, associateContract))),
+                    cryptoCreate(account)
+                            .key("key")
+                            .balance(ONE_HUNDRED_HBARS)
+                            .exposingEvmAddressTo(accountAddress::set),
+                    cryptoCreate(account2)
+                            .key("key")
+                            .balance(ONE_HUNDRED_HBARS)
+                            .exposingEvmAddressTo(account2Address::set),
+                    cryptoCreate("treasury"),
+                    tokenCreate("token")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .treasury("treasury")
+                            .exposingAddressTo(tokenAddress::set),
+                    cryptoCreate("operator"),
+
+                    // associate call
+                    sourcing(() -> contractCall(
+                                    associateContract, "tokenAssociate", accountAddress.get(), tokenAddress.get())
+                            .gas(gasToOffer)
+                            .via("associateTxn")),
+
+                    // save precompile gas used
+                    withOpContext((spec, op) -> {
+                        final var callRecord = getTxnRecord("associateTxn")
+                                .andAllChildRecords()
+                                .logged();
+                        allRunFor(spec, callRecord);
+                        gasUsed.set(callRecord
+                                .getFirstNonStakingChildRecord()
+                                .getContractCallResult()
+                                .getGasUsed());
+                    }),
+
+                    // associate via precompile as inner batch txn
+                    sourcing(() -> atomicBatch(contractCall(
+                                            associateContract,
+                                            "tokenAssociate",
+                                            account2Address.get(),
+                                            tokenAddress.get())
+                                    .batchKey("operator")
+                                    .gas(gasToOffer)
+                                    .via("associateFromBatch"))
+                            .payingWith("operator")),
+
+                    // validate precompile used gas is the same as in the previous call
+                    sourcing(() -> childRecordsCheck(
+                            "associateFromBatch",
+                            SUCCESS,
+                            recordWith()
+                                    .status(SUCCESS)
+                                    .contractCallResult(resultWith().gasUsed(gasUsed.get())))));
+        }
+
+        @HapiTest
+        @DisplayName("Validate crypto transfer precompile gas used for inner transaction")
+        final Stream<DynamicTest> validateInnerCallToCryptoTransferPrecompile() {
+            final var sender = "sender";
+            final var receiver = "receiver";
+            final var gasToOffer = 2_000_000L;
+            final var transferContract = "AtomicCryptoTransfer";
+            final AtomicLong gasUsed = new AtomicLong(0);
+            final KeyShape simpleContractKeyShape = KeyShape.threshOf(1, KeyShape.SIMPLE, CONTRACT);
+
+            final AtomicReference<Address> senderAddress = new AtomicReference<>();
+            final AtomicReference<Address> receiverAddress = new AtomicReference<>();
+
+            // call parameters
+            final Supplier<Tuple> transferListSupplier = () -> transferList()
+                    .withAccountAmounts(
+                            accountAmount(senderAddress.get(), -ONE_HBAR, false),
+                            accountAmount(receiverAddress.get(), ONE_HBAR, false))
+                    .build();
+            final var EMPTY_TUPLE_ARRAY = new Tuple[] {};
+
+            return hapiTest(
+                    // deploy the contract
+                    uploadInitCode(transferContract),
+                    contractCreate(transferContract).gas(gasToOffer),
+
+                    // create sender and receiver with proper keys and expose their addresses
+                    newKeyNamed("key").shape(simpleContractKeyShape.signedWith(sigs(ON, transferContract))),
+                    cryptoCreate(sender).key("key").balance(ONE_HUNDRED_HBARS).exposingEvmAddressTo(senderAddress::set),
+                    cryptoCreate(receiver).key("key").balance(0L).exposingEvmAddressTo(receiverAddress::set),
+                    cryptoCreate("operator"),
+
+                    // Simple transfer between sender, receiver
+                    sourcing(() -> contractCall(
+                                    transferContract,
+                                    "transferMultipleTokens",
+                                    transferListSupplier.get(),
+                                    EMPTY_TUPLE_ARRAY)
+                            .via("cryptoTransferTxn")
+                            .gas(gasToOffer)),
+
+                    // save precompile gas used
+                    withOpContext((spec, op) -> {
+                        final var callRecord = getTxnRecord("cryptoTransferTxn")
+                                .andAllChildRecords()
+                                .logged();
+                        allRunFor(spec, callRecord);
+                        gasUsed.set(callRecord
+                                .getFirstNonStakingChildRecord()
+                                .getContractCallResult()
+                                .getGasUsed());
+                    }),
+
+                    // transfer hbars via precompile as inner batch txn
+                    sourcing(() -> atomicBatch(contractCall(
+                                            transferContract,
+                                            "transferMultipleTokens",
+                                            transferListSupplier.get(),
+                                            EMPTY_TUPLE_ARRAY)
+                                    .batchKey("operator")
+                                    .via("cryptoTransferFromBatch")
+                                    .gas(gasToOffer))
+                            .payingWith("operator")),
+
+                    // validate precompile used gas is the same as in the previous call
+                    sourcing(() -> childRecordsCheck(
+                            "cryptoTransferFromBatch",
+                            SUCCESS,
+                            recordWith()
+                                    .status(SUCCESS)
+                                    .contractCallResult(resultWith().gasUsed(gasUsed.get())))));
         }
     }
 
