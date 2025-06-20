@@ -65,7 +65,6 @@ import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
-import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
 import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -698,7 +697,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
         final AtomicReference<Address> fungibleAddress2 = new AtomicReference<>();
         final var firstBurnTxn = "firstBurnTxn";
         final var secondBurnTxn = "secondBurnTxn";
-        final var amount = 99L;
+        final var amount = 19L;
 
         return hapiTest(
                 newKeyNamed(SIGNER),
@@ -708,6 +707,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 cryptoCreate(TOKEN_TREASURY),
                 createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 createFungibleAndExposeAdr(FUNGIBLE_TOKEN_2, fungibleAddress2),
+                tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(TOKEN_TREASURY),
                 sourcing(() -> atomicBatchDefaultOperator(
                         contractCall(
                                         ORDINARY_CALLS_CONTRACT,
@@ -745,8 +745,8 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
                                                 .withStatus(SUCCESS)
-                                                .withTotalSupply(99)))
-                                .newTotalSupply(99)),
+                                                .withTotalSupply(amount)))
+                                .newTotalSupply(amount)),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(amount),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, amount));
     }
@@ -832,8 +832,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
 
     @HapiTest
     final Stream<DynamicTest> V2SecurityHscsPrec004TokenBurnOfFungibleTokenUnits() {
-        // TODO: Check why the gas used is different from the one in the original test!
-        final var gasUsed = 22_918L; // 15284L;
+        final var gasUsed = 15284L;
         final var CREATION_TX = "CREATION_TX";
         final var MULTI_KEY = "MULTI_KEY";
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
@@ -985,8 +984,7 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
 
     @HapiTest
     final Stream<DynamicTest> V2SecurityHscsPrec005TokenBurnOfNft() {
-        // TODO: Check why the gas used is different from the one in the original test!
-        final var gasUsed = 23_202L; // 15284L;
+        final var gasUsed = 15284L;
         final var CREATION_TX = "CREATION_TX";
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -1058,11 +1056,5 @@ public class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 .supplyKey(TOKEN_TREASURY)
                 .adminKey(TOKEN_TREASURY)
                 .exposingAddressTo(addressRef::set);
-    }
-
-    private HapiCryptoCreate createAccountAndExposeAddr(String accountName, AtomicReference<Address> addressRef) {
-        return cryptoCreate(accountName)
-                .balance(ONE_MILLION_HBARS)
-                .exposingCreatedIdTo(id -> addressRef.set(asHeadlongAddress(asAddress(id))));
     }
 }
