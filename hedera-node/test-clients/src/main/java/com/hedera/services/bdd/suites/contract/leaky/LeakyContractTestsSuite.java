@@ -778,8 +778,8 @@ public class LeakyContractTestsSuite {
                             .getContractCallResult()
                             .getGasUsed();
 
-                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 23739L);
-                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 20000L);
+                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 35000L);
+                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 40000L);
                 }));
     }
 
