@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
@@ -111,46 +110,38 @@ public class FileCreateHandler implements TransactionHandler {
                 // Shard and realm will be ignored if num is NA
                 null);
 
-        try {
-            final var effectiveExpiryMeta = handleContext
-                    .expiryValidator()
-                    .resolveCreationAttempt(false, entityExpiryMeta, HederaFunctionality.FILE_CREATE);
-            builder.expirationSecond(effectiveExpiryMeta.expiry());
+        final var effectiveExpiryMeta = handleContext
+                .expiryValidator()
+                .resolveCreationAttempt(false, entityExpiryMeta, HederaFunctionality.FILE_CREATE);
+        builder.expirationSecond(effectiveExpiryMeta.expiry());
 
-            handleContext.attributeValidator().validateMemo(fileCreateTransactionBody.memo());
-            builder.memo(fileCreateTransactionBody.memo());
+        handleContext.attributeValidator().validateMemo(fileCreateTransactionBody.memo());
+        builder.memo(fileCreateTransactionBody.memo());
 
-            final var hederaConfig = handleContext.configuration().getConfigData(HederaConfig.class);
-            builder.keys(fileCreateTransactionBody.keys());
-            final var fileId = FileID.newBuilder()
-                    .fileNum(handleContext.entityNumGenerator().newEntityNum())
-                    .shardNum(
-                            fileCreateTransactionBody.hasShardID()
-                                    ? fileCreateTransactionBody.shardIDOrThrow().shardNum()
-                                    : hederaConfig.shard())
-                    .realmNum(
-                            fileCreateTransactionBody.hasRealmID()
-                                    ? fileCreateTransactionBody.realmIDOrThrow().realmNum()
-                                    : hederaConfig.realm())
-                    .build();
-            builder.fileId(fileId);
-            validateContent(CommonPbjConverters.asBytes(fileCreateTransactionBody.contents()), fileServiceConfig);
-            builder.contents(fileCreateTransactionBody.contents());
+        final var hederaConfig = handleContext.configuration().getConfigData(HederaConfig.class);
+        builder.keys(fileCreateTransactionBody.keys());
+        final var fileId = FileID.newBuilder()
+                .fileNum(handleContext.entityNumGenerator().newEntityNum())
+                .shardNum(
+                        fileCreateTransactionBody.hasShardID()
+                                ? fileCreateTransactionBody.shardIDOrThrow().shardNum()
+                                : hederaConfig.shard())
+                .realmNum(
+                        fileCreateTransactionBody.hasRealmID()
+                                ? fileCreateTransactionBody.realmIDOrThrow().realmNum()
+                                : hederaConfig.realm())
+                .build();
+        builder.fileId(fileId);
+        validateContent(CommonPbjConverters.asBytes(fileCreateTransactionBody.contents()), fileServiceConfig);
+        builder.contents(fileCreateTransactionBody.contents());
 
-            final var file = builder.build();
-            fileStore.putAndIncrementCount(file);
+        final var file = builder.build();
+        fileStore.putAndIncrementCount(file);
 
-            handleContext
-                    .savepointStack()
-                    .getBaseBuilder(CreateFileStreamBuilder.class)
-                    .fileID(fileId);
-        } catch (final HandleException e) {
-            if (e.getStatus() == INVALID_EXPIRATION_TIME) {
-                // (FUTURE) Remove this translation done for mono-service fidelity
-                throw new HandleException(AUTORENEW_DURATION_NOT_IN_RANGE);
-            }
-            throw e;
-        }
+        handleContext
+                .savepointStack()
+                .getBaseBuilder(CreateFileStreamBuilder.class)
+                .fileID(fileId);
     }
 
     @NonNull
