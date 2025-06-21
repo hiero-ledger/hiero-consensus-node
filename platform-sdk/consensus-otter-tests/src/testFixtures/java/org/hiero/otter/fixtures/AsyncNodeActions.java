@@ -17,15 +17,6 @@ public interface AsyncNodeActions {
     void killImmediately() throws InterruptedException;
 
     /**
-     * Shutdown the node gracefully with the configured timeout.
-     *
-     * @see Node#shutdownGracefully()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
-     */
-    void shutdownGracefully() throws InterruptedException;
-
-    /**
      * Start the node with the configured timeout.
      *
      * @see Node#start()
