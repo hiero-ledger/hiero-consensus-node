@@ -73,8 +73,7 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         // Validate the effects on size are legal
         final var changes = evmFrameState.getStorageChanges();
         final var sizeEffects = summarizeSizeEffects(changes);
-        storageSizeValidator.assertValid(
-                sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
+        storageSizeValidator.assertValid(sizeEffects.finalSlotsUsed());
         // Charge rent for each increase in storage size
         chargeRentFor(sizeEffects);
         // "Rewrite" the pending storage changes to preserve per-contract linked lists
