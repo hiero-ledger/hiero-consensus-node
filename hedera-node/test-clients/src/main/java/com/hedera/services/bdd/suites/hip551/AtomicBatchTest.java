@@ -1024,4 +1024,42 @@ public class AtomicBatchTest {
                                     .contractCallResult(resultWith().gasUsed(gasUsed.get())))));
         }
     }
+
+    @HapiTest
+    @DisplayName("Updated required key in batch")
+    public Stream<DynamicTest> useUpdatedKeyInBatch() {
+        final var batchOperator = "batchOperator";
+
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                newKeyNamed("kycKey"),
+                newKeyNamed("newKycKey"),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                tokenCreate("testToken")
+                        .initialSupply(1000L)
+                        .treasury("treasury")
+                        .kycKey("kycKey")
+                        .supplyKey("treasury")
+                        .adminKey("adminKey"),
+                atomicBatch(
+                                // update admin key
+                                tokenUpdate("testToken")
+                                        .adminKey("newAdminKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .signedBy("adminKey", "newAdminKey", batchOperator),
+
+                                // update kyc key
+                                tokenUpdate("testToken")
+                                        .kycKey("newKycKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .via("updateKyc")
+                                        .sigMapPrefixes(uniqueWithFullPrefixesFor("newAdminKey", batchOperator))
+                                        .signedBy("newAdminKey", batchOperator))
+                        .payingWith(batchOperator),
+                getTxnRecord("updateKyc").logged());
+    }
 }

@@ -360,7 +360,8 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @NonNull final FeeCharging customFeeCharging) {
+            @NonNull final FeeCharging customFeeCharging,
+            @NonNull final DispatchMetadata dispatchMetadata) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -373,7 +374,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,
                 NOOP_TRANSACTION_CUSTOMIZER,
-                EMPTY_METADATA,
+                dispatchMetadata,
                 customFeeCharging);
     }
 }
