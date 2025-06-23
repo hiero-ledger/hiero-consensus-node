@@ -2492,6 +2492,10 @@ public class UtilVerbs {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(asAddress(account)), amount, isApproval);
     }
 
+    public static Tuple accountAmount(final Address accountAddress, final Long amount, final boolean isApproval) {
+        return Tuple.of(accountAddress, amount, isApproval);
+    }
+
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount);
     }

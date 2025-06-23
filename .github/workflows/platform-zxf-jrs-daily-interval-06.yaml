@@ -24,13 +24,11 @@ concurrency:
   group: ${{ github.event.inputs.concurrency-group || format('{0}-{1}-flow-jrs-daily-interval-groups', github.ref_name, github.sha) }}
 
 # Panel Definition & Timings:
-#   "configs/suites/GCP-PRCheck-Abbrev-4N.json"               ----          40m
-#   "configs/suites/daily/4N/GCP-Daily-ISS-4N.json"           ----          100m
-#   "configs/suites/daily/4N/GCP-Daily-AddressBook-4N.json"   ----          40m
-#   "configs/suites/daily/5N/GCP-Daily-AddressBook-5N.json"   ----          40m
-#   "configs/suites/daily/6N/GCP-Daily-Migration-6N.json"     ----          30m
-
-#   TOTAL RUN TIME:             210 minutes, 3.5 hours
+# "configs/suites/GCP-PRCheck-Abbrev-4N.json"
+# "configs/suites/daily/4N/GCP-Daily-ISS-4N.json"                     100m
+# "configs/suites/daily/6N/GCP-Daily-Migration-6N.json"               30m
+# "configs/suites/daily/6N/GCP-Daily-Birth-Round-6N.json"
+#   TOTAL RUN TIME:             ?
 
 jobs:
   abbrev:
@@ -74,50 +72,6 @@ jobs:
     needs:
       - abbrev
 
-  addressBook:
-    name: AddressBook
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    if: ${{ !cancelled() && always() }}
-    with:
-      ref: ${{ github.event.inputs.ref }}
-      branch-name: ${{ github.event.inputs.branch-name }}
-      panel-config: "configs/suites/daily/4N/GCP-Daily-AddressBook-4N.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    needs:
-      - iss
-
-  addressBook-add-remove:
-    name: AddressBook-Add-Remove
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    if: ${{ !cancelled() && always() }}
-    with:
-      ref: ${{ github.event.inputs.ref }}
-      branch-name: ${{ github.event.inputs.branch-name }}
-      panel-config: "configs/suites/daily/5N/GCP-Daily-AddressBook-5N.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    needs:
-      - addressBook
-
   migration:
     name: Migration
     uses: ./.github/workflows/zxc-jrs-regression.yaml
@@ -138,26 +92,4 @@ jobs:
       grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
       grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
     needs:
-      - addressBook-add-remove
-
-  birth-round-migration:
-    name: Birth Round Migration
-    uses: ./.github/workflows/zxc-jrs-regression.yaml
-    if: ${{ !cancelled() && always() }}
-    with:
-      ref: ${{ github.event.inputs.ref }}
-      branch-name: ${{ github.event.inputs.branch-name }}
-      panel-config: "configs/suites/daily/6N/GCP-Daily-Birth-Round-6N.json"
-    secrets:
-      access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
-      jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}
-      jrs-ssh-key-file: ${{ secrets.PLATFORM_JRS_SSH_KEY_FILE }}
-      gcp-project-number: ${{ secrets.PLATFORM_GCP_PROJECT_NUMBER }}
-      gcp-sa-key-contents: ${{ secrets.PLATFORM_GCP_KEY_FILE }}
-      slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      grafana-agent-username: ${{ secrets.GRAFANA_AGENT_USERNAME }}
-      grafana-agent-password: ${{ secrets.GRAFANA_AGENT_PASSWORD }}
-    needs:
-      - migration
+      - iss

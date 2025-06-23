@@ -105,6 +105,15 @@ public interface Node {
     PlatformStatus platformStatus();
 
     /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#ACTIVE}.
+     *
+     * @return {@code true} if the node is active, {@code false} otherwise
+     */
+    default boolean isActive() {
+        return platformStatus() == PlatformStatus.ACTIVE;
+    }
+
+    /**
      * Gets the software version of the node.
      *
      * @return the software version of the node

@@ -8,7 +8,15 @@ on:
     inputs:
       ref:
         required: true
-        description: "The github branch or tag that triggered the workflow"
+        description: "Git Reference (branch, tag, or commit SHA)"
+      ref-name:
+        required: true
+        description: "Git Reference Name (branch name or tag name)"
+      dry-run-enabled:
+        required: false
+        default: false
+        type: boolean
+        description: "Specify that this is a test run which will skip certain steps."
 
 defaults:
   run:
@@ -69,6 +77,8 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
+      ref: ${{ github.ref }}
+      ref-name: ${{ github.ref_name }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -102,7 +112,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: main
+          ref: ${{ inputs.ref }}
           fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
@@ -152,6 +162,9 @@ jobs:
       version-policy: branch-commit
       trigger-env-deploy: integration
       release-profile: DevelopCommit
+      ref: ${{ inputs.ref }}
+      ref-name: ${{ inputs.ref-name }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
@@ -171,7 +184,7 @@ jobs:
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
   deploy-xts-ci-trigger:
-    name: Trigger XTS CI Flows
+    name: Trigger XTS CI Flow
     runs-on: hiero-network-node-linux-medium
     needs:
       - release-branch
@@ -185,7 +198,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Prep XTS Job State
@@ -207,11 +220,15 @@ jobs:
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{ "ref": "${{ inputs.ref }}" }'
+          inputs: '{
+            "ref": "${{ inputs.ref }}",
+            "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
+            }'
 
   deploy-integration-ci-trigger:
-    name: Trigger XTS CI Flows
+    name: Trigger Deploy Integration Flow
     runs-on: hiero-network-node-linux-medium
+    if: ${{ inputs.dry-run-enabled == false }}
     needs:
       - release-branch
     steps:
@@ -224,7 +241,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Check Integration Job State
@@ -247,7 +264,8 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ inputs.ref }}"
+            "ref": "${{ inputs.ref }}",
+            "ref-name": "${{ inputs.ref-name }}"
             }'
 
   report-failures:
@@ -256,7 +274,7 @@ jobs:
     needs:
       - release-branch
       - deploy-xts-ci-trigger
-    if: ${{ (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
+    if: ${{ inputs.dry-run-enabled == false && (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -267,7 +285,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -298,9 +316,9 @@ jobs:
         id: fetch-commit-info
         continue-on-error: true
         run: |
-          echo "commit-hash=$(git rev-parse ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
-          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${{ github.event.inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-hash=${{ inputs.ref }}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git show -s --format='%an <%ae>' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git show -s --format='%ae' ${{ inputs.ref }})" >> "${GITHUB_OUTPUT}"
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
@@ -322,99 +340,113 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Report failure (slack)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":exclamation: Hiero Consensus Node - Deploy Production Release Failure Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Deploy Production Release job resulted in failure on `main`. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Release [Branch]*: ${{ needs.release-branch.result }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Deploy XTS CI Trigger*: ${{ needs.deploy-xts-ci-trigger.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report failure (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#FF0000",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":exclamation: Hiero Consensus Node - Deploy Production Release Failure Report",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Deploy Production Release job resulted in failure on `main`. See status below.*"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Release [Branch]*: ${{ needs.release-branch.result }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Deploy XTS CI Trigger*: ${{ needs.deploy-xts-ci-trigger.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Workflow and Commit Information*"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Commit*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Commit author*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Slack user*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run ID*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": " ${{ github.run_id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run URL*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
+
+      - name: Report failure (slack release-team)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

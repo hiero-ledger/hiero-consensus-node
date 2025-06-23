@@ -39,11 +39,6 @@ message InternalCallContext {
      * The call data for the call.<br/>
      */
     bytes call_data = 3;
-
-    /**
-     * The Hedera id of the sender.<br/>
-     */
-    AccountID sender_id = 4;
 }
 
 /**
@@ -51,28 +46,36 @@ message InternalCallContext {
  */
 message EvmTransactionResult {
     /**
-     * Result data from the function call.
-     * <p>
-     * This SHALL be encoded in RLP bytecode format.
+     * The Hedera id of the caller.<br/>
      */
-    bytes contract_call_result = 1;
+    AccountID sender_id = 1;
+
+    /**
+     * The Hedera id of the contract receiving the call.<br/>
+     */
+    ContractID contract_id = 2;
+
+    /**
+     * Result data from the function call.
+     */
+    bytes result_data = 3;
 
     /**
      * Any error message produced by the contract call. Max size of 100 bytes.
      * <p>
      * This SHALL be unset if the contract call succeeded.
      */
-    string error_message = 2;
+    string error_message = 4;
 
     /**
      * EVM gas used.
      */
-    uint64 gas_used = 3;
+    uint64 gas_used = 5;
 
     /**
      * If not already externalized, the context of the internal call producing this result.
      */
-    InternalCallContext internal_call_context = 4;
+    InternalCallContext internal_call_context = 6;
 }
 
 /**
