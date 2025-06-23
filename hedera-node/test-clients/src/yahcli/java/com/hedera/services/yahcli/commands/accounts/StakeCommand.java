@@ -3,8 +3,10 @@ package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.StakeSuite;
 import com.hedera.services.yahcli.suites.Utils;
@@ -45,15 +47,16 @@ public class StakeCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         final var config = ConfigUtils.configFrom(accountsCommand.getYahcli());
-        assertValidParams();
+        assertValidParams(config);
         final String target;
         final StakeSuite.TargetType type;
-        if (electedNodeId != null) {
+        final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
+        if (normalizedElectedAccountNum != null) {
             type = StakeSuite.TargetType.NODE;
-            target = electedNodeId;
-        } else if (electedAccountNum != null) {
+            target = normalizedElectedAccountNum;
+        } else if (normalizedElectedAccountNum != null) {
             type = StakeSuite.TargetType.ACCOUNT;
-            target = electedAccountNum;
+            target = normalizedElectedAccountNum;
         } else {
             target = null;
             type = StakeSuite.TargetType.NONE;
@@ -64,33 +67,35 @@ public class StakeCommand implements Callable<Integer> {
         } else if (stopDecliningRewards != null) {
             declineReward = Boolean.FALSE;
         }
+        var normalizedStakedAccountNum = normalizePossibleIdLiteral(config, stakedAccountNum);
         final var delegate =
-                new StakeSuite(config, config.asSpecConfig(), target, type, stakedAccountNum, declineReward);
+                new StakeSuite(config, config.asSpecConfig(), target, type, normalizedStakedAccountNum, declineReward);
         delegate.runSuiteSync();
 
-        if (stakedAccountNum == null) {
-            stakedAccountNum = asEntityString(config.getDefaultPayer());
+        if (normalizedStakedAccountNum == null) {
+            normalizedStakedAccountNum = asEntityString(config.getDefaultPayer());
         }
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             final var msgSb = new StringBuilder("SUCCESS - account ")
-                    .append(Utils.extractAccount(stakedAccountNum))
+                    .append(Utils.extractAccount(normalizedStakedAccountNum))
                     .append(" updated");
+            final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
             if (type != StakeSuite.TargetType.NONE) {
                 msgSb.append(", now staked to ")
                         .append(type.name())
                         .append(" ")
                         .append(
                                 type == StakeSuite.TargetType.NODE
-                                        ? electedNodeId
-                                        : Utils.extractAccount(electedAccountNum));
+                                        ? normalizedElectedNodeId
+                                        : Utils.extractAccount(normalizedElectedAccountNum));
             }
             if (declineReward != null) {
                 msgSb.append(" with declineReward=").append(declineReward);
             }
             COMMON_MESSAGES.info(msgSb.toString());
         } else {
-            COMMON_MESSAGES.warn(
-                    "FAILED to change staking election for account " + Utils.extractAccount(stakedAccountNum));
+            COMMON_MESSAGES.warn("FAILED to change staking election for account "
+                    + Utils.extractAccount(normalizedStakedAccountNum));
             return 1;
         }
 
@@ -98,51 +103,56 @@ public class StakeCommand implements Callable<Integer> {
     }
 
     @SuppressWarnings({"java:S3776", "java:S1192"})
-    private void assertValidParams() {
+    private void assertValidParams(ConfigManager config) {
         if (stopDecliningRewards != null && startDecliningRewards != null) {
             throw new CommandLine.ParameterException(
                     accountsCommand.getYahcli().getSpec().commandLine(),
                     "Cannot both start and stop declining rewards");
         }
+        final var normalizedElectedNodeId = normalizePossibleIdLiteral(config, electedNodeId);
+        final var normalizedElectedAccountNum = normalizePossibleIdLiteral(config, electedAccountNum);
         final var changedDeclineRewards = startDecliningRewards != null || stopDecliningRewards != null;
-        if (electedNodeId != null) {
-            if (electedAccountNum != null) {
+        if (normalizedElectedNodeId != null) {
+            if (normalizedElectedAccountNum != null) {
                 throw new CommandLine.ParameterException(
                         accountsCommand.getYahcli().getSpec().commandLine(),
-                        "Cannot stake to both node (" + electedNodeId + ") and account (" + electedAccountNum + ")");
+                        "Cannot stake to both node (" + normalizedElectedNodeId + ") and account ("
+                                + normalizedElectedAccountNum + ")");
             }
             try {
-                Long.parseLong(electedNodeId);
+                Long.parseLong(normalizedElectedNodeId);
             } catch (final Exception any) {
                 throw new CommandLine.ParameterException(
                         accountsCommand.getYahcli().getSpec().commandLine(),
-                        "--node-id value '" + electedNodeId + "' is un-parseable (" + any.getMessage() + ")");
+                        "--node-id value '" + normalizedElectedNodeId + "' is un-parseable (" + any.getMessage() + ")");
             }
-        } else if (electedAccountNum == null && !changedDeclineRewards) {
+        } else if (normalizedElectedAccountNum == null && !changedDeclineRewards) {
             throw new CommandLine.ParameterException(
                     accountsCommand.getYahcli().getSpec().commandLine(),
                     "Must stake to either a node or an account ("
-                            + electedAccountNum
+                            + normalizedElectedAccountNum
                             + "); or "
                             + "start/stop declining rewards");
-        } else if (electedAccountNum != null) {
+        } else if (normalizedElectedAccountNum != null) {
             try {
-                Utils.extractAccount(electedAccountNum);
+                Utils.extractAccount(normalizedElectedAccountNum);
             } catch (final Exception any) {
                 throw new CommandLine.ParameterException(
                         accountsCommand.getYahcli().getSpec().commandLine(),
-                        "--account-num value '" + electedAccountNum + "' is un-parseable (" + any.getMessage() + ")");
+                        "--account-num value '" + normalizedElectedAccountNum + "' is un-parseable (" + any.getMessage()
+                                + ")");
             }
         }
 
-        if (stakedAccountNum != null) {
+        final var normalizedStakedAccountNum = normalizePossibleIdLiteral(config, stakedAccountNum);
+        if (normalizedStakedAccountNum != null) {
             try {
-                Utils.extractAccount(stakedAccountNum);
+                Utils.extractAccount(normalizedStakedAccountNum);
             } catch (final Exception any) {
                 throw new CommandLine.ParameterException(
                         accountsCommand.getYahcli().getSpec().commandLine(),
                         "staked account parameter '"
-                                + stakedAccountNum
+                                + normalizedStakedAccountNum
                                 + "' is un-parseable ("
                                 + any.getMessage()
                                 + ")");
