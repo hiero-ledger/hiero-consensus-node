@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXCron: Promote Build Candidate"
+name: "ZXCron: [CITR] Promote Build Candidate"
 on:
   workflow_dispatch:
   schedule:

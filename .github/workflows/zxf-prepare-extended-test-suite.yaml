@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: Prepare Extended Test Suite"
+name: "ZXF: [CITR] Prepare Extended Test Suite"
 on:
   workflow_dispatch:
     inputs:
