@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.system;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.Yahcli;
@@ -41,8 +42,9 @@ public class FreezeUpgradeCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var config = ConfigUtils.configFrom(yahcli);
 
+        final var normalizedUpgradeFileNum = normalizePossibleIdLiteral(config, upgradeFileNum);
         final var upgradeFile =
-                asEntityString(config.shard().getShardNum(), config.realm().getRealmNum(), upgradeFileNum);
+                asEntityString(config.shard().getShardNum(), config.realm().getRealmNum(), normalizedUpgradeFileNum);
         final var unhexedHash = CommonUtils.unhex(upgradeFileHash);
         final var startInstant = Utils.parseFormattedInstant(startTime);
         final var delegate = new UpgradeHelperSuite(config, unhexedHash, upgradeFile, startInstant);
