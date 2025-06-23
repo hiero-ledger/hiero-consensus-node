@@ -160,8 +160,8 @@ public class AtomicBatchHandler implements TransactionHandler {
             final TransactionBody innerTxnBody;
             innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
             final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
+            // Set txn bytes as dispatch metadata. Used to pre-handle inner transaction while dispatching them.
             final var dispatchMetadata = new HandleContext.DispatchMetadata(INNER_TRANSACTION_BYTES, txnBytes);
-            // all the inner transactions' keys are verified in PreHandleWorkflow
             final var dispatchOptions = atomicBatchDispatch(
                     payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
             recordedFeeCharging.startRecording();

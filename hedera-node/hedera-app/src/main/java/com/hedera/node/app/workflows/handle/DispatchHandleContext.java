@@ -396,15 +396,16 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     public <T extends StreamBuilder> T dispatch(@NonNull final DispatchOptions<T> options) {
         requireNonNull(options);
         PreHandleResult childPreHandleResult = null;
-
         // Compute pre-handle results for the inner transactions and pass them to the child dispatch.
         final var batchInnerTxnBytes = options.dispatchMetadata().getMetadata(INNER_TRANSACTION_BYTES, Bytes.class);
-        if (options.category() == BATCH_INNER
-                && preHandleResults != null
-                && !preHandleResults.isEmpty()
-                && batchInnerTxnBytes.isPresent()) {
-            final var previousPreHandleResult = preHandleResults.removeFirst();
-            childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get(), previousPreHandleResult);
+        if (options.category() == BATCH_INNER && batchInnerTxnBytes.isPresent()) {
+            // Get precomputed maybeReusablePreHandleResult if available, otherwise null
+            PreHandleResult maybeReusablePreHandleResult = (preHandleResults != null && !preHandleResults.isEmpty())
+                ? preHandleResults.removeFirst()
+                    : null;
+            // Signature verification will be performed only if the maybeReusablePreHandleResult is null
+            // or there are updates to the keys.
+            childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get(), maybeReusablePreHandleResult);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(
