@@ -45,8 +45,6 @@ public class AtomicBatchTranslator implements BlockTransactionPartsTranslator {
                                         .mapUpdateOrThrow()
                                         .keyOrThrow()
                                         .fileIdKeyOrThrow();
-                                // when the fileUpdate transaction is inside an AtomicBatch it is
-                                // treated as a child and the role is not set to PARENT or STARTING_PARENT
                                 if (fileId.fileNum() == EXCHANGE_RATES_FILE_NUM) {
                                     final var contents = stateChange
                                             .mapUpdateOrThrow()
@@ -54,6 +52,7 @@ public class AtomicBatchTranslator implements BlockTransactionPartsTranslator {
                                             .fileValueOrThrow()
                                             .contents();
                                     try {
+                                        // Set the active rates from state changes happened inside AtomicBatch
                                         final var activeRates = ExchangeRateSet.PROTOBUF.parse(contents);
                                         receiptBuilder.exchangeRate(activeRates);
                                     } catch (ParseException e) {

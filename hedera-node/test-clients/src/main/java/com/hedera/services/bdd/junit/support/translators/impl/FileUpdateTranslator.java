@@ -43,8 +43,8 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
                                         .mapUpdateOrThrow()
                                         .keyOrThrow()
                                         .fileIdKeyOrThrow();
-                                // when the fileUpdate transaction is inside an AtomicBatch it is
-                                // treated as a child and the role is not set to PARENT or STARTING_PARENT
+                                // when the fileUpdate transaction is inside an AtomicBatch don't set exchange rate
+                                // on the translated record
                                 if (fileId.fileNum() == EXCHANGE_RATES_FILE_NUM) {
                                     baseTranslator.updateActiveRates(stateChange);
                                     if (!parts.body().hasBatchKey()) {
