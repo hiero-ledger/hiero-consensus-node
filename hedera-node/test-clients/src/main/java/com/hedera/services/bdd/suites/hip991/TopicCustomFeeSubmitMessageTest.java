@@ -1949,9 +1949,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate(COLLECTOR),
                 cryptoCreate(SUBMITTER),
-                createTopic(TOPIC)
-                        .adminKeyName(ADMIN_KEY)
-                        .withConsensusCustomFee(fixedConsensusHbarFee(2, COLLECTOR)),
+                createTopic(TOPIC).adminKeyName(ADMIN_KEY).withConsensusCustomFee(fixedConsensusHbarFee(2, COLLECTOR)),
 
                 // Testing Raw SubmitMessage to Topic w/ Low Max Fee
                 submitMessageTo(TOPIC)
@@ -1962,21 +1960,20 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                 getTopicInfo(TOPIC).hasSeqNo(0),
 
                 // Testing Scheduled SubmitMessage to Topic w/ Low Max Fee
-                scheduleCreate("schedule",
-                        submitMessageTo(TOPIC)
-                                .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
-                                .message("Test")
-                                .payingWith(SUBMITTER))
+                scheduleCreate(
+                                "schedule",
+                                submitMessageTo(TOPIC)
+                                        .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                                        .message("Test")
+                                        .payingWith(SUBMITTER))
                         .payingWith(DEFAULT_PAYER)
                         .designatingPayer(SUBMITTER)
                         .via(SCHEDULED_TX)
                         .hasKnownStatus(SUCCESS),
-
                 scheduleSign("schedule")
                         .payingWith(SUBMITTER)
                         .via(SIGNED_SCHEDULED_TX)
                         .hasKnownStatus(SUCCESS),
-                getTopicInfo(TOPIC).hasSeqNo(0)
-        );
+                getTopicInfo(TOPIC).hasSeqNo(0));
     }
 }
