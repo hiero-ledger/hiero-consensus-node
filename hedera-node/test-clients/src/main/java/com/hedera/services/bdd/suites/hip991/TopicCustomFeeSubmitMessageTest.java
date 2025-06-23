@@ -1976,7 +1976,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         .payingWith(SUBMITTER)
                         .via(SIGNED_SCHEDULED_TX)
                         .hasKnownStatus(SUCCESS),
-                getTopicInfo(TOPIC).hasSeqNo(1)
+                getTopicInfo(TOPIC).hasSeqNo(0)
         );
     }
 }
