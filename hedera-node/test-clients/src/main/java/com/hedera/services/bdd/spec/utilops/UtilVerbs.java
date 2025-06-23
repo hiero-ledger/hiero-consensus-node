@@ -759,7 +759,17 @@ public class UtilVerbs {
      * @return the operation that sleeps until the beginning of the next block stream block
      */
     public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
-        return new HapiSpecWaitUntilNextBlock();
+        return waitUntilNextBlocks(1);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next N block stream blocks.
+     *
+     * @param blocksToWait the number of blocks to wait for
+     * @return the operation that sleeps until the beginning of the next N block stream blocks
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlocks(final int blocksToWait) {
+        return new HapiSpecWaitUntilNextBlock().waitingForBlocks(blocksToWait);
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(

@@ -346,11 +346,11 @@ public class NodeCreateTest {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.gossipFqdnRestricted"})
+    @LeakyHapiTest(overrides = {"nodes.gossipFqdnRestricted", "nodes.webProxyEndpointsEnabled"})
     final Stream<DynamicTest> webProxySetWhenNotEnabledReturnsNotSupported() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate();
         return hapiTest(
-                overriding("nodes.gossipFqdnRestricted", "false"),
+                overridingTwo("nodes.gossipFqdnRestricted", "false", "nodes.webProxyEndpointsEnabled", "false"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate.hasKnownStatus(GRPC_WEB_PROXY_NOT_SUPPORTED));
     }
