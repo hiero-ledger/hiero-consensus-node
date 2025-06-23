@@ -6,7 +6,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
@@ -17,7 +19,7 @@ import java.util.List;
  * Translates a file update transaction into a {@link SingleTransactionRecord}, updating
  * {@link BaseTranslator} context when a special file is changed.
  */
-public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
+public class AtomicBatchTranslator implements BlockTransactionPartsTranslator {
     public static final long EXCHANGE_RATES_FILE_NUM = 112L;
 
     @Override
@@ -46,9 +48,17 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
                                 // when the fileUpdate transaction is inside an AtomicBatch it is
                                 // treated as a child and the role is not set to PARENT or STARTING_PARENT
                                 if (fileId.fileNum() == EXCHANGE_RATES_FILE_NUM) {
-                                    baseTranslator.updateActiveRates(stateChange);
-                                    if (!parts.body().hasBatchKey()) {
-                                        receiptBuilder.exchangeRate(baseTranslator.activeRates());
+                                    final var contents = stateChange
+                                            .mapUpdateOrThrow()
+                                            .valueOrThrow()
+                                            .fileValueOrThrow()
+                                            .contents();
+                                    try {
+                                        final var activeRates = ExchangeRateSet.PROTOBUF.parse(contents);
+                                        receiptBuilder.exchangeRate(activeRates);
+                                    } catch (ParseException e) {
+                                        throw new IllegalStateException(
+                                                "Rates file updated with unparseable contents", e);
                                     }
                                 }
                             }
