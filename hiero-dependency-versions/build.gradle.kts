@@ -25,7 +25,7 @@ val hederaCryptography = "0.2.3-SNAPSHOT"
 val helidon = "4.2.2"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
-val log4j = "2.25.0"
+val log4j = "2.24.3"
 val mockito = "5.18.0"
 val pbj = "0.11.6" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
@@ -81,7 +81,7 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
-    api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
+    api("com.goterl:lazysodium-java:5.1.4") { because("lazysodium.java") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
     api("commons-codec:commons-codec:1.18.0") { because("org.apache.commons.codec") }
