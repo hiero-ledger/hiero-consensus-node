@@ -14,12 +14,7 @@ tasks.withType<JavaCompile>().configureEach {
     )
 }
 
-mainModuleInfo {
-    annotationProcessor("com.swirlds.config.processor")
-
-    runtimeOnly("resource.loader")
-    runtimeOnly("com.sun.jna")
-}
+mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
