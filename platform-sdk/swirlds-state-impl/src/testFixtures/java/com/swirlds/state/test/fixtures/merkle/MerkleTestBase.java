@@ -20,6 +20,7 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskKey;
 import com.swirlds.state.merkle.disk.OnDiskKeySerializer;
@@ -251,7 +252,7 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("com.swirlds.virtualmap");
             registry.registerConstructables("com.swirlds.common.merkle");
             registry.registerConstructables("com.swirlds.common");
-            registry.registerConstructables("org.hiero.base.crypto");
+            registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
             ConstructableRegistry.getInstance()
@@ -346,5 +347,11 @@ public class MerkleTestBase extends StateTestBase {
     @AfterEach
     void cleanUp() {
         MerkleDb.resetDefaultInstancePath();
+
+        if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
+            fruitVirtualMap.release();
+        }
+
+        MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

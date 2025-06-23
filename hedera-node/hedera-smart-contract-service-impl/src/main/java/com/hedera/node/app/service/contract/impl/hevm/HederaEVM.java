@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementHederaGasUsage;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.checkHederaOpsDuration;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 
-import java.util.Map;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
@@ -56,35 +59,51 @@ import org.slf4j.LoggerFactory;
  * Adds support for calculating an alternate ops gas schedule tracking.
  */
 public class HederaEVM extends EVM {
-    private final OperationRegistry operations;
     private static final Logger LOG = LoggerFactory.getLogger(HederaEVM.class);
+
+    private final OperationRegistry operations;
     private final GasCalculator gasCalculator;
     private final Operation endOfScriptStop;
     private final EvmSpecVersion evmSpecVersion;
-    private final boolean enableShanghai;
-    private final Map<Integer, Long> hederaGasSchedule;
 
+    // Optimized operation flags
+    private final boolean enableShanghai;
+    private final HederaOpsDuration hederaOpsDuration;
+
+    /**
+     * Instantiates a new Evm.
+     *
+     * @param operations       the operations
+     * @param gasCalculator    the gas calculator
+     * @param evmConfiguration the evm configuration
+     * @param evmSpecVersion   the evm spec version
+     */
     public HederaEVM(
-            OperationRegistry operations,
-            GasCalculator gasCalculator,
-            EvmConfiguration evmConfiguration,
-            EvmSpecVersion evmSpecVersion,
-            Map<Integer, Long> hederaGasSchedule) {
+            @NonNull final OperationRegistry operations,
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final EvmConfiguration evmConfiguration,
+            @NonNull final EvmSpecVersion evmSpecVersion,
+            @NonNull final HederaOpsDuration opsDuration) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
         this.endOfScriptStop = new VirtualOperation(new StopOperation(gasCalculator));
         this.evmSpecVersion = evmSpecVersion;
-        this.enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
-        this.hederaGasSchedule = hederaGasSchedule;
+
+        enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
+        this.hederaOpsDuration = opsDuration;
     }
 
     @Override
+    @SuppressWarnings({"java:S3776", "java:S1479"})
     public void runToHalt(MessageFrame frame, OperationTracer tracing) {
         this.evmSpecVersion.maybeWarnVersion();
         OperationTracer operationTracer = tracing == OperationTracer.NO_TRACING ? null : tracing;
         byte[] code = frame.getCode().getBytes().toArrayUnsafe();
         Operation[] operationArray = this.operations.getOperations();
+        long usedOpsDuration = 0;
+        final long currentOpsDuration = getHederaOpsDuration(frame);
+        final long hederaOpsDurationShift = this.hederaOpsDuration.durationCheckShift();
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -134,9 +153,8 @@ public class HederaEVM extends EVM {
                     case 86 -> JumpOperation.staticOperation(frame);
                     case 87 -> JumpiOperation.staticOperation(frame);
                     case 91 -> JumpDestOperation.JUMPDEST_SUCCESS;
-                    case 95 -> this.enableShanghai
-                            ? Push0Operation.staticOperation(frame)
-                            : InvalidOperation.INVALID_RESULT;
+                    case 95 ->
+                        this.enableShanghai ? Push0Operation.staticOperation(frame) : InvalidOperation.INVALID_RESULT;
                     case 96,
                             97,
                             98,
@@ -169,14 +187,15 @@ public class HederaEVM extends EVM {
                             125,
                             126,
                             127 -> PushOperation.staticOperation(frame, code, pc, opcode - 95);
-                    case 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 -> DupOperation
-                            .staticOperation(frame, opcode - 127);
-                    case 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159 -> SwapOperation
-                            .staticOperation(frame, opcode - 143);
+                    case 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 ->
+                        DupOperation.staticOperation(frame, opcode - 127);
+                    case 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159 ->
+                        SwapOperation.staticOperation(frame, opcode - 143);
                     default -> {
                         frame.setCurrentOperation(currentOperation);
                         yield currentOperation.execute(frame, this);
-                    }};
+                    }
+                };
             } catch (OverflowException var13) {
                 result = OVERFLOW_RESPONSE;
             } catch (UnderflowException var14) {
@@ -197,7 +216,21 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                incrementHederaGasUsage(frame, hederaGasSchedule.getOrDefault(opcode, result.getGasCost()));
+                usedOpsDuration += hederaOpsDuration
+                        .getOpsDuration()
+                        .getOrDefault(
+                                opcode,
+                                result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR);
+
+                // Check the duration of the operations every durationCheckShift opcodes.
+                // This is to avoid checking the duration too frequently and slowing down execution.
+                // We base the shift on the program counter and if the code length is less than the shift we check on
+                // every iteration.
+                // It can be adjusted based on performance requirements.
+                if (hederaOpsDurationShift == 0
+                        || (pc % hederaOpsDurationShift == 0 || code.length < hederaOpsDurationShift)) {
+                    checkHederaOpsDuration(frame, currentOpsDuration + usedOpsDuration);
+                }
             }
 
             if (frame.getState() == State.CODE_EXECUTING) {
@@ -210,5 +243,9 @@ public class HederaEVM extends EVM {
                 operationTracer.tracePostExecution(frame, result);
             }
         }
+        /*
+         ** As above update this line if a new EVM class needs to be supported.
+         */
+        incrementOpsDuration(frame, usedOpsDuration);
     }
 }

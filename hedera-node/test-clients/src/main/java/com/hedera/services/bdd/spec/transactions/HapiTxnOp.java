@@ -180,9 +180,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return finalizedTxn(spec, opBodyDef(spec));
     }
 
+    public void setTransactionSubmitted(final Transaction txn) {
+        this.txnSubmitted = txn;
+    }
+
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        fixNodeFor(spec);
         configureTlsFor(spec);
         int retryCount = 1;
         while (true) {
@@ -237,7 +240,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 }
             } finally {
                 /* Used by superclass to perform standard housekeeping. */
-                txnSubmitted = txn;
+                setTransactionSubmitted(txn);
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
@@ -783,13 +786,13 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    public T setNodeId(AccountID account) {
-        node = Optional.of(account);
+    public T setNode(String accountNum) {
+        node = Optional.of(accountNum);
         return self();
     }
 
-    public T setNode(String accountNum) {
-        nodeNum = Optional.of(accountNum);
+    public T setNode(long accountNum) {
+        node = Optional.of(Long.toString(accountNum));
         return self();
     }
 
@@ -890,11 +893,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
-    public Optional<AccountID> getNode() {
+    public Optional<String> getNode() {
         return node;
-    }
-
-    public Optional<String> getNodeNum() {
-        return nodeNum;
     }
 }

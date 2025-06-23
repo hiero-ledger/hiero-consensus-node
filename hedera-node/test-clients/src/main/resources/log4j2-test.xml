@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+	<Appenders>
+		<Console name="Console" target="SYSTEM_OUT">
+            <!-- 'hc' -> 'HapiClients' -->
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;hc&gt; %-5p  %-4L %c{1} - %m%n"/>
+		</Console>
+		<RollingFile name="RollingFile" fileName="output/hapi-client.log"
+					 filePattern="output/hapi-client.log-%d{yyyy-MM-dd}-%i.log" >
+			<PatternLayout>
+				<!-- 'tc' -> 'test-clients' -->
+				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;tc&gt; %-5p %-4L %c{1} - %m%n</pattern>
+			</PatternLayout>
+			<Policies>
+				<SizeBasedTriggeringPolicy size="5 MB" />
+			</Policies>
+			<DefaultRolloverStrategy max="10"/>
+		</RollingFile>
+
+		<!-- Transaction state logs -->
+		<RollingFile name="TransactionStateLogs"
+								 fileName="output/transaction-state/state-changes.log"
+								 filePattern="output/transaction-state/state-changes-%d{yyyy-MM-dd--HH-mm-ss}-%i.log">
+			<PatternLayout>
+				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} - %m{nolookups}%n</pattern>
+			</PatternLayout>
+			<SizeBasedTriggeringPolicy size="50 MB" />
+			<DefaultRolloverStrategy max="10"/>
+		</RollingFile>
+
+		<!-- State logs -->
+		<RollingFile name="StateLogs"
+								 fileName="output/state/state-changes.log"
+								 filePattern="output/state/state-changes-%d{yyyy-MM-dd--HH-mm-ss}-%i.log">
+			<PatternLayout>
+				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} - %m{nolookups}%n</pattern>
+			</PatternLayout>
+			<SizeBasedTriggeringPolicy size="50 MB" />
+			<DefaultRolloverStrategy max="10"/>
+		</RollingFile>
+	</Appenders>
+	<Loggers>
+
+		<!-- Send transaction state logs to their own appender   -->
+		<Logger name="com.hedera.node.app.state.logging.TransactionStateLogger" level="info" additivity="false">
+			<AppenderRef ref="TransactionStateLogs"/>
+		</Logger>
+
+		<!-- Send state logs to their own appender   -->
+		<Logger name="com.swirlds.state.merkle.logging.StateLogger" level="info" additivity="false">
+			<AppenderRef ref="StateLogs"/>
+		</Logger>
+
+		<Root level="INFO">
+			<AppenderRef ref="Console"/> 
+			<AppenderRef ref="RollingFile"/>
+		</Root>
+		<Logger name="com.swirlds" level="WARN" additivity="false">
+			<AppenderRef ref="Console"/>
+			<AppenderRef ref="RollingFile"/>
+		</Logger>
+	</Loggers>
+</Configuration>

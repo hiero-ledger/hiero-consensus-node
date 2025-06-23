@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.ethereum.EthereumSuite.GAS_LIMIT;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.GAS_TO_OFFER;
@@ -44,7 +45,6 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
-import com.hedera.services.bdd.suites.contract.Utils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -96,8 +96,8 @@ public class CreateWithAliasDisabledTest {
                                                 .getKey(ECDSA_KEY)
                                                 .getECDSASecp256K1()
                                                 .toByteArray(),
-                                        HapiParserUtil.asHeadlongAddress((byte[]) ArrayUtils.toPrimitive(
-                                                Utils.asSolidityAddress((int) spec.shard(), spec.realm(), 15252L))),
+                                        HapiParserUtil.asHeadlongAddress(
+                                                (byte[]) ArrayUtils.toPrimitive(asSolidityAddress(spec, 15252L))),
                                         HapiParserUtil.asHeadlongAddress(
                                                 asAddress(spec.registry().getTokenID(EXISTING_TOKEN))),
                                         HapiParserUtil.asHeadlongAddress(

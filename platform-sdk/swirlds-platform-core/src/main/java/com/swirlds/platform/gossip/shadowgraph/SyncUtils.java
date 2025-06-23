@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -56,7 +55,7 @@ public final class SyncUtils {
 
     /**
      * Send the tips and event window to the peer. This is the first data exchanged during a sync (after protocol
-     * negotiation). The complementary function to {@link #readTheirTipsAndEventWindow(Connection, int, AncientMode)}.
+     * negotiation). The complementary function to {@link #readTheirTipsAndEventWindow(Connection, int)}.
      *
      * @param connection  the connection to write to
      * @param eventWindow the event window to write
@@ -98,13 +97,12 @@ public final class SyncUtils {
      *
      * @param connection    the connection to read from
      * @param numberOfNodes the number of nodes in the network
-     * @param ancientMode   the current ancient mode
      * @return a {@link Callable} that reads the tips and event window
      */
     public static Callable<TheirTipsAndEventWindow> readTheirTipsAndEventWindow(
-            final Connection connection, final int numberOfNodes, @NonNull final AncientMode ancientMode) {
+            final Connection connection, final int numberOfNodes) {
         return () -> {
-            final EventWindow eventWindow = deserializeEventWindow(connection.getDis(), ancientMode);
+            final EventWindow eventWindow = deserializeEventWindow(connection.getDis());
 
             final List<Hash> tips = connection.getDis().readTipHashes(numberOfNodes);
 
@@ -312,9 +310,9 @@ public final class SyncUtils {
                             // we are done reading event, tell the writer thread to send a COMM_SYNC_DONE
                             eventReadingDone.countDown();
                         }
-                            // while we are waiting for the peer to tell us they are done, they might send
-                            // COMM_SYNC_ONGOING
-                            // if they are still busy reading events
+                        // while we are waiting for the peer to tell us they are done, they might send
+                        // COMM_SYNC_ONGOING
+                        // if they are still busy reading events
                         case ByteConstants.COMM_SYNC_ONGOING -> {
                             // peer is still reading events, waiting for them to finish
                             if (logger.isDebugEnabled(SYNC_INFO.getMarker())) {
@@ -333,8 +331,10 @@ public final class SyncUtils {
                             }
                             return eventsRead;
                         }
-                        default -> throw new SyncException(
-                                connection, String.format("while reading events, received unexpected byte %02x", next));
+                        default ->
+                            throw new SyncException(
+                                    connection,
+                                    String.format("while reading events, received unexpected byte %02x", next));
                     }
                 }
             } finally {
@@ -445,15 +445,13 @@ public final class SyncUtils {
      *                         predicate
      * @param myEventWindow    the event window of this node
      * @param theirEventWindow the event window of the peer node
-     * @param ancientMode      the current ancient mode
      * @return the predicate
      */
     @NonNull
     public static Predicate<ShadowEvent> unknownNonAncient(
             @NonNull final Collection<ShadowEvent> knownShadows,
             @NonNull final EventWindow myEventWindow,
-            @NonNull final EventWindow theirEventWindow,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final EventWindow theirEventWindow) {
 
         // When searching for events, we don't want to send any events that are known to be ancient to the peer.
         // We should never be syncing with a peer if their ancient threshold is less than our expired threshold
@@ -463,8 +461,8 @@ public final class SyncUtils {
         // since those events may be unlinked and could cause race conditions if accessed.
 
         final long minimumSearchThreshold =
-                Math.max(myEventWindow.getExpiredThreshold(), theirEventWindow.getAncientThreshold());
-        return s -> ancientMode.selectIndicator(s.getEvent()) >= minimumSearchThreshold && !knownShadows.contains(s);
+                Math.max(myEventWindow.expiredThreshold(), theirEventWindow.ancientThreshold());
+        return s -> s.getEvent().getBirthRound() >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**
@@ -575,9 +573,9 @@ public final class SyncUtils {
             @NonNull final SerializableDataOutputStream out, @NonNull final EventWindow eventWindow)
             throws IOException {
 
-        out.writeLong(eventWindow.getLatestConsensusRound());
-        out.writeLong(eventWindow.getAncientThreshold());
-        out.writeLong(eventWindow.getExpiredThreshold());
+        out.writeLong(eventWindow.latestConsensusRound());
+        out.writeLong(eventWindow.ancientThreshold());
+        out.writeLong(eventWindow.expiredThreshold());
 
         // Intentionally don't bother writing ancient mode, the peer will always be using the same ancient mode as us
     }
@@ -586,17 +584,20 @@ public final class SyncUtils {
      * Deserialize an event window from the given input stream.
      *
      * @param in          the input stream
-     * @param ancientMode the currently configured ancient mode
      * @return the deserialized event window
      */
     @NonNull
-    public static EventWindow deserializeEventWindow(
-            @NonNull final SerializableDataInputStream in, @NonNull final AncientMode ancientMode) throws IOException {
+    public static EventWindow deserializeEventWindow(@NonNull final SerializableDataInputStream in) throws IOException {
 
         final long latestConsensusRound = in.readLong();
         final long ancientThreshold = in.readLong();
         final long expiredThreshold = in.readLong();
 
-        return new EventWindow(latestConsensusRound, ancientThreshold, expiredThreshold, ancientMode);
+        return new EventWindow(
+                latestConsensusRound,
+                // by default, we set the birth round to the pending round
+                latestConsensusRound + 1,
+                ancientThreshold,
+                expiredThreshold);
     }
 }

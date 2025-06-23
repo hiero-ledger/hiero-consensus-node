@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.accounts;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.Yahcli;
@@ -54,14 +55,22 @@ public class SendCommand implements Callable<Integer> {
             description = "for an HTS token denomination, the number of decimals")
     Integer decimals;
 
+    @CommandLine.Option(
+            names = {"--inside-batch"},
+            paramLabel = "<AtomicBatch?>",
+            defaultValue = "false",
+            description = "whether to send the transfer inside a batch")
+    Boolean insideBatch;
+
     @Override
     public Integer call() throws Exception {
         var config = ConfigUtils.configFrom(accountsCommand.getYahcli());
 
-        if (!config.isAllowListEmptyOrContainsAccount(Long.parseLong(beneficiary))) {
+        var normalizedBeneficiary = normalizePossibleIdLiteral(config, beneficiary);
+        if (!config.isAllowListEmptyOrContainsAccount(Long.parseLong(normalizedBeneficiary))) {
             throw new CommandLine.ParameterException(
                     accountsCommand.getYahcli().getSpec().commandLine(),
-                    "Beneficiary " + beneficiary + " supposed to be in allow list");
+                    "Beneficiary " + normalizedBeneficiary + " supposed to be in allow list");
         }
 
         long amount;
@@ -75,11 +84,12 @@ public class SendCommand implements Callable<Integer> {
         final var effectiveMemo = memo != null ? memo : "";
         var delegate = new SendSuite(
                 config,
-                beneficiary,
+                normalizedBeneficiary,
                 amount,
                 effectiveMemo,
                 denomination,
-                accountsCommand.getYahcli().isScheduled());
+                accountsCommand.getYahcli().isScheduled(),
+                insideBatch);
         delegate.runSuiteSync();
 
         final var firstSpec = delegate.getFinalSpecs().getFirst();
@@ -90,7 +100,7 @@ public class SendCommand implements Callable<Integer> {
                     + " "
                     + originalDenomination
                     + " to account "
-                    + asEntityString(firstSpec.shard(), firstSpec.realm(), beneficiary)
+                    + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
                     + " with memo: '"
                     + memo
                     + "'");
@@ -101,7 +111,7 @@ public class SendCommand implements Callable<Integer> {
                     + " "
                     + originalDenomination
                     + " to account "
-                    + beneficiary
+                    + normalizedBeneficiary
                     + " with memo: '"
                     + memo
                     + "'");

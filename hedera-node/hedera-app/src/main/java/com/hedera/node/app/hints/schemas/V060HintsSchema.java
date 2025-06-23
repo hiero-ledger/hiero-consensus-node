@@ -30,7 +30,7 @@ public class V060HintsSchema extends Schema {
     public static final String CRS_PUBLICATIONS_KEY = "CRS_PUBLICATIONS";
     private static final Logger log = LogManager.getLogger(V060HintsSchema.class);
 
-    private static final long MAX_CRS_PUBLICATIONS = 1L << 31;
+    private static final long MAX_CRS_PUBLICATIONS = 1L << 10;
 
     private final HintsContext signingContext;
     private final HintsLibrary library;

@@ -3,11 +3,14 @@ package com.hedera.services.yahcli.commands.nodes;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.CreateCommand.allBytesAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -87,26 +90,46 @@ public class UpdateCommand implements Callable<Integer> {
             paramLabel = "path to the updated admin key to use")
     String newAdminKeyPath;
 
+    @CommandLine.Option(
+            names = {"--stop-declining-rewards", "--stopDecliningRewards"},
+            paramLabel = "triggers a node to begin accepting reward payments")
+    Boolean stopDecliningRewards;
+
+    @CommandLine.Option(
+            names = {"--start-declining-rewards", "--startDecliningRewards"},
+            paramLabel = "triggers a node to begin declining reward payments")
+    Boolean startDecliningRewards;
+
+    @CommandLine.Option(
+            names = {"--grpcProxyEndpoint"},
+            paramLabel =
+                    "updated web proxy endpoint for gRPC from non-gRPC clients, e.g. 10.0.0.1:50051,my.fqdn.com:50051")
+    String grpcProxyEndpoint;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-        final var targetNodeId = validatedNodeId(nodeId);
+        final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        final var targetNodeId = validatedNodeId(normalizedNodeId);
         final AccountID newAccountId;
         final String feeAccountKeyLoc;
         final List<ServiceEndpoint> newGossipEndpoints;
         final List<ServiceEndpoint> newHapiEndpoints;
         final byte[] newGossipCaCertificate;
         final byte[] newHapiCertificateHash;
-        if (accountId == null) {
+        final ServiceEndpoint newGrpcProxyEndpoint;
+        final var normalizedAccountId = normalizePossibleIdLiteral(config, accountId);
+        if (normalizedAccountId == null) {
             newAccountId = null;
             feeAccountKeyLoc = null;
         } else {
-            newAccountId = validatedAccountId(accountId);
+            newAccountId = validatedAccountId(
+                    config.shard().getShardNum(), config.realm().getRealmNum(), normalizedAccountId);
             final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + newAccountId.getAccountNum());
             feeAccountKeyLoc = feeAccountKeyFile.map(File::getPath).orElse(null);
             if (feeAccountKeyLoc == null) {
-                COMMON_MESSAGES.warn("No key on disk for account 0.0." + newAccountId.getAccountNum()
+                COMMON_MESSAGES.warn("No key on disk for account " + newAccountId.getAccountNum()
                         + ", payer and admin key signatures must meet its signing requirements");
             }
         }
@@ -128,6 +151,11 @@ public class UpdateCommand implements Callable<Integer> {
         } else {
             newHapiEndpoints = null;
         }
+        if (grpcProxyEndpoint != null) {
+            newGrpcProxyEndpoint = asTypedServiceEndpoint(grpcProxyEndpoint);
+        } else {
+            newGrpcProxyEndpoint = null;
+        }
         if (gossipCaCertificatePath != null) {
             newGossipCaCertificate = validatedX509Cert(gossipCaCertificatePath, null, null, yahcli);
         } else if (gossipCaCertificatePfxPath != null) {
@@ -143,8 +171,14 @@ public class UpdateCommand implements Callable<Integer> {
         } else {
             newHapiCertificateHash = null;
         }
+        Boolean declineReward = null;
+        if (startDecliningRewards != null) {
+            declineReward = Boolean.TRUE;
+        } else if (stopDecliningRewards != null) {
+            declineReward = Boolean.FALSE;
+        }
         final var delegate = new UpdateNodeSuite(
-                config.asSpecConfig(),
+                config,
                 targetNodeId,
                 newAccountId,
                 feeAccountKeyLoc,
@@ -154,7 +188,9 @@ public class UpdateCommand implements Callable<Integer> {
                 newGossipEndpoints,
                 newHapiEndpoints,
                 newGossipCaCertificate,
-                newHapiCertificateHash);
+                newHapiCertificateHash,
+                declineReward,
+                newGrpcProxyEndpoint);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
@@ -176,14 +212,17 @@ public class UpdateCommand implements Callable<Integer> {
         }
     }
 
-    private AccountID validatedAccountId(@NonNull final String accountNum) {
+    private AccountID validatedAccountId(final long shard, final long realm, @NonNull final String accountNum) {
         try {
             return AccountID.newBuilder()
+                    .setShardNum(shard)
+                    .setRealmNum(realm)
                     .setAccountNum(Long.parseLong(accountNum))
                     .build();
         } catch (NumberFormatException e) {
             throw new CommandLine.ParameterException(
-                    nodesCommand.getYahcli().getSpec().commandLine(), "Invalid account number '" + accountNum + "'");
+                    nodesCommand.getYahcli().getSpec().commandLine(),
+                    "Invalid account number '" + asEntityString(shard, realm, accountNum) + "'");
         }
     }
 }

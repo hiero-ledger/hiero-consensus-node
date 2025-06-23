@@ -126,7 +126,7 @@ jobs:
         run: echo "short-id=$(echo -n "${{ github.sha }}" | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
 
       - name: Send Slack Notification
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -141,7 +141,7 @@ jobs:
                         "type": "header",
                         "text": {
                           "type": "plain_text",
-                          "text": ":evergreen_tree: Hedera Services - Automatic Release Branching",
+                          "text": ":evergreen_tree: Hiero Consensus Node - Automatic Release Branching",
                           "emoji": true
                         }
                       },
@@ -278,7 +278,7 @@ jobs:
           echo "short-id=$(echo -n "${{ steps.git-commit.outputs.commit_long_sha }}" | tr -d '[:space:]' | cut -c1-8)" >> "${GITHUB_OUTPUT}"
 
       - name: Send Slack Notification
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -293,7 +293,7 @@ jobs:
                         "type": "header",
                         "text": {
                           "type": "plain_text",
-                          "text": ":ideograph_advantage: Hedera Services - Automatic Release Tagging",
+                          "text": ":ideograph_advantage: Hiero Consensus Node - Automatic Release Tagging",
                           "emoji": true
                         }
                       },

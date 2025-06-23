@@ -30,6 +30,7 @@ import com.hedera.node.app.service.contract.impl.exec.v046.V046Module;
 import com.hedera.node.app.service.contract.impl.exec.v050.V050Module;
 import com.hedera.node.app.service.contract.impl.exec.v051.V051Module;
 import com.hedera.node.app.service.contract.impl.exec.v062.V062Module;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -76,6 +77,12 @@ public interface ContractServiceModule {
     @Singleton
     static EvmConfiguration provideEvmConfiguration() {
         return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED);
+    }
+
+    @Provides
+    @Singleton
+    static HederaOpsDuration provideHederaOpsDuration() {
+        return new HederaOpsDuration();
     }
 
     /**

@@ -10,6 +10,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
@@ -40,6 +41,9 @@ public class BlockUnitSplit {
         private TransactionResult result;
 
         @Nullable
+        private List<TraceData> traces;
+
+        @Nullable
         private List<TransactionOutput> outputs;
 
         @Nullable
@@ -52,6 +56,7 @@ public class BlockUnitSplit {
             parts = null;
             result = null;
             outputs = null;
+            traces = null;
             role = null;
         }
 
@@ -61,7 +66,7 @@ public class BlockUnitSplit {
          * @return whether the pending parts are complete
          */
         boolean areComplete() {
-            return parts != null && result != null;
+            return result != null;
         }
 
         void addOutput(@NonNull final TransactionOutput output) {
@@ -71,13 +76,17 @@ public class BlockUnitSplit {
             outputs.add(output);
         }
 
+        void addTrace(@NonNull final TraceData trace) {
+            if (traces == null) {
+                traces = new ArrayList<>();
+            }
+            traces.add(trace);
+        }
+
         BlockTransactionParts toBlockTransactionParts() {
             requireNonNull(role);
-            requireNonNull(parts);
             requireNonNull(result);
-            return outputs == null
-                    ? BlockTransactionParts.sansOutput(parts, result, role)
-                    : BlockTransactionParts.withOutputs(parts, result, role, outputs.toArray(TransactionOutput[]::new));
+            return new BlockTransactionParts(parts, result, role, traces, outputs);
         }
     }
 
@@ -98,8 +107,9 @@ public class BlockUnitSplit {
         for (int i = 0, n = block.items().size(); i < n; i++) {
             final var item = block.items().get(i);
             switch (item.item().kind()) {
-                case UNSET, RECORD_FILE -> throw new IllegalStateException(
-                        "Cannot split block with item of kind " + item.item().kind());
+                case UNSET, RECORD_FILE ->
+                    throw new IllegalStateException("Cannot split block with item of kind "
+                            + item.item().kind());
                 case BLOCK_HEADER, EVENT_HEADER, ROUND_HEADER, FILTERED_ITEM_HASH, BLOCK_PROOF -> {
                     // No-op
                 }
@@ -122,8 +132,16 @@ public class BlockUnitSplit {
                         pendingParts.parts = nextParts;
                     }
                 }
-                case TRANSACTION_RESULT -> pendingParts.result = item.transactionResultOrThrow();
+                case TRANSACTION_RESULT -> {
+                    if (pendingParts.result != null) {
+                        unitParts.add(pendingParts.toBlockTransactionParts());
+                        pendingParts.clear();
+                        pendingParts.role = STANDALONE;
+                    }
+                    pendingParts.result = item.transactionResultOrThrow();
+                }
                 case TRANSACTION_OUTPUT -> pendingParts.addOutput(item.transactionOutputOrThrow());
+                case TRACE_DATA -> pendingParts.addTrace(item.traceDataOrThrow());
                 case STATE_CHANGES -> {
                     if (genesisStateChanges != null) {
                         genesisStateChanges.addAll(item.stateChangesOrThrow().stateChanges());

@@ -2,9 +2,6 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETWORK_DELAY;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
@@ -17,64 +14,93 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.BooleanSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.NodeFilter;
-import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
-import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
-import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
+import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.internal.AbstractNetwork;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceiver {
+public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.TimeTickReceiver {
 
-    private static final Logger log = LogManager.getLogger(TurtleNetwork.class);
+    private static final Logger log = LogManager.getLogger();
 
-    private enum State {
-        INIT,
-        RUNNING,
-        SHUTDOWN
-    }
+    private static final Duration DEFAULT_START_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_FREEZE_TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ZERO;
 
     private final Randotron randotron;
     private final TurtleTimeManager timeManager;
+    private final TurtleLogging logging;
     private final Path rootOutputDirectory;
     private final List<TurtleNode> nodes = new ArrayList<>();
+    private final TurtleTransactionGenerator transactionGenerator;
 
-    private List<Node> publicNodes = List.of();
+    private List<Node> publicNodes = Collections.unmodifiableList(nodes);
     private ExecutorService executorService;
     private SimulatedNetwork simulatedNetwork;
-
-    private State state = State.INIT;
 
     /**
      * Constructor for TurtleNetwork.
      *
-     * @param randotron the random generator
-     * @param timeManager the time manager
+     * @param randotron           the random generator
+     * @param timeManager         the time manager
+     * @param logging             the logging utility
      * @param rootOutputDirectory the directory where the node output will be stored, like saved state and so on
+     * @param transactionGenerator the transaction generator that generates a steady flow of transactions to all nodes
      */
     public TurtleNetwork(
             @NonNull final Randotron randotron,
             @NonNull final TurtleTimeManager timeManager,
-            @NonNull final Path rootOutputDirectory) {
+            @NonNull final TurtleLogging logging,
+            @NonNull final Path rootOutputDirectory,
+            @NonNull final TurtleTransactionGenerator transactionGenerator) {
+        super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.randotron = requireNonNull(randotron);
         this.timeManager = requireNonNull(timeManager);
+        this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
+        this.transactionGenerator = requireNonNull(transactionGenerator);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected TimeManager timeManager() {
+        return timeManager;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
+        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected TransactionGenerator transactionGenerator() {
+        return transactionGenerator;
     }
 
     /**
@@ -83,9 +109,8 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     @Override
     @NonNull
     public List<Node> addNodes(final int count) {
-        if (state != State.INIT) {
-            throw new IllegalStateException("Cannot add nodes after the network has been started.");
-        }
+        throwIfInState(State.RUNNING, "Cannot add nodes after the network has been started.");
+        throwIfInState(State.SHUTDOWN, "Cannot add nodes after the network has been started.");
         if (!nodes.isEmpty()) {
             throw new UnsupportedOperationException("Adding nodes incrementally is not supported yet.");
         }
@@ -107,35 +132,14 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
                 .toList();
         nodes.addAll(nodeList);
 
-        publicNodes = nodes.stream().map(Node.class::cast).toList();
         return publicNodes;
     }
 
     private TurtleNode createTurtleNode(
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
-        return new TurtleNode(randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, outputDir);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void start(@NonNull final Duration timeout) {
-        if (state != State.INIT) {
-            throw new IllegalStateException("Cannot start the network more than once.");
-        }
-
-        log.info("Starting network...");
-        state = State.RUNNING;
-        for (final TurtleNode node : nodes) {
-            node.start();
-        }
-
-        log.debug("Waiting for nodes to become active...");
-        if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
-            fail("Timeout while waiting for nodes to become active.");
-        }
+        return new TurtleNode(
+                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
     }
 
     /**
@@ -160,63 +164,13 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
      * {@inheritDoc}
      */
     @Override
-    public void prepareUpgrade(@NonNull Duration timeout) throws InterruptedException {
-        if (state != State.RUNNING) {
-            throw new IllegalStateException("Cannot prepare upgrade when the network is not running.");
-        }
-        log.info("Preparing upgrade...");
-
-        log.debug("Sending TurtleFreezeTransaction transaction...");
-        final TurtleTransaction freezeTransaction =
-                TransactionFactory.createFreezeTransaction(timeManager.time().now());
-        nodes.getFirst().submitTransaction(freezeTransaction.toByteArray());
-
-        log.debug("Waiting for nodes to freeze...");
-        if (!timeManager.waitForCondition(allNodesInStatus(FREEZE_COMPLETE), timeout)) {
-            fail("Timeout while waiting for all nodes to freeze.");
-        }
-
-        log.debug("Shutting down nodes gracefully...");
-        for (final TurtleNode node : nodes) {
-            node.shutdownGracefully(timeout);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void resume(@NonNull Duration timeout) {
-        log.info("Resuming network...");
-        for (final TurtleNode node : nodes) {
-            node.revive(timeout);
-        }
-
-        log.debug("Waiting for nodes to become active again...");
-        if (!timeManager.waitForCondition(allNodesInStatus(ACTIVE), timeout)) {
-            fail("Timeout while waiting for nodes to become active.");
-        }
-    }
-
-    @NonNull
-    @Override
-    public MultipleNodeConsensusResults getConsensusResult(@NonNull NodeFilter... filters) {
-        final NodeFilter combined = NodeFilter.andAll(filters);
-        final List<SingleNodeConsensusResult> results =
-                nodes.stream().filter(combined).map(Node::getConsensusResult).toList();
-        return new MultipleNodeConsensusResultsImpl(results);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void tick(@NonNull final Instant now) {
         if (state != State.RUNNING) {
             return;
         }
 
         simulatedNetwork.tick(now);
+        transactionGenerator.tick(now, nodes);
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with
         // each other during the tick phase, and they run on separate threads to boot.
@@ -229,22 +183,15 @@ public class TurtleNetwork implements Network, TurtleTimeManager.TimeTickReceive
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
+     *
+     * @throws InterruptedException if the thread is interrupted while the network is being destroyed
      */
-    public void destroy() throws InterruptedException {
+    void destroy() throws InterruptedException {
         log.info("Destroying network...");
+        transactionGenerator.stop();
         for (final TurtleNode node : nodes) {
             node.destroy();
         }
         executorService.shutdownNow();
-    }
-
-    /**
-     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given {@link PlatformStatus}.
-     *
-     * @param status the status to check
-     * @return the {@link BooleanSupplier}
-     */
-    private BooleanSupplier allNodesInStatus(@NonNull final PlatformStatus status) {
-        return () -> nodes.stream().allMatch(node -> node.platformStatus() == status);
     }
 }

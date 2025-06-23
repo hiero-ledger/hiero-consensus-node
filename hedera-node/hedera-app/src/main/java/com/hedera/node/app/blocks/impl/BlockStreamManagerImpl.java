@@ -47,6 +47,8 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -88,6 +90,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+    public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
@@ -128,19 +131,24 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant blockTimestamp;
     private Instant consensusTimeLastRound;
     private BlockItemWriter writer;
+    // stream hashers
     private StreamingTreeHasher inputTreeHasher;
     private StreamingTreeHasher outputTreeHasher;
+    private StreamingTreeHasher consensusHeaderHasher;
+    private StreamingTreeHasher stateChangesHasher;
+    private StreamingTreeHasher traceDataHasher;
+
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
 
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
      *
-     * @param number        the block number
-     * @param contentsPath  the path to the block contents file, if not null
-     * @param blockHash     the block hash
-     * @param proofBuilder  the block proof builder
-     * @param writer        the block item writer
+     * @param number the block number
+     * @param contentsPath the path to the block contents file, if not null
+     * @param blockHash the block hash
+     * @param proofBuilder the block proof builder
+     * @param writer the block item writer
      * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
      */
     private record PendingBlock(
@@ -153,6 +161,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         /**
          * Flushes this pending block to disk, optionally including the sibling hashes needed
          * for an indirect proof of its preceding block(s).
+         *
          * @param withSiblingHashes whether to include sibling hashes for an indirect proof
          */
         public void flushPending(final boolean withSiblingHashes) {
@@ -187,6 +196,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
      */
     private boolean hasCheckedForPendingBlocks = false;
+    /**
+     * The counter for the number of blocks closed with indirect proofs.
+     */
+    private final Counter indirectProofCounter;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -199,7 +212,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Lifecycle lifecycle) {
+            @NonNull final Lifecycle lifecycle,
+            @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
         this.version = requireNonNull(version);
@@ -225,6 +239,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
+        indirectProofCounter = requireNonNull(metrics)
+                .getOrCreate(new Counter.Config("block", "numIndirectProofs")
+                        .withDescription("Number of blocks closed with indirect proofs"));
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
@@ -273,8 +290,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             runningHashManager.startBlock(blockStreamInfo);
 
             lifecycle.onOpenBlock(state);
+
             inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
             outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+            consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+            stateChangesHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+            traceDataHasher = new ConcurrentStreamingTreeHasher(executor, hashCombineBatchSize);
+
             blockNumber = blockStreamInfo.blockNumber() + 1;
             if (hintsEnabled && !hasCheckedForPendingBlocks) {
                 final var hasBeenFrozen = requireNonNull(state.getReadableStates(PlatformStateService.NAME)
@@ -378,7 +400,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
+            final var consensusHeaderHash = consensusHeaderHasher.rootHash().join();
             final var inputHash = inputTreeHasher.rootHash().join();
+            final var traceDataHash = traceDataHasher.rootHash().join();
+            final var outputHash = outputTreeHasher.rootHash().join();
+
             // This block's starting state hash is the end state hash of the last non-empty round
             final var blockStartStateHash = requireNonNull(endRoundStateHashes.get(lastRoundOfPrevBlock))
                     .join();
@@ -388,7 +414,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             // And update the last non-empty round number to this round
             lastRoundOfPrevBlock = roundNum;
-            final var outputTreeStatus = outputTreeHasher.status();
+            final var stateChangesTreeStatus = stateChangesHasher.status();
 
             // Put this block hash context in state via the block stream info
             final var writableState = state.getWritableStates(BlockStreamService.NAME);
@@ -401,22 +427,36 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockHashManager.blockHashes(),
                     inputHash,
                     blockStartStateHash,
-                    outputTreeStatus.numLeaves(),
-                    outputTreeStatus.rightmostHashes(),
+                    stateChangesTreeStatus.numLeaves(),
+                    stateChangesTreeStatus.rightmostHashes(),
                     boundaryTimestamp,
                     pendingWork != POST_UPGRADE_WORK,
                     version,
                     asTimestamp(lastIntervalProcessTime),
-                    asTimestamp(lastHandleTime)));
+                    asTimestamp(lastHandleTime),
+                    consensusHeaderHash,
+                    traceDataHash,
+                    outputHash));
             ((CommittableWritableStates) writableState).commit();
 
             worker.addItem(boundaryStateChangeListener.flushChanges());
             worker.sync();
 
-            final var outputHash = outputTreeHasher.rootHash().join();
-            final var leftParent = combine(lastBlockHash, inputHash);
-            final var rightParent = combine(outputHash, blockStartStateHash);
-            final var blockHash = combine(leftParent, rightParent);
+            final var stateChangesHash = stateChangesHasher.rootHash().join();
+
+            // Compute depth two hashes
+            final var depth2Node0 = combine(lastBlockHash, blockStartStateHash);
+            final var depth2Node1 = combine(consensusHeaderHash, inputHash);
+            final var depth2Node2 = combine(outputHash, stateChangesHash);
+            final var depth2Node3 = combine(traceDataHash, NULL_HASH);
+
+            // Compute depth one hashes
+            final var depth1Node0 = combine(depth2Node0, depth2Node1);
+            final var depth1Node1 = combine(depth2Node2, depth2Node3);
+
+            // Compute the block hash
+            final var blockHash = combine(depth1Node0, depth1Node1);
+
             final var pendingProof = BlockProof.newBuilder()
                     .block(blockNumber)
                     .previousBlockRootHash(lastBlockHash)
@@ -427,13 +467,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockHash,
                     pendingProof,
                     writer,
-                    new MerkleSiblingHash(false, inputHash),
-                    new MerkleSiblingHash(false, rightParent)));
-
-            if (streamToBlockNodes) {
-                // Write any pre-block proof block items
-                writer.writePreBlockProofItems();
-            }
+                    new MerkleSiblingHash(false, blockStartStateHash),
+                    new MerkleSiblingHash(false, depth2Node1),
+                    new MerkleSiblingHash(false, depth1Node1)));
 
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
@@ -540,12 +576,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             impliesIndirectProof = true;
         }
         if (blockNumber == Long.MIN_VALUE) {
-            log.info("Ignoring signature on already proven block hash '{}'", blockHash);
+            log.debug("Ignoring signature on already proven block hash '{}'", blockHash);
             return;
         }
         // Write proofs for all pending blocks up to and including the signed block number
         while (!pendingBlocks.isEmpty() && pendingBlocks.peek().number() <= blockNumber) {
             final var block = pendingBlocks.poll();
+            // Update the metrics, if the block is closed with a sibling hash (indirect proof).
+            if (!siblingHashes.isEmpty()) {
+                indirectProofCounter.increment();
+            }
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
@@ -567,7 +607,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * software version.
      *
      * @param blockStreamInfo the block stream info
-     * @param version         the version
+     * @param version the version
      * @return the type of pending work given the block stream info and version
      */
     @VisibleForTesting
@@ -669,7 +709,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         TRANSACTION_OUTPUT,
                         STATE_CHANGES,
                         ROUND_HEADER,
-                        BLOCK_HEADER -> {
+                        BLOCK_HEADER,
+                        TRACE_DATA -> {
                     MessageDigest digest = sha384DigestOrThrow();
                     bytes.writeTo(digest);
                     hash = ByteBuffer.wrap(digest.digest());
@@ -695,13 +736,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         protected boolean onExecute() {
             final var kind = item.item().kind();
             switch (kind) {
-                case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER -> inputTreeHasher.addLeaf(hash);
+                case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(hash);
+                case EVENT_TRANSACTION -> inputTreeHasher.addLeaf(hash);
                 case TRANSACTION_RESULT -> {
                     runningHashManager.nextResultHash(hash);
                     hash.rewind();
                     outputTreeHasher.addLeaf(hash);
                 }
-                case TRANSACTION_OUTPUT, STATE_CHANGES, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
+                case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(hash);
+                case STATE_CHANGES -> stateChangesHasher.addLeaf(hash);
+                case TRACE_DATA -> traceDataHasher.addLeaf(hash);
             }
 
             final BlockHeader header = item.blockHeader();
@@ -712,6 +756,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             next.send();
             return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            log.error("Error occurred while executing task", t);
         }
 
         void send(SequentialTask next) {

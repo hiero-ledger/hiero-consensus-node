@@ -16,8 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Iterator class for iterating over data items in a data file created by {@link  DataFileWriter}.
@@ -29,8 +27,6 @@ import org.apache.logging.log4j.Logger;
  * @see DataFileReader
  */
 public final class DataFileIterator implements AutoCloseable {
-
-    private static final Logger logger = LogManager.getLogger(DataFileIterator.class);
 
     /** Input stream this iterator is reading from */
     private final BufferedInputStream inputStream;
@@ -113,20 +109,11 @@ public final class DataFileIterator implements AutoCloseable {
             throw new IllegalStateException("Cannot read from a closed iterator");
         }
 
-        // Have we reached the end?
-        if (currentDataItem >= metadata.getDataItemCount() - 1) {
-            if (in.hasRemaining()) {
-                logger.warn(
-                        "Data file has more data than expected items={}. {}", metadata.getDataItemCount(), toString());
-            }
-            dataItemBuffer = null;
-            return false;
-        }
-
         while (in.hasRemaining()) {
             currentDataItemFilePosition = in.position();
             final int tag = in.readVarInt(false);
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
+
             if (fieldNum == FIELD_DATAFILE_ITEMS.number()) {
                 final int currentDataItemSize = in.readVarInt(false);
                 dataItemBuffer = fillBuffer(currentDataItemSize);
@@ -140,7 +127,7 @@ public final class DataFileIterator implements AutoCloseable {
             }
         }
 
-        throw new IllegalStateException("Reached the end of data file while expecting more data items");
+        return false;
     }
 
     /**

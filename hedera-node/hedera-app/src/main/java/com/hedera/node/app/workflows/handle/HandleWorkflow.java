@@ -39,6 +39,7 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
@@ -147,6 +148,7 @@ public class HandleWorkflow {
     private final CongestionMetrics congestionMetrics;
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
+    private final BlockBufferService blockBufferService;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -187,7 +189,8 @@ public class HandleWorkflow {
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
-            @NonNull final NodeRewardManager nodeRewardManager) {
+            @NonNull final NodeRewardManager nodeRewardManager,
+            @NonNull final BlockBufferService blockBufferService) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -221,6 +224,7 @@ public class HandleWorkflow {
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
         this.nodeRewardManager = requireNonNull(nodeRewardManager);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.blockBufferService = requireNonNull(blockBufferService);
     }
 
     /**
@@ -235,6 +239,7 @@ public class HandleWorkflow {
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
+        blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
@@ -257,12 +262,16 @@ public class HandleWorkflow {
 
         configureTssCallbacks(state);
         try {
+            reconcileTssState(state, round.getConsensusTimestamp());
+        } catch (Exception e) {
+            logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+        }
+        try {
             transactionsDispatched |= handleEvents(state, round, stateSignatureTxnCallback);
             try {
                 // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
                 // Dispatch rewards for active nodes after at least one user transaction is handled
-                final var timeStamp = boundaryStateChangeListener.lastConsensusTime();
-                if (timeStamp != null) {
+                if (boundaryStateChangeListener.lastConsensusTime() != null) {
                     transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
                             state,
                             boundaryStateChangeListener
@@ -284,11 +293,6 @@ public class HandleWorkflow {
             // Even if there is an exception somewhere, we need to commit the receipts of any handled transactions
             // to the state so these transactions cannot be replayed in future rounds
             recordCache.commitRoundReceipts(state, round.getConsensusTimestamp());
-        }
-        try {
-            reconcileTssState(state, round.getConsensusTimestamp());
-        } catch (Exception e) {
-            logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
         }
     }
 
@@ -963,22 +967,22 @@ public class HandleWorkflow {
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
-                final var crsWorkTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
+                final var workTime = blockHashSigner.isReady() ? boundaryTimestamp : roundTimestamp;
                 doStreamingKVChanges(
                         crsWritableStates,
                         null,
-                        crsWorkTime,
+                        workTime,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), crsWorkTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
                 final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
                 doStreamingKVChanges(
                         hintsWritableStates,
                         null,
-                        boundaryTimestamp,
+                        workTime,
                         () -> hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
-                                boundaryTimestamp,
+                                workTime,
                                 tssConfig,
                                 isActive));
             }

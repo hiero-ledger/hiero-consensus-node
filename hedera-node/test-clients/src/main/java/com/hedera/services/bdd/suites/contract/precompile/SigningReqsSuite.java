@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
@@ -22,6 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
@@ -31,8 +31,8 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.TokenID;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -57,7 +57,7 @@ public class SigningReqsSuite {
     final Stream<DynamicTest> autoRenewAccountCanUseLegacySigActivationIfConfigured() {
         final var autoRenew = AUTO_RENEW;
         final AtomicReference<Address> autoRenewMirrorAddr = new AtomicReference<>();
-        final AtomicLong contractId = new AtomicLong();
+        final AtomicReference<ContractID> contractId = new AtomicReference<>();
         final var origKey = KeyShape.threshOf(1, ED25519, CONTRACT);
         final AtomicReference<TokenID> createdToken = new AtomicReference<>();
 
@@ -65,7 +65,7 @@ public class SigningReqsSuite {
                 cryptoCreate(CIVILIAN).balance(10L * ONE_HUNDRED_HBARS),
                 uploadInitCode(MINIMAL_CREATIONS_CONTRACT),
                 contractCreate(MINIMAL_CREATIONS_CONTRACT)
-                        .exposingNumTo(contractId::set)
+                        .exposingContractIdTo(contractId::set)
                         .gas(5_000_000L)
                         .refusingEthConversion(),
                 cryptoCreate(autoRenew)

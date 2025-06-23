@@ -7,6 +7,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
@@ -14,6 +15,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROP
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
@@ -69,6 +71,7 @@ import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.Service;
@@ -163,6 +166,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var validator = new StateChangesValidator(
                 Bytes.fromHex(
                         "525279ce448629033053af7fd64e1439f415c0acb5ad6819b73363807122847b2d68ded6d47db36b59920474093f0651"),
+                node0Dir,
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
@@ -220,6 +224,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
             return new StateChangesValidator(
                     rootHash,
+                    node0.getExternalPath(WORKING_DIR),
                     node0.getExternalPath(SWIRLDS_LOG),
                     node0.getExternalPath(APPLICATION_PROPERTIES),
                     node0.getExternalPath(DATA_CONFIG_DIR),
@@ -238,6 +243,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     public StateChangesValidator(
             @NonNull final Bytes expectedRootHash,
+            @NonNull final Path pathToNode0,
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
@@ -266,6 +272,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         System.setProperty("hedera.realm", String.valueOf(realm));
 
         unarchiveGenesisNetworkJson(pathToUpgradeSysFilesLoc);
+        MerkleDb.setDefaultPath(pathToNode0.resolve("stateChangesValidator"));
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         final var versionConfig = bootstrapConfig.getConfigData(VersionConfig.class);
         final var servicesVersion = versionConfig.servicesVersion();
@@ -318,6 +325,10 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             final StreamingTreeHasher inputTreeHasher = new NaiveStreamingTreeHasher();
             final StreamingTreeHasher outputTreeHasher = new NaiveStreamingTreeHasher();
+            final StreamingTreeHasher consensusHeaderHasher = new NaiveStreamingTreeHasher();
+            final StreamingTreeHasher stateChangesHasher = new NaiveStreamingTreeHasher();
+            final StreamingTreeHasher traceDataHasher = new NaiveStreamingTreeHasher();
+
             long firstBlockRound = -1;
             long eventNodeId = -1;
             for (final var item : block.items()) {
@@ -326,7 +337,13 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 servicesWritten.clear();
                 if (shouldVerifyProof) {
-                    hashInputOutputTree(item, inputTreeHasher, outputTreeHasher);
+                    hashSubTrees(
+                            item,
+                            inputTreeHasher,
+                            outputTreeHasher,
+                            consensusHeaderHasher,
+                            stateChangesHasher,
+                            traceDataHasher);
                 }
                 if (item.hasStateChanges()) {
                     final var changes = item.stateChangesOrThrow();
@@ -368,8 +385,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                         "Previous block hash mismatch for block " + blockProof.block());
 
                 if (shouldVerifyProof) {
-                    final var expectedBlockHash =
-                            computeBlockHash(startOfStateHash, previousBlockHash, inputTreeHasher, outputTreeHasher);
+                    final var expectedBlockHash = computeBlockHash(
+                            startOfStateHash,
+                            previousBlockHash,
+                            inputTreeHasher,
+                            outputTreeHasher,
+                            consensusHeaderHasher,
+                            stateChangesHasher,
+                            traceDataHasher);
                     blockNumbers.put(
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
@@ -465,17 +488,25 @@ public class StateChangesValidator implements BlockStreamValidator {
         assertEquals(expectedNumTopics.size(), actualCounts.numTopics(), "Topic counts mismatch");
     }
 
-    private void hashInputOutputTree(
+    private void hashSubTrees(
             final BlockItem item,
             final StreamingTreeHasher inputTreeHasher,
-            final StreamingTreeHasher outputTreeHasher) {
+            final StreamingTreeHasher outputTreeHasher,
+            final StreamingTreeHasher consensusHeaderHasher,
+            final StreamingTreeHasher stateChangesHasher,
+            final StreamingTreeHasher traceDataHasher) {
         final var itemSerialized = BlockItem.PROTOBUF.toBytes(item);
         final var digest = sha384DigestOrThrow();
         switch (item.item().kind()) {
-            case EVENT_HEADER, EVENT_TRANSACTION, ROUND_HEADER ->
+            case EVENT_HEADER, ROUND_HEADER ->
+                consensusHeaderHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case EVENT_TRANSACTION ->
                 inputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
-            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, STATE_CHANGES, BLOCK_HEADER ->
+            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER ->
                 outputTreeHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case STATE_CHANGES ->
+                stateChangesHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
+            case TRACE_DATA -> traceDataHasher.addLeaf(ByteBuffer.wrap(digest.digest(itemSerialized.toByteArray())));
             default -> {
                 // Other items are not part of the input/output trees
             }
@@ -486,13 +517,20 @@ public class StateChangesValidator implements BlockStreamValidator {
             final Bytes startOfBlockStateHash,
             final Bytes previousBlockHash,
             final StreamingTreeHasher inputTreeHasher,
-            final StreamingTreeHasher outputTreeHasher) {
+            final StreamingTreeHasher outputTreeHasher,
+            final StreamingTreeHasher consensusHeaderHasher,
+            final StreamingTreeHasher stateChangesHasher,
+            final StreamingTreeHasher traceDataHasher) {
         final var inputTreeHash = inputTreeHasher.rootHash().join();
         final var outputTreeHash = outputTreeHasher.rootHash().join();
+        final var consensusHeaderHash = consensusHeaderHasher.rootHash().join();
+        final var stateChangesHash = stateChangesHasher.rootHash().join();
+        final var traceDataHash = traceDataHasher.rootHash().join();
 
-        final var leftHash = combine(previousBlockHash, inputTreeHash);
-        final var rightHash = combine(outputTreeHash, startOfBlockStateHash);
-        return combine(leftHash, rightHash);
+        final var leftParent =
+                combine(combine(previousBlockHash, startOfBlockStateHash), combine(consensusHeaderHash, inputTreeHash));
+        final var rightParent = combine(combine(outputTreeHash, stateChangesHash), combine(traceDataHash, NULL_HASH));
+        return combine(leftParent, rightParent);
     }
 
     private void validateBlockProof(

@@ -51,9 +51,6 @@ import org.apache.logging.log4j.Logger;
 public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements WritableHintsStore {
     private static final Logger log = LogManager.getLogger(WritableHintsStoreImpl.class);
 
-    private static final Comparator<NodePartyId> NODE_PARTY_ID_COMPARATOR =
-            Comparator.comparingLong(NodePartyId::nodeId);
-
     private final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
     private final WritableSingletonState<HintsConstruction> nextConstruction;
     private final WritableSingletonState<HintsConstruction> activeConstruction;
@@ -133,10 +130,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     public HintsConstruction setHintsScheme(
             final long constructionId,
             @NonNull final PreprocessedKeys keys,
-            @NonNull final Map<Long, Integer> nodePartyIds) {
+            @NonNull final Map<Long, Integer> nodePartyIds,
+            @NonNull final Map<Long, Long> nodeWeights) {
         requireNonNull(keys);
         requireNonNull(nodePartyIds);
-        return updateOrThrow(constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds))));
+        return updateOrThrow(
+                constructionId, b -> b.hintsScheme(new HintsScheme(keys, asList(nodePartyIds, nodeWeights))));
     }
 
     @Override
@@ -320,15 +319,20 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     /**
-     * Internal helper to convert a map of node IDs to party IDs to a list of node party IDs.
+     * Internal helper to construct a list of weighted node party IDs.
      *
-     * @param nodePartyIds the map
-     * @return the list
+     * @param nodePartyIds the map from node ID to party ID
+     * @param nodeWeights the map from node ID to weight
+     * @return the list of weighted node party IDs, sorted by node ID
      */
-    private List<NodePartyId> asList(@NonNull final Map<Long, Integer> nodePartyIds) {
+    private List<NodePartyId> asList(
+            @NonNull final Map<Long, Integer> nodePartyIds, @NonNull final Map<Long, Long> nodeWeights) {
         return nodePartyIds.entrySet().stream()
-                .map(entry -> new NodePartyId(entry.getKey(), entry.getValue()))
-                .sorted(NODE_PARTY_ID_COMPARATOR)
+                .map(entry -> {
+                    final long nodeId = entry.getKey();
+                    return new NodePartyId(nodeId, entry.getValue(), nodeWeights.get(nodeId));
+                })
+                .sorted(Comparator.comparingLong(NodePartyId::nodeId))
                 .toList();
     }
 }

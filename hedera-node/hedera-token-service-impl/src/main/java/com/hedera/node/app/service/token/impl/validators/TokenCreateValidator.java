@@ -73,7 +73,9 @@ public class TokenCreateValidator {
 
         validateFalsePreCheck(maxSupply > 0 && initialSupply > maxSupply, INVALID_TOKEN_INITIAL_SUPPLY);
         validateTruePreCheck(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
-        validateTrue(!op.hasAutoRenewAccount() || op.autoRenewPeriod().seconds() >= 0, INVALID_RENEWAL_PERIOD);
+        if (op.hasAutoRenewAccount()) {
+            validateTrue(op.hasAutoRenewPeriod() && op.autoRenewPeriod().seconds() >= 0, INVALID_RENEWAL_PERIOD);
+        }
 
         if (tokenType == NON_FUNGIBLE_UNIQUE) {
             validateTruePreCheck(op.hasSupplyKey(), TOKEN_HAS_NO_SUPPLY_KEY);

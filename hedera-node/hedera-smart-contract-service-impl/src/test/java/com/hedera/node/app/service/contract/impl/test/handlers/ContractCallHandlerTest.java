@@ -23,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -75,6 +76,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private RootProxyWorldUpdater baseProxyWorldUpdater;
 
     @Mock
+    private HederaOperations hederaOperations;
+
+    @Mock
     private GasCalculator gasCalculator;
 
     @Mock(strictness = Strictness.LENIENT)
@@ -107,13 +111,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
         final var expectedOutcome = new CallOutcome(
-                expectedResult,
-                SUCCESS_RESULT.finalStatus(),
-                CALLED_CONTRACT_ID,
-                SUCCESS_RESULT.gasPrice(),
-                null,
-                null);
+                expectedResult, SUCCESS_RESULT.finalStatus(), CALLED_CONTRACT_ID, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
+        given(component.hederaOperations()).willReturn(hederaOperations);
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
@@ -126,11 +126,12 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     void delegatesToCreatedComponentAndThrowsOnFailure() {
         given(factory.create(handleContext, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(component.hederaOperations()).willReturn(hederaOperations);
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
         final var expectedOutcome =
-                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, HALT_RESULT.gasPrice(), null, null);
+                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);
