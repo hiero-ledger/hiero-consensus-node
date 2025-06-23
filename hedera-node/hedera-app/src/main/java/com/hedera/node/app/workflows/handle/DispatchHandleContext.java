@@ -400,9 +400,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         final var batchInnerTxnBytes = options.dispatchMetadata().getMetadata(INNER_TRANSACTION_BYTES, Bytes.class);
         if (options.category() == BATCH_INNER && batchInnerTxnBytes.isPresent()) {
             // Get precomputed maybeReusablePreHandleResult if available, otherwise null
-            PreHandleResult maybeReusablePreHandleResult = (preHandleResults != null && !preHandleResults.isEmpty())
-                ? preHandleResults.removeFirst()
-                    : null;
+            PreHandleResult maybeReusablePreHandleResult =
+                    (preHandleResults != null && !preHandleResults.isEmpty()) ? preHandleResults.removeFirst() : null;
             // Signature verification will be performed only if the maybeReusablePreHandleResult is null
             // or there are updates to the keys.
             childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get(), maybeReusablePreHandleResult);
