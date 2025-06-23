@@ -12,8 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
@@ -54,7 +57,6 @@ public class BlockStreamBuilderTest {
             .build();
     private @Mock TransactionID transactionID;
     private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
-    private @Mock ContractFunctionResult contractCallResult;
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
@@ -115,11 +117,14 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
-    void testBlockItemsWithContractCallOutput() {
+    void testBlockItemsWithTraceAndOutput() {
+        final var usages =
+                List.of(new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
+        final var contractCallResult = ContractFunctionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
                 .contractCallResult(contractCallResult)
-                .addContractStateChanges(contractStateChanges, false);
+                .addContractSlotUsages(usages);
 
         List<BlockItem> blockItems = itemsBuilder.build().blockItems();
         validateTransactionBlockItems(blockItems);
@@ -127,8 +132,15 @@ public class BlockStreamBuilderTest {
 
         final var outputBlockItem = blockItems.get(2);
         assertTrue(outputBlockItem.hasTransactionOutput());
-        final var output = outputBlockItem.transactionOutput();
+        final var output = outputBlockItem.transactionOutputOrThrow();
         assertTrue(output.hasContractCall());
+
+        final var traceItem = blockItems.get(3);
+        assertTrue(traceItem.hasTraceData());
+        final var trace = traceItem.traceDataOrThrow();
+        assertTrue(trace.hasEvmTraceData());
+        final var evmTrace = trace.evmTraceDataOrThrow();
+        assertEquals(usages, evmTrace.contractSlotUsages());
     }
 
     @Test

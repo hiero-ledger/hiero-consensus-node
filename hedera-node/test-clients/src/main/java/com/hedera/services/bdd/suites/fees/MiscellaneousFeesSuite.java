@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.hapiPrng;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -93,7 +95,7 @@ public class MiscellaneousFeesSuite {
                 validateChargedUsd(baseTransactionGetRecord, BASE_FEE_MISC_GET_TRX_RECORD));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"atomicBatch.isEnabled", "atomicBatch.maxNumberOfTransactions"})
     @DisplayName("USD base fee as expected for atomic batch transaction")
     public Stream<DynamicTest> validateAtomicBatchBaseUSDFee() {
         final var batchOperator = "batchOperator";
@@ -101,6 +103,7 @@ public class MiscellaneousFeesSuite {
         final var innerTxn = cryptoCreate("foo").balance(ONE_HBAR).batchKey(batchOperator);
 
         return hapiTest(
+                overridingTwo("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"),
                 cryptoCreate(batchOperator).balance(ONE_HBAR),
                 atomicBatch(innerTxn).payingWith(batchOperator).via("batchTxn"),
                 validateChargedUsd("batchTxn", BASE_FEE_ATOMIC_BATCH));

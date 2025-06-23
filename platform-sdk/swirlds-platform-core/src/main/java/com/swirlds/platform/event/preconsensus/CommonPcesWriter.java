@@ -13,8 +13,6 @@ import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -24,11 +22,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  */
 public class CommonPcesWriter {
     private static final Logger logger = LogManager.getLogger(CommonPcesWriter.class);
-
-    /**
-     *  If {@code true} {@code FileChannel} is used to write to the file and if {@code false} {@code OutputStream} is used.
-     */
-    private static final boolean USE_FILE_CHANNEL_WRITER = false;
 
     /**
      * Keeps track of the event stream files on disk.
@@ -42,7 +35,7 @@ public class CommonPcesWriter {
 
     /**
      * The current minimum ancient indicator required to be considered non-ancient. Only read and written on the handle
-     * thread. Either a round or generation depending on the {@link AncientMode}.
+     * thread. Based on the birth round of an event.
      */
     private long nonAncientBoundary = 0;
 
@@ -60,8 +53,7 @@ public class CommonPcesWriter {
     private final int minimumSpan;
 
     /**
-     * The minimum ancient indicator that we are required to keep around. Will be either a birth round or a generation,
-     * depending on the {@link AncientMode}.
+     * The minimum ancient indicator that we are required to keep around. Based on the birth round of an event.
      */
     private long minimumAncientIdentifierToStore;
 
@@ -108,31 +100,22 @@ public class CommonPcesWriter {
     private boolean streamingNewEvents = false;
 
     /**
-     * The type of the PCES file. There are currently two types: one bound by generations and one bound by birth rounds.
-     * The original type of files are bound by generations. The new type of files are bound by birth rounds. Once
-     * migration has been completed to birth round bound files, support for the generation bound files will be removed.
+     * The type of writer to use
      */
-    private final AncientMode fileType;
-
-    private final boolean syncEveryEvent;
+    private final PcesFileWriterType pcesFileWriterType;
 
     /**
      * Constructor
      *
      * @param platformContext the platform context
      * @param fileManager     manages all PCES files currently on disk
-     * @param syncEveryEvent  whether to sync the file after every event
      */
     public CommonPcesWriter(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final PcesFileManager fileManager,
-            final boolean syncEveryEvent) {
+            @NonNull final PlatformContext platformContext, @NonNull final PcesFileManager fileManager) {
         Objects.requireNonNull(platformContext, "platformContext is required");
         this.fileManager = Objects.requireNonNull(fileManager, "fileManager is required");
-        this.syncEveryEvent = syncEveryEvent;
 
         final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
-        final EventConfig eventConfig = platformContext.getConfiguration().getConfigData(EventConfig.class);
 
         previousSpan = pcesConfig.bootstrapSpan();
         bootstrapSpanOverlapFactor = pcesConfig.bootstrapSpanOverlapFactor();
@@ -140,11 +123,16 @@ public class CommonPcesWriter {
         minimumSpan = pcesConfig.minimumSpan();
         preferredFileSizeMegabytes = pcesConfig.preferredFileSizeMegabytes();
 
-        averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
+        // performance of FILE_CHANNEL is 150x slower on MacOS, but marginally better on Linux; it is so bad on Mac
+        // that basic tests cannot pass in some cases, so we need to make it system dependent, at same time allowing
+        // override if needed
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            pcesFileWriterType = pcesConfig.macPcesFileWriterType();
+        } else {
+            pcesFileWriterType = pcesConfig.pcesFileWriterType();
+        }
 
-        fileType = eventConfig.useBirthRoundAncientThreshold()
-                ? AncientMode.BIRTH_ROUND_THRESHOLD
-                : AncientMode.GENERATION_THRESHOLD;
+        averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
     }
 
     /**
@@ -188,12 +176,12 @@ public class CommonPcesWriter {
      * @param nonAncientBoundary describes the boundary between ancient and non-ancient events
      */
     public void updateNonAncientEventBoundary(@NonNull final EventWindow nonAncientBoundary) {
-        if (nonAncientBoundary.getAncientThreshold() < this.nonAncientBoundary) {
+        if (nonAncientBoundary.ancientThreshold() < this.nonAncientBoundary) {
             throw new IllegalArgumentException("Non-ancient boundary cannot be decreased. Current = "
                     + this.nonAncientBoundary + ", requested = " + nonAncientBoundary);
         }
 
-        this.nonAncientBoundary = nonAncientBoundary.getAncientThreshold();
+        this.nonAncientBoundary = nonAncientBoundary.ancientThreshold();
     }
 
     /**
@@ -257,7 +245,7 @@ public class CommonPcesWriter {
     public boolean prepareOutputStream(@NonNull final PlatformEvent eventToWrite) throws IOException {
         boolean fileClosed = false;
         if (currentMutableFile != null) {
-            final boolean fileCanContainEvent = currentMutableFile.canContain(fileType.selectIndicator(eventToWrite));
+            final boolean fileCanContainEvent = currentMutableFile.canContain(eventToWrite.getBirthRound());
             final boolean fileIsFull =
                     UNIT_BYTES.convertTo(currentMutableFile.fileSize(), UNIT_MEGABYTES) >= preferredFileSizeMegabytes;
 
@@ -274,11 +262,11 @@ public class CommonPcesWriter {
         // if the block above closed the file, then we need to create a new one
         if (currentMutableFile == null) {
             final long upperBound =
-                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, fileType.selectIndicator(eventToWrite));
+                    nonAncientBoundary + computeNewFileSpan(nonAncientBoundary, eventToWrite.getBirthRound());
 
             currentMutableFile = fileManager
                     .getNextFileDescriptor(nonAncientBoundary, upperBound)
-                    .getMutableFile(USE_FILE_CHANNEL_WRITER, syncEveryEvent);
+                    .getMutableFile(pcesFileWriterType);
         }
 
         return fileClosed;
@@ -312,15 +300,6 @@ public class CommonPcesWriter {
      */
     public boolean isStreamingNewEvents() {
         return streamingNewEvents;
-    }
-
-    /**
-     * Get the type of the PCES file read from configuration.
-     *
-     * @return the type of the PCES file
-     */
-    public AncientMode getFileType() {
-        return fileType;
     }
 
     /**

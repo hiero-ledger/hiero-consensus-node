@@ -34,10 +34,12 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
@@ -60,7 +62,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
@@ -132,7 +133,10 @@ class EthereumTransactionHandlerTest {
     private TransactionProcessor transactionProcessor;
 
     @Mock
-    CustomGasCharging customGasCharging;
+    private CustomGasCharging customGasCharging;
+
+    @Mock
+    private HederaOperations hederaOperations;
 
     private EthereumTransactionHandler subject;
 
@@ -149,10 +153,10 @@ class EthereumTransactionHandlerTest {
     private ContractServiceComponent contractServiceComponent;
 
     @Mock
-    private Configuration configuration;
+    private ContractsConfig contractsConfig;
 
     @Mock
-    private ContractsConfig contractsConfig;
+    private HederaOpsDuration hederaOpsDuration;
 
     private final SystemContractMethodRegistry systemContractMethodRegistry = new SystemContractMethodRegistry();
 
@@ -181,9 +185,9 @@ class EthereumTransactionHandlerTest {
                 tracer,
                 baseProxyWorldUpdater,
                 hevmTransactionFactory,
-                feesOnlyUpdater,
                 transactionProcessor,
-                customGasCharging);
+                customGasCharging,
+                hederaOpsDuration);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()
@@ -195,12 +199,7 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
-                        HEVM_CREATION,
-                        baseProxyWorldUpdater,
-                        feesOnlyUpdater,
-                        hederaEvmContext,
-                        tracer,
-                        DEFAULT_CONFIG))
+                        HEVM_CREATION, baseProxyWorldUpdater, hederaEvmContext, tracer, DEFAULT_CONFIG))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
     }
 
@@ -208,6 +207,7 @@ class EthereumTransactionHandlerTest {
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+        given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
@@ -221,7 +221,8 @@ class EthereumTransactionHandlerTest {
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
+                null,
+                null,
                 null,
                 null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
@@ -249,6 +250,7 @@ class EthereumTransactionHandlerTest {
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS));
+        given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
@@ -261,11 +263,12 @@ class EthereumTransactionHandlerTest {
                 expectedResult,
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
                 CALLED_CONTRACT_ID,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.gasPrice(),
+                null,
+                null,
                 null,
                 null);
 
-        given(createRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
         given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
@@ -292,7 +295,7 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void preHandleTranslatesIseAsInvalidEthereumTransaction() throws PreCheckException {
+    void preHandleTranslatesIseAsInvalidEthereumTransaction() {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(TestHelpers.ETH_WITH_TO_ADDRESS)
                 .build();

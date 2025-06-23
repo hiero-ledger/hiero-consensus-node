@@ -30,6 +30,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -308,11 +309,13 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     public Fees chargeFee(
             @NonNull final AccountID payerId,
             final long amount,
-            @NonNull final FeeStreamBuilder rb,
+            @NonNull final StreamBuilder streamBuilder,
             @Nullable final ObjLongConsumer<AccountID> cb) {
-        requireNonNull(rb);
         requireNonNull(payerId);
-
+        requireNonNull(streamBuilder);
+        if (!(streamBuilder instanceof FeeStreamBuilder feeBuilder)) {
+            throw new IllegalArgumentException("StreamBuilder must be a FeeStreamBuilder");
+        }
         final var payerAccount = lookupAccount("Payer", payerId);
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
         chargePayer(payerAccount, amountToCharge, cb);
@@ -321,7 +324,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // For each atomic batch transaction, the transaction fee of inner transactions is
         // accumulated in the inner transaction
         if (cb == null) {
-            rb.transactionFee(rb.transactionFee() + amountToCharge);
+            feeBuilder.transactionFee(feeBuilder.transactionFee() + amountToCharge);
         }
         distributeToNetworkFundingAccounts(amountToCharge, cb);
         return new Fees(0, amountToCharge, 0);

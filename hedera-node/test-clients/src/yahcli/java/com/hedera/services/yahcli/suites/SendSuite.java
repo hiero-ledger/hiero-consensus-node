@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
+
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
@@ -29,6 +31,7 @@ public class SendSuite extends HapiSuite {
     private final String denomination;
 
     private final boolean schedule;
+    private final boolean batch;
     private final long unitsToSend;
 
     public SendSuite(
@@ -37,13 +40,15 @@ public class SendSuite extends HapiSuite {
             final long unitsToSend,
             final String memo,
             @Nullable final String denomination,
-            final boolean schedule) {
+            final boolean schedule,
+            final boolean batch) {
         this.memo = memo;
         this.configManager = configManager;
         this.beneficiary = beneficiary;
         this.unitsToSend = unitsToSend;
         this.denomination = denomination;
         this.schedule = schedule;
+        this.batch = batch;
     }
 
     @Override
@@ -70,6 +75,9 @@ public class SendSuite extends HapiSuite {
         // flag that transferred as parameter to schedule a transaction or to execute right away
         if (schedule) {
             transfer = TxnVerbs.scheduleCreate("original", transfer).logged();
+        }
+        if (batch) {
+            transfer = atomicBatch(transfer.batchKey(DEFAULT_PAYER));
         }
 
         final var spec = new HapiSpec(

@@ -3,6 +3,7 @@ package com.hedera.services.yahcli.commands.schedules;
 
 import static com.hedera.services.yahcli.config.ConfigUtils.configFrom;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.suites.ScheduleSuite;
@@ -31,11 +32,12 @@ public class SignCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         var config = configFrom(scheduleCommand.getYahcli());
 
-        final var effectiveScheduleId = scheduleId != null ? scheduleId : "";
-        var delegate = new ScheduleSuite(config.asSpecConfig(), effectiveScheduleId);
+        final var normalizedScheduleId = normalizePossibleIdLiteral(config, scheduleId);
+        final var effectiveScheduleId = normalizedScheduleId != null ? normalizedScheduleId : "";
+        var delegate = new ScheduleSuite(config, effectiveScheduleId);
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - " + "scheduleId " + effectiveScheduleId + " " + " signed");
         } else {
             COMMON_MESSAGES.warn("FAILED - " + "could not sign scheduleId " + effectiveScheduleId);

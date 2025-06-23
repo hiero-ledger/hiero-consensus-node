@@ -600,6 +600,16 @@ public class HapiSpecRegistry {
         put(name, id);
     }
 
+    public void saveContractId(String name, HapiSpec spec, ByteString evmAddress) {
+        put(
+                name,
+                ContractID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setEvmAddress(evmAddress)
+                        .build());
+    }
+
     public ContractID getContractId(String name) {
         return get(name, ContractID.class);
     }

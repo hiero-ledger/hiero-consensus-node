@@ -109,7 +109,7 @@ class ConverterService implements ConfigLifecycle {
 
     /**
      * Associates a {@code ConfigConverter} to a {@code Class} so each conversion of that type is performed by the
-     * converter.
+     * converter. Additional converters registeration for a single type will be ignored.
      *
      * @throws IllegalStateException if {@code ConverterService} instance is already initialized
      * @throws NullPointerException if any of the following parameters are {@code null}.
@@ -124,8 +124,13 @@ class ConverterService implements ConfigLifecycle {
         Objects.requireNonNull(converter, "converter must not be null");
 
         if (converters.containsKey(converterType)) {
-            throw new IllegalStateException("Converter for type '" + converterType + "' already registered");
+            if (initialized) {
+                throw new IllegalStateException("Converter for type '" + converterType + "' already registered");
+            } else {
+                return;
+            }
         }
+
         this.converters.put(converterType, converter);
     }
 
@@ -163,6 +168,7 @@ class ConverterService implements ConfigLifecycle {
         addConverter(Duration.class, DURATION_CONVERTER);
         addConverter(ChronoUnit.class, CHRONO_UNIT_CONVERTER);
         addConverter(InetAddress.class, INET_ADDRESS_CONFIG_CONVERTER);
+
         initialized = true;
     }
 

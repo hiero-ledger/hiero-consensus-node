@@ -61,7 +61,8 @@ public class Issue1765Suite {
         final String THE_MEMO_IS = MEMO_IS;
 
         return hapiTest(flattened(
-                withOpContext((spec, ctxLog) -> spec.registry().saveFileId(INVALID_FILE, asFile(asEntityString(0)))),
+                withOpContext((spec, ctxLog) -> spec.registry()
+                        .saveFileId(INVALID_FILE, asFile(asEntityString(spec.shard(), spec.realm(), 0)))),
                 newKeyNamed(INVALID_FILE).type(KeyFactory.KeyType.LIST),
                 takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE),
                 fileUpdate(INVALID_FILE)
@@ -80,7 +81,8 @@ public class Issue1765Suite {
         final String THE_MEMO_IS = MEMO_IS;
 
         return hapiTest(flattened(
-                withOpContext((spec, ctxLog) -> spec.registry().saveFileId(INVALID_FILE, asFile(asEntityString(0)))),
+                withOpContext((spec, ctxLog) -> spec.registry()
+                        .saveFileId(INVALID_FILE, asFile(asEntityString(spec.shard(), spec.realm(), 0)))),
                 newKeyNamed(INVALID_FILE).type(KeyFactory.KeyType.LIST),
                 takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE),
                 fileAppend(INVALID_FILE)

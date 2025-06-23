@@ -119,7 +119,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
 
     /**
      * The list of current files in this data file collection. The files are added to this list
-     * during flushes in {@link #endWriting(long, long)}, after the file is completely written. They
+     * during flushes in {@link #endWriting()}, after the file is completely written. They
      * are also added during compaction in {@link DataFileCompactor#compactFiles(CASableLongIndex, List, int)}, even
      * before compaction is complete. In the end of compaction, all the compacted files are removed
      * from this list.
@@ -319,7 +319,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         // finish writing if we still are
         final DataFileWriter currentDataFileForWriting = currentDataFileWriter.getAndSet(null);
         if (currentDataFileForWriting != null) {
-            currentDataFileForWriting.finishWriting();
+            currentDataFileForWriting.close();
         }
         // calling startSnapshot causes the metadata file to be written
         saveMetadata(storeDir);
@@ -387,21 +387,16 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
      * as completed (fully written, read only, and ready for compaction), so any indexes or other data structures that
      * are in-sync with the file content should be updated before calling this method.
      *
-     * @param minimumValidKey The minimum valid data key at this point in time, can be used for
-     *     cleaning out old data
-     * @param maximumValidKey The maximum valid data key at this point in time, can be used for
-     *     cleaning out old data
      * @return data file reader for the file written
      * @throws IOException If there was a problem closing the data file
      */
-    public DataFileReader endWriting(final long minimumValidKey, final long maximumValidKey) throws IOException {
-        validKeyRange = new KeyRange(minimumValidKey, maximumValidKey);
+    public DataFileReader endWriting() throws IOException {
         final DataFileWriter dataWriter = currentDataFileWriter.getAndSet(null);
         if (dataWriter == null) {
             throw new IOException("Tried to end writing when we never started writing.");
         }
         // finish writing the file and write its footer
-        dataWriter.finishWriting();
+        dataWriter.close();
         final DataFileReader dataReader = currentDataFileReader.getAndSet(null);
         if (logger.isTraceEnabled()) {
             final DataFileMetadata metadata = dataReader.getMetadata();
@@ -409,6 +404,18 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         }
         dataReader.setFileCompleted();
         return dataReader;
+    }
+
+    /**
+     * Sets the current key range for this file collection.
+     *
+     * @param minimumValidKey The minimum valid data key at this point in time, can be used for
+     *     cleaning out old data
+     * @param maximumValidKey The maximum valid data key at this point in time, can be used for
+     *     cleaning out old data
+     */
+    public void updateValidKeyRange(final long minimumValidKey, final long maximumValidKey) {
+        validKeyRange = new KeyRange(minimumValidKey, maximumValidKey);
     }
 
     /**
@@ -467,7 +474,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
      * @throws ClosedChannelException In the very rare case merging closed the file between us
      *     checking if file is open and reading
      */
-    protected BufferedData readDataItem(final long dataLocation) throws IOException {
+    public BufferedData readDataItem(final long dataLocation) throws IOException {
         final DataFileReader file = readerForDataLocation(dataLocation);
         return (file != null) ? file.readDataItem(dataLocation) : null;
     }

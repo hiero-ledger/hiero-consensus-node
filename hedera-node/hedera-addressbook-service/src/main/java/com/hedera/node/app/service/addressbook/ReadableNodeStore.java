@@ -7,7 +7,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -25,7 +25,7 @@ public interface ReadableNodeStore {
      *                       from stakingNodeInfo
      * @return a new roster, representing the most current node configurations available
      */
-    Roster snapshotOfFutureRoster(Function<Long, Long> weightFunction);
+    Roster snapshotOfFutureRoster(LongUnaryOperator weightFunction);
 
     /**
      * Returns the node needed. If the node doesn't exist returns failureReason. If the

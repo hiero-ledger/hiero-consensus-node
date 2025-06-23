@@ -3,7 +3,6 @@ package com.hedera.node.app.service.file.impl;
 
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.BLOBS_KEY;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_DATA_KEY;
-import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.UPGRADE_FILE_KEY;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.state.file.File;
@@ -47,11 +46,6 @@ public class ReadableUpgradeFileStoreImpl implements ReadableUpgradeFileStore {
     public String getStateKey() {
         // Note: this doesn't look right, since UPGRADE_DATA_KEY is a pattern, not a concrete key
         return UPGRADE_DATA_KEY;
-    }
-
-    @NonNull
-    public String getFileStateKey() {
-        return UPGRADE_FILE_KEY;
     }
 
     @Override

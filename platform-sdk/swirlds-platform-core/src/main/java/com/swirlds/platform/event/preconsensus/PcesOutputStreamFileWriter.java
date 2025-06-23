@@ -23,18 +23,14 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     private final FileDescriptor fileDescriptor;
     /** Counts the bytes written to the file */
     private final CountingStreamExtension counter;
-    /** Whether to sync the file after every event */
-    private final boolean syncEveryEvent;
 
     /**
      * Create a new file writer.
      *
-     * @param filePath       the path to the file to write to
-     * @param syncEveryEvent whether to sync the file after every event
+     * @param filePath the path to the file to write to
      * @throws IOException if the file cannot be opened
      */
-    public PcesOutputStreamFileWriter(@NonNull final Path filePath, final boolean syncEveryEvent) throws IOException {
-        this.syncEveryEvent = syncEveryEvent;
+    public PcesOutputStreamFileWriter(@NonNull final Path filePath) throws IOException {
         counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
@@ -48,11 +44,8 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     }
 
     @Override
-    public void writeEvent(@NonNull final GossipEvent event) throws IOException {
-        out.writePbjRecord(event, GossipEvent.PROTOBUF);
-        if (syncEveryEvent) {
-            sync();
-        }
+    public long writeEvent(@NonNull final GossipEvent event) throws IOException {
+        return out.writePbjRecord(event, GossipEvent.PROTOBUF);
     }
 
     @Override

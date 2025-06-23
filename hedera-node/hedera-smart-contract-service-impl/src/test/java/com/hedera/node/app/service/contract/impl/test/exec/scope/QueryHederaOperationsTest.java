@@ -108,8 +108,8 @@ class QueryHederaOperationsTest {
 
     @Test
     void collectingAndRefundingFeesNotSupported() {
-        assertThrows(UnsupportedOperationException.class, () -> subject.collectFee(AccountID.DEFAULT, 1234L));
-        assertThrows(UnsupportedOperationException.class, () -> subject.refundFee(AccountID.DEFAULT, 1234L));
+        assertThrows(UnsupportedOperationException.class, () -> subject.collectHtsFee(AccountID.DEFAULT, 1234L));
+        assertThrows(UnsupportedOperationException.class, () -> subject.refundGasFee(AccountID.DEFAULT, 1234L));
     }
 
     @Test

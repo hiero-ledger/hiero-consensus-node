@@ -2,7 +2,6 @@
 package com.swirlds.platform.event.linking;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -19,14 +18,12 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.config.EventConfig_;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests the {@link ConsensusLinker} class. Aside from metrics, the only difference between an {@link InOrderLinker} and
@@ -34,17 +31,10 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class ConsensusEventLinkerTests {
 
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void eventsAreUnlinkedTest(final boolean birthRoundAncientMode) {
-
+    @Test
+    void eventsAreUnlinkedTest() {
         final Random random = getRandomPrintSeed();
-
-        final AncientMode ancientMode =
-                birthRoundAncientMode ? AncientMode.BIRTH_ROUND_THRESHOLD : AncientMode.GENERATION_THRESHOLD;
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, birthRoundAncientMode)
-                .getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
@@ -60,7 +50,7 @@ class ConsensusEventLinkerTests {
         final List<EventImpl> linkedEvents = new LinkedList<>();
         final InOrderLinker linker = new ConsensusLinker(platformContext, NodeId.of(0));
 
-        EventWindow eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 
         for (int i = 0; i < 10_000; i++) {
 
@@ -107,16 +97,14 @@ class ConsensusEventLinkerTests {
 
             // Once in a while, advance the ancient window so that the most recent event is barely non-ancient.
             if (random.nextDouble() < 0.01) {
-                if (ancientMode.selectIndicator(event) <= eventWindow.getAncientThreshold()) {
+                if (event.getBirthRound() <= eventWindow.ancientThreshold()) {
                     // Advancing the window any further would make the most recent event ancient. Skip.
                     continue;
                 }
 
-                eventWindow = new EventWindow(
-                        ROUND_FIRST /* ignored in this test */,
-                        ancientMode.selectIndicator(event),
-                        ancientMode.getGenesisIndicator() /* ignored in this test */,
-                        ancientMode);
+                eventWindow = EventWindowBuilder.builder()
+                        .setAncientThreshold(event.getBirthRound())
+                        .build();
                 linker.setEventWindow(eventWindow);
 
                 // All ancient events should have their parents nulled out

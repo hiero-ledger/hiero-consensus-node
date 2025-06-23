@@ -5,10 +5,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.pauses.PausesDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.pauses.PausesTranslator;
@@ -23,6 +25,9 @@ public class PausesDecoderTest {
     @Mock
     private HtsCallAttempt attempt;
 
+    @Mock
+    private HederaNativeOperations nativeOperations;
+
     private final PausesDecoder subject = new PausesDecoder();
 
     @Test
@@ -31,6 +36,8 @@ public class PausesDecoderTest {
                 .encodeCallWithArgs(FUNGIBLE_TOKEN_HEADLONG_ADDRESS)
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var body = subject.decodePause(attempt);
         assertPausePresent(body, FUNGIBLE_TOKEN_ID);
@@ -42,6 +49,8 @@ public class PausesDecoderTest {
                 .encodeCallWithArgs(NON_FUNGIBLE_TOKEN_HEADLONG_ADDRESS)
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var body = subject.decodeUnpause(attempt);
         assertUnpausePresent(body, NON_FUNGIBLE_TOKEN_ID);

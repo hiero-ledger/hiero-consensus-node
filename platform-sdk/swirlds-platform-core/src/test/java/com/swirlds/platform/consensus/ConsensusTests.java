@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import static com.swirlds.common.test.fixtures.WeightGenerators.RANDOM;
-import static com.swirlds.platform.consensus.ConsensusTestArgs.RANDOM_WEIGHT_DESC;
-
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.test.fixtures.PlatformTest;
@@ -11,11 +8,9 @@ import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.config.EventConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -51,15 +46,7 @@ class ConsensusTests extends PlatformTest {
      * @return a list of platform contexts
      */
     private List<PlatformContext> contexts() {
-        return List.of(
-                createPlatformContext(
-                        null,
-                        configBuilder ->
-                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, false)),
-                createPlatformContext(
-                        null,
-                        configBuilder ->
-                                configBuilder.withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)));
+        return List.of(createPlatformContext(null, null));
     }
 
     @ParameterizedTest
@@ -285,16 +272,6 @@ class ConsensusTests extends PlatformTest {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::removeNode)
                 .setParams(params)
-                .setContexts(contexts())
-                .setIterations(NUM_ITER)
-                .run();
-    }
-
-    @Test
-    void syntheticSnapshotTest() {
-        ConsensusTestRunner.create()
-                .setTest(ConsensusTestDefinitions::syntheticSnapshot)
-                .setParams(new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC))
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
                 .run();

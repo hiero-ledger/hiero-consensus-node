@@ -27,8 +27,9 @@ public class TurtleInstrumentedNode extends TurtleNode implements InstrumentedNo
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,
+            @NonNull final TurtleLogging logging,
             @NonNull final Path rootOutputDirectory) {
-        super(randotron, time, nodeId, roster, privateKey, network, rootOutputDirectory);
+        super(randotron, time, nodeId, roster, privateKey, network, logging, rootOutputDirectory);
     }
 
     /**

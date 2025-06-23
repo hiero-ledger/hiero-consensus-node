@@ -100,7 +100,7 @@ class StreamUtilitiesTest {
     static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
         registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero.base.crypto");
+        registry.registerConstructables("org.hiero");
     }
 
     private static File getResourceFile(final String path) {

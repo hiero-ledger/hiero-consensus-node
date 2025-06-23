@@ -254,9 +254,12 @@ public class SerializableDataOutputStream extends AugmentedDataOutputStream {
      * @param codec the codec to use to write the record
      * @param <T> the type of the record
      * @throws IOException thrown if any IO problems occur
+     * @return the length in bytes that were written
      */
-    public <T> void writePbjRecord(@NonNull final T record, @NonNull final Codec<T> codec) throws IOException {
-        writeInt(codec.measureRecord(record));
+    public <T> long writePbjRecord(@NonNull final T record, @NonNull final Codec<T> codec) throws IOException {
+        final int recordSize = codec.measureRecord(record);
+        writeInt(recordSize);
         codec.write(record, writableSequentialData);
+        return recordSize + Integer.BYTES;
     }
 }

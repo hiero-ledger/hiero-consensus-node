@@ -8,11 +8,12 @@ import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_EXECUTING;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.CODE_SUSPENDED;
 
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Optional;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -79,7 +80,7 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
     }
 
     @Override
-    public @NonNull ContractActions contractActions() {
+    public @NonNull List<ContractAction> contractActions() {
         return actionStack.asContractActions();
     }
 

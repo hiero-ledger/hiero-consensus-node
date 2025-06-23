@@ -50,6 +50,14 @@ public class DefaultDoubleGauge extends AbstractMetric implements DoubleGauge {
      * {@inheritDoc}
      */
     @Override
+    public void add(final double change) {
+        this.value.addAndGet(change);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public String toString() {
         return new ToStringBuilder(this)
                 .appendSuper(super.toString())
