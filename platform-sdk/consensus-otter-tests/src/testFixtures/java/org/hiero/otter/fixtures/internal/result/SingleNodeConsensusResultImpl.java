@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
@@ -29,7 +30,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      * {@inheritDoc}
      */
     @Override
-    public long nodeId() {
+    public NodeId nodeId() {
         return collector.nodeId();
     }
 

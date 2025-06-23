@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.assertions;
 
 import static java.util.Comparator.comparingInt;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -136,7 +137,7 @@ public class MultipleNodeConsensusResultsAssert
         return this;
     }
 
-    private record RoundListResult(@NonNull Long nodeId, @NonNull List<ConsensusRound> rounds) {
+    private record RoundListResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {
             return rounds.size();
         }

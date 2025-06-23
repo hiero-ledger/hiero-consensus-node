@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -39,7 +39,7 @@ public interface MultipleNodeConsensusResults extends OtterResult {
      * @return a new instance of {@link MultipleNodeConsensusResults} with the specified node's results excluded
      */
     @NonNull
-    MultipleNodeConsensusResults suppressingNode(long nodeId);
+    MultipleNodeConsensusResults suppressingNode(@NonNull NodeId nodeId);
 
     /**
      * Excludes the consensus results of a specific node from the results.

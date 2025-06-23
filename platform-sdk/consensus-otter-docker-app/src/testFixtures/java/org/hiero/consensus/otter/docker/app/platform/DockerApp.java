@@ -10,6 +10,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -21,6 +22,8 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuildingBlocks;
+import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -29,14 +32,18 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -53,18 +60,19 @@ public class DockerApp {
 
     private final Platform platform;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
+    private final List<Consumer<List<ConsensusRound>>> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Creates a new DockerApp instance with the specified parameters.
      *
-     * @param id                   the unique identifier for this node
+     * @param selfId               the unique identifier for this node
      * @param version              the semantic version of the application
      * @param genesisRoster        the initial roster of nodes in the network
      * @param keysAndCerts         the keys and certificates for this node
      * @param overriddenProperties properties to override in the configuration
      */
     public DockerApp(
-            final long id,
+            @NonNull final NodeId selfId,
             @NonNull final SemanticVersion version,
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
@@ -73,7 +81,7 @@ public class DockerApp {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
 
-        final NodeId selfId = NodeId.of(id);
+        final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
         final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
         if (overriddenProperties != null) {
             overriddenProperties.forEach(configurationBuilder::withValue);
@@ -86,7 +94,7 @@ public class DockerApp {
 
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
@@ -94,8 +102,8 @@ public class DockerApp {
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
-        final RecycleBin recycleBin =
-                RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        final RecycleBin recycleBin = RecycleBin.create(
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
 
         final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = new DockerStateEventHandler();
 
@@ -108,7 +116,7 @@ public class DockerApp {
                 () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                selfId,
+                oldSelfId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -117,22 +125,32 @@ public class DockerApp {
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
-        // --- Now build the platform and start it ---
-        platform = PlatformBuilder.create(
+        // --- Build the platform component builder so we can access wiring ---
+        final PlatformBuilder builder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
                         version,
                         initialState,
                         consensusStateEventHandler,
-                        selfId,
+                        oldSelfId,
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(DockerApp::encodeSystemTransaction)
-                .build();
+                .withSystemTransactionEncoderCallback(DockerApp::encodeSystemTransaction);
+
+        final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
+        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
+        final PlatformWiring wiring = blocks.platformWiring();
+
+        // Forward consensus rounds to registered listeners
+        wiring.getConsensusEngineOutputWire()
+                .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
+
+        // Build the platform
+        platform = componentBuilder.build();
 
         platform.getNotificationEngine()
                 .register(PlatformStatusChangeListener.class, newStatus -> status.set(newStatus.getNewStatus()));
@@ -170,5 +188,17 @@ public class DockerApp {
      */
     private static Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         return Bytes.EMPTY; // FIXME
+    }
+
+    public void registerPlatformStatusChangeListener(@NonNull final PlatformStatusChangeListener listener) {
+        platform.getNotificationEngine().register(PlatformStatusChangeListener.class, listener);
+    }
+
+    private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
+        consensusRoundListeners.forEach(listener -> listener.accept(rounds));
+    }
+
+    public void registerConsensusRoundListener(@NonNull final Consumer<List<ConsensusRound>> listener) {
+        consensusRoundListeners.add(listener);
     }
 }

@@ -15,6 +15,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.APP_NAME;
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.SWIRLD_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -48,7 +49,6 @@ import java.time.Instant;
 import java.util.List;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
@@ -77,7 +77,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     public static final String THREAD_CONTEXT_NODE_ID = "nodeId";
 
-    private final NodeId selfId;
     private final Randotron randotron;
     private final Time time;
     private final Roster roster;
@@ -114,14 +113,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     public TurtleNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
-            long selfId,
+            @NonNull final NodeId selfId,
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
         super(selfId);
-        this.selfId = NodeId.of(selfId);
         logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, this.selfId.toString());
@@ -249,8 +247,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     @Override
     public SingleNodeLogResult getLogResult() {
-        final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
-        return new SingleNodeLogResultImpl(selfId.id(), logs);
+        final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId);
+        return new SingleNodeLogResultImpl(selfId, logs);
     }
 
     /**
@@ -268,7 +266,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @Override
     @NonNull
     public SingleNodePcesResult getPcesResult() {
-        return new SingleNodePcesResultImpl(selfId.id(), platformContext);
+        return new SingleNodePcesResultImpl(selfId(), platformContext);
     }
 
     /**
@@ -301,7 +299,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             doShutdownNode();
             lifeCycle = DESTROYED;
 
-            logging.removeNodeLogging(selfId.id());
+            logging.removeNodeLogging(selfId);
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -323,15 +321,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private void doStartNode() {
 
         final Configuration currentConfiguration = nodeConfiguration.createConfiguration();
+        final org.hiero.consensus.model.node.NodeId oldNodeId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
         setupGlobalMetrics(currentConfiguration);
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldNodeId);
         final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, selfId);
+                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, oldNodeId);
 
         platformContext = TestPlatformContextBuilder.create()
                 .withTime(time)
@@ -352,7 +351,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                selfId,
+                oldNodeId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -367,7 +366,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         version,
                         initialState,
                         TurtleApp.INSTANCE,
-                        selfId,
+                        oldNodeId,
                         eventStreamLoc,
                         rosterHistory,
                         platformStateFacade)
@@ -382,10 +381,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
         final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
-        final SimulatedGossip gossip = network.getGossipInstance(selfId);
+        final SimulatedGossip gossip = network.getGossipInstance(oldNodeId);
         gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
-        platformComponentBuilder.withMetricsDocumentationEnabled(false).withGossip(network.getGossipInstance(selfId));
+        platformComponentBuilder
+                .withMetricsDocumentationEnabled(false)
+                .withGossip(network.getGossipInstance(oldNodeId));
 
         platformWiring = platformBuildingBlocks.platformWiring();
 

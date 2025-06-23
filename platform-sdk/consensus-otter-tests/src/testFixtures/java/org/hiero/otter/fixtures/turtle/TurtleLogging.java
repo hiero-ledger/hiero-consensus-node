@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Filter.Result;
@@ -25,19 +27,21 @@ import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 public class TurtleLogging {
 
     private final Path globalLogFile;
-    private final Map<Long, Path> nodeIdConfigurations = new ConcurrentHashMap<>();
+    private final Map<NodeId, Path> nodeIdConfigurations = new ConcurrentHashMap<>();
 
     public TurtleLogging(@NonNull final Path rootOutputDirectory) {
         globalLogFile = rootOutputDirectory.resolve("otter.log");
         updateLogging();
     }
 
-    public void addNodeLogging(final long nodeId, @NonNull final Path outputDirectory) {
+    public void addNodeLogging(@NonNull final NodeId nodeId, @NonNull final Path outputDirectory) {
+        Objects.requireNonNull(nodeId, "nodeId cannot be null");
+        Objects.requireNonNull(outputDirectory, "outputDirectory cannot be null");
         nodeIdConfigurations.put(nodeId, outputDirectory);
         updateLogging();
     }
 
-    public void removeNodeLogging(final long nodeId) {
+    public void removeNodeLogging(@NonNull final NodeId nodeId) {
         nodeIdConfigurations.remove(nodeId);
         updateLogging();
     }
@@ -66,11 +70,11 @@ public class TurtleLogging {
 
         final RootLoggerComponentBuilder rootLogger = configuration.newRootLogger(Level.ALL);
 
-        for (final Map.Entry<Long, Path> entry : nodeIdConfigurations.entrySet()) {
-            final long nodeId = entry.getKey();
+        for (final Map.Entry<NodeId, Path> entry : nodeIdConfigurations.entrySet()) {
+            final NodeId nodeId = entry.getKey();
             final Path outputDirectory = entry.getValue();
             final KeyValuePairComponentBuilder keyValuePair =
-                    configuration.newKeyValuePair("nodeId", String.valueOf(nodeId));
+                    configuration.newKeyValuePair("nodeId", String.valueOf(nodeId.id()));
 
             final FilterComponentBuilder excludeNodeFilter = configuration
                     .newFilter("ThreadContextMapFilter", Result.DENY, Result.NEUTRAL)
@@ -87,7 +91,7 @@ public class TurtleLogging {
                     .newFilter("MarkerFilter", Result.NEUTRAL, Result.DENY)
                     .addAttribute("marker", "STATE_HASH");
 
-            final ComponentBuilder regularNodeFilter = configuration
+            final ComponentBuilder<?> regularNodeFilter = configuration
                     .newComponent("filters")
                     .addComponent(infoFilter)
                     .addComponent(nodeOnlyFilter)
@@ -100,7 +104,7 @@ public class TurtleLogging {
                     .add(nodeLogLayout)
                     .addComponent(regularNodeFilter);
 
-            final ComponentBuilder hashStateNodeFilter = configuration
+            final ComponentBuilder<?> hashStateNodeFilter = configuration
                     .newComponent("filters")
                     .addComponent(infoFilter)
                     .addComponent(nodeOnlyFilter)

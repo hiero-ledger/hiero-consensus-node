@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.internal;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -24,7 +25,7 @@ public abstract class AbstractNode implements Node {
         DESTROYED
     }
 
-    protected final long selfId;
+    protected final NodeId selfId;
 
     protected LifeCycle lifeCycle = LifeCycle.INIT;
     protected SemanticVersion version = Node.DEFAULT_VERSION;
@@ -37,7 +38,7 @@ public abstract class AbstractNode implements Node {
      *
      * @param selfId the unique identifier for this node
      */
-    protected AbstractNode(final long selfId) {
+    protected AbstractNode(@NonNull final NodeId selfId) {
         this.selfId = selfId;
     }
 
@@ -53,8 +54,9 @@ public abstract class AbstractNode implements Node {
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public long selfId() {
+    public NodeId selfId() {
         return selfId;
     }
 

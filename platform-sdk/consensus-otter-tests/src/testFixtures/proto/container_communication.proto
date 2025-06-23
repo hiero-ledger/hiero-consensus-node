@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package org.hiero.otter.fixtures.container.proto;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+import "services/state/roster/roster.proto";
+import "platform/state/platform_state.proto";
+import "platform/event/gossip_event.proto";
+import "platform/event/event_consensus_data.proto";
+import "platform/event/event_descriptor.proto";
+
+option java_multiple_files = true;
+
+message ProtoKeysAndCerts {
+  // Signature key pair
+  string sig_key_type = 1;
+  bytes sig_private_key = 2;
+  bytes sig_public_key = 3;
+
+  // Agreement key pair
+  string agr_key_type = 4;
+  bytes agr_private_key = 5;
+  bytes agr_public_key = 6;
+
+  // Certificates
+  string sig_cert_type = 7;
+  bytes sig_certificate = 8;
+
+  string agr_cert_type = 9;
+  bytes agr_certificate = 10;
+}
+
+// Different event types wrapped in one message
+message PlatformStatusChange {
+  string new_status = 1;
+}
+message LogEntry {
+  uint64 timestamp = 1;
+  string level = 2;
+  string logger_name = 3;
+  string thread = 4;
+  string message = 5;
+  string marker = 6;
+  uint64 nodeId = 7;
+}
+
+message EventDescriptorWrapper {
+  com.hedera.hapi.platform.event.EventDescriptor event_descriptor = 1;
+  bytes hash = 2;
+  com.hedera.hapi.platform.state.NodeId creator = 3;
+}
+message TransactionWrapper {
+  uint64 consensus_timestamp = 1;
+  bytes hash = 2;
+  bytes transaction = 3;
+}
+
+message EventMetadata {
+  com.hedera.hapi.platform.state.NodeId creator_id = 1;
+  EventDescriptorWrapper self_parent = 2;
+  repeated EventDescriptorWrapper other_parents = 3;
+  repeated EventDescriptorWrapper all_parents = 4;
+  int64 generation = 5;
+  uint64 time_created = 6;
+  repeated TransactionWrapper transactions = 7;
+  EventDescriptorWrapper event_descriptor = 8; // Renamed from 'descriptor' to 'event_descriptor'
+  int64 birth_round = 9;
+}
+
+message CesEvent {
+  com.hedera.hapi.platform.event.GossipEvent platform_event = 1;
+  bytes running_hash = 2;
+  int64 round_received = 3;
+  bool last_in_round_received = 4;
+}
+
+message EventWindow {
+  int64 latest_consensus_round = 1;
+  int64 new_event_birth_round = 2;
+  int64 ancient_threshold = 3;
+  int64 expired_threshold = 4;
+}
+
+message ProtoConsensusRound {
+  repeated com.hedera.hapi.platform.event.GossipEvent consensus_events = 1;
+  repeated CesEvent streamed_events = 2;
+  EventWindow event_window = 3;
+  int32 num_app_transactions = 4;
+  com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = 5;
+  com.hedera.hapi.node.state.roster.Roster consensus_roster = 6;
+  bool pces_round = 7;
+  uint64 reached_cons_timestamp = 8;
+}
+
+message ProtoConsensusRounds {
+  repeated ProtoConsensusRound rounds = 1;
+}
+
+// Wrapper for event messages using oneof (only one field set per message)
+message EventMessage {
+  oneof event {
+    PlatformStatusChange platform_status_change = 1;
+    LogEntry log_entry = 2;
+    ProtoConsensusRounds consensus_rounds = 3;
+  }
+}
+
+// Request to start the platform
+message StartRequest {
+  com.hedera.hapi.platform.state.NodeId self_id = 1;
+  .proto.SemanticVersion version = 2;
+  com.hedera.hapi.node.state.roster.Roster roster = 3;
+  ProtoKeysAndCerts keys_and_certs = 4;
+  map<string, string> overridden_properties = 5;
+}
+
+// Service definition with a server-streaming RPC
+service TestControl {
+  rpc Start(StartRequest) returns (stream EventMessage);
+}

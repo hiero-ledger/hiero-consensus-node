@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction.UNSUBSCRIBE;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -12,7 +13,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -31,7 +31,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
         DESTROYED
     }
 
-    private final Set<Long> suppressedNodeIds = ConcurrentHashMap.newKeySet();
+    private final Set<NodeId> suppressedNodeIds = ConcurrentHashMap.newKeySet();
     private volatile State state = State.ACTIVE;
 
     /**
@@ -87,7 +87,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(final long nodeId) {
+    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(final NodeId nodeId) {
         suppressedNodeIds.add(nodeId);
         return this;
     }
@@ -110,7 +110,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(final long nodeId) {
+    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(final NodeId nodeId) {
         suppressedNodeIds.remove(nodeId);
         return this;
     }
@@ -142,16 +142,23 @@ public class MultipleNodeConsensusResultsContinuousAssert
 
             @Override
             public SubscriberAction onConsensusRounds(
-                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
+                    @NonNull final org.hiero.consensus.model.node.NodeId nodeId,
+                    final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
-                        if (!suppressedNodeIds.contains(nodeId.id())) {
+                        final NodeId protoNodeId =
+                                NodeId.newBuilder().id(nodeId.id()).build();
+                        if (!suppressedNodeIds.contains(protoNodeId)) {
                             for (final ConsensusRound round : rounds) {
                                 final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
-                                if (!nodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
+                                        round.getRoundNum(), key -> new RoundFromNode(protoNodeId, round));
+                                if (!protoNodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
                                     failWithMessage(summarizeDifferences(
-                                            reference.nodeId, nodeId, round.getRoundNum(), reference.round(), round));
+                                            reference.nodeId,
+                                            protoNodeId,
+                                            round.getRoundNum(),
+                                            reference.round(),
+                                            round));
                                 }
                             }
                         }
@@ -188,8 +195,8 @@ public class MultipleNodeConsensusResultsContinuousAssert
             final var event2 = round2.getConsensusEvents().get(i);
             if (!event1.equals(event2)) {
                 sb.append("Event ").append(i).append(" differs:\n");
-                sb.append("Node ").append(node1).append(" produced\n").append(event1);
-                sb.append("Node ").append(node2).append(" produced\n").append(event2);
+                sb.append("Node ").append(node1.id()).append(" produced\n").append(event1);
+                sb.append("Node ").append(node2.id()).append(" produced\n").append(event2);
             }
         }
         return sb.toString();

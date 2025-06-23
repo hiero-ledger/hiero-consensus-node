@@ -6,6 +6,7 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETW
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -22,7 +23,6 @@ import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
@@ -128,7 +128,8 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
                 .map(RosterUtils::getNodeId)
                 .sorted()
-                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
+                .map(nodeId -> createTurtleNode(
+                        NodeId.newBuilder().id(nodeId.id()).build(), roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
 
@@ -139,7 +140,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         return new TurtleNode(
-                randotron, timeManager.time(), nodeId.id(), roster, privateKeys, simulatedNetwork, logging, outputDir);
+                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
     }
 
     /**

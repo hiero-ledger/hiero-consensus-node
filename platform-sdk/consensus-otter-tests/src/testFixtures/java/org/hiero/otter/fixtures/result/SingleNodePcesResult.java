@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,7 +17,7 @@ public interface SingleNodePcesResult {
      *
      * @return the node ID
      */
-    long nodeId();
+    NodeId nodeId();
 
     /**
      * Returns an {@link Iterator} over the current PcesFiles.

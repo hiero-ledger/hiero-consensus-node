@@ -2,19 +2,30 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.ContainerNode.GOSSIP_PORT;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -97,15 +108,58 @@ public class ContainerNetwork extends AbstractNetwork {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
         final List<ContainerNode> newNodes = new ArrayList<>();
-        for (int i = 0; i < count; i++) {
-            final long selfId = nextNodeId++;
-            final ContainerNode node = new ContainerNode(selfId, network, dockerImage);
+        final List<RosterEntry> rosterEntries = new ArrayList<>();
+        final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
+
+        for (final var oldSelfId : keysAndCerts.keySet()) {
+            final NodeId selfId = NodeId.newBuilder().id(oldSelfId.id()).build();
+            final byte[] sigCertBytes = getSigCertBytes(oldSelfId, keysAndCerts);
+
+            rosterEntries.add(RosterEntry.newBuilder()
+                    .nodeId(selfId.id())
+                    .weight(1L)
+                    .gossipCaCertificate(Bytes.wrap(sigCertBytes))
+                    .gossipEndpoint(ServiceEndpoint.newBuilder()
+                            .domainName(String.format("node-%d", selfId.id()))
+                            .port(GOSSIP_PORT)
+                            .build())
+                    .build());
+        }
+
+        final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
+
+        for (final var oldSelfId : keysAndCerts.keySet()) {
+            final NodeId selfId = NodeId.newBuilder().id(oldSelfId.id()).build();
+            final ContainerNode node =
+                    new ContainerNode(selfId, roster, keysAndCerts.get(oldSelfId), network, dockerImage);
             newNodes.add(node);
         }
         nodes.addAll(newNodes);
-        sendUpdatedRosterToNodes();
-
         return Collections.unmodifiableList(newNodes);
+    }
+
+    @NonNull
+    private static byte[] getSigCertBytes(
+            final org.hiero.consensus.model.node.NodeId oldSelfId,
+            final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> keysAndCerts) {
+        try {
+            return keysAndCerts.get(oldSelfId).sigCert().getEncoded();
+        } catch (final CertificateEncodingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @NonNull
+    private static Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> getKeysAndCerts(final int count) {
+        try {
+            return CryptoStatic.generateKeysAndCerts(
+                    IntStream.range(0, count)
+                            .mapToObj(org.hiero.consensus.model.node.NodeId::of)
+                            .toList(),
+                    null);
+        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -124,15 +178,6 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     public List<Node> getNodes() {
         return publicNodes;
-    }
-
-    private void sendUpdatedRosterToNodes() {
-        final List<RosterEntry> rosterEntries =
-                nodes.stream().map(ContainerNode::rosterEntry).toList();
-        final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
-        for (final ContainerNode node : nodes) {
-            node.setRoster(roster);
-        }
     }
 
     /**

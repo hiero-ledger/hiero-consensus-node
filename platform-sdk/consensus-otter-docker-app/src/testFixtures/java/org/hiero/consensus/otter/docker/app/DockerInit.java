@@ -1,149 +1,144 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.crypto.CryptoStatic;
-import edu.umd.cs.findbugs.annotations.Nullable;
+import com.hedera.hapi.platform.state.legacy.NodeId;
+import com.hederahashgraph.api.proto.java.Roster;
+import com.hederahashgraph.api.proto.java.SemanticVersion;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.security.KeyStoreException;
-import java.security.cert.CertificateEncodingException;
-import java.util.Base64;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.otter.docker.app.netty.NettyRestServer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
+import org.hiero.otter.fixtures.KeysAndCertsConverter;
+import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
+import org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds;
+import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
+import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 
 /**
- * A simple REST server that controls the consensus node in a Docker container.
+ * Boots a {@link DockerApp} inside a minimal gRPC wrapper.
+ * <p>
+ * The class is a tiny self-contained launcher that exposes only a single
+ * {@code start()} RPC through which a test harness can supply the information
+ * required to bootstrap a {@link DockerApp}. All mutable state is kept inside
+ * the singleton instance and never published outside this class.
  */
-public class DockerInit {
+public final class DockerInit {
 
-    private final NettyRestServer server;
+    /** Singleton instance exposed for the gRPC service. */
+    static final DockerInit INSTANCE = new DockerInit();
 
-    @Nullable
+    /** Port on which the gRPC service listens. */
+    private static final int GRPC_PORT = 8080;
+
+    /** Underlying gRPC server. */
+    private final Server grpcServer;
+
+    /** Lazily initialised docker app; only set once. */
     private DockerApp app;
 
-    @Nullable
-    private Long selfId;
-
-    @Nullable
-    private KeysAndCerts keysAndCerts;
-
     private DockerInit() {
-        server = new NettyRestServer(8080);
-
-        // POST /hello
-        server.addPost("/hello", (req, body) -> {
-            try {
-                final Map<?, ?> json = new ObjectMapper().readValue(body, Map.class);
-                if (json.containsKey("name")) {
-                    final String name = json.get("name").toString();
-                    return Map.of("answer", "Hello " + name + "!");
-                }
-                return Map.of("answer", "Hello World!");
-            } catch (final Exception e) {
-                return Map.of("error", "Invalid JSON");
-            }
-        });
-
-        server.addPost("/self-id", (req, body) -> {
-            try {
-                final JsonNode json = new ObjectMapper().readTree(body);
-                selfId = json.get("selfId").asLong();
-                if (selfId < 1L) {
-                    throw new IllegalArgumentException("selfId must be a positive number");
-                }
-                keysAndCerts = generateKeysAndCerts(selfId);
-                final String content = Base64.getEncoder()
-                        .encodeToString(keysAndCerts.sigCert().getEncoded());
-                return Map.of("sigcrt", content);
-            } catch (final IOException e) {
-                throw new IllegalArgumentException(e);
-            } catch (final CertificateEncodingException e) {
-                // This should not happen, as we just generated the certificate
-                throw new RuntimeException(e);
-            }
-        });
-
-        server.addPost("/start-node", (req, body) -> {
-            if (app != null) {
-                throw new IllegalStateException("Node is already started");
-            }
-            if (selfId == null || keysAndCerts == null) {
-                throw new IllegalStateException("SelfID must be set before starting the node");
-            }
-            try {
-                final ObjectMapper mapper = new ObjectMapper();
-                final JsonNode json = mapper.readTree(body);
-
-                final SemanticVersion version = SemanticVersion.JSON.parse(
-                        Bytes.wrap(json.get("version").textValue()));
-                final Roster roster =
-                        Roster.JSON.parse(Bytes.wrap(json.get("roster").asText()));
-                // noinspection unchecked
-                final Map<String, String> overriddenProperties =
-                        (Map<String, String>) mapper.convertValue(json.get("properties"), Map.class);
-
-                app = new DockerApp(selfId, version, roster, keysAndCerts, overriddenProperties);
-                app.start();
-
-                return Map.of("node", "started");
-            } catch (final IOException | ParseException | ClassCastException e) {
-                throw new IllegalArgumentException(e);
-            }
-        });
-
-        server.addPost("/destroy-node", (req, body) -> {
-            if (app == null) {
-                throw new IllegalStateException("Node is not started");
-            }
-            try {
-                app.destroy();
-            } catch (final InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            app = null;
-            return Map.of("node", "destroyed");
-        });
-
-        server.addGet("/logs", req -> InMemoryAppender.getLogs());
-
-        server.addGet("/status", req -> app.getStatus());
+        grpcServer = ServerBuilder.forPort(GRPC_PORT)
+                .addService(new TestControlImpl(this))
+                .build();
     }
 
-    private static KeysAndCerts generateKeysAndCerts(final long selfId) {
-        try {
-            final NodeId nodeId = NodeId.of(selfId);
-            return CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
-        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException(e);
+    public static void main(final String[] args) throws IOException, InterruptedException {
+        INSTANCE.startGrpcServer();
+    }
+
+    private void startGrpcServer() throws IOException, InterruptedException {
+        grpcServer.start();
+        grpcServer.awaitTermination();
+    }
+
+    /**
+     * gRPC implementation that delegates to the {@link DockerInit} singleton.
+     */
+    private static final class TestControlImpl extends TestControlGrpc.TestControlImplBase {
+
+        private final DockerInit context;
+
+        private TestControlImpl(final DockerInit context) {
+            this.context = context;
         }
-    }
-    /**
-     * Starts the web server that listens for requests to control the Docker container.
-     *
-     * @throws InterruptedException if the thread is interrupted while starting the server
-     */
-    public void startWebserver() throws InterruptedException {
-        server.start();
-    }
 
-    /**
-     * Main method to start the DockerInit web server.
-     *
-     * @param args command line arguments (not used)
-     * @throws Exception if an error occurs while starting the web server
-     */
-    public static void main(final String[] args) throws Exception {
-        new DockerInit().startWebserver();
+        @Override
+        public void start(
+                @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+
+            if (context.app != null) {
+                responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
+                return;
+            }
+
+            final NodeId selfId = request.getSelfId();
+            if (selfId.getId() < 0) {
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("selfId must be positive")
+                        .asRuntimeException());
+                return;
+            }
+
+            try {
+                final SemanticVersion version =
+                        request.hasVersion() ? request.getVersion() : SemanticVersion.getDefaultInstance();
+
+                final Roster roster = request.hasRoster() ? request.getRoster() : Roster.getDefaultInstance();
+
+                context.app = new DockerApp(
+                        ProtobufConverter.fromGoogle(selfId),
+                        ProtobufConverter.fromGoogle(version),
+                        ProtobufConverter.fromGoogle(roster),
+                        KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
+                        request.getOverriddenPropertiesMap());
+
+                // Forward platform status changes to the caller
+                context.app.registerPlatformStatusChangeListener(notification -> {
+                    final var platformStatusChangeMsg =
+                            org.hiero.otter.fixtures.container.proto.PlatformStatusChange.newBuilder()
+                                    .setNewStatus(notification.getNewStatus().name())
+                                    .build();
+
+                    final var eventMessage = EventMessage.newBuilder()
+                            .setPlatformStatusChange(platformStatusChangeMsg)
+                            .build();
+
+                    responseObserver.onNext(eventMessage);
+                });
+
+                // Forward consensus rounds
+                context.app.registerConsensusRoundListener(rounds -> {
+                    final List<ProtoConsensusRound> protoRounds =
+                            rounds.stream().map(ProtobufConverter::toGoogle).toList();
+
+                    final var eventMessage = EventMessage.newBuilder()
+                            .setConsensusRounds(ProtoConsensusRounds.newBuilder()
+                                    .addAllRounds(protoRounds)
+                                    .build())
+                            .build();
+                    responseObserver.onNext(eventMessage);
+                });
+
+                // Forward StructuredLog entries via gRPC using InMemoryAppender listener
+                InMemoryAppender.addListener((StructuredLog log) -> {
+                    final var logEntry = ProtobufConverter.toGoogle(log);
+                    final var eventMsg =
+                            EventMessage.newBuilder().setLogEntry(logEntry).build();
+                    responseObserver.onNext(eventMsg);
+                });
+
+                context.app.start();
+            } catch (final Exception e) {
+                responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+            }
+        }
     }
 }

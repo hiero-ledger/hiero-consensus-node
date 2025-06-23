@@ -27,6 +27,7 @@ testFixturesModuleInfo {
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
+    runtimeOnly("io.grpc.netty.shaded")
 }
 
 tasks.testFixturesJar {

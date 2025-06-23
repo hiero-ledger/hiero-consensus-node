@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -94,7 +95,8 @@ public interface Node {
      *
      * @return the self id
      */
-    long selfId();
+    @NonNull
+    NodeId selfId();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.

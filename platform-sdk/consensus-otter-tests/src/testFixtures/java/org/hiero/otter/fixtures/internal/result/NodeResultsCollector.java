@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +11,6 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
@@ -22,7 +22,7 @@ import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
  */
 public class NodeResultsCollector {
 
-    private final long nodeId;
+    private final NodeId nodeId;
     private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
@@ -33,7 +33,7 @@ public class NodeResultsCollector {
      *
      * @param nodeId the node ID of the node
      */
-    public NodeResultsCollector(final long nodeId) {
+    public NodeResultsCollector(final NodeId nodeId) {
         this.nodeId = nodeId;
     }
 
@@ -42,7 +42,7 @@ public class NodeResultsCollector {
      *
      * @return the node ID
      */
-    public long nodeId() {
+    public NodeId nodeId() {
         return nodeId;
     }
 
@@ -56,7 +56,8 @@ public class NodeResultsCollector {
         if (!destroyed) {
             consensusRounds.addAll(rounds);
             consensusRoundSubscribers.removeIf(subscriber ->
-                    subscriber.onConsensusRounds(NodeId.of(nodeId), rounds) == SubscriberAction.UNSUBSCRIBE);
+                    subscriber.onConsensusRounds(org.hiero.consensus.model.node.NodeId.of(nodeId.id()), rounds)
+                            == SubscriberAction.UNSUBSCRIBE);
         }
     }
 

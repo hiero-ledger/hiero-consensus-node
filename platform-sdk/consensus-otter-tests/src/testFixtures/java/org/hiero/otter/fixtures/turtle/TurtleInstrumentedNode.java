@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.turtle;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
@@ -22,7 +23,7 @@ public class TurtleInstrumentedNode extends TurtleNode implements InstrumentedNo
     public TurtleInstrumentedNode(
             @NonNull final Randotron randotron,
             @NonNull final Time time,
-            long nodeId,
+            @NonNull final NodeId nodeId,
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts privateKey,
             @NonNull final SimulatedNetwork network,

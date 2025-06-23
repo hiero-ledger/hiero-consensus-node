@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -14,7 +15,7 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
  * @param nodeId the ID of the node
  * @param logs the list of log entries for the node
  */
-public record SingleNodeLogResultImpl(@NonNull Long nodeId, @NonNull List<StructuredLog> logs)
+public record SingleNodeLogResultImpl(@NonNull NodeId nodeId, @NonNull List<StructuredLog> logs)
         implements SingleNodeLogResult {
 
     /**

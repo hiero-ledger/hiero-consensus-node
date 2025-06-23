@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging.internal;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -30,6 +31,10 @@ import org.hiero.otter.fixtures.turtle.TurtleNode;
 public class InMemoryAppender extends AbstractAppender {
 
     private static final List<StructuredLog> logs = Collections.synchronizedList(new ArrayList<>());
+
+    /** Listeners interested in real-time log events */
+    private static final List<java.util.function.Consumer<StructuredLog>> listeners =
+            java.util.Collections.synchronizedList(new ArrayList<>());
 
     /** No filtering is applied to the log events */
     private static final Filter NO_FILTER = null;
@@ -73,6 +78,14 @@ public class InMemoryAppender extends AbstractAppender {
                 event.getMarker(),
                 nodeId);
         logs.add(log);
+
+        // notify listeners
+        for (java.util.function.Consumer<StructuredLog> l : listeners) {
+            try {
+                l.accept(log);
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     private static long convertSafelyToLong(@Nullable final String value) {
@@ -94,11 +107,11 @@ public class InMemoryAppender extends AbstractAppender {
      * @return an unmodifiable list of all captured log statements for {@code nodeId}
      */
     @NonNull
-    public static List<StructuredLog> getLogs(final long nodeId) {
+    public static List<StructuredLog> getLogs(@NonNull final NodeId nodeId) {
         synchronized (logs) {
             return logs.stream()
                     .filter(Objects::nonNull)
-                    .filter(log -> log.nodeId() == nodeId)
+                    .filter(log -> log.nodeId() == nodeId.id())
                     .toList();
         }
     }
@@ -120,6 +133,11 @@ public class InMemoryAppender extends AbstractAppender {
      */
     public static void clearLogs() {
         logs.clear();
+    }
+
+    /** Register a listener for real-time log events */
+    public static void addListener(@NonNull final java.util.function.Consumer<StructuredLog> listener) {
+        listeners.add(listener);
     }
 
     /**

@@ -26,6 +26,7 @@ testModuleInfo {
     requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
+    runtimeOnly("io.grpc.netty.shaded")
 }
 
 // Runs tests against the Turtle environment

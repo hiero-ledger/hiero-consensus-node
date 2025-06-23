@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.internal.result;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
@@ -70,7 +71,7 @@ public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusRe
      */
     @Override
     @NonNull
-    public MultipleNodeConsensusResults suppressingNode(long nodeId) {
+    public MultipleNodeConsensusResults suppressingNode(@NonNull final NodeId nodeId) {
         final List<SingleNodeConsensusResult> newResults = results.stream()
                 .filter(result -> !Objects.equals(nodeId, result.nodeId()))
                 .toList();
