@@ -8,7 +8,7 @@ import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
-import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 
 /**
  * Interface representing a network of nodes.
@@ -133,12 +133,12 @@ public interface Network {
     MultipleNodeLogResults getLogResults();
 
     /**
-     * Gets the status progression of all nodes in the network.
+     * Gets the status progression results of all nodes in the network.
      *
-     * @return the status progression of the nodes
+     * @return the status progression results of the nodes
      */
     @NonNull
-    MultipleNodeStatusProgression getStatusProgression();
+    MultipleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
      * Gets the results related to PCES files.

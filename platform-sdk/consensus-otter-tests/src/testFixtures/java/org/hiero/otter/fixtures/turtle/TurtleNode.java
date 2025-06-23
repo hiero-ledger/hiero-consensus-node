@@ -60,7 +60,7 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
@@ -315,7 +315,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     @NonNull
-    public SingleNodeStatusProgression getStatusProgression() {
+    public SingleNodePlatformStatusResults getPlatformStatusResults() {
         return resultsCollector.getStatusProgression();
     }
 
