@@ -172,14 +172,17 @@ public interface BinaryState extends FastCopyable {
 
 
     /**
-     * Returns a calculated hash of the state or calculates in a blocking manner
+     * Calculates a hash for the state in a blocking manner. If the hash is already calculated, this method
+     * will return the pre-calculated hash. The state must be immutable before calling this method.
      *
+     * @throws MutabilityException if the state is mutable
      * @return calculated hash for the state
      */
     Hash getHash();
 
     /**
-     * Answers the question if the state is already hashed.
+     * Answers the question if the state is already hashed. Call to this method does trigger the hash calculation
+     * if it hasn't been done yet.
      *
      * @return true if the state is already hashed, false otherwise.
      */
@@ -188,6 +191,7 @@ public interface BinaryState extends FastCopyable {
     /**
      * Creates a snapshot for the state. The state has to be hashed and immutable before calling this method.
      * @param targetPath The path to save the snapshot.
+     * @throws IllegalStateException if the state is mutable, or not hashed, or destroyed.
      */
     void createSnapshot(final @NonNull Path targetPath);
 
@@ -204,18 +208,19 @@ public interface BinaryState extends FastCopyable {
 The goal of this refactoring is to provide a clean, low-level interface for interacting with state.
 The implementation of this interface should have minimal dependencies and **must not** depend on the HAPI module.
 
-The existing `State` interface, along with its related interfaces and implementations, should be moved to the `swirlds-platform-core` module. To reduce the changeset,
+The existing `State` interface, along with its related interfaces and implementations, will be moved to the `hedera-app` module. To reduce the changeset,
 target package should be exactly the same - `com.swirlds.state`.
 
-Ideally, these classes would be relocated to `hedera-app-api` and `hedera-app`, but that would result in a much larger refactor beyond the scope of this proposal.
+However, to make this migration possible, we need to refactor the code in `swirlds-platform-core` that depends on the `State` interface and the related classes.
 
-For instance, `PlatformStateFacade` is currently used in 78 classes. Eliminating the dependency on `State` would require
-migrating this class to use `BinaryState`, which would involve significant effort.
+This code includes but not limited to:
+- PlatformStateService, PlatformStateFacade, ReadablePlatformStateStore / WritablePlatformStateStore
+- ReadableRosterStore / WritableRosterStore
+- V0540PlatformStateSchema
+- V0540RosterBaseSchema
 
-Instead, this proposal recommends that the current `State` implementation should be refactored to **delegate to** the new `BinaryState` interface.
-This approach provides two key benefits:
-- It limits the scope of changes required.
-- It enables the Block Node to use the `swirlds-state-api` and `swirlds-state-impl` modules directly.
+The general strategy is to replace the usage of the `State` interface with the new `BinaryState` interface, or, in case of schemas,
+come up with an alternative way initialization the roster singleton or the platform state.
 
 After this refactoring, the State implementation will still be responsible for maintaining state change listeners and the registry of readable and writable states.
 However, the responsibility for snapshot creation and hash calculation will be delegated to `BinaryState`.
