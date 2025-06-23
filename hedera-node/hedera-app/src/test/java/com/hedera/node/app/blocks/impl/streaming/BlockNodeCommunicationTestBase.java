@@ -82,6 +82,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockStream.blockItemBatchSize", BATCH_SIZE)
+                .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
+                .withValue("blockNode.highLatencyThresholdMs", 500)
                 .getOrCreateConfig();
         return () -> new VersionedConfigImpl(config, 1L);
     }
