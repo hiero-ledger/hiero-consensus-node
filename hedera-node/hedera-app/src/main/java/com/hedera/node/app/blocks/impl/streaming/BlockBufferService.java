@@ -551,7 +551,8 @@ public class BlockBufferService {
     }
 
     /**
-     * Retrieves the lowest unacked block number in the buffer. This is the lowest block number that has not been acknowledged.
+     * Retrieves the lowest unacked block number in the buffer.
+     * This is the lowest block number that has not been acknowledged.
      * @return the lowest unacked block number
      */
     public long getLowestUnackedBlockNumber() {
@@ -559,7 +560,8 @@ public class BlockBufferService {
     }
 
     /**
-     * Retrieves the highest acked block number in the buffer. This is the highest block number that has been acknowledged.
+     * Retrieves the highest acked block number in the buffer.
+     * This is the highest block number that has been acknowledged.
      * @return the highest acked block number
      */
     public long getHighestAckedBlockNumber() {
@@ -567,7 +569,8 @@ public class BlockBufferService {
     }
 
     /**
-     * Retrieves the earliest available block number in the buffer. This is the lowest block number currently in the buffer.
+     * Retrieves the earliest available block number in the buffer.
+     * This is the lowest block number currently in the buffer.
      * @return the earliest available block number or -1 if the buffer is empty
      */
     public long getEarliestAvailableBlockNumber() {
