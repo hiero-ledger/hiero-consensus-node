@@ -36,6 +36,7 @@ public final class HandlerUtility {
         if (scheduledBody != null) {
             ordinary.transactionFee(scheduledBody.transactionFee())
                     .memo(scheduledBody.memo())
+                    .maxCustomFees(scheduledBody.maxCustomFees())
                     .transactionID(scheduledTransactionId);
             switch (scheduledBody.data().kind()) {
                 case CONSENSUS_CREATE_TOPIC -> ordinary.consensusCreateTopic(
