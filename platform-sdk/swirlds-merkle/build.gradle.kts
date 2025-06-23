@@ -27,6 +27,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.fchashmap")
     requires("com.swirlds.merkle.test.fixtures")
     requires("com.swirlds.merkledb")
+    requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.metrics.api")
     requires("com.swirlds.virtualmap")
     requires("org.hiero.base.crypto")
