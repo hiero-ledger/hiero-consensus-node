@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
-import static java.util.Objects.requireNonNull;
-
+import com.hedera.hapi.block.stream.output.MapChangeKey;
+import com.hedera.hapi.block.stream.output.MapUpdateChange;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.TranslationContext;
@@ -31,11 +27,21 @@ import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hyperledger.besu.evm.log.Log;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import org.hyperledger.besu.evm.log.Log;
+
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Translates a {@link TransactionResult} and, optionally, one or more {@link TransactionOutput}s within a given
@@ -208,6 +214,45 @@ public class BlockItemsTranslator {
         if (logs == null || logs.isEmpty()) {
             return result;
         } else {
+            final var builder = result.copyBuilder();
+            attachLogsTo(builder, logs);
+            return builder.build();
+        }
+    }
+
+    private ContractFunctionResult legacyResultFrom(
+            @NonNull final EvmTransactionResult result,
+            @NonNull final ContractOpContext context,
+            @Nullable final List<EvmTransactionLog> logs) {
+        final var builder = ContractFunctionResult.newBuilder()
+                .senderId(result.senderId())
+                .contractID(result.contractId())
+                .evmAddress(context.evmAddress())
+                .contractCallResult(result.resultData())
+                .errorMessage(result.errorMessage())
+                .gasUsed(result.gasUsed());
+        if (result.hasInternalCallContext()) {
+            final var callContext = result.internalCallContextOrThrow();
+            builder
+                    .gasUsed(callContext.gas())
+                    .amount(callContext.value())
+                    .functionParameters(callContext.callData());
+        } else {
+            final var createdIds = context.stateChanges().stream()
+                    .filter(change -> change.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
+                    .filter(StateChange::hasMapUpdate)
+                    .map(StateChange::mapUpdateOrThrow)
+                    .map(MapUpdateChange::keyOrThrow)
+                    .map(MapChangeKey::contractIdKeyOrThrow)
+                    .toList();
+            builder.createdContractIDs(createdIds);
+        }
+        attachLogsTo(builder, logs);
+        return builder.build();
+    }
+
+    private void attachLogsTo(@NonNull final ContractFunctionResult.Builder builder, @Nullable final List<EvmTransactionLog> logs) {
+        if (logs != null && !logs.isEmpty()) {
             final List<Log> besuLogs = new ArrayList<>(logs.size());
             final List<ContractLoginfo> verboseLogs = new ArrayList<>(logs.size());
             for (final var log : logs) {
@@ -222,12 +267,12 @@ public class BlockItemsTranslator {
                         .data(log.data())
                         .build());
             }
-            return result.copyBuilder()
+            builder
                     .bloom(bloomForAll(besuLogs))
-                    .logInfo(verboseLogs)
-                    .build();
+                    .logInfo(verboseLogs);
         }
     }
+
 
     private static <T> @Nullable T outputValueIfPresent(
             @NonNull final Predicate<TransactionOutput> filter,

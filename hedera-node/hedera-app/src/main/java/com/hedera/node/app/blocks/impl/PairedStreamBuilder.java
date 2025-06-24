@@ -371,7 +371,6 @@ public class PairedStreamBuilder
     @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
-        blockStreamBuilder.contractCreateResult(result);
         return this;
     }
 
@@ -563,7 +562,6 @@ public class PairedStreamBuilder
     @Override
     public PairedStreamBuilder contractCallResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCallResult(result);
-        blockStreamBuilder.contractCallResult(result);
         return this;
     }
 

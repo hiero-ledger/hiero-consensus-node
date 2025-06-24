@@ -1,6 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.scope;
 
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.TimestampSeconds;
+import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.QuerySystemContractOperations;
+import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import org.apache.tuweni.bytes.Bytes;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.InstantSource;
+
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -11,26 +33,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.node.transaction.ExchangeRate;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.scope.QuerySystemContractOperations;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import java.time.InstantSource;
-import org.apache.tuweni.bytes.Bytes;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class QuerySystemContractOperationsTest {
@@ -82,7 +84,7 @@ class QuerySystemContractOperationsTest {
     @Test
     void externalizingResultsAreNoop() {
         assertDoesNotThrow(
-                () -> subject.externalizeResult(ContractFunctionResult.DEFAULT, SUCCESS, Transaction.DEFAULT));
+                () -> subject.externalizeResult(ContractFunctionResult.DEFAULT, SUCCESS, Transaction.DEFAULT, EvmTransactionResult.DEFAULT));
         assertSame(
                 Transaction.DEFAULT, subject.syntheticTransactionForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
     }

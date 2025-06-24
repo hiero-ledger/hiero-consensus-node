@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
-import static java.util.Collections.emptySet;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -10,6 +8,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -17,9 +16,12 @@ import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.tuweni.bytes.Bytes;
+
 import java.util.Set;
 import java.util.function.Predicate;
-import org.apache.tuweni.bytes.Bytes;
+
+import static java.util.Collections.emptySet;
 
 public interface SystemContractOperations {
     /**
@@ -115,14 +117,17 @@ public interface SystemContractOperations {
 
     /**
      * Attempts to create a child record of the current record, with the given {@code result}.
+     *
      * @param result contract function result
      * @param responseStatus response status
      * @param transaction transaction
+     * @param txResult the concise EVM transaction result
      */
     void externalizeResult(
-            @NonNull ContractFunctionResult result,
+            @Deprecated @NonNull ContractFunctionResult result,
             @NonNull ResponseCodeEnum responseStatus,
-            @NonNull Transaction transaction);
+            @NonNull Transaction transaction,
+            @NonNull EvmTransactionResult txResult);
 
     /**
      * Generate synthetic transaction for child hts call

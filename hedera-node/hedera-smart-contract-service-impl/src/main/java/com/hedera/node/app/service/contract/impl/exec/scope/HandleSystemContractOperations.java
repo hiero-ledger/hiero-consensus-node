@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -17,6 +10,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -28,10 +22,18 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.tuweni.bytes.Bytes;
+
+import javax.inject.Inject;
 import java.util.Set;
 import java.util.function.Predicate;
-import javax.inject.Inject;
-import org.apache.tuweni.bytes.Bytes;
+
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Provides the "extended" scope a Hedera system contract needs to perform its operations.
@@ -113,10 +115,14 @@ public class HandleSystemContractOperations implements SystemContractOperations 
 
     @Override
     public void externalizeResult(
-            @NonNull final ContractFunctionResult result,
+            @Deprecated @NonNull final ContractFunctionResult result,
             @NonNull final ResponseCodeEnum responseStatus,
-            @NonNull final Transaction transaction) {
+            @NonNull final Transaction transaction,
+            @NonNull final EvmTransactionResult txResult) {
         requireNonNull(transaction);
+        requireNonNull(result);
+        requireNonNull(responseStatus);
+        requireNonNull(txResult);
         context.savepointStack()
                 .addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL)
                 .transaction(transaction)
