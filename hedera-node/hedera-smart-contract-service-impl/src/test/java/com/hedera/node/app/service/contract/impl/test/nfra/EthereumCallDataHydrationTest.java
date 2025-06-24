@@ -1,21 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.nfra;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
-import static com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData.successFrom;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_CALLDATA_FILE_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_WITH_CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_WITH_TO_ADDRESS;
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verifyNoInteractions;
-
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.state.file.File;
@@ -28,6 +13,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData.successFrom;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_CALLDATA_FILE_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_WITH_CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_WITH_TO_ADDRESS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class EthereumCallDataHydrationTest {
@@ -50,7 +52,7 @@ class EthereumCallDataHydrationTest {
         final var ethTxn = EthereumTransactionBody.newBuilder()
                 .ethereumData(ETH_WITH_TO_ADDRESS)
                 .build();
-        assertEquals(successFrom(ETH_DATA_WITH_TO_ADDRESS), subject.tryToHydrate(ethTxn, fileStore, 1001L));
+        assertEquals(successFrom(ETH_DATA_WITH_TO_ADDRESS, false), subject.tryToHydrate(ethTxn, fileStore, 1001L));
         verifyNoInteractions(fileStore);
     }
 
@@ -60,7 +62,7 @@ class EthereumCallDataHydrationTest {
                 .ethereumData(ETH_WITH_CALL_DATA)
                 .callData(ETH_CALLDATA_FILE_ID)
                 .build();
-        assertEquals(successFrom(ETH_DATA_WITH_CALL_DATA), subject.tryToHydrate(ethTxn, fileStore, 1001L));
+        assertEquals(successFrom(ETH_DATA_WITH_CALL_DATA, false), subject.tryToHydrate(ethTxn, fileStore, 1001L));
         verifyNoInteractions(fileStore);
     }
 

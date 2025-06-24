@@ -720,10 +720,11 @@ public class RecordStreamBuilder
      * Sets the ethereum hash.
      *
      * @param ethereumHash the ethereum hash
+     * @param hydratedFromFile
      * @return the builder
      */
     @NonNull
-    public RecordStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash) {
+    public RecordStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash, boolean hydratedFromFile) {
         requireNonNull(ethereumHash, "ethereumHash must not be null");
         transactionRecordBuilder.ethereumHash(ethereumHash);
         return this;

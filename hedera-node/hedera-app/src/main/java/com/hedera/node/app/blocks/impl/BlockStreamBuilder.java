@@ -352,6 +352,10 @@ public class BlockStreamBuilder
      */
     private Bytes ethereumHash = Bytes.EMPTY;
     /**
+     * Whether any non-empty Ethereum transaction hash was hydrated from a file.
+     */
+    private boolean hydratedFromFile = false;
+    /**
      * Whether the transaction creates or deletes a schedule.
      */
     private boolean createsOrDeletesSchedule;
@@ -750,7 +754,7 @@ public class BlockStreamBuilder
 
     @NonNull
     @Override
-    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
+    public BlockStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
         this.evmTransactionResult = result;
         if (result != null) {
             if (contractOpType != ContractOpType.ETH_THROTTLED) {
@@ -865,9 +869,10 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public BlockStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash) {
+    public BlockStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash, final boolean hydratedFromFile) {
         contractOpType = ContractOpType.ETH_THROTTLED;
         this.ethereumHash = requireNonNull(ethereumHash);
+        this.hydratedFromFile = hydratedFromFile;
         return this;
     }
 
@@ -1238,7 +1243,7 @@ public class BlockStreamBuilder
         if (utilPrngOutputItem != null) {
             items.add(utilPrngOutputItem);
         }
-        if (evmTransactionResult != null || ethereumHash != Bytes.EMPTY) {
+        if (evmTransactionResult != null || ethereumHash.length() > 0) {
             final var builder = TransactionOutput.newBuilder();
             requireNonNull(evmTransactionResult);
             switch (requireNonNull(contractOpType)) {
@@ -1251,19 +1256,15 @@ public class BlockStreamBuilder
                             .evmTransactionResult(evmTransactionResult)
                             .build());
                 case ETH_CALL ->
-                    builder.ethereumCall(EthereumOutput.newBuilder()
+                    builder.ethereumCall(ethOutputBuilder()
                             .evmCallTransactionResult(evmTransactionResult)
-                            .ethereumHash(ethereumHash)
                             .build());
                 case ETH_CREATE ->
-                    builder.ethereumCall(EthereumOutput.newBuilder()
+                    builder.ethereumCall(ethOutputBuilder()
                             .evmCreateTransactionResult(evmTransactionResult)
-                            .ethereumHash(ethereumHash)
                             .build());
                 case ETH_THROTTLED ->
-                    builder.ethereumCall(EthereumOutput.newBuilder()
-                            .ethereumHash(ethereumHash)
-                            .build());
+                    builder.ethereumCall(ethOutputBuilder().build());
             }
             items.add(itemWith(builder));
         }
@@ -1286,6 +1287,14 @@ public class BlockStreamBuilder
                             .createdAccountId(accountId)
                             .build())));
         }
+    }
+
+    private EthereumOutput.Builder ethOutputBuilder() {
+        final var builder = EthereumOutput.newBuilder();
+        if (hydratedFromFile) {
+            builder.ethereumHash(ethereumHash);
+        }
+        return builder;
     }
 
     private Bytes getSerializedTransaction() {

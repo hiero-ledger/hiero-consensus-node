@@ -113,9 +113,10 @@ message SystemDeleteContractOutput {}
  */
 message EthereumOutput {
     /**
-     * An ethereum hash value.
+     * If the associated Ethereum transaction required hydrating its
+     * call data from a file, the Keccak256 hash of the transaction.
      * <p>
-     * This SHALL be a keccak256 hash of the ethereumData.
+     * If the Ethereum transaction was inline, this field SHALL NOT be set.
      */
     bytes ethereum_hash = 1;
 

@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.infra;
 
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
+import com.hedera.node.app.service.file.ReadableFileStore;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.bouncycastle.util.encoders.DecoderException;
+import org.bouncycastle.util.encoders.Hex;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
@@ -9,16 +20,6 @@ import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxDat
 import static com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData.failureFrom;
 import static com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData.successFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
-
-import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
-import com.hedera.node.app.service.file.ReadableFileStore;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import javax.inject.Inject;
-import javax.inject.Singleton;
-import org.bouncycastle.util.encoders.DecoderException;
-import org.bouncycastle.util.encoders.Hex;
 
 /**
  * A utility that hydrates {@link EthTxData} from a {@link EthereumTransactionBody} and a {@link ReadableFileStore}.
@@ -76,9 +77,9 @@ public class EthereumCallDataHydration {
                 return failureFrom(CONTRACT_FILE_EMPTY);
             }
 
-            return successFrom(ethTxData.replaceCallData(callData));
+            return successFrom(ethTxData.replaceCallData(callData), true);
         } else {
-            return successFrom(ethTxData);
+            return successFrom(ethTxData, false);
         }
     }
 

@@ -95,7 +95,7 @@ class ContextTransactionProcessorTest {
     @Test
     void callsComponentInfraAsExpectedForValidEthTx() {
         final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
-        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS);
+        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false);
         final var subject = new ContextTransactionProcessor(
                 hydratedEthTxData,
                 context,
@@ -136,7 +136,7 @@ class ContextTransactionProcessorTest {
     @Test
     void callsComponentInfraAsExpectedForValidEthTxWithoutTo() {
         final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
-        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS);
+        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false);
         final var subject = new ContextTransactionProcessor(
                 hydratedEthTxData,
                 context,

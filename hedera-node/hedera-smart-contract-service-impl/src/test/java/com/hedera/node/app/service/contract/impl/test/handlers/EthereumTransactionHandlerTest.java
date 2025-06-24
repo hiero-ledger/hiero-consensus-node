@@ -177,7 +177,7 @@ class EthereumTransactionHandlerTest {
         final var defaultContractsConfig = DEFAULT_CONFIG.getConfigData(ContractsConfig.class);
 
         final var contextTransactionProcessor = new ContextTransactionProcessor(
-                HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS),
+                HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false),
                 handleContext,
                 defaultContractsConfig,
                 DEFAULT_CONFIG,
@@ -207,7 +207,7 @@ class EthereumTransactionHandlerTest {
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
-        given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+        given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
@@ -226,12 +226,13 @@ class EthereumTransactionHandlerTest {
                 null,
                 null,
                 null,
-                null,
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITH_TO_ADDRESS),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(), null);
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
+                null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(callRecordBuilder);
 
@@ -241,10 +242,10 @@ class EthereumTransactionHandlerTest {
     @Test
     void setsEthHashOnThrottledContext() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
-        given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+        given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
 
         assertDoesNotThrow(() -> subject.handleThrottled(handleContext));
@@ -253,7 +254,8 @@ class EthereumTransactionHandlerTest {
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
         given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
-        given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS));
+        given(component.hydratedEthTxData())
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
         given(handleContext.savepointStack()).willReturn(stack);
@@ -271,14 +273,17 @@ class EthereumTransactionHandlerTest {
                 null,
                 null,
                 null,
-                null,
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITHOUT_TO_ADDRESS),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(), null);
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater));
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
+        given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
         givenSenderAccount();
 
@@ -296,7 +301,7 @@ class EthereumTransactionHandlerTest {
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
-                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         subject.preHandle(preHandleContext);
         verify(ethereumSignatures).computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS);
     }
@@ -312,7 +317,7 @@ class EthereumTransactionHandlerTest {
         given(preHandleContext.createStore(ReadableFileStore.class)).willReturn(fileStore);
         given(preHandleContext.configuration()).willReturn(DEFAULT_CONFIG);
         given(callDataHydration.tryToHydrate(ethTxn, fileStore, 1001L))
-                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS));
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(ethereumSignatures.computeIfAbsent(ETH_DATA_WITH_TO_ADDRESS))
                 .willThrow(new IllegalStateException("Oops"));
         assertThrowsPreCheck(() -> subject.preHandle(preHandleContext), INVALID_ETHEREUM_TRANSACTION);

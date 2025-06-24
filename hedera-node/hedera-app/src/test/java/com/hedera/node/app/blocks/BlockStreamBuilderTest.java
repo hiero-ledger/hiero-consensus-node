@@ -1,16 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
@@ -25,7 +15,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -34,14 +24,25 @@ import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.time.Instant;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.Instant;
+import java.util.List;
+
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 public class BlockStreamBuilderTest {
@@ -120,10 +121,10 @@ public class BlockStreamBuilderTest {
     void testBlockItemsWithTraceAndOutput() {
         final var usages =
                 List.of(new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
-        final var contractCallResult = ContractFunctionResult.DEFAULT;
+        final var evmTxResult = EvmTransactionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
-                .contractCallResult(contractCallResult)
+                .evmCallTransactionResult(evmTxResult)
                 .addContractSlotUsages(usages);
 
         List<BlockItem> blockItems = itemsBuilder.build().blockItems();

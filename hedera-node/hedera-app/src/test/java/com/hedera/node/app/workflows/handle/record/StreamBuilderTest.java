@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
-import static org.assertj.core.api.Fail.fail;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -36,11 +28,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
-import java.util.AbstractMap;
-import java.util.List;
 import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,6 +35,20 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.AbstractMap;
+import java.util.List;
+
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static org.assertj.core.api.Fail.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SuppressWarnings({"DataFlowIssue"})
 @ExtendWith(MockitoExtension.class)
@@ -119,7 +120,7 @@ public class StreamBuilderTest {
                 .scheduleRef(scheduleRef)
                 .assessedCustomFees(assessedCustomFees)
                 .automaticTokenAssociations(automaticTokenAssociations)
-                .ethereumHash(ethereumHash)
+                .ethereumHash(ethereumHash, false)
                 .paidStakingRewards(paidStakingRewards)
                 .evmAddress(evmAddress)
                 .status(status)

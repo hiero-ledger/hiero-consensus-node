@@ -62,8 +62,9 @@ public interface EthereumTransactionStreamBuilder extends ContractOperationStrea
      * Tracks the hash of a HAPI Ethereum transaction.
      *
      * @param ethereumHash the {@link Bytes} of the Ethereum transaction hash
+     * @param hydratedFromFile whether the Ethereum transaction data was hydrated from a file
      * @return this builder
      */
     @NonNull
-    EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash);
+    EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash, boolean hydratedFromFile);
 }
