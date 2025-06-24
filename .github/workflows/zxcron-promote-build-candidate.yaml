@@ -158,7 +158,7 @@ jobs:
           egress-policy: audit
 
       - name: Report Promoted Build
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -230,27 +230,6 @@ jobs:
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
-
-      - name: Report failure (PagerDuty)
-        run: |
-          curl --request 'POST' \
-          --url 'https://events.pagerduty.com/v2/enqueue' \
-          --header 'Content-Type: application/json' \
-          --data '{
-            "payload": {
-              "summary": "Hiero Consensus Node - eXtended Test Suite Failure",
-              "severity": "error",
-              "source": "GitHub Actions - eXtended Test Suite",
-              "custom_details": {
-                "Fetch Latest Build Candidate": "${{ needs.determine-build-candidate.result }}",
-                "Promote Build Candidate": "${{ needs.promote-build-candidate.result }}",
-                "Source Commit": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>",
-                "Workflow Run": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-              }
-            },
-            "routing_key": "${{ secrets.PAGERDUTY_CITR_INTEGRATION_KEY }}",
-            "event_action": "trigger"
-          }'
 
       - name: Build Slack Payload Message
         id: payload
@@ -324,7 +303,7 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -332,7 +311,7 @@ jobs:
           payload-file-path: slack_payload.json
 
       - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook

@@ -260,7 +260,7 @@ jobs:
           egress-policy: audit
 
       - name: Report Success (slack)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -433,32 +433,6 @@ jobs:
         with:
           path: run.log
 
-      - name: Report failure (PagerDuty)
-        continue-on-error: true
-        run: |
-          curl --request 'POST' \
-          --url 'https://events.pagerduty.com/v2/enqueue' \
-          --header 'Content-Type: application/json' \
-          --data '{
-            "payload": {
-              "summary": "Hiero Consensus Node - eXtended Test Suite Failure",
-              "severity": "error",
-              "source": "GitHub Actions - eXtended Test Suite",
-              "custom_details": {
-                "Fetch XTS Candidate Tag": "${{ needs.fetch-xts-candidate.result }}",
-                "Execute eXtended Test Suite": "${{ needs.extended-test-suite.result }}",
-                "JRS Panel": "${{ needs.abbreviated-panel.result }}",
-                "Hedera Node JRS Panel": "${{ needs.hedera-node-jrs-panel.result }}",
-                "Tag as XTS-Passing": "${{ needs.tag-for-promotion.result }}",
-                "Source Commit": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>",
-                "Commit Author": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}",
-                "Workflow Run": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-              }
-            },
-            "routing_key": "${{ secrets.PAGERDUTY_CITR_INTEGRATION_KEY }}",
-            "event_action": "trigger"
-          }'
-
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
         continue-on-error: true
@@ -607,7 +581,7 @@ jobs:
           EOF
 
       - name: Report failure (slack citr-operations)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -615,7 +589,7 @@ jobs:
           payload-file-path: slack_payload.json
 
       - name: Report failure (slack release-team)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook

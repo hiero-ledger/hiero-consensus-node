@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.PlatformMetric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.AbstractMetric;
@@ -16,7 +15,7 @@ import java.util.function.Supplier;
 /**
  * Platform-implementation of {@link FunctionGauge}
  */
-public class PlatformFunctionGauge<T> extends AbstractMetric implements PlatformMetric, FunctionGauge<T> {
+public class PlatformFunctionGauge<T> extends AbstractMetric implements FunctionGauge<T> {
 
     private final DataType dataType;
     private final Supplier<T> supplier;

@@ -2,13 +2,21 @@
 package com.swirlds.config.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -113,5 +121,147 @@ class ConfigApiSetTests {
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list"));
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list", String.class));
         assertThrows(NoSuchElementException.class, () -> configuration.getValueSet("sample.list", Integer.class));
+    }
+
+    /** Verify if the iteration order of the set is the same as the order of items in the list. */
+    private static <T> void verifyIterationOrder(final Set<T> set, final List<T> list) {
+        assertEquals(list.size(), set.size(), "The list size should be equal to the set size");
+
+        final Iterator<T> setIterator = set.iterator();
+        final Iterator<T> listIterator = list.iterator();
+
+        final List<T> actualOrder = new ArrayList<>(list.size());
+
+        while (listIterator.hasNext()) {
+            assertEquals(listIterator.hasNext(), setIterator.hasNext());
+
+            final T next = setIterator.next();
+            actualOrder.add(next);
+
+            assertEquals(
+                    listIterator.next(),
+                    next,
+                    "The set iteration order should be stable. Expected: " + list + ", actual so far: " + actualOrder);
+        }
+        assertFalse(setIterator.hasNext());
+    }
+
+    @Test
+    void checkIntegerSetStable() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("testNumbers", "3,1,2"))
+                .build();
+
+        // when
+        final Set<Integer> values = configuration.getValueSet("testNumbers", Integer.class);
+
+        // then
+        verifyIterationOrder(values, List.of(1, 2, 3));
+    }
+
+    @Test
+    void checkStringSetStable() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("testStrings", "x,a,d"))
+                .build();
+
+        // when
+        final Set<String> values = configuration.getValueSet("testStrings", String.class);
+
+        // then
+        verifyIterationOrder(values, List.of("a", "d", "x"));
+    }
+
+    @Test
+    void checkEnumSetStable() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("testEnums", "x,a,d"))
+                .build();
+        enum TestEnum {
+            d,
+            x,
+            a
+        }
+
+        // when
+        final Set<TestEnum> values = configuration.getValueSet("testEnums", TestEnum.class);
+
+        // then
+        verifyIterationOrder(values, List.of(TestEnum.d, TestEnum.x, TestEnum.a));
+    }
+
+    @ConfigData("settest")
+    public record SetTestConfig(@ConfigProperty(value = "testSet", defaultValue = "666,404,500") Set<Long> testSet) {}
+
+    @Test
+    void checkSetInRecord() {
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("settest.testSet", "333,111,222"))
+                .withConfigDataType(SetTestConfig.class)
+                .build();
+
+        // when
+        final SetTestConfig setTestConfig = configuration.getConfigData(SetTestConfig.class);
+
+        // then
+        verifyIterationOrder(setTestConfig.testSet(), List.of(111L, 222L, 333L));
+    }
+
+    @Test
+    void checkInetAddressSet() throws UnknownHostException {
+        // InetAddress is not Comparable:
+
+        // given
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("setinetaddresstest.testInetAddressSet", "1.1.1.1,2.2.2.2"))
+                .build();
+
+        final List<InetAddress> expectedOrder = List.of(
+                InetAddress.getByAddress(new byte[] {1, 1, 1, 1}), InetAddress.getByAddress(new byte[] {2, 2, 2, 2}));
+
+        // Case #1: as a List
+        // when
+        final List<InetAddress> list =
+                configuration.getValues("setinetaddresstest.testInetAddressSet", InetAddress.class);
+
+        // then
+        assertNotNull(list);
+        assertEquals(2, list.size());
+        assertEquals(expectedOrder, list);
+
+        // Case #2: as a Set
+        // when/then
+        final Set<InetAddress> set =
+                configuration.getValueSet("setinetaddresstest.testInetAddressSet", InetAddress.class);
+        verifyIterationOrder(set, expectedOrder);
+    }
+
+    @ConfigData("setinetaddresstest")
+    public record SetInetAddressTestConfig(
+            @ConfigProperty(value = "testInetAddressSet", defaultValue = "1.1.1.1,2.2.2.2") Set<InetAddress> testSet) {}
+
+    @Test
+    void checkInetAddressSetInRecord() throws UnknownHostException {
+        final List<InetAddress> expectedOrder = List.of(
+                InetAddress.getByAddress(new byte[] {1, 1, 1, 1}), InetAddress.getByAddress(new byte[] {2, 2, 2, 2}));
+
+        // InetAddress is not Comparable:
+        final Configuration configuration = ConfigurationBuilder.create()
+                .withSource(new SimpleConfigSource("setinetaddresstest.testInetAddressSet", "1.1.1.1,2.2.2.2"))
+                .withConfigDataType(SetInetAddressTestConfig.class)
+                .build();
+
+        // case 1: getValueSet
+        final Set<InetAddress> set =
+                configuration.getValueSet("setinetaddresstest.testInetAddressSet", InetAddress.class);
+        verifyIterationOrder(set, expectedOrder);
+
+        // case 2: getConfigData as record
+        final SetInetAddressTestConfig configData = configuration.getConfigData(SetInetAddressTestConfig.class);
+        verifyIterationOrder(configData.testSet(), expectedOrder);
     }
 }

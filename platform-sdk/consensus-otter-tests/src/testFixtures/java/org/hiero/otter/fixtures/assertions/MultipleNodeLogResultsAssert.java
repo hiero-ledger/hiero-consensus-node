@@ -46,12 +46,12 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeLogResultsAssert noMessageWithMarkers(
+    public MultipleNodeLogResultsAssert haveNoMessagesWithMarkers(
             @NonNull final LogMarker first, @Nullable final LogMarker... rest) {
         isNotNull();
 
         for (final SingleNodeLogResult result : actual.results()) {
-            OtterAssertions.assertThat(result).noMessageWithMarkers(first, rest);
+            OtterAssertions.assertThat(result).hasNoMessagesWithMarkers(first, rest);
         }
 
         return this;
@@ -64,11 +64,11 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeLogResultsAssert noMessageWithLevelHigherThan(@NonNull final Level level) {
+    public MultipleNodeLogResultsAssert haveNoMessagesWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
 
         for (final SingleNodeLogResult result : actual.results()) {
-            OtterAssertions.assertThat(result).noMessageWithLevelHigherThan(level);
+            OtterAssertions.assertThat(result).hasNoMessagesWithLevelHigherThan(level);
         }
 
         return this;
@@ -80,7 +80,7 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeLogResultsAssert hasNoErrorLevelMessages() {
-        return noMessageWithLevelHigherThan(Level.WARN);
+    public MultipleNodeLogResultsAssert haveNoErrorLevelMessages() {
+        return haveNoMessagesWithLevelHigherThan(Level.WARN);
     }
 }
