@@ -181,7 +181,7 @@ public interface BinaryState extends FastCopyable {
     Hash getHash();
 
     /**
-     * Answers the question if the state is already hashed. Call to this method does trigger the hash calculation
+     * Answers the question if the state is already hashed. Call to this method does not trigger the hash calculation
      * if it hasn't been done yet.
      *
      * @return true if the state is already hashed, false otherwise.
