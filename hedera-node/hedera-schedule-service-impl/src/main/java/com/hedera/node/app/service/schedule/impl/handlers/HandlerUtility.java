@@ -270,7 +270,7 @@ public final class HandlerUtility {
      * @throws PreCheckException if the max custom fees are not supported for the given functionality,
      *         or if the custom fee limits contain invalid values
      */
-    public static void checkMaxCustomFee(
+    public static void checkMaxCustomFees(
             final List<CustomFeeLimit> maxCustomFeeList, final HederaFunctionality functionality)
             throws PreCheckException {
         if (!FUNCTIONALITIES_WITH_MAX_CUSTOM_FEES.contains(functionality) && !maxCustomFeeList.isEmpty()) {

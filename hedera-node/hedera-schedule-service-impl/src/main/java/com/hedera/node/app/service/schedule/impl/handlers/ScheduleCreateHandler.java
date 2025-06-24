@@ -16,7 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CON
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFee;
+import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFees;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMemo;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.createProvisionalSchedule;
@@ -115,7 +115,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var scheduledFunctionality =
                 functionalityForType(scheduledTxnBody.data().kind());
         checkMemo(scheduledTxnBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
-        checkMaxCustomFee(scheduledTxnBody.maxCustomFees(), scheduledFunctionality);
+        checkMaxCustomFees(scheduledTxnBody.maxCustomFees(), scheduledFunctionality);
         // For backward compatibility, use ACCOUNT_ID_DOES_NOT_EXIST for a nonexistent designated payer
         if (op.hasPayerAccountID()) {
             final var accountStore = context.createStore(ReadableAccountStore.class);

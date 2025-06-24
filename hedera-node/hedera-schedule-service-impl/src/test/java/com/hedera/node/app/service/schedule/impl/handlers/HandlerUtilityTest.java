@@ -179,13 +179,13 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
         void unsupportedFuncWithFeesThrowsException() {
             List<CustomFeeLimit> fees = List.of(createValidFeeLimit());
             PreCheckException exception = assertThrows(
-                    PreCheckException.class, () -> HandlerUtility.checkMaxCustomFee(fees, UNSUPPORTED_FUNC));
+                    PreCheckException.class, () -> HandlerUtility.checkMaxCustomFees(fees, UNSUPPORTED_FUNC));
             assertEquals(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED, exception.responseCode());
         }
 
         @Test
         void unsupportedFuncWithEmptyFeesIsValid() {
-            assertDoesNotThrow(() -> HandlerUtility.checkMaxCustomFee(List.of(), UNSUPPORTED_FUNC));
+            assertDoesNotThrow(() -> HandlerUtility.checkMaxCustomFees(List.of(), UNSUPPORTED_FUNC));
         }
 
         @Test
@@ -193,7 +193,7 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
             CustomFeeLimit invalidFee = new CustomFeeLimit(null, List.of(new FixedFee(10, TokenID.DEFAULT)));
             PreCheckException exception = assertThrows(
                     PreCheckException.class,
-                    () -> HandlerUtility.checkMaxCustomFee(List.of(invalidFee), SUPPORTED_FUNC));
+                    () -> HandlerUtility.checkMaxCustomFees(List.of(invalidFee), SUPPORTED_FUNC));
             assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
         }
 
@@ -202,7 +202,7 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
             CustomFeeLimit invalidFee = customFeeLimitWith(List.of());
             PreCheckException exception = assertThrows(
                     PreCheckException.class,
-                    () -> HandlerUtility.checkMaxCustomFee(List.of(invalidFee), SUPPORTED_FUNC));
+                    () -> HandlerUtility.checkMaxCustomFees(List.of(invalidFee), SUPPORTED_FUNC));
             assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
         }
 
@@ -212,13 +212,13 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
                     customFeeLimitWith(List.of(new FixedFee(10, TokenID.DEFAULT), new FixedFee(-1, TokenID.DEFAULT)));
             PreCheckException exception = assertThrows(
                     PreCheckException.class,
-                    () -> HandlerUtility.checkMaxCustomFee(List.of(invalidFee), SUPPORTED_FUNC));
+                    () -> HandlerUtility.checkMaxCustomFees(List.of(invalidFee), SUPPORTED_FUNC));
             assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
         }
 
         @Test
         void validFeesForSupportedFunc() {
-            assertDoesNotThrow(() -> HandlerUtility.checkMaxCustomFee(List.of(createValidFeeLimit()), SUPPORTED_FUNC));
+            assertDoesNotThrow(() -> HandlerUtility.checkMaxCustomFees(List.of(createValidFeeLimit()), SUPPORTED_FUNC));
         }
 
         private CustomFeeLimit createValidFeeLimit() {

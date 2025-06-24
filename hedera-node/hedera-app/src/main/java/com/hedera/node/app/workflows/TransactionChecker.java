@@ -16,7 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFee;
+import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFees;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMemo;
 import static java.util.Objects.requireNonNull;
 
@@ -357,7 +357,7 @@ public class TransactionChecker {
             throws PreCheckException {
         checkTransactionID(txBody.transactionIDOrThrow());
         checkMemo(txBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
-        checkMaxCustomFee(txBody.maxCustomFees(), functionality);
+        checkMaxCustomFees(txBody.maxCustomFees(), functionality);
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
         if (txBody.transactionFee() < 0) {
