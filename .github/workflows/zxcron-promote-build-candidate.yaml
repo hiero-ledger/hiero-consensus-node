@@ -142,6 +142,38 @@ jobs:
           echo "### Preview Next Build Tag" >> "${GITHUB_STEP_SUMMARY}"
           echo "Next build tag is: ${NEXT_BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
 
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hiero-network-node-linux-medium
+    needs:
+      - promote-build-candidate
+    if: ${{ needs.promote-build-candidate.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: "Trigger ZXF: [CITR] Single Day Performance Test"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/zxf-single-day-perf-test.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+              "namespace": "Latitude3",
+              "hcn-version": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}",
+              "solo-version": "latest_tested_solo-charts0.59",
+              "nlg-accounts": 100000,
+              "nlg-time": "3m",
+              "add-app-props": "",
+              "add-settings": "",
+              "crypto-bench-merkle-db-java-args": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
+              "crypto-bench-merkle-db-test-params": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000",
+              "dry-run-enabled": "false"
+            }'
+
   report-promotion:
     name: Report Build Promotion
     runs-on: hiero-network-node-linux-medium
