@@ -5,8 +5,8 @@ on:
     inputs:
       namespace:
         required: true
-        default: 'Latitude3'
-        description: 'Performance test on given namespace'
+        default: "Latitude3"
+        description: "Performance test on given namespace"
         type: choice
         options:
           - Latitude0
@@ -16,18 +16,18 @@ on:
           - Latitude4
       hcn-version:
         required: true
-        default: 'main'
-        description: 'Version of hiero-consensus-node: branch, tag, commit'
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
       solo-version:
         required: true
-        default: 'latest_tested_solo-charts0.59'
-        description: 'Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59'
+        default: "latest_tested_solo-charts0.59"
+        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: 100000
-        description: 'Number of Accounts and NFT tokens'
+        description: "Number of Accounts and NFT tokens"
         type: choice
         options:
           - 100000
@@ -38,8 +38,8 @@ on:
           - 1000000000
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: '1m'
-        description: 'Test execution time'
+        default: "1m"
+        description: "Test execution time"
         type: choice
         options:
           - 1m
@@ -54,29 +54,29 @@ on:
           - 167h
       add-app-props:
         required: false
-        default: ''
+        default: ""
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
       add-settings:
         required: false
-        default: ''
+        default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
       crypto-bench-merkle-db-java-args:
         required: true
-        default: '-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g'
-        description: 'JMH javaargs'
+        default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
+        description: "JMH javaargs"
         type: string
       crypto-bench-merkle-db-test-params:
         required: true
-        default: '-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000'
-        description: 'Test params'
+        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+        description: "Test params"
         type: string
       dry-run-enabled:
         required: false
         default: false
         type: boolean
-        description: 'Enable dry run mode. If true, the test will be executed, but not tag will be applied.'
+        description: "Enable dry run mode. If true, the test will be executed, but not tag will be applied."
 
 defaults:
   run:
