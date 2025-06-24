@@ -406,11 +406,11 @@ message SchedulableTransactionBody {
     }
 
     /**
-    * A list of maximum custom fees that the users are willing to pay.
-    * <p>
-    * This field is OPTIONAL.<br/>
-    * If left empty, the users are accepting to pay any custom fee.<br/>
-    * If used with a transaction type that does not support custom fee limits, the transaction will fail.
-    */
+      * A list of maximum custom fees that the users are willing to pay.
+      * <p>
+      * This field is OPTIONAL.<br/>
+      * If left empty, the users are accepting to pay any custom fee.<br/>
+      * If used with a transaction type that does not support custom fee limits, the transaction will fail.
+      */
     repeated CustomFeeLimit max_custom_fees = 1001;
 }

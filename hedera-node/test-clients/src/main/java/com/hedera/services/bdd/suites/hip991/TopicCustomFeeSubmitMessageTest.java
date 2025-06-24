@@ -1974,6 +1974,13 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         .payingWith(SUBMITTER)
                         .via(SIGNED_SCHEDULED_TX)
                         .hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    var scheduledTxnRecord = getTxnRecord(SCHEDULED_TX).scheduled();
+                    allRunFor(spec, scheduledTxnRecord);
+                    var scheduledTxnStatus =
+                            scheduledTxnRecord.getResponseRecord().getReceipt().getStatus();
+                    assertEquals(MAX_CUSTOM_FEE_LIMIT_EXCEEDED, scheduledTxnStatus);
+                }),
                 getTopicInfo(TOPIC).hasSeqNo(0));
     }
 }
