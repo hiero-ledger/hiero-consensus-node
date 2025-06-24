@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
-import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static java.util.Objects.requireNonNull;
-import static java.util.Spliterators.spliteratorUnknownSize;
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.StreamSupport.stream;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
-import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.Hedera;
@@ -50,6 +37,13 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -58,12 +52,19 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
+
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
+import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
+import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static java.util.Objects.requireNonNull;
+import static java.util.Spliterators.spliteratorUnknownSize;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.StreamSupport.stream;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
 /**
  * Implementation support for {@link EmbeddedHedera}.
@@ -87,8 +88,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected static final PlatformStatusChangeNotification FREEZE_COMPLETE_NOTIFICATION =
             new PlatformStatusChangeNotification(FREEZE_COMPLETE);
 
-    private final boolean blockStreamEnabled;
-
     protected final Map<AccountID, NodeId> nodeIds;
     protected final Map<NodeId, com.hedera.hapi.node.base.AccountID> accountIds;
     protected final AccountID defaultNodeAccountId;
@@ -98,14 +97,20 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final NodeId defaultNodeId;
     protected final AtomicInteger nextNano = new AtomicInteger(0);
     protected final Metrics metrics;
-    protected final Hedera hedera;
-    protected final SemanticVersion version;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     /**
-     * Non-final because a "saved state" may be provided via {@link EmbeddedHedera#restart(FakeState)}.
+     * A trigger for the Hedera platform to use when initializing the state.
+     */
+    protected InitTrigger trigger = GENESIS;
+
+    /**
+     * Non-final because we may re-create state via {@link EmbeddedHedera#restart(FakeState)}.
      */
     protected FakeState state;
+    protected Hedera hedera;
+    protected SemanticVersion version;
+    protected boolean blockStreamEnabled;
 
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.HintsServiceFactory} lambda we give the
@@ -151,41 +156,22 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 executorService,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
-        hedera = new Hedera(
-                ConstructableRegistry.getInstance(),
-                FakeServicesRegistry.FACTORY,
-                new FakeServiceMigrator(),
-                this::now,
-                DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
-                (appContext, bootstrapConfig) ->
-                        this.historyService = new FakeHistoryService(appContext, bootstrapConfig),
-                (hints, history, configProvider) ->
-                        this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
-                metrics,
-                new PlatformStateFacade());
-        version = hedera.getSemanticVersion();
-        blockStreamEnabled = hedera.isBlockStreamEnabled();
+        state = new FakeState();
+        rebuildHedera();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
     }
 
     @Override
     public void restart(@NonNull final FakeState state) {
         this.state = requireNonNull(state);
+        rebuildHedera();
+        this.trigger = RESTART;
         start();
     }
 
     @Override
     public void start() {
-        final InitTrigger trigger;
-        if (state == null) {
-            trigger = GENESIS;
-            state = new FakeState();
-        } else {
-            trigger = RESTART;
-        }
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
-
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), GENESIS);
         hedera.init(fakePlatform(), defaultNodeId);
@@ -312,6 +298,31 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
      * @return the fake platform
      */
     protected abstract AbstractFakePlatform fakePlatform();
+
+    /**
+     * Rebuilds the Hedera instance with the current state and configuration.
+     * <p>
+     * <b>Important:</b> Has the side effect of registering commit listeners on the current fake state.
+     */
+    private void rebuildHedera() {
+        hedera = new Hedera(
+                ConstructableRegistry.getInstance(),
+                FakeServicesRegistry.FACTORY,
+                new FakeServiceMigrator(),
+                this::now,
+                DiskStartupNetworks::new,
+                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
+                (appContext, bootstrapConfig) ->
+                        this.historyService = new FakeHistoryService(appContext, bootstrapConfig),
+                (hints, history, configProvider) ->
+                        this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
+                metrics,
+                new PlatformStateFacade(),
+                () -> this.state);
+        version = hedera.getSemanticVersion();
+        blockStreamEnabled = hedera.isBlockStreamEnabled();
+    }
+
 
     /**
      * Fails fast if somehow a user tries to manipulate the version when submitting to the default node account.

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -18,14 +20,11 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.apache.tuweni.bytes.Bytes;
-
-import javax.inject.Inject;
 import java.time.InstantSource;
 import java.util.Set;
 import java.util.function.Predicate;
-
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
+import org.apache.tuweni.bytes.Bytes;
 
 /**
  * Provides the "extended" scope a Hedera system contract needs to perform its operations.

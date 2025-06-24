@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
-import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
-
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -13,10 +11,13 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.Callable;
+
 import javax.inject.Inject;
+import java.util.Map;
+import java.util.concurrent.Callable;
+
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
+import static java.util.Objects.requireNonNull;
 
 /**
  * A utility class for running the {@code processTransaction()} call implied by the in-scope
@@ -47,12 +48,12 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
             @NonNull final ProxyWorldUpdater worldUpdater,
             @NonNull final HevmStaticTransactionFactory hevmStaticTransactionFactory,
             @NonNull final Map<HederaEvmVersion, TransactionProcessor> processors) {
-        this.context = Objects.requireNonNull(context);
-        this.tracer = Objects.requireNonNull(tracer);
-        this.processors = Objects.requireNonNull(processors);
-        this.worldUpdater = Objects.requireNonNull(worldUpdater);
-        this.hederaEvmContext = Objects.requireNonNull(hederaEvmContext);
-        this.hevmStaticTransactionFactory = Objects.requireNonNull(hevmStaticTransactionFactory);
+        this.context = requireNonNull(context);
+        this.tracer = requireNonNull(tracer);
+        this.processors = requireNonNull(processors);
+        this.worldUpdater = requireNonNull(worldUpdater);
+        this.hederaEvmContext = requireNonNull(hederaEvmContext);
+        this.hevmStaticTransactionFactory = requireNonNull(hevmStaticTransactionFactory);
     }
 
     @Override
@@ -71,18 +72,18 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
 
             // Return the outcome (which cannot include sidecars to be externalized, since this is a query)
             return CallOutcome.fromResultsWithoutSidecars(
-                    result.asQueryResult(worldUpdater), result.asEvmQueryResult(worldUpdater), result);
+                    result.asQueryResult(worldUpdater), result.asEvmQueryResult(), null, result);
         } catch (final HandleException e) {
             final var op = context.query().contractCallLocalOrThrow();
-            final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : context.payer();
+            final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : requireNonNull(context.payer());
 
             final var hevmTransaction = hevmStaticTransactionFactory.fromHapiQueryException(context.query(), e);
             final var result = HederaEvmTransactionResult.fromAborted(
                     senderId,
                     hevmTransaction.contractId(),
-                    hevmTransaction.exception().getStatus());
+                    requireNonNull(hevmTransaction.exception()).getStatus());
             return CallOutcome.fromResultsWithoutSidecars(
-                    result.asQueryResult(worldUpdater), result.asEvmQueryResult(worldUpdater), result);
+                    result.asQueryResult(worldUpdater), result.asEvmQueryResult(), null, result);
         }
     }
 }

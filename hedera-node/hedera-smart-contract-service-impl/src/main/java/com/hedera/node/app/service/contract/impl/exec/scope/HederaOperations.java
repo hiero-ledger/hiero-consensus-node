@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -18,8 +16,11 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
 import org.hyperledger.besu.datatypes.Address;
+
+import java.util.List;
+
+import static java.util.Objects.requireNonNull;
 
 /**
  * Provides the Hedera operations that only a {@link ProxyWorldUpdater} needs (but not a {@link DispatchingEvmFrameState}.
@@ -263,7 +264,7 @@ public interface HederaOperations {
      * @param contractId    ContractId of hollow account
      * @param evmAddress    Evm address of hollow account
      */
-    void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress);
+    void externalizeHollowAccountMerge(@NonNull ContractID contractId, @NonNull Bytes evmAddress);
 
     /**
      * Given a {@link ContractID}, returns it if the shard and realm match for this node; otherwise,

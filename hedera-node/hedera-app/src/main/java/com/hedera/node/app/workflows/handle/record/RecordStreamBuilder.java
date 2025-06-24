@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
-import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
-import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
-import static java.util.Collections.emptySet;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -28,6 +21,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -78,6 +72,8 @@ import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.base.crypto.DigestType;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -90,7 +86,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.hiero.base.crypto.DigestType;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
+import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
+import static java.util.Collections.emptySet;
+import static java.util.Objects.requireNonNull;
 
 /**
  * A custom builder for create a {@link SingleTransactionRecord}.
@@ -513,6 +515,12 @@ public class RecordStreamBuilder
 
     @NonNull
     @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(long senderNonce) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
     public ContractCallStreamBuilder evmCallTransactionResult(@Nullable EvmTransactionResult result) {
         throw new UnsupportedOperationException("Record stream uses verbose results");
     }
@@ -520,6 +528,12 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public RecordStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
         throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
@@ -890,6 +904,12 @@ public class RecordStreamBuilder
         isContractCreate = true;
         contractID(contractID);
         return this;
+    }
+
+    @NonNull
+    @Override
+    public RecordStreamBuilder createdEvmAddress(@Nullable final Bytes evmAddress) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
     /**

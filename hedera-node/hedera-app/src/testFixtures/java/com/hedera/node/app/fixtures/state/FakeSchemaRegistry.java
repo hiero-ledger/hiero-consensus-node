@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures.state;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
-import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
-import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
-import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.state.merkle.SchemaApplications;
@@ -23,6 +16,9 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -31,11 +27,17 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
+import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
+import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
+import static com.swirlds.state.test.fixtures.merkle.TestSchema.CURRENT_VERSION;
+import static java.util.Objects.requireNonNull;
 
 public class FakeSchemaRegistry implements SchemaRegistry {
     private static final Logger logger = LogManager.getLogger(FakeSchemaRegistry.class);
+
     private final SchemaApplications schemaApplications = new SchemaApplications();
 
     /**

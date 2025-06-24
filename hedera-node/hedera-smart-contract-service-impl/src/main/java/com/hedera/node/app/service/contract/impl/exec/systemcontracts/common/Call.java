@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.common;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
@@ -17,6 +15,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 
 /**
  * Encapsulates a call to the HTS system contract.
@@ -84,6 +86,29 @@ public interface Call {
         }
 
         /**
+         * @param senderId the account that is the sender
+         * @param contractId the smart contract instance whose function was called
+         * @param functionParameters the parameters passed into the contract call
+         * @param remainingGas the gas limit
+         * @return the contract function result
+         */
+        public EvmTransactionResult txAsResultOfInsufficientGasRemaining(
+                @NonNull final AccountID senderId,
+                @NonNull final ContractID contractId,
+                @NonNull final Bytes functionParameters,
+                final long remainingGas) {
+            return EvmTransactionResult.newBuilder()
+                    .senderId(senderId)
+                    .contractId(contractId)
+                    .internalCallContext(InternalCallContext.newBuilder()
+                            .callData(functionParameters).gas(remainingGas).value(nonGasCost))
+                    .resultData(Bytes.EMPTY)
+                    .errorMessage(INSUFFICIENT_GAS.protoName())
+                    .gasUsed(fullResult().gasRequirement())
+                    .build();
+        }
+
+        /**
          * @param senderId  the account that is the sender
          * @param contractId the smart contract instance whose function was called
          * @param functionParameters the parameters passed into the contract call
@@ -105,6 +130,30 @@ public interface Call {
                     .gas(remainingGas)
                     .functionParameters(functionParameters)
                     .senderId(senderId)
+                    .build();
+        }
+
+        /**
+         * @param senderId  the account that is the sender
+         * @param contractId the smart contract instance whose function was called
+         * @param functionParameters the parameters passed into the contract call
+         * @param remainingGas the gas limit
+         * @return the contract function result
+         */
+        public EvmTransactionResult txAsResultOfCall(
+                @NonNull final AccountID senderId,
+                @NonNull final ContractID contractId,
+                @NonNull final Bytes functionParameters,
+                final long remainingGas) {
+            final var errorMessage = responseCode == SUCCESS ? "" : responseCode.protoName();
+            return EvmTransactionResult.newBuilder()
+                    .contractId(contractId)
+                    .senderId(senderId)
+                    .internalCallContext(InternalCallContext.newBuilder()
+                            .callData(functionParameters).gas(remainingGas).value(nonGasCost))
+                    .resultData(tuweniToPbjBytes(fullResult.output()))
+                    .errorMessage(errorMessage)
+                    .gasUsed(fullResult().gasRequirement())
                     .build();
         }
     }

@@ -130,11 +130,18 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             if (dispatchedRecordBuilder != null) {
                 if (insufficientGas) {
                     dispatchedRecordBuilder.status(INSUFFICIENT_GAS);
-                    dispatchedRecordBuilder.contractCallResult(pricedResult.asResultOfInsufficientGasRemaining(
-                            attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
+                    final var callData = tuweniToPbjBytes(input);
+                    dispatchedRecordBuilder
+                            .contractCallResult(pricedResult.asResultOfInsufficientGasRemaining(
+                                    attempt.senderId(), contractID, callData, frame.getRemainingGas()))
+                            .evmCallTransactionResult(pricedResult.txAsResultOfInsufficientGasRemaining(
+                                    attempt.senderId(), contractID, callData, frame.getRemainingGas()));
                 } else {
-                    dispatchedRecordBuilder.contractCallResult(pricedResult.asResultOfCall(
-                            attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
+                    dispatchedRecordBuilder
+                            .contractCallResult(pricedResult.asResultOfCall(
+                                    attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()))
+                            .evmCallTransactionResult(pricedResult.txAsResultOfCall(
+                                    attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
                 }
             } else if (pricedResult.isViewCall()) {
                 final var proxyWorldUpdater = proxyUpdaterFor(frame);
@@ -154,7 +161,11 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                                     enhancement
                                             .systemOperations()
                                             .syntheticTransactionForNativeCall(input, contractID, true),
-                                    txSuccessResultOf(attempt.senderId(), pricedResult.fullResult(), frame, !call.allowsStaticFrame()));
+                                    txSuccessResultOf(
+                                            attempt.senderId(),
+                                            pricedResult.fullResult(),
+                                            frame,
+                                            !call.allowsStaticFrame()));
                 } else {
                     externalizeFailure(
                             gasRequirement,

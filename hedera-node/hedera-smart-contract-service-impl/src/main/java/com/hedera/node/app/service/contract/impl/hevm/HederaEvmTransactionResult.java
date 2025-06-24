@@ -1,30 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.errorMessageFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHederaLogs;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.config.types.StreamMode.BLOCKS;
-import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
@@ -48,11 +24,36 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Collections;
-import java.util.List;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
+
+import java.util.Collections;
+import java.util.List;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.errorMessageFor;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHederaLogs;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static java.util.Objects.requireNonNull;
 
 public record HederaEvmTransactionResult(
         long gasUsed,
@@ -122,11 +123,9 @@ public record HederaEvmTransactionResult(
      * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
      * @param ethTxData the Ethereum transaction data if relevant
-     * @param updater   the world updater
      * @return the result
      */
-    public EvmTransactionResult asEvmTxResultOf(
-            @Nullable final EthTxData ethTxData, @NonNull final RootProxyWorldUpdater updater) {
+    public EvmTransactionResult asEvmTxResultOf(@Nullable final EthTxData ethTxData) {
         if (haltReason != null) {
             return txWithMaybeEthFields(asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData);
         } else if (revertReason != null) {
@@ -134,7 +133,7 @@ public record HederaEvmTransactionResult(
             return txWithMaybeEthFields(
                     asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)), ethTxData);
         } else {
-            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(updater), ethTxData);
+            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(), ethTxData);
         }
     }
 
@@ -157,7 +156,7 @@ public record HederaEvmTransactionResult(
      * Converts this result to a {@link ContractFunctionResult} for a query response.
      * @return the result
      */
-    public EvmTransactionResult asEvmQueryResult(@NonNull final ProxyWorldUpdater updater) {
+    public EvmTransactionResult asEvmQueryResult() {
         if (haltReason != null) {
             return asUncommittedFailureResultBuilder(errorMessageFor(haltReason))
                     .build();
@@ -165,7 +164,7 @@ public record HederaEvmTransactionResult(
             return asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason))
                     .build();
         } else {
-            return txAsSuccessResultForQuery(updater);
+            return txAsSuccessResultForQuery();
         }
     }
 
@@ -358,6 +357,15 @@ public record HederaEvmTransactionResult(
                 null);
     }
 
+    /**
+     * Returns the EVM address of the recipient if it was created in the given updater.
+     * @param updater the updater to check for created contracts
+     * @return the EVM address of the recipient if it was created in the updater, or null if not
+     */
+    public @Nullable Bytes evmAddressIfCreatedIn(@NonNull final RootProxyWorldUpdater updater) {
+        return recipientEvmAddressIfCreatedIn(updater.getCreatedContractIds());
+    }
+
     private ContractFunctionResult withMaybeEthFields(
             @NonNull final ContractFunctionResult.Builder builder, @Nullable final EthTxData ethTxData) {
         if (ethTxData != null) {
@@ -423,8 +431,7 @@ public record HederaEvmTransactionResult(
                 .signerNonce(signerNonce);
     }
 
-    private EvmTransactionResult.Builder asSuccessResultForCommittedBuilder(
-            @NonNull final RootProxyWorldUpdater updater) {
+    private EvmTransactionResult.Builder asSuccessResultForCommittedBuilder() {
         return EvmTransactionResult.newBuilder()
                 .gasUsed(gasUsed)
                 .resultData(output)
@@ -444,7 +451,7 @@ public record HederaEvmTransactionResult(
                 .build();
     }
 
-    private EvmTransactionResult txAsSuccessResultForQuery(@NonNull final ProxyWorldUpdater updater) {
+    private EvmTransactionResult txAsSuccessResultForQuery() {
         return EvmTransactionResult.newBuilder()
                 .gasUsed(gasUsed)
                 .resultData(output)

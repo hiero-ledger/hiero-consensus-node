@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.swirlds.state.StateChangeListener.StateType.MAP;
-
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
 import com.hedera.hapi.block.stream.output.MapDeleteChange;
@@ -58,11 +56,14 @@ import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+
+import static com.swirlds.state.StateChangeListener.StateType.MAP;
 
 /**
  * A state change listener that tracks an entire sequence of changes, even if this sequence
@@ -97,7 +98,6 @@ public class KVStateChangeListener implements StateChangeListener {
     public <K, V> void mapUpdateChange(final int stateId, @NonNull final K key, @NonNull final V value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
-
         final var change = MapUpdateChange.newBuilder()
                 .key(mapChangeKeyFor(key))
                 .value(mapChangeValueFor(value))

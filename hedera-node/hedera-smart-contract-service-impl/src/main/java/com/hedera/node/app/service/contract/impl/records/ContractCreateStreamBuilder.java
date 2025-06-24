@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -33,6 +34,14 @@ public interface ContractCreateStreamBuilder extends StreamBuilder, ContractOper
      */
     @NonNull
     ContractCreateStreamBuilder createdContractID(@Nullable ContractID contractId);
+
+    /**
+     * Tracks the contract id created by a successful internal contract creation.
+     * @param evmAddress the EVM address of the new contract
+     * @return this builder
+     */
+    @NonNull
+    ContractCreateStreamBuilder createdEvmAddress(@Nullable Bytes evmAddress);
 
     /**
      * Tracks the account id created by a successful top-level contract creation.

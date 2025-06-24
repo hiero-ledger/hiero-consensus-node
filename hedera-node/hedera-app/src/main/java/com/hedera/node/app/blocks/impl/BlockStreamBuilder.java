@@ -35,6 +35,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -309,6 +310,18 @@ public class BlockStreamBuilder
      */
     @Nullable
     private EvmTransactionResult evmTransactionResult;
+
+    /**
+     * If set, the nonce of the signer after the transaction.
+     */
+    @Nullable
+    private Long senderNonce;
+
+    /**
+     * If set, the ids of contracts that had their nonce changed during the call.
+     */
+    @Nullable
+    private List<ContractNonceInfo> changedNonceInfos;
 
     /**
      * If set, the EVM logs resulting from the transaction.
@@ -723,6 +736,20 @@ public class BlockStreamBuilder
 
     @NonNull
     @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(final long senderNonce) {
+        this.senderNonce = senderNonce;
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        this.changedNonceInfos = requireNonNull(nonceInfos);
+        return this;
+    }
+
+    @NonNull
+    @Override
     public ContractCallStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
         this.evmTransactionResult = result;
         if (result != null) {
@@ -745,10 +772,7 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
-        if (contractCreateResult != null) {
-            this.evmAddress = contractCreateResult.evmAddressOrElse(Bytes.EMPTY);
-        }
-        return this;
+        throw new UnsupportedOperationException("Use concise EVM transaction result");
     }
 
     @NonNull
@@ -949,6 +973,15 @@ public class BlockStreamBuilder
     public BlockStreamBuilder createdContractID(@Nullable ContractID contractID) {
         this.isContractCreate = true;
         contractID(contractID);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder createdEvmAddress(@Nullable Bytes evmAddress) {
+        if (evmAddress != null) {
+            this.evmAddress = requireNonNull(evmAddress);
+        }
         return this;
     }
 
@@ -1276,7 +1309,16 @@ public class BlockStreamBuilder
         return switch (requireNonNull(functionality)) {
             case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION ->
                 new ContractOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, contractId, evmAddress, stateChanges);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        transaction,
+                        functionality,
+                        contractId,
+                        evmAddress.length() > 0 ? evmAddress : null,
+                        changedNonceInfos,
+                        stateChanges,
+                        senderNonce);
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,

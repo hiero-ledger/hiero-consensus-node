@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static java.util.Collections.emptySet;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -16,12 +18,9 @@ import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.apache.tuweni.bytes.Bytes;
-
 import java.util.Set;
 import java.util.function.Predicate;
-
-import static java.util.Collections.emptySet;
+import org.apache.tuweni.bytes.Bytes;
 
 public interface SystemContractOperations {
     /**

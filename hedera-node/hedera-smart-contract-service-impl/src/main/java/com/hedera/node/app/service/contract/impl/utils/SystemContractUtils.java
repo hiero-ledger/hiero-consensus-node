@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.utils;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -10,15 +13,11 @@ import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static java.util.Objects.requireNonNull;
 
 /**
  * Utilities for system contracts.
@@ -80,9 +79,7 @@ public final class SystemContractUtils {
             @NonNull final Bytes inputData,
             @NonNull final AccountID senderId) {
         return EvmTransactionResult.newBuilder()
-                .internalCallContext(InternalCallContext.newBuilder()
-                        .gas(gas)
-                        .callData(tuweniToPbjBytes(inputData)))
+                .internalCallContext(InternalCallContext.newBuilder().gas(gas).callData(tuweniToPbjBytes(inputData)))
                 .gasUsed(gasUsed)
                 .resultData(tuweniToPbjBytes(result))
                 .senderId(senderId)

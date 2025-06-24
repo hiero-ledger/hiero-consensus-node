@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.recordcache;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
@@ -14,23 +24,12 @@ import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.TranslationContext;
 import com.hedera.node.app.spi.records.RecordSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.List;
-import java.util.function.Consumer;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_DELETED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class BlockRecordSourceTest {
@@ -94,7 +93,7 @@ class BlockRecordSourceTest {
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
                         null,
-                FIRST_OUTPUT.transactionOutputOrThrow()))
+                        FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD);
         given(recordTranslator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
                 .willReturn(SECOND_RECORD);

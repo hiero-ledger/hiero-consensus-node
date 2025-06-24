@@ -1,25 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -45,6 +26,25 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class ContextTransactionProcessorTest {
@@ -126,7 +126,9 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, rootProxyWorldUpdater));
+                null,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITHOUT_TO_ADDRESS),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(), null);
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         assertEquals(expectedResult, subject.call());
     }
@@ -165,7 +167,9 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, rootProxyWorldUpdater));
+                null,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITHOUT_TO_ADDRESS),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(), null);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
@@ -202,7 +206,9 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, rootProxyWorldUpdater));
+                null,
+                SUCCESS_RESULT.asEvmTxResultOf(null),
+                SUCCESS_RESULT.signerNonce(), null);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }

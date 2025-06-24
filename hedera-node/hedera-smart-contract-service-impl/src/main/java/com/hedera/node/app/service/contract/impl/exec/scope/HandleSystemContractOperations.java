@@ -127,7 +127,8 @@ public class HandleSystemContractOperations implements SystemContractOperations 
                 .addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL)
                 .transaction(transaction)
                 .status(responseStatus)
-                .contractCallResult(result);
+                .contractCallResult(result)
+                .evmCallTransactionResult(txResult);
     }
 
     @Override

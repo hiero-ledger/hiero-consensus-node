@@ -72,7 +72,9 @@ class ContextQueryProcessorTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmQueryResult(proxyWorldUpdater));
+                null,
+                SUCCESS_RESULT.asEvmQueryResult(),
+                null, null);
         assertEquals(expectedResult, subject.call());
     }
 }

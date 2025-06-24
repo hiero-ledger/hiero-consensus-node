@@ -1,28 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
-import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
-import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
-import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
-import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -73,6 +51,15 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterUtils;
+
 import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
@@ -82,14 +69,28 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterUtils;
+
+import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
+import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
+import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
+import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
+import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
+import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
+import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 /**
  * Main entry point.
@@ -436,7 +437,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
                 metrics,
-                platformStateFacade);
+                platformStateFacade,
+                HederaStateRoot::new);
     }
 
     /**

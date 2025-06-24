@@ -118,7 +118,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater));
+                null,
+                SUCCESS_RESULT.asEvmTxResultOf(null),
+                SUCCESS_RESULT.signerNonce(), null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
 
@@ -145,7 +147,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater));
+                null,
+                HALT_RESULT.asEvmTxResultOf(null),
+                null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);

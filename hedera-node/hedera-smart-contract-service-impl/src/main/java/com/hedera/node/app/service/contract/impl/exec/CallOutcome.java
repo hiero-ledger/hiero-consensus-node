@@ -1,23 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.List;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Summarizes the outcome of an EVM message call.
@@ -28,8 +31,11 @@ import java.util.List;
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
  * @param slotUsages any contract slot usages that should be externalized in trace data
- * @param logs
- * @param txResult
+ * @param logs if not null, any EVM transaction logs that should be externalized in trace data
+ * @param changedNonceInfos if not null, any contract IDs that had their nonce changed during the call
+ * @param txResult the concise EVM transaction result
+ * @param newSenderNonce if not null, the new sender nonce after the call
+ * @param createdEvmAddress
  */
 public record CallOutcome(
         @NonNull @Deprecated ContractFunctionResult result,
@@ -39,7 +45,24 @@ public record CallOutcome(
         @Nullable @Deprecated ContractStateChanges stateChanges,
         @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable List<EvmTransactionLog> logs,
-        @NonNull EvmTransactionResult txResult) {
+        @Nullable List<ContractNonceInfo> changedNonceInfos,
+        @NonNull EvmTransactionResult txResult,
+        @Nullable Long newSenderNonce,
+        @Nullable Bytes createdEvmAddress) {
+
+    /**
+     * Returns whether there is a new sender nonce after the call.
+     */
+    public boolean hasNewSenderNonce() {
+        return newSenderNonce != null;
+    }
+
+    /**
+     * Returns the new sender nonce after the call.
+     */
+    public long newSenderNonceOrThrow() {
+        return requireNonNull(newSenderNonce);
+    }
 
     /**
      * @return whether some state changes appeared from the execution of the contract
@@ -64,6 +87,13 @@ public record CallOutcome(
     }
 
     /**
+     * @return whether some nonces were changed during the execution of the contract.
+     */
+    public boolean hasChangedNonces() {
+        return changedNonceInfos != null && !changedNonceInfos.isEmpty();
+    }
+
+    /**
      * Return the slot usages.
      */
     public @NonNull List<ContractSlotUsage> slotUsagesOrThrow() {
@@ -71,22 +101,33 @@ public record CallOutcome(
     }
 
     /**
-     * Return the slot usages.
+     * Return the logs from the EVM transaction.
      */
     public @NonNull List<EvmTransactionLog> logsOrThrow() {
         return requireNonNull(logs);
     }
 
     /**
+     * Return the contract IDs that had their nonce changed during the call.
+     */
+    public @NonNull List<ContractNonceInfo> changedNonceInfosOrThrow() {
+        return requireNonNull(changedNonceInfos);
+    }
+
+    /**
      * @param result the contract function result
      * @param txResult the concise EVM transaction result
+     * @param changedNonceInfos if not null, the contract IDs that had their nonce changed during the call
      * @param hevmResult the result after EVM transaction execution
+     * @param evmAddress if not null, the EVM address of the contract that created
      * @return the EVM transaction outcome
      */
     public static CallOutcome fromResultsWithMaybeSidecars(
-            @NonNull final ContractFunctionResult result,
+            @Deprecated @NonNull final ContractFunctionResult result,
             @NonNull final EvmTransactionResult txResult,
-            @NonNull final HederaEvmTransactionResult hevmResult) {
+            @Nullable List<ContractNonceInfo> changedNonceInfos,
+            @NonNull final HederaEvmTransactionResult hevmResult,
+            @Nullable final Bytes evmAddress) {
         return new CallOutcome(
                 result,
                 hevmResult.finalStatus(),
@@ -95,18 +136,23 @@ public record CallOutcome(
                 hevmResult.stateChanges(),
                 hevmResult.slotUsages(),
                 hevmResult.evmLogs(),
-                txResult);
+                changedNonceInfos,
+                txResult,
+                hevmResult.signerNonce(),
+                evmAddress);
     }
 
     /**
      * @param result the contract function result
-     * @param txResult
+     * @param txResult the concise EVM transaction result
+     * @param updatedNonceInfos if not null, the contract IDs that had their nonce changed during the call
      * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
      */
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull final ContractFunctionResult result,
             @NonNull final EvmTransactionResult txResult,
+            @Nullable final List<ContractNonceInfo> updatedNonceInfos,
             @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
                 result,
@@ -116,7 +162,9 @@ public record CallOutcome(
                 null,
                 null,
                 hevmResult.evmLogs(),
-                txResult);
+                updatedNonceInfos,
+                txResult,
+                hevmResult.signerNonce(), null);
     }
 
     /**
@@ -127,7 +175,10 @@ public record CallOutcome(
      * @param stateChanges any contract state changes that should be externalized in a sidecar
      * @param slotUsages any contract slot usages that should be externalized in trace data
      * @param logs any EVM transaction logs that should be externalized in trace data
+     * @param changedNonceInfos the contract IDs that had their nonce changed during the call
      * @param txResult the concise EVM transaction result
+     * @param newSenderNonce if applicable, the new sender nonce after the call
+     * @param createdEvmAddress
      */
     public CallOutcome {
         requireNonNull(result);
@@ -152,7 +203,10 @@ public record CallOutcome(
     public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder streamBuilder) {
         requireNonNull(streamBuilder);
         addCalledContractIfNotAborted(streamBuilder);
+        // (FUTURE) Remove after switching to block stream
         streamBuilder.contractCallResult(result);
+        // No-op for the RecordStreamBuilder
+        streamBuilder.evmCallTransactionResult(txResult);
         streamBuilder.withCommonFieldsSetFrom(this);
     }
 
@@ -168,15 +222,18 @@ public record CallOutcome(
     }
 
     /**
-     * Adds the create details to the given record builder.
-     *
-     * @param recordBuilder the record builder
+     * Adds the creation details to the given stream builder.
+     * @param streamBuilder the stream builder
      */
-    public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
-        requireNonNull(recordBuilder);
-        recordBuilder.createdContractID(recipientIdIfCreated());
-        recordBuilder.contractCreateResult(result);
-        recordBuilder.withCommonFieldsSetFrom(this);
+    public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder streamBuilder) {
+        requireNonNull(streamBuilder);
+        // (FUTURE) Remove after switching to block stream
+        streamBuilder.contractCreateResult(result);
+        streamBuilder
+                .createdContractID(recipientIdIfCreated())
+                .createdEvmAddress(createdEvmAddress)
+                .evmCreateTransactionResult(txResult)
+                .withCommonFieldsSetFrom(this);
     }
 
     /**
@@ -185,14 +242,14 @@ public record CallOutcome(
      * @return the ID of the contract that was created, or null if no contract was created
      */
     public @Nullable ContractID recipientIdIfCreated() {
-        return representsTopLevelCreation() ? result.contractIDOrThrow() : null;
+        return representsTopLevelCreation() ? txResult.contractIdOrThrow() : null;
     }
 
     private boolean representsTopLevelCreation() {
-        return isSuccess() && requireNonNull(result).hasEvmAddress();
+        return isSuccess() && createdEvmAddress != null;
     }
 
     private boolean callWasAborted() {
-        return result.gasUsed() == 0L;
+        return txResult.gasUsed() == 0L;
     }
 }

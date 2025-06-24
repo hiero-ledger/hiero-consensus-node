@@ -1,20 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.successResultOfZeroValueTraceable;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static java.util.Objects.requireNonNull;
-import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
-
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.UtilPrngTransactionBody;
 import com.hedera.node.app.hapi.utils.InvalidTransactionException;
@@ -25,9 +15,6 @@ import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Optional;
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -35,6 +22,23 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+import java.util.Optional;
+
+import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.successResultOfZeroValueTraceable;
+import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.txSuccessResultOfZeroValueTraceable;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 
 /**
  * System contract to generate random numbers. This will generate 256-bit pseudorandom number when
@@ -108,11 +112,14 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
 
             var data = successResultOfZeroValueTraceable(
                     gasRequirement, randomNum, frame.getRemainingGas(), frame.getInputData(), senderId);
+            final var txResult =  txSuccessResultOfZeroValueTraceable(
+                    gasRequirement, randomNum, frame.getRemainingGas(), frame.getInputData(), senderId);
 
             updater.enhancement()
                     .systemOperations()
                     .dispatch(synthBody(), key -> Decision.INVALID, senderId, ContractCallStreamBuilder.class)
                     .contractCallResult(data)
+                    .evmCallTransactionResult(txResult)
                     .entropyBytes(tuweniToPbjBytes(randomNum));
         }
     }
@@ -127,20 +134,29 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
             var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
 
             final var senderId = ((AbstractProxyEvmAccount) updater.getAccount(frame.getSenderAddress())).hederaId();
-
+            final var callData = tuweniToPbjBytes(frame.getInputData());
             final var contractResult = ContractFunctionResult.newBuilder()
                     .gasUsed(gasRequirement)
-                    .functionParameters(tuweniToPbjBytes(frame.getInputData()))
-                    .errorMessage(null)
+                    .functionParameters(callData)
+                    .errorMessage("")
                     .contractID(contractID)
                     .senderId(senderId)
                     .gas(frame.getRemainingGas())
                     .build();
-
+            final var txResult = EvmTransactionResult.newBuilder()
+                    .internalCallContext(InternalCallContext.newBuilder()
+                            .callData(callData)
+                            .gas(frame.getRemainingGas()))
+                    .gasUsed(gasRequirement)
+                    .errorMessage("")
+                    .contractId(contractID)
+                    .senderId(senderId)
+                    .build();
             updater.enhancement()
                     .systemOperations()
                     .externalizePreemptedDispatch(synthBody(), toPbj(responseCode), UTIL_PRNG)
-                    .contractCallResult(contractResult);
+                    .contractCallResult(contractResult)
+                    .evmCallTransactionResult(txResult);
         }
     }
 
