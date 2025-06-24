@@ -18,6 +18,11 @@ on:
         type: boolean
         required: false
         default: true
+      enable-otter-tests:
+        description: "Otter Testing Enabled"
+        type: boolean
+        required: false
+        default: true
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: boolean
@@ -130,6 +135,7 @@ jobs:
       enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
       enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
+      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
