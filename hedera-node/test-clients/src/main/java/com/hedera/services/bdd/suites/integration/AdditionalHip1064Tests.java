@@ -76,7 +76,7 @@ import org.junit.jupiter.api.TestMethodOrder;
  * 3. Node eligibility edge cases (all decline, all inactive, single winner)
  * 4. Fee redirection boundary conditions (threshold = 0, balance = threshold)
  * 5. Balance edge cases (zero balance)
- * 6. Security & malicious behavior (invalid activity data, overflow protection)
+ * 6. Security and malicious behavior (invalid activity data, overflow protection)
  */
 @Order(8)
 @Tag(INTEGRATION)
