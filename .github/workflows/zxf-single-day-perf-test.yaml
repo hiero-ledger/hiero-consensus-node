@@ -3,9 +3,80 @@ name: "ZXF: [CITR] Single Day Performance Test"
 on:
   workflow_dispatch:
     inputs:
-      tag-to-run:
-        description: "The tag to run CITR SDPT against"
+      namespace:
         required: true
+        default: 'Latitude3'
+        description: 'Performance test on given namespace'
+        type: choice
+        options:
+          - Latitude0
+          - Latitude1
+          - Latitude2
+          - Latitude3
+          - Latitude4
+      hcn-version:
+        required: true
+        default: 'main'
+        description: 'Version of hiero-consensus-node: branch, tag, commit'
+        type: string
+      solo-version:
+        required: true
+        default: 'latest_tested_solo-charts0.59'
+        description: 'Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59'
+        type: string
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: 100000
+        description: 'Number of Accounts and NFT tokens'
+        type: choice
+        options:
+          - 100000
+          - 1000000
+          - 20000000
+          - 100000000
+          - 500000000
+          - 1000000000
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: '1m'
+        description: 'Test execution time'
+        type: choice
+        options:
+          - 1m
+          - 7m
+          - 20m
+          - 2h
+          - 330m
+          - 6h
+          - 12h
+          - 16h
+          - 32h
+          - 167h
+      add-app-props:
+        required: false
+        default: ''
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ''
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      crypto-bench-merkle-db-java-args:
+        required: true
+        default: '-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g'
+        description: 'JMH javaargs'
+        type: string
+      crypto-bench-merkle-db-test-params:
+        required: true
+        default: '-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000'
+        description: 'Test params'
+        type: string
+      dry-run-enabled:
+        required: false
+        default: false
+        type: boolean
+        description: 'Enable dry run mode. If true, the test will be executed, but not tag will be applied.'
 
 defaults:
   run:
@@ -18,6 +89,7 @@ jobs:
   verify-tag:
     name: Verify Tag
     runs-on: hiero-network-node-linux-medium
+    if: ${{ inputs.dry-run-enabled != true }}
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
@@ -29,12 +101,12 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.inputs.tag-to-run }}
+          ref: ${{ github.event.inputs.hcn-version }}
 
       - name: Verify Tag
         env:
           PROMOTED_GREP_PATTERN: "build-.{5}" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.event.inputs.tag-to-run }}"
+          CHECK_TAG: "${{ github.event.inputs.hcn-version }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -52,7 +124,7 @@ jobs:
   run-single-day-performance-test:
     name: Run Single Day Performance Test
     needs: verify-tag
-    if: ${{ needs.verify-tag.result == 'success' }}
+    if: ${{ needs.verify-tag.result == 'success' || inputs.dry-run-enabled == true}}
     # turn off the steps and use the reusable workflow when it's been moved to CN repo
     runs-on: hiero-network-node-linux-medium
     outputs:
@@ -66,25 +138,24 @@ jobs:
       - name: Set output for run-single-day-performance-test
         id: run-citr-performance-test
         run: echo "result=success" >> $GITHUB_OUTPUT
-  #    uses: .github/workflows/zxf-run-single-day-performance-test.yml
+  #    uses: .github/workflows/zxc-run-single-day-performance-test.yaml
   #    with:
-  #      namespace: "Latitude4",
-  #      hcn-version: "${{ github.event.inputs.tag-to-run }}",
-  #      solo-version: "latest_tested_solo-charts0.59",
-  #      nlg-accounts: "100000000",
-  #      nlg-time: "330m",
-  #      nlg-time3: "2h",
-  #      add-app-props: "",
-  #      add-settings: "",
-  #      crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
-  #      crypto-bench-merkle-db-test-params: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+  #      namespace: ${{ inputs.namespace }}
+  #      hcn-version: "${{ inputs.hcn-version }}"
+  #      solo-version: "${{ inputs.solo-version }}"
+  #      nlg-accounts: "${{ inputs.nlg-accounts }}"
+  #      nlg-time: "${{ inputs.nlg-time }}"
+  #      add-app-props: "${{ inputs.add-app-props }}"
+  #      add-settings: "${{ inputs.add-settings }}"
+  #      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
+  #      crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
     runs-on: hiero-network-node-linux-medium
     needs:
       - run-single-day-performance-test
-    if: ${{ needs.run-citr-performance-test.outputs.result  == 'success' }}
+    if: ${{ needs.run-citr-performance-test.outputs.result  == 'success' && inputs.dry-run-enabled != true }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -104,6 +175,7 @@ jobs:
   get-commit-info:
     name: Get Commit Information
     runs-on: hiero-network-node-linux-medium
+    if: ${{ inputs.dry-run-enabled != true }}
     needs:
       - verify-tag
     outputs:
@@ -161,7 +233,7 @@ jobs:
       needs.tag-sdpt-passing.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      !cancelled() }}
+      inputs.dry-run-enabled != true && !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -284,7 +356,7 @@ jobs:
       needs.tag-sdpt-passing.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      !cancelled() && always() }}
+      inputs.dry-run-enabled != true && !cancelled() && always() }}
 
     steps:
       - name: Harden Runner
