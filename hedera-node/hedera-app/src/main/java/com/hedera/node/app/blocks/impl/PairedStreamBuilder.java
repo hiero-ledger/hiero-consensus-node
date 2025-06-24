@@ -21,6 +21,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -331,11 +332,6 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public ContractFunctionResult contractFunctionResult() {
-        return recordStreamBuilder.contractFunctionResult();
-    }
-
-    @Override
     public List<Long> serialNumbers() {
         return recordStreamBuilder.serialNumbers();
     }
@@ -568,6 +564,20 @@ public class PairedStreamBuilder
     public PairedStreamBuilder contractCallResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCallResult(result);
         blockStreamBuilder.contractCallResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
+        blockStreamBuilder.evmCallTransactionResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable final EvmTransactionResult result) {
+        recordStreamBuilder.evmCreateTransactionResult(result);
         return this;
     }
 

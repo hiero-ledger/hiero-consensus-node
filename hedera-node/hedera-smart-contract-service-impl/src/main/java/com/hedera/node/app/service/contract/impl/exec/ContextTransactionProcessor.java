@@ -148,7 +148,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                 requireNonNull(hederaEvmContext.streamBuilder()).addInitcode(initcode);
             }
             return CallOutcome.fromResultsWithMaybeSidecars(
-                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
+                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater),
+                    result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater),
+                    result);
         } catch (HandleException e) {
             final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
             final var senderId = sender != null ? sender.hederaId() : hevmTransaction.senderId();
@@ -205,7 +207,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         }
 
         return CallOutcome.fromResultsWithoutSidecars(
-                result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
+                result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater),
+                result.asEvmTxResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater),
+                result);
     }
 
     private void assertEthTxDataValidIfApplicable() {

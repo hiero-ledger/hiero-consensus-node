@@ -6,6 +6,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -48,7 +49,16 @@ public interface ContractCreateStreamBuilder extends StreamBuilder, ContractOper
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractCreateStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result);
+
+    /**
+     * Tracks (or clears) the result of the top-level EVM create transaction.
+     * @param result the {@link EvmTransactionResult} of the contract creation
+     * @return this builder
+     */
+    @NonNull
+    ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result);
 
     @NonNull
     ContractCreateStreamBuilder transaction(@NonNull Transaction transaction);

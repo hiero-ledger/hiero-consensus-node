@@ -44,6 +44,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -301,11 +302,12 @@ public class BlockStreamBuilder
      * The type of contract operation that was performed.
      */
     private ContractOpType contractOpType = null;
+
     /**
-     * The result of a contract function call or creation.
+     * The result of an EVM transaction, if any.
      */
-    @Deprecated
-    private ContractFunctionResult contractFunctionResult;
+    @Nullable
+    private EvmTransactionResult evmTransactionResult;
 
     /**
      * If set, the EVM logs resulting from the transaction.
@@ -715,8 +717,14 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCallResult(@Nullable final ContractFunctionResult contractCallResult) {
-        this.contractFunctionResult = contractCallResult;
-        if (contractCallResult != null) {
+        throw new UnsupportedOperationException("Use concise EVM transaction result");
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
+        this.evmTransactionResult = result;
+        if (result != null) {
             if (contractOpType != ContractOpType.ETH_THROTTLED) {
                 contractOpType = ContractOpType.CALL;
             } else {
@@ -736,8 +744,14 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
-        this.contractFunctionResult = contractCreateResult;
-        if (contractCreateResult != null) {
+        throw new UnsupportedOperationException("Use concise EVM transaction result");
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable final EvmTransactionResult result) {
+        this.evmTransactionResult = result;
+        if (result != null) {
             if (contractOpType != ContractOpType.ETH_THROTTLED) {
                 contractOpType = ContractOpType.CREATE;
             } else {
@@ -884,12 +898,12 @@ public class BlockStreamBuilder
 
     @Override
     public boolean hasContractResult() {
-        return this.contractFunctionResult != null;
+        return this.evmTransactionResult != null;
     }
 
     @Override
     public long getGasUsedForContractTxn() {
-        return this.contractFunctionResult.gasUsed();
+        return requireNonNull(this.evmTransactionResult).gasUsed();
     }
 
     @Override
@@ -1106,12 +1120,6 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public ContractFunctionResult contractFunctionResult() {
-        return contractFunctionResult;
-    }
-
-    @Override
-    @NonNull
     public TransactionBody transactionBody() {
         return inProgressBody();
     }
@@ -1193,33 +1201,26 @@ public class BlockStreamBuilder
         if (utilPrngOutputItem != null) {
             items.add(utilPrngOutputItem);
         }
-        if (contractFunctionResult != null || ethereumHash != Bytes.EMPTY) {
+        if (evmTransactionResult != null || ethereumHash != Bytes.EMPTY) {
             final var builder = TransactionOutput.newBuilder();
-            if (contractFunctionResult != null) {
-                // Clear log-related items to ensure they get translated from trace data in parity validator
-                final var resultBuilder = contractFunctionResult.copyBuilder();
-                if (!contractFunctionResult.logInfo().isEmpty()) {
-                    resultBuilder.logInfo(List.of());
-                }
-                contractFunctionResult = resultBuilder.bloom(Bytes.EMPTY).build();
-            }
+            requireNonNull(evmTransactionResult);
             switch (requireNonNull(contractOpType)) {
                 case CREATE ->
                     builder.contractCreate(CreateContractOutput.newBuilder()
-                            .contractCreateResult(contractFunctionResult)
+                            .evmTransactionResult(evmTransactionResult)
                             .build());
                 case CALL ->
                     builder.contractCall(CallContractOutput.newBuilder()
-                            .contractCallResult(contractFunctionResult)
+                            .evmTransactionResult(evmTransactionResult)
                             .build());
                 case ETH_CALL ->
                     builder.ethereumCall(EthereumOutput.newBuilder()
-                            .ethereumCallResult(contractFunctionResult)
+                            .evmCallTransactionResult(evmTransactionResult)
                             .ethereumHash(ethereumHash)
                             .build());
                 case ETH_CREATE ->
                     builder.ethereumCall(EthereumOutput.newBuilder()
-                            .ethereumCreateResult(contractFunctionResult)
+                            .evmCreateTransactionResult(evmTransactionResult)
                             .ethereumHash(ethereumHash)
                             .build());
                 case ETH_THROTTLED ->

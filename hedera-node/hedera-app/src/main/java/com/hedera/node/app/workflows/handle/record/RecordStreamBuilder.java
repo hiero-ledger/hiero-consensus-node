@@ -28,6 +28,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -508,6 +509,18 @@ public class RecordStreamBuilder
         transactionRecordBuilder.contractCallResult(contractCallResult);
         this.contractFunctionResult = contractCallResult;
         return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable EvmTransactionResult result) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
     /**

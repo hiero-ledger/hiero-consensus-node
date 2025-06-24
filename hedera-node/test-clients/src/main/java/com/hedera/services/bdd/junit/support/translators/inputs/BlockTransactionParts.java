@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
+import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
 import com.hedera.hapi.block.stream.output.CreateScheduleOutput;
@@ -22,18 +29,10 @@ import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-
-import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static java.util.Objects.requireNonNull;
 
 /**
  * Groups the block items used to represent a single logical HAPI transaction, which itself may be part of a larger
@@ -52,8 +51,8 @@ public record BlockTransactionParts(
         @Nullable List<TraceData> traces,
         @Nullable List<TransactionOutput> outputs) {
 
-    private static Set<TransactionGroupRole> TOP_LEVEL_ROLES = EnumSet.of(
-            STANDALONE, STARTING_PARENT, PARENT, ENDING_PARENT);
+    private static Set<TransactionGroupRole> TOP_LEVEL_ROLES =
+            EnumSet.of(STANDALONE, STARTING_PARENT, PARENT, ENDING_PARENT);
 
     /**
      * Returns whether this transaction is a top-level transaction in its group.

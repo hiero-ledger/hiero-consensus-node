@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -28,15 +29,17 @@ import java.util.List;
  * @param stateChanges any contract state changes that should be externalized in a sidecar
  * @param slotUsages any contract slot usages that should be externalized in trace data
  * @param logs
+ * @param txResult
  */
 public record CallOutcome(
-        @NonNull ContractFunctionResult result,
+        @NonNull @Deprecated ContractFunctionResult result,
         @NonNull ResponseCodeEnum status,
         @Nullable ContractID recipientId,
         @Nullable List<ContractAction> actions,
         @Nullable @Deprecated ContractStateChanges stateChanges,
         @Nullable List<ContractSlotUsage> slotUsages,
-        @Nullable List<EvmTransactionLog> logs) {
+        @Nullable List<EvmTransactionLog> logs,
+        @NonNull EvmTransactionResult txResult) {
 
     /**
      * @return whether some state changes appeared from the execution of the contract
@@ -76,11 +79,14 @@ public record CallOutcome(
 
     /**
      * @param result the contract function result
+     * @param txResult the concise EVM transaction result
      * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
      */
     public static CallOutcome fromResultsWithMaybeSidecars(
-            @NonNull final ContractFunctionResult result, @NonNull final HederaEvmTransactionResult hevmResult) {
+            @NonNull final ContractFunctionResult result,
+            @NonNull final EvmTransactionResult txResult,
+            @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
                 result,
                 hevmResult.finalStatus(),
@@ -88,18 +94,29 @@ public record CallOutcome(
                 hevmResult.actions(),
                 hevmResult.stateChanges(),
                 hevmResult.slotUsages(),
-                hevmResult.evmLogs());
+                hevmResult.evmLogs(),
+                txResult);
     }
 
     /**
      * @param result the contract function result
+     * @param txResult
      * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
      */
     public static CallOutcome fromResultsWithoutSidecars(
-            @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
+            @NonNull final ContractFunctionResult result,
+            @NonNull final EvmTransactionResult txResult,
+            @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, null, hevmResult.evmLogs());
+                result,
+                hevmResult.finalStatus(),
+                hevmResult.recipientId(),
+                null,
+                null,
+                null,
+                hevmResult.evmLogs(),
+                txResult);
     }
 
     /**
@@ -109,10 +126,12 @@ public record CallOutcome(
      * @param actions any contract actions that should be externalized in a sidecar
      * @param stateChanges any contract state changes that should be externalized in a sidecar
      * @param slotUsages any contract slot usages that should be externalized in trace data
-     * @param logs
+     * @param logs any EVM transaction logs that should be externalized in trace data
+     * @param txResult the concise EVM transaction result
      */
     public CallOutcome {
         requireNonNull(result);
+        requireNonNull(txResult);
         requireNonNull(status);
     }
 

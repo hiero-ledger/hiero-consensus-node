@@ -224,7 +224,8 @@ class EthereumTransactionHandlerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITH_TO_ADDRESS, baseProxyWorldUpdater));
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -266,7 +267,8 @@ class EthereumTransactionHandlerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater));
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);

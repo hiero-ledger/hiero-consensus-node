@@ -64,8 +64,15 @@ class ContextQueryProcessorTest {
                 .willReturn(SUCCESS_RESULT);
         given(proxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var protoResult = SUCCESS_RESULT.asQueryResult(proxyWorldUpdater);
-        final var expectedResult =
-                new CallOutcome(protoResult, SUCCESS, HEVM_CREATION.contractId(), null, null, null, null);
+        final var expectedResult = new CallOutcome(
+                protoResult,
+                SUCCESS,
+                HEVM_CREATION.contractId(),
+                null,
+                null,
+                null,
+                null,
+                SUCCESS_RESULT.asEvmQueryResult(proxyWorldUpdater));
         assertEquals(expectedResult, subject.call());
     }
 }

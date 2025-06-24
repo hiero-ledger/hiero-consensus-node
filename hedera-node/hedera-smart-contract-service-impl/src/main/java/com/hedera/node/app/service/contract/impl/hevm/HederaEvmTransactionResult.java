@@ -31,6 +31,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -117,8 +118,28 @@ public record HederaEvmTransactionResult(
     }
 
     /**
-     * Converts this result to a {@link ContractFunctionResult} for a query response.
+     * Converts this result to a {@link ContractFunctionResult} for a transaction based on the given
+     * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
+     * @param ethTxData the Ethereum transaction data if relevant
+     * @param updater   the world updater
+     * @return the result
+     */
+    public EvmTransactionResult asEvmTxResultOf(
+            @Nullable final EthTxData ethTxData, @NonNull final RootProxyWorldUpdater updater) {
+        if (haltReason != null) {
+            return txWithMaybeEthFields(asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData);
+        } else if (revertReason != null) {
+            // This curious presentation of the revert reason is needed for backward compatibility
+            return txWithMaybeEthFields(
+                    asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)), ethTxData);
+        } else {
+            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(updater), ethTxData);
+        }
+    }
+
+    /**
+     * Converts this result to a {@link ContractFunctionResult} for a query response.
      * @return the result
      */
     public ContractFunctionResult asQueryResult(@NonNull final ProxyWorldUpdater updater) {
@@ -129,6 +150,22 @@ public record HederaEvmTransactionResult(
                     .build();
         } else {
             return asSuccessResultForQuery(updater);
+        }
+    }
+
+    /**
+     * Converts this result to a {@link ContractFunctionResult} for a query response.
+     * @return the result
+     */
+    public EvmTransactionResult asEvmQueryResult(@NonNull final ProxyWorldUpdater updater) {
+        if (haltReason != null) {
+            return asUncommittedFailureResultBuilder(errorMessageFor(haltReason))
+                    .build();
+        } else if (revertReason != null) {
+            return asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason))
+                    .build();
+        } else {
+            return txAsSuccessResultForQuery(updater);
         }
     }
 
@@ -332,6 +369,14 @@ public record HederaEvmTransactionResult(
         return builder.build();
     }
 
+    private EvmTransactionResult txWithMaybeEthFields(
+            @NonNull final EvmTransactionResult.Builder builder, @Nullable final EthTxData ethTxData) {
+        if (ethTxData != null) {
+            builder.senderId(senderId);
+        }
+        return builder.build();
+    }
+
     private ContractFunctionResult.Builder asUncommittedFailureResult(@NonNull final String errorMessage) {
         requireNonNull(errorMessage);
         final var builder = ContractFunctionResult.newBuilder()
@@ -345,6 +390,20 @@ public record HederaEvmTransactionResult(
                 || actions.isEmpty()
                 || !ContractActionType.CREATE.equals(actions.getFirst().callType())) {
             builder.contractID(recipientId);
+        }
+        return builder;
+    }
+
+    private EvmTransactionResult.Builder asUncommittedFailureResultBuilder(@NonNull final String errorMessage) {
+        requireNonNull(errorMessage);
+        final var builder = EvmTransactionResult.newBuilder().gasUsed(gasUsed).errorMessage(errorMessage);
+        // checking first action.callType is CREATE to indicate 'create contract' call
+        // we are not setting recipientId as contractID for create contract call  because failed block/receipt should
+        // not contain contractID
+        if (actions == null
+                || actions.isEmpty()
+                || !ContractActionType.CREATE.equals(actions.getFirst().callType())) {
+            builder.contractId(recipientId);
         }
         return builder;
     }
@@ -364,6 +423,15 @@ public record HederaEvmTransactionResult(
                 .signerNonce(signerNonce);
     }
 
+    private EvmTransactionResult.Builder asSuccessResultForCommittedBuilder(
+            @NonNull final RootProxyWorldUpdater updater) {
+        return EvmTransactionResult.newBuilder()
+                .gasUsed(gasUsed)
+                .resultData(output)
+                .contractId(recipientId)
+                .errorMessage("");
+    }
+
     private ContractFunctionResult asSuccessResultForQuery(@NonNull final ProxyWorldUpdater updater) {
         return ContractFunctionResult.newBuilder()
                 .gasUsed(gasUsed)
@@ -373,6 +441,15 @@ public record HederaEvmTransactionResult(
                 .logInfo(pbjLogsFrom(updater.entityIdFactory(), logs))
                 .errorMessage("")
                 .signerNonce(signerNonce)
+                .build();
+    }
+
+    private EvmTransactionResult txAsSuccessResultForQuery(@NonNull final ProxyWorldUpdater updater) {
+        return EvmTransactionResult.newBuilder()
+                .gasUsed(gasUsed)
+                .resultData(output)
+                .contractId(recipientId)
+                .errorMessage("")
                 .build();
     }
 
