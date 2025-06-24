@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -90,10 +89,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
-@Tag(ADHOC)
 public class AtomicBatchTest {
     @HapiTest
     public Stream<DynamicTest> validateFeesForChildren() {

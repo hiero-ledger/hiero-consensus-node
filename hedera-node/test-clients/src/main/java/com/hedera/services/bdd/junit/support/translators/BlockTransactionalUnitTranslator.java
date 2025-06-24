@@ -68,6 +68,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.services.bdd.junit.support.translators.impl.AtomicBatchTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractDeleteTranslator;
@@ -169,7 +170,7 @@ public class BlockTransactionalUnitTranslator {
                     put(TOKEN_UNPAUSE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_UPDATE, new TokenUpdateTranslator());
                     put(UTIL_PRNG, new UtilPrngTranslator());
-                    put(ATOMIC_BATCH, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(ATOMIC_BATCH, new AtomicBatchTranslator());
                     put(HINTS_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CRS_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HINTS_PARTIAL_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
