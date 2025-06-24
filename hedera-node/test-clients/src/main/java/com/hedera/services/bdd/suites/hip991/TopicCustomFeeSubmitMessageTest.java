@@ -1943,8 +1943,6 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
     @HapiTest
     @DisplayName("Schedule Submit Message with maxFee")
     final Stream<DynamicTest> scheduleSubmitMessageWithMaxFee() {
-        final var SCHEDULED_TX = "scheduledTx";
-        final var SIGNED_SCHEDULED_TX = "signedScheduledTx";
         return hapiTest(
                 newKeyNamed(ADMIN_KEY),
                 cryptoCreate(COLLECTOR),
@@ -1968,14 +1966,13 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                         .payingWith(SUBMITTER))
                         .payingWith(DEFAULT_PAYER)
                         .designatingPayer(SUBMITTER)
-                        .via(SCHEDULED_TX)
+                        .via("scheduleTxn")
                         .hasKnownStatus(SUCCESS),
                 scheduleSign("schedule")
                         .payingWith(SUBMITTER)
-                        .via(SIGNED_SCHEDULED_TX)
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
-                    var scheduledTxnRecord = getTxnRecord(SCHEDULED_TX).scheduled();
+                    var scheduledTxnRecord = getTxnRecord("scheduleTxn").scheduled();
                     allRunFor(spec, scheduledTxnRecord);
                     var scheduledTxnStatus =
                             scheduledTxnRecord.getResponseRecord().getReceipt().getStatus();
