@@ -1,23 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CUSTOM_FEES_IS_NOT_SUPPORTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static org.assertj.core.api.BDDAssertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.transaction.CustomFeeLimit;
+import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.InvalidKeyException;
-import java.time.Instant;
-import java.util.Collection;
-import java.util.Collections;
-import org.assertj.core.api.Condition;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class HandlerUtilityTest extends ScheduleHandlerTestBase {
     private static final AccountID PAYER_ID =
@@ -128,31 +140,93 @@ class HandlerUtilityTest extends ScheduleHandlerTestBase {
         assertThat(actual.scheduleValidStart()).isEqualTo(expected.scheduleValidStart());
     }
 
-    private Timestamp timestampFromInstant(final Instant valueToConvert) {
-        return new Timestamp(valueToConvert.getEpochSecond(), valueToConvert.getNano());
-    }
+    @Nested
+    class MemoValidation {
+        private static final int MAX_MEMO_BYTES = 10;
 
-    /**
-     * AssertJ condition to match.
-     * AssertJ is extremely bad at generic capture, forcing everything at least one superclass
-     * up.  As a result this is required to match {@code Condition<?>} rather than the known collection
-     * type.
-     * <p>
-     * The consequence is that the condition fails confusingly for results that are different types, rather than
-     * the compiler detecting a change.
-     *
-     * @param <T> the type of the Collection this condition is expected to support.
-     */
-    private static class ContainsAllElements<T> extends Condition<Collection<?>> {
-        private final Collection<T> valuesToMatch;
-
-        public ContainsAllElements(@Nullable final Collection<T> expected) {
-            valuesToMatch = expected;
+        @Test
+        void nullMemoIsValid() {
+            assertDoesNotThrow(() -> HandlerUtility.checkMemo(null, MAX_MEMO_BYTES));
         }
 
-        @Override
-        public boolean matches(final Collection<?> value) {
-            return !(Collections.disjoint(value, valuesToMatch));
+        @Test
+        void memoWithinLimitIsValid() {
+            assertDoesNotThrow(() -> HandlerUtility.checkMemo("hello", MAX_MEMO_BYTES));
+        }
+
+        @Test
+        void memoExceedingLimitThrowsException() {
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class, () -> HandlerUtility.checkMemo("hello world", MAX_MEMO_BYTES));
+            assertEquals(MEMO_TOO_LONG, exception.responseCode());
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"\0", "\0Hello World", "Hello \0 World", "Hello World\0"})
+        void memoWithNullByteThrowsException(String input) {
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> HandlerUtility.checkMemo(input, 20));
+            assertEquals(INVALID_ZERO_BYTE_IN_STRING, exception.responseCode());
+        }
+    }
+
+    @Nested
+    class CustomFeeValidation {
+        private static final HederaFunctionality SUPPORTED_FUNC = CONSENSUS_SUBMIT_MESSAGE;
+        private static final HederaFunctionality UNSUPPORTED_FUNC = CRYPTO_TRANSFER;
+
+        @Test
+        void unsupportedFuncWithFeesThrowsException() {
+            List<CustomFeeLimit> fees = List.of(createValidFeeLimit());
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class, () -> HandlerUtility.checkMaxCustomFee(fees, UNSUPPORTED_FUNC));
+            assertEquals(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED, exception.responseCode());
+        }
+
+        @Test
+        void unsupportedFuncWithEmptyFeesIsValid() {
+            assertDoesNotThrow(() -> HandlerUtility.checkMaxCustomFee(List.of(), UNSUPPORTED_FUNC));
+        }
+
+        @Test
+        void nullAccountIdThrowsException() {
+            CustomFeeLimit invalidFee = new CustomFeeLimit(null, List.of(new FixedFee(10, TokenID.DEFAULT)));
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class,
+                    () -> HandlerUtility.checkMaxCustomFee(List.of(invalidFee), SUPPORTED_FUNC));
+            assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
+        }
+
+        @Test
+        void emptyFeesListThrowsException() {
+            CustomFeeLimit invalidFee = customFeeLimitWith(List.of());
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class,
+                    () -> HandlerUtility.checkMaxCustomFee(List.of(invalidFee), SUPPORTED_FUNC));
+            assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
+        }
+
+        @Test
+        void negativeFeeAmountThrowsException() {
+            CustomFeeLimit invalidFee =
+                    customFeeLimitWith(List.of(new FixedFee(10, TokenID.DEFAULT), new FixedFee(-1, TokenID.DEFAULT)));
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class,
+                    () -> HandlerUtility.checkMaxCustomFee(List.of(invalidFee), SUPPORTED_FUNC));
+            assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
+        }
+
+        @Test
+        void validFeesForSupportedFunc() {
+            assertDoesNotThrow(() -> HandlerUtility.checkMaxCustomFee(List.of(createValidFeeLimit()), SUPPORTED_FUNC));
+        }
+
+        private CustomFeeLimit createValidFeeLimit() {
+            return customFeeLimitWith(List.of(new FixedFee(10, TokenID.DEFAULT), new FixedFee(0, TokenID.DEFAULT)));
+        }
+
+        private CustomFeeLimit customFeeLimitWith(List<FixedFee> feeLimits) {
+            return new CustomFeeLimit(AccountID.DEFAULT, feeLimits);
         }
     }
 }
