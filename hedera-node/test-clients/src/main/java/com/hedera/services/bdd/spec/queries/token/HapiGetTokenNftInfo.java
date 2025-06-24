@@ -121,13 +121,13 @@ public class HapiGetTokenNftInfo extends HapiQueryOp<HapiGetTokenNftInfo> {
         // If the NFT is created inside a batch then we increase the nanoseconds by 1 since the exact creation time
         // is taken from the batch itself.
         var creationTime = createdFromBatch.isPresent() && Boolean.TRUE.equals(createdFromBatch.get())
-            ? actualInfo.getCreationTime().toBuilder()
-            .setNanos(actualInfo.getCreationTime().getNanos() + 1)
-            .build()
-            : actualInfo.getCreationTime();
+                ? actualInfo.getCreationTime().toBuilder()
+                        .setNanos(actualInfo.getCreationTime().getNanos() + 1)
+                        .build()
+                : actualInfo.getCreationTime();
 
         assertFor(
-            creationTime,
+                creationTime,
                 expectedCreationTime,
                 (n, r) -> r.getCreationTime(token),
                 "Wrong creation time (seconds)!",
