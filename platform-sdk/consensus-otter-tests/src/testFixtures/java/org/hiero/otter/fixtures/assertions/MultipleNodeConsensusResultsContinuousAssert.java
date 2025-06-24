@@ -8,12 +8,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 
@@ -22,17 +19,8 @@ import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
  */
 @SuppressWarnings({"UnusedReturnValue", "unused"})
 public class MultipleNodeConsensusResultsContinuousAssert
-        extends AbstractAssert<MultipleNodeConsensusResultsContinuousAssert, MultipleNodeConsensusResults>
-        implements ContinuousAssertion {
-
-    private enum State {
-        ACTIVE,
-        PAUSED,
-        DESTROYED
-    }
-
-    private final Set<NodeId> suppressedNodeIds = ConcurrentHashMap.newKeySet();
-    private volatile State state = State.ACTIVE;
+        extends AbstractMultipleNodeContinuousAssertion<
+                MultipleNodeConsensusResultsContinuousAssert, MultipleNodeConsensusResults> {
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
@@ -54,76 +42,6 @@ public class MultipleNodeConsensusResultsContinuousAssert
     public static MultipleNodeConsensusResultsContinuousAssert assertContinuouslyThat(
             @Nullable final MultipleNodeConsensusResults actual) {
         return new MultipleNodeConsensusResultsContinuousAssert(actual);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void pause() {
-        state = State.PAUSED;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void resume() {
-        state = State.ACTIVE;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void destroy() {
-        state = State.DESTROYED;
-    }
-
-    /**
-     * Suppresses the given node from the assertions.
-     *
-     * @param nodeId the id of the node to suppress
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final NodeId nodeId) {
-        suppressedNodeIds.add(nodeId);
-        return this;
-    }
-
-    /**
-     * Suppresses the given node from the assertions.
-     *
-     * @param node the {@link Node} to suppress
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final Node node) {
-        return startSuppressingNode(node.getSelfId());
-    }
-
-    /**
-     * Stops suppressing the given node from the assertions.
-     *
-     * @param nodeId the id of the node
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final NodeId nodeId) {
-        suppressedNodeIds.remove(nodeId);
-        return this;
-    }
-
-    /**
-     * Stops suppressing the given node from the assertions.
-     *
-     * @param node the {@link Node}
-     * @return this assertion object for method chaining
-     */
-    @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final Node node) {
-        return stopSuppressingNode(node.getSelfId());
     }
 
     /**
