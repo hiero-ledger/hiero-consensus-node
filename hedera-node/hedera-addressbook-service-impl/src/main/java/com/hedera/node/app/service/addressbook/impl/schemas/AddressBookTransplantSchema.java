@@ -14,6 +14,7 @@ import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,8 +33,7 @@ public interface AddressBookTransplantSchema {
         ctx.startupNetworks()
                 .overrideNetworkFor(ctx.roundNumber(), ctx.platformConfig())
                 .ifPresent(network -> {
-                    final var count = setNodeMetadata(network, ctx.newStates());
-                    log.info("Adopted {} node metadata entries from startup assets", count);
+                    setNodeMetadata(network, ctx.newStates());
                 });
     }
 
@@ -44,15 +44,32 @@ public interface AddressBookTransplantSchema {
      * @param writableStates the state in which to store the node metadata
      */
     default int setNodeMetadata(@NonNull final Network network, @NonNull final WritableStates writableStates) {
+        requireNonNull(network);
+        requireNonNull(writableStates);
+
         final WritableKVState<EntityNumber, Node> nodes = writableStates.get(NODES_KEY);
         final var adoptedNodeCount = new AtomicInteger();
+        final var liveNodeIds = new HashSet<EntityNumber>();
         network.nodeMetadata().stream()
                 .filter(NodeMetadata::hasNode)
                 .map(NodeMetadata::nodeOrThrow)
                 .forEach(node -> {
+                    final var id = new EntityNumber(node.nodeId());
                     adoptedNodeCount.getAndIncrement();
-                    nodes.put(new EntityNumber(node.nodeId()), node);
+                    liveNodeIds.add(id);
+                    nodes.put(id, node);
                 });
+        log.info("Adopted nodes {} from startup assets (override-network.json)", liveNodeIds);
+
+        nodes.keys().forEachRemaining(nodeId -> {
+            final var node = requireNonNull(nodes.get(nodeId));
+            if (!liveNodeIds.contains(nodeId)) {
+                nodes.put(
+                        new EntityNumber(nodeId.number()),
+                        node.copyBuilder().deleted(true).build());
+                log.warn("Node in state {} is not part of the override network and is being marked deleted", nodeId);
+            }
+        });
         return adoptedNodeCount.get();
     }
 }
