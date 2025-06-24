@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_EXPIRY_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULED_TRANSACTION_NOT_IN_WHITELIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRATION_TIME_MUST_BE_HIGHER_THAN_CONSENSUS_TIME;
@@ -17,6 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CON
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFee;
+import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMemo;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.createProvisionalSchedule;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
@@ -110,7 +111,11 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var op = body.scheduleCreateOrThrow();
         final var config = context.configuration();
         final var hederaConfig = config.getConfigData(HederaConfig.class);
-        validateTruePreCheck(op.memo().length() <= hederaConfig.transactionMaxMemoUtf8Bytes(), MEMO_TOO_LONG);
+        final var scheduledTxnBody = op.scheduledTransactionBodyOrThrow();
+        final var scheduledFunctionality =
+                functionalityForType(scheduledTxnBody.data().kind());
+        checkMemo(scheduledTxnBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
+        checkMaxCustomFee(scheduledTxnBody.maxCustomFees(), scheduledFunctionality);
         // For backward compatibility, use ACCOUNT_ID_DOES_NOT_EXIST for a nonexistent designated payer
         if (op.hasPayerAccountID()) {
             final var accountStore = context.createStore(ReadableAccountStore.class);

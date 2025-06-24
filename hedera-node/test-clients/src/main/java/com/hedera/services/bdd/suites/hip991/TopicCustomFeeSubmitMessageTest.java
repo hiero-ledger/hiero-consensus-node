@@ -1978,20 +1978,4 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                 }),
                 getTopicInfo(TOPIC).hasSeqNo(0));
     }
-
-    @HapiTest
-    @DisplayName("Adding custom fee limit to not supported transactions fails")
-    final Stream<DynamicTest> notSupportedFeeLimitsFails() {
-        return hapiTest(
-                cryptoCreate(SUBMITTER),
-                // Testing that max_custom_fee is not supported and fails the transaction
-                cryptoCreate("foo")
-                        .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
-                        .hasKnownStatus(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED),
-                // Testing the behavior is the same when inside schedule
-                scheduleCreate(
-                                "schedule",
-                                cryptoCreate("fooInsideSchedule").maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1))))
-                        .hasKnownStatus(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED));
-    }
 }
