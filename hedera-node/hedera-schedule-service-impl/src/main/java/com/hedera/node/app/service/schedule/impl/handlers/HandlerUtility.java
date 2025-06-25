@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -21,7 +20,6 @@ import java.time.Instant;
  * A package-private utility class for Schedule Handlers.
  */
 public final class HandlerUtility {
-
     private HandlerUtility() {}
 
     /**
