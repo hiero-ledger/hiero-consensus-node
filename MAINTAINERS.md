@@ -16,7 +16,7 @@ Maintainers are assigned the following scopes in this repository:
 
 |         Name          |     GitHub ID      | Scope | LFID | Discord ID | Email | Company Affiliation |
 |-----------------------|--------------------|-------|------|------------|-------|---------------------|
-| Lyuben Ivanov         | bubo               |       |      |            |       |                     |
+| Lyuben Ivanov         | bubo               |       |      |            |       | LimeChain           |
 | Fernando Paris        | Ferparishuertas    |       |      |            |       | Hashgraph           |
 | Michael Heinrichs     | netopyr            |       |      |            |       | Hashgraph           |
 | Nathan Klick          | nathanklick        |       |      |            |       | Hashgraph           |

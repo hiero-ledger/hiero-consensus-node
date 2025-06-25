@@ -51,7 +51,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeLogResultAssert noMessageWithMarkers(
+    public SingleNodeLogResultAssert hasNoMessagesWithMarkers(
             @NonNull final LogMarker first, @Nullable final LogMarker... rest) {
         isNotNull();
 
@@ -87,7 +87,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeLogResultAssert noMessageWithLevelHigherThan(@NonNull final Level level) {
+    public SingleNodeLogResultAssert hasNoMessagesWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
                 .filter(log -> log.level().intLevel() < level.intLevel())
@@ -105,7 +105,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @return this assertion object for method chaining
      */
     public SingleNodeLogResultAssert hasNoErrorLevelMessages() {
-        return noMessageWithLevelHigherThan(Level.WARN);
+        return hasNoMessagesWithLevelHigherThan(Level.WARN);
     }
 
     /**
