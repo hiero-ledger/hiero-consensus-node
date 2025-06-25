@@ -14,6 +14,7 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,11 +55,45 @@ class V057AddressBookSchemaTest {
         given(startupNetworks.overrideNetworkFor(0L, DEFAULT_CONFIG)).willReturn(Optional.of(NETWORK));
         given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodes);
+        given(nodes.keys())
+                .willReturn(List.of(new EntityNumber(1L), new EntityNumber(2L)).iterator());
+        given(nodes.get(new EntityNumber(1L)))
+                .willReturn(Node.newBuilder().nodeId(1L).build());
+        given(nodes.get(new EntityNumber(2L)))
+                .willReturn(Node.newBuilder().nodeId(2L).build());
 
         subject.restart(ctx);
 
         verify(nodes)
                 .put(new EntityNumber(1L), NETWORK.nodeMetadata().getFirst().nodeOrThrow());
         verify(nodes).put(new EntityNumber(2L), NETWORK.nodeMetadata().getLast().nodeOrThrow());
+    }
+
+    @Test
+    void usesOverrideMetadataAndMarksNodesInStateDeleted() {
+        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(startupNetworks.overrideNetworkFor(0L, DEFAULT_CONFIG)).willReturn(Optional.of(NETWORK));
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodes);
+        given(nodes.keys())
+                .willReturn(List.of(new EntityNumber(1L), new EntityNumber(2L), new EntityNumber(3L))
+                        .iterator());
+        given(nodes.get(new EntityNumber(1L)))
+                .willReturn(Node.newBuilder().nodeId(1L).build());
+        given(nodes.get(new EntityNumber(2L)))
+                .willReturn(Node.newBuilder().nodeId(2L).build());
+        given(nodes.get(new EntityNumber(3L)))
+                .willReturn(Node.newBuilder().nodeId(2L).build());
+
+        subject.restart(ctx);
+
+        verify(nodes)
+                .put(new EntityNumber(1L), NETWORK.nodeMetadata().getFirst().nodeOrThrow());
+        verify(nodes).put(new EntityNumber(2L), NETWORK.nodeMetadata().getLast().nodeOrThrow());
+        verify(nodes)
+                .put(
+                        new EntityNumber(3L),
+                        Node.newBuilder().nodeId(2L).deleted(true).build());
     }
 }

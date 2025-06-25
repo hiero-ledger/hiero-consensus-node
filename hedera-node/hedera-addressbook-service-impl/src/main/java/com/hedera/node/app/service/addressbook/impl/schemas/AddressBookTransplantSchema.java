@@ -32,9 +32,7 @@ public interface AddressBookTransplantSchema {
         requireNonNull(ctx);
         ctx.startupNetworks()
                 .overrideNetworkFor(ctx.roundNumber(), ctx.platformConfig())
-                .ifPresent(network -> {
-                    setNodeMetadata(network, ctx.newStates());
-                });
+                .ifPresent(network -> setNodeMetadata(network, ctx.newStates()));
     }
 
     /**
