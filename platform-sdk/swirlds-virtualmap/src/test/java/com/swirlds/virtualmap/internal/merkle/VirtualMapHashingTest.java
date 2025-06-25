@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-@DisplayName("VirtualRootNode Hashing Tests")
+@DisplayName("VirtualMap Hashing Tests")
 class VirtualMapHashingTest {
 
     // FUTURE WORK tests to write:
@@ -154,8 +154,8 @@ class VirtualMapHashingTest {
         root0.put(TestKey.longToKey(4), new TestValue(4), TestValueCodec.INSTANCE);
         root0.put(TestKey.longToKey(5), new TestValue(5), TestValueCodec.INSTANCE);
 
-        root0.remove(TestKey.longToKey(delete1), null);
-        root0.remove(TestKey.longToKey(delete2), null);
+        root0.remove(TestKey.longToKey(delete1));
+        root0.remove(TestKey.longToKey(delete2));
 
         final VirtualMap root1 = root0.copy();
         final Hash hash0 = root0.getHash();

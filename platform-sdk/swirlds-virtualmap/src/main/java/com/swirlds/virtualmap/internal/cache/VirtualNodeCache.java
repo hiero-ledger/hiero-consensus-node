@@ -588,6 +588,8 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
         // The key must never be empty. Only DELETED_LEAF_RECORD should have an empty key.
         // The VirtualMap forbids null keys, so we should never see an empty key here.
         final Bytes key = leaf.keyBytes();
+        assert key != Bytes.EMPTY : "Keys cannot be empty";
+        assert key.length() > 0 : "Keys cannot be empty";
 
         // Update the path index to point to this node at this path
         updatePaths(

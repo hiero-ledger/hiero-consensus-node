@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.VM_STATE_KEY;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -106,8 +105,7 @@ class VirtualInternalNodeTest extends VirtualTestBase {
         final VirtualLeafNode rightChild = internalNode.getChild(1);
         assertNotNull(leftChild, "child should not be null");
         assertNotNull(rightChild, "child should not be null");
-        assertEquals(VM_STATE_KEY, leftChild.getKey(), "key should match original");
-        assertEquals(D_KEY, rightChild.getKey(), "key should match original");
+        assertEquals(E_KEY, rightChild.getKey(), "key should match original");
         assertNull(internalNode.getChild(2), "value should be null");
     }
 
@@ -142,33 +140,42 @@ class VirtualInternalNodeTest extends VirtualTestBase {
     @DisplayName("Getting a child that is on disk")
     void getValidChildOnDisk() throws IOException {
         final VirtualMap map = createMap();
-        map.getState().setLastLeafPath(14);
-        map.getState().setFirstLeafPath(7);
+        map.getState().setLastLeafPath(12);
+        map.getState().setFirstLeafPath(6);
 
         final List<VirtualLeafBytes> leaves = List.of(
-                new VirtualLeafBytes<>(8, D_KEY, DATE, TestValueCodec.INSTANCE),
-                new VirtualLeafBytes<>(9, B_KEY, BANANA, TestValueCodec.INSTANCE),
-                new VirtualLeafBytes<>(10, E_KEY, EGGPLANT, TestValueCodec.INSTANCE),
-                new VirtualLeafBytes<>(11, A_KEY, APPLE, TestValueCodec.INSTANCE),
-                new VirtualLeafBytes<>(12, F_KEY, FIG, TestValueCodec.INSTANCE),
-                new VirtualLeafBytes<>(13, C_KEY, CHERRY, TestValueCodec.INSTANCE),
-                new VirtualLeafBytes<>(14, G_KEY, GRAPE, TestValueCodec.INSTANCE));
-        map.getDataSource().saveRecords(7, 14, leaves.stream().map(this::hash), leaves.stream(), Stream.empty());
+                new VirtualLeafBytes<>(6, D_KEY, DATE, TestValueCodec.INSTANCE),
+                new VirtualLeafBytes<>(7, A_KEY, APPLE, TestValueCodec.INSTANCE),
+                new VirtualLeafBytes<>(8, E_KEY, EGGPLANT, TestValueCodec.INSTANCE),
+                new VirtualLeafBytes<>(9, C_KEY, CHERRY, TestValueCodec.INSTANCE),
+                new VirtualLeafBytes<>(10, F_KEY, FIG, TestValueCodec.INSTANCE),
+                new VirtualLeafBytes<>(11, G_KEY, GRAPE, TestValueCodec.INSTANCE),
+                new VirtualLeafBytes<>(12, B_KEY, BANANA, TestValueCodec.INSTANCE));
+        map.getDataSource().saveRecords(6, 12, leaves.stream().map(this::hash), leaves.stream(), Stream.empty());
 
-        VirtualHashRecord virtualHashRecord = new VirtualHashRecord(3, null);
+        VirtualHashRecord virtualHashRecord = new VirtualHashRecord(2, null);
         VirtualInternalNode internalNode = new VirtualInternalNode(map, virtualHashRecord);
         VirtualLeafNode rightChildLeaf = internalNode.getChild(1);
         assertNotNull(rightChildLeaf, "value should not be null");
         assertEquals(D_KEY, rightChildLeaf.getKey(), "key should match original");
 
-        virtualHashRecord = new VirtualHashRecord(4, null);
+        virtualHashRecord = new VirtualHashRecord(3, null);
         internalNode = new VirtualInternalNode(map, virtualHashRecord);
         VirtualLeafNode leftChildLeaf = internalNode.getChild(0);
         rightChildLeaf = internalNode.getChild(1);
         assertNotNull(leftChildLeaf, "value should not be null");
         assertNotNull(rightChildLeaf, "value should not be null");
-        assertEquals(B_KEY, leftChildLeaf.getKey(), "key should match original");
+        assertEquals(A_KEY, leftChildLeaf.getKey(), "key should match original");
         assertEquals(E_KEY, rightChildLeaf.getKey(), "key should match original");
+
+        virtualHashRecord = new VirtualHashRecord(4, null);
+        internalNode = new VirtualInternalNode(map, virtualHashRecord);
+        leftChildLeaf = internalNode.getChild(0);
+        rightChildLeaf = internalNode.getChild(1);
+        assertNotNull(leftChildLeaf, "value should not be null");
+        assertNotNull(rightChildLeaf, "value should not be null");
+        assertEquals(C_KEY, leftChildLeaf.getKey(), "key should match original");
+        assertEquals(F_KEY, rightChildLeaf.getKey(), "key should match original");
 
         virtualHashRecord = new VirtualHashRecord(5, null);
         internalNode = new VirtualInternalNode(map, virtualHashRecord);
@@ -176,17 +183,8 @@ class VirtualInternalNodeTest extends VirtualTestBase {
         rightChildLeaf = internalNode.getChild(1);
         assertNotNull(leftChildLeaf, "value should not be null");
         assertNotNull(rightChildLeaf, "value should not be null");
-        assertEquals(A_KEY, leftChildLeaf.getKey(), "key should match original");
-        assertEquals(F_KEY, rightChildLeaf.getKey(), "key should match original");
-
-        virtualHashRecord = new VirtualHashRecord(6, null);
-        internalNode = new VirtualInternalNode(map, virtualHashRecord);
-        leftChildLeaf = internalNode.getChild(0);
-        rightChildLeaf = internalNode.getChild(1);
-        assertNotNull(leftChildLeaf, "value should not be null");
-        assertNotNull(rightChildLeaf, "value should not be null");
-        assertEquals(C_KEY, leftChildLeaf.getKey(), "key should match original");
-        assertEquals(G_KEY, rightChildLeaf.getKey(), "key should match original");
+        assertEquals(G_KEY, leftChildLeaf.getKey(), "key should match original");
+        assertEquals(B_KEY, rightChildLeaf.getKey(), "key should match original");
     }
 
     @Test

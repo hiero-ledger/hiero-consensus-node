@@ -10,7 +10,6 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
@@ -29,7 +28,6 @@ import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -51,7 +49,6 @@ import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.workflows.SystemContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -133,7 +130,6 @@ public class SystemTransactions {
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
-    private final SemanticVersion softwareVersionFactory;
 
     private int nextDispatchNonce = 1;
 
@@ -152,8 +148,7 @@ public class SystemTransactions {
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final HederaRecordCache recordCache,
-            @NonNull final SemanticVersion softwareVersionFactory) {
+            @NonNull final HederaRecordCache recordCache) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -169,7 +164,6 @@ public class SystemTransactions {
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.recordCache = requireNonNull(recordCache);
-        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
     }
 
     /**
@@ -322,19 +316,18 @@ public class SystemTransactions {
 
     /**
      * Sets up post-upgrade state for the system.
-     *
-     * @param dispatch the post-upgrade transaction dispatch
+     * @param now the current time
+     * @param state the state to set up
      */
-    public void doPostUpgradeSetup(@NonNull final Dispatch dispatch) {
-        final var systemContext = systemContextFor(dispatch);
-        final var config = dispatch.config();
+    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
+        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var config = configProvider.getConfiguration();
 
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (nodesConfig.enableDAB()) {
-            final var nodeStore = dispatch.handleContext().storeFactory().readableStore(ReadableNodeStore.class);
+            final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
-            dispatch.stack().commitFullStack();
         }
 
         // And then we update the system files for fees schedules, throttles, override properties, and override
@@ -362,11 +355,7 @@ public class SystemTransactions {
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in)));
-        autoSysFileUpdates.forEach(update -> {
-            if (update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
-                dispatch.stack().commitFullStack();
-            }
-        });
+        autoSysFileUpdates.forEach(update -> update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext));
         final var autoNodeAdminKeyUpdates = new AutoEntityUpdate<Map<Long, Key>>(
                 (ctx, nodeAdminKeys) -> nodeAdminKeys.forEach(
                         (nodeId, key) -> ctx.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
@@ -375,9 +364,7 @@ public class SystemTransactions {
                                 .build()))),
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
-        if (autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext)) {
-            dispatch.stack().commitFullStack();
-        }
+        autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
     }
 
     /**
@@ -698,80 +685,10 @@ public class SystemTransactions {
                     handleOutput.preferringBlockRecordSource());
             return handleOutput;
         } catch (final Exception e) {
+            e.printStackTrace();
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
-    }
-
-    private SystemContext systemContextFor(@NonNull final Dispatch dispatch) {
-        final var config = dispatch.config();
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
-        final var firstUserNum = config.getConfigData(HederaConfig.class).firstUserEntity();
-        final var systemAdminId = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(config.getConfigData(AccountsConfig.class).systemAdmin())
-                .build();
-        return new SystemContext() {
-            @Override
-            public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
-                requireNonNull(body);
-                if (entityNum >= firstUserNum) {
-                    throw new IllegalArgumentException("Cannot create user entity in a system context");
-                }
-                final var controlledNum = dispatch.stack()
-                        .getWritableStates(EntityIdService.NAME)
-                        .<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY);
-                controlledNum.put(new EntityNumber(entityNum - 1));
-                final var recordBuilder = dispatch.handleContext()
-                        .dispatch(independentDispatch(systemAdminId, body, StreamBuilder.class));
-                if (!SUCCESSES.contains(recordBuilder.status())) {
-                    log.error(
-                            "Failed to dispatch system create transaction {} for entity {} - {}",
-                            body,
-                            entityNum,
-                            recordBuilder.status());
-                }
-                controlledNum.put(new EntityNumber(firstUserNum - 1));
-                dispatch.stack().commitFullStack();
-            }
-
-            @Override
-            public void dispatchAdmin(@NonNull final Consumer<TransactionBody.Builder> spec) {
-                requireNonNull(spec);
-                final var bodyBuilder = TransactionBody.newBuilder()
-                        .transactionID(TransactionID.newBuilder()
-                                .accountID(systemAdminId)
-                                .transactionValidStart(asTimestamp(now()))
-                                .nonce(nextDispatchNonce++)
-                                .build());
-                spec.accept(bodyBuilder);
-                final var body = bodyBuilder.build();
-                final var streamBuilder = dispatch.handleContext()
-                        .dispatch(independentDispatch(systemAdminId, body, StreamBuilder.class));
-                if (!SUCCESSES.contains(streamBuilder.status())) {
-                    log.error("Failed to dispatch update transaction {} for - {}", body, streamBuilder.status());
-                }
-            }
-
-            @NonNull
-            @Override
-            public Configuration configuration() {
-                return dispatch.config();
-            }
-
-            @NonNull
-            @Override
-            public NetworkInfo networkInfo() {
-                return dispatch.handleContext().networkInfo();
-            }
-
-            @NonNull
-            @Override
-            public Instant now() {
-                return dispatch.consensusNow();
-            }
-        };
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

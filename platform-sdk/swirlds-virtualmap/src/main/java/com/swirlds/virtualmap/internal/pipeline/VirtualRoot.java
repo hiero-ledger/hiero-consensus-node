@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.pipeline;
 
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 
@@ -100,7 +101,7 @@ public interface VirtualRoot extends MerkleNode {
      * @param destination the location where snapshot files will be located
      * @throws IOException if an I/O error occurs
      */
-    void snapshot(final Path destination) throws IOException;
+    void snapshot(@NonNull final Path destination) throws IOException;
 
     /**
      * Gets whether this copy is detached.

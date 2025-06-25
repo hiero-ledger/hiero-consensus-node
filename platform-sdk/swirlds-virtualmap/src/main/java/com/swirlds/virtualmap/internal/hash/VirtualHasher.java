@@ -11,16 +11,19 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.StackTrace;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -39,6 +42,36 @@ public final class VirtualHasher {
      * Use this for all logging, as controlled by the optional data/log4j2.xml file
      */
     private static final Logger logger = LogManager.getLogger(VirtualHasher.class);
+
+    private static volatile ForkJoinPool hashingPool = null;
+
+    /**
+     * This method is invoked from a non-static method, passing the provided configuration.
+     * Consequently, the hashing pool will be initialized using the configuration provided
+     * with the first call of the hash method. Subsequent calls will reuse the same pool.
+     */
+    private static ForkJoinPool getHashingPool(final @NonNull VirtualMapConfig virtualMapConfig) {
+        requireNonNull(virtualMapConfig);
+
+        ForkJoinPool pool = hashingPool;
+        if (pool == null) {
+            synchronized (VirtualHasher.class) {
+                pool = hashingPool;
+                if (pool == null) {
+                    pool = new ForkJoinPool(
+                            virtualMapConfig.getNumHashThreads(),
+                            ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+                            (t, e) -> logger.error(
+                                    EXCEPTION.getMarker(),
+                                    "Virtual hasher thread terminated with exception: {}",
+                                    StackTrace.getStackTrace(e)),
+                            true);
+                    hashingPool = pool;
+                }
+            }
+        }
+        return pool;
+    }
 
     /**
      * This thread-local gets a HashBuilder that can be used for hashing on a per-thread basis.
@@ -320,26 +353,63 @@ public final class VirtualHasher {
      */
     @SuppressWarnings("rawtypes")
     public Hash hash(
-            final LongFunction<Hash> hashReader,
-            final Iterator<VirtualLeafBytes> sortedDirtyLeaves,
+            final @NonNull LongFunction<Hash> hashReader,
+            final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            VirtualHashListener listener,
+            final @Nullable VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
-        if (listener == null) {
-            listener =
-                    new VirtualHashListener() {
-                        /* noop */
-                    };
-        }
+        final VirtualHashListener normalizedListener = listener == null
+                ? new VirtualHashListener() {
+                    /* noop */
+                }
+                : listener;
 
-        ForkJoinPool hashingPool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
+        final ForkJoinPool pool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
                 ? thread.getPool()
-                : ForkJoinPool.commonPool();
+                : getHashingPool(virtualMapConfig);
 
+        return pool.invoke(ForkJoinTask.adapt(() -> hashInternal(
+                hashReader,
+                sortedDirtyLeaves,
+                firstLeafPath,
+                lastLeafPath,
+                normalizedListener,
+                virtualMapConfig,
+                pool)));
+    }
+
+    /**
+     * Internal method calculating the hash of the tre in a given fork-join pool.
+     *
+     * @param hashReader
+     * 		Return a {@link Hash} by path. Used when this method needs to look up clean nodes.
+     * @param sortedDirtyLeaves
+     * 		A stream of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
+     * 		1234 comes before 1235. If null or empty, a null hash result is returned.
+     * @param firstLeafPath
+     * 		The firstLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
+     * 		No leaf in {@code sortedDirtyLeaves} may have a path less than {@code firstLeafPath}.
+     * @param lastLeafPath
+     * 		The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
+     * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
+     * @param listener
+     *      Hash listener. May be {@code null}
+     * @param virtualMapConfig platform configuration for VirtualMap
+     * @param pool the pool to use for hashing tasks.
+     * @return calculated root hash, or null if there are no dirty leaves to hash.
+     */
+    private Hash hashInternal(
+            final @NonNull LongFunction<Hash> hashReader,
+            final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final @NonNull VirtualHashListener listener,
+            final @NonNull VirtualMapConfig virtualMapConfig,
+            final @NonNull ForkJoinPool pool) {
         // Let the listener know we have started hashing.
         listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
@@ -388,7 +458,7 @@ public final class VirtualHasher {
         final HashMap<Long, HashProducingTask> allTasks = new HashMap<>();
 
         final int rootTaskHeight = Math.min(firstLeafRank, chunkHeight);
-        final ChunkHashTask rootTask = new ChunkHashTask(hashingPool, ROOT_PATH, rootTaskHeight);
+        final ChunkHashTask rootTask = new ChunkHashTask(pool, ROOT_PATH, rootTaskHeight);
         // The root task doesn't have an output. Still need to call setOut() to set the dependency
         rootTask.setOut(null);
         allTasks.put(ROOT_PATH, rootTask);
@@ -410,7 +480,7 @@ public final class VirtualHasher {
             long curPath = leaf.path();
             LeafHashTask leafTask = (LeafHashTask) allTasks.remove(curPath);
             if (leafTask == null) {
-                leafTask = new LeafHashTask(hashingPool, curPath);
+                leafTask = new LeafHashTask(pool, curPath);
             }
             leafTask.setLeaf(leaf);
 
@@ -464,7 +534,7 @@ public final class VirtualHasher {
                 // Parent task is always a chunk task
                 ChunkHashTask parentTask = (ChunkHashTask) allTasks.remove(parentPath);
                 if (parentTask == null) {
-                    parentTask = new ChunkHashTask(hashingPool, parentPath, parentChunkHeight);
+                    parentTask = new ChunkHashTask(pool, parentPath, parentChunkHeight);
                 }
                 curTask.setOut(parentTask);
 
@@ -498,13 +568,13 @@ public final class VirtualHasher {
                         if (siblingPath >= firstLeafPath) {
                             // Leaf sibling
                             assert !allTasks.containsKey(siblingPath);
-                            siblingTask = allTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(hashingPool, p));
+                            siblingTask = allTasks.computeIfAbsent(siblingPath, p -> new LeafHashTask(pool, p));
                         } else {
                             // Chunk sibling
                             final int taskChunkHeight =
                                     getChunkHeightForOutputRank(curRank, firstLeafRank, lastLeafRank, chunkHeight);
                             siblingTask = allTasks.computeIfAbsent(
-                                    siblingPath, path -> new ChunkHashTask(hashingPool, path, taskChunkHeight));
+                                    siblingPath, path -> new ChunkHashTask(pool, path, taskChunkHeight));
                         }
                         // Set sibling task output to the same parent
                         siblingTask.setOut(parentTask);
