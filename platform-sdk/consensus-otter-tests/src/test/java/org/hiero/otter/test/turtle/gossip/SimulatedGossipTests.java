@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.turtle.gossip;
+package org.hiero.otter.test.turtle.gossip;
 
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -19,7 +19,6 @@ import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
-import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -35,6 +34,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
