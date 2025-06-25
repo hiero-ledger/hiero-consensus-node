@@ -44,6 +44,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -117,6 +118,9 @@ class SystemTransactionsTest {
     @Mock
     private SemanticVersion softwareVersionFactory;
 
+    @Mock
+    private StartupNetworks startupNetworks;
+
     @LoggingSubject
     private SystemTransactions subject;
 
@@ -144,7 +148,8 @@ class SystemTransactionsTest {
                 blockStreamManager,
                 exchangeRateManager,
                 recordCache,
-                softwareVersionFactory);
+                softwareVersionFactory,
+                startupNetworks);
     }
 
     @Test
