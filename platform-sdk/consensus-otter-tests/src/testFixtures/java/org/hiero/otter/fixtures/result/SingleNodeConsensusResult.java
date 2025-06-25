@@ -16,6 +16,7 @@ public interface SingleNodeConsensusResult extends OtterResult {
      *
      * @return the node ID
      */
+    @NonNull
     NodeId nodeId();
 
     /**

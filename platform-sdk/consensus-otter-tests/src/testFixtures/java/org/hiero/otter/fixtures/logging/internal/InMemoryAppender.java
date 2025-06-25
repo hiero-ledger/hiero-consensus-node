@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.LogEvent;
@@ -33,8 +34,7 @@ public class InMemoryAppender extends AbstractAppender {
     private static final List<StructuredLog> logs = Collections.synchronizedList(new ArrayList<>());
 
     /** Listeners interested in real-time log events */
-    private static final List<java.util.function.Consumer<StructuredLog>> listeners =
-            java.util.Collections.synchronizedList(new ArrayList<>());
+    private static final List<Consumer<StructuredLog>> listeners = Collections.synchronizedList(new ArrayList<>());
 
     /** No filtering is applied to the log events */
     private static final Filter NO_FILTER = null;
@@ -80,9 +80,9 @@ public class InMemoryAppender extends AbstractAppender {
         logs.add(log);
 
         // notify listeners
-        for (java.util.function.Consumer<StructuredLog> l : listeners) {
+        for (final Consumer<StructuredLog> listener : listeners) {
             try {
-                l.accept(log);
+                listener.accept(log);
             } catch (Exception ignored) {
             }
         }
@@ -136,7 +136,7 @@ public class InMemoryAppender extends AbstractAppender {
     }
 
     /** Register a listener for real-time log events */
-    public static void addListener(@NonNull final java.util.function.Consumer<StructuredLog> listener) {
+    public static void addListener(@NonNull final Consumer<StructuredLog> listener) {
         listeners.add(listener);
     }
 
