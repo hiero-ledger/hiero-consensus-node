@@ -48,6 +48,7 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -87,8 +88,10 @@ import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -105,9 +108,11 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * This class is responsible for storing the system accounts created during node startup, and then creating
@@ -128,7 +133,8 @@ public class SystemTransactions {
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
-    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
+    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {
+    };
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
@@ -420,7 +426,8 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {
+        }, false);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -482,7 +489,8 @@ public class SystemTransactions {
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStoreImpl.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {
+        }, false);
         if (rosterStore.isTransplantInProgress()) {
             log.info("Roster transplant in progress, dispatching node updates");
 
@@ -500,7 +508,7 @@ public class SystemTransactions {
                 if (nodeStore.get(node.nodeId()) == null) {
                     // Node is new in the override roster, dispatch a node creation transaction
                     systemContext.dispatchCreation(
-                            b -> b.memo("Synthetic system creation")
+                            b -> b.memo("Synthetic node creation")
                                     .nodeCreate(NodeCreateTransactionBody.newBuilder()
                                             .adminKey(node.adminKey())
                                             .accountId(node.accountId())
@@ -516,16 +524,17 @@ public class SystemTransactions {
                     log.info("Node {} is new in override network and is being created", node.nodeId());
                 } else {
                     // Node is in the override roster and in current state, dispatch a node update transaction
-                    systemContext.dispatchAdmin(b -> b.nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                            .nodeId(node.nodeId())
-                            .adminKey(node.adminKey())
-                            .description(node.description())
-                            .gossipEndpoint(node.gossipEndpoint())
-                            .gossipCaCertificate(node.gossipCaCertificate())
-                            .serviceEndpoint(node.serviceEndpoint())
-                            .declineReward(node.declineReward())
-                            .grpcProxyEndpoint(node.grpcProxyEndpoint())
-                            .build()));
+                    systemContext.dispatchAdmin(b -> b.memo("Synthetic node update")
+                            .nodeUpdate(NodeUpdateTransactionBody.newBuilder()
+                                    .nodeId(node.nodeId())
+                                    .adminKey(node.adminKey())
+                                    .description(node.description())
+                                    .gossipEndpoint(node.gossipEndpoint())
+                                    .gossipCaCertificate(node.gossipCaCertificate())
+                                    .serviceEndpoint(node.serviceEndpoint())
+                                    .declineReward(node.declineReward())
+                                    .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                                    .build()));
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
@@ -533,15 +542,21 @@ public class SystemTransactions {
                     .getStore(ReadableEntityIdStoreImpl.class)
                     .numNodes();
             for (var i = 0; i < numNodes; i++) {
-                final var nodeId = i;
+                final long nodeId = i;
                 if (nodeStore.get(i) != null && !overrideNodes.contains(nodeId)) {
                     // Node is in the current state but not in the override roster, mark it as deleted
-                    systemContext.dispatchAdmin(b -> b.nodeDelete(NodeDeleteTransactionBody.newBuilder()
-                            .nodeId(nodeId)
-                            .build()));
+                    systemContext.dispatchAdmin(b -> b.memo("Synthetic node deletion")
+                            .nodeDelete(NodeDeleteTransactionBody.newBuilder()
+                                    .nodeId(nodeId)
+                                    .build()));
                     log.info("Node {} in state is not part of the override network and is being marked deleted", i);
                 }
             }
+            final var writableStates = state.getWritableStates(RosterService.NAME);
+            final var writableRosterStore = new WritableRosterStore(writableStates);
+            writableRosterStore.updateTransplantInProgress(false);
+            ((CommittableWritableStates) writableStates).commit();
+
             return true;
         }
         return false;

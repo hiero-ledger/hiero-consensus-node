@@ -262,7 +262,7 @@ public class HandleWorkflow {
 
         try {
             // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
-            // Dispatch rewards for active nodes after at least one user transaction is handled
+            // Dispatch transplant updates for the nodes in override network
             if (boundaryStateChangeListener.lastConsensusTime() != null) {
                 transactionsDispatched |= systemTransactions.dispatchTransplantUpdates(
                         state,
