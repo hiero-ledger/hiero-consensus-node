@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 
@@ -85,7 +86,7 @@ public class ContainerNode extends AbstractNode implements Node {
 
         this.resultsCollector = new NodeResultsCollector(selfId);
 
-        final String alias = "node-" + selfId.id();
+        final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
 
         final Consumer<OutputFrame> logWriter = frame -> {
             final Level level = frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO;

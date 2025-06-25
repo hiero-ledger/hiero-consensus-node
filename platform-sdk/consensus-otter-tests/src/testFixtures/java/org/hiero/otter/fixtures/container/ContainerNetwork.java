@@ -40,6 +40,8 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
  */
 public class ContainerNetwork extends AbstractNetwork {
 
+    public static final String NODE_IDENTIFIER_FORMAT = "node-%d";
+
     private static final Logger log = LogManager.getLogger();
 
     private static final Duration DEFAULT_START_TIMEOUT = Duration.ofMinutes(2);
@@ -119,7 +121,7 @@ public class ContainerNetwork extends AbstractNetwork {
                     .weight(1L)
                     .gossipCaCertificate(Bytes.wrap(sigCertBytes))
                     .gossipEndpoint(ServiceEndpoint.newBuilder()
-                            .domainName(String.format("node-%d", selfId.id()))
+                            .domainName(String.format(NODE_IDENTIFIER_FORMAT, selfId.id()))
                             .port(GOSSIP_PORT)
                             .build())
                     .build());
