@@ -18,25 +18,44 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class GrpcBlockItemWriterTest {
 
     @Mock
-    private BlockStreamStateManager blockStreamStateManager;
+    private BlockBufferService blockBufferService;
 
     @Test
     void testGrpcBlockItemWriterConstructor() {
-        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+        final GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
         assertThat(grpcBlockItemWriter).isNotNull();
     }
 
     @Test
+    void testOpenBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+
+        grpcBlockItemWriter.openBlock(0);
+
+        verify(blockBufferService).openBlock(0);
+    }
+
+    @Test
     void testOpenBlockNegativeBlockNumber() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
 
         assertThatThrownBy(() -> grpcBlockItemWriter.openBlock(-1), "Block number must be non-negative")
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void testWriteItem() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+    void testWriteItemUnsupported() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
+
+        assertThatThrownBy(
+                        () -> grpcBlockItemWriter.writeItem(new byte[] {1, 2, 3, 4, 5}),
+                        "writeItem is not supported in this implementation")
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void testWritePbjItem() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
 
         // Create BlockProof as easiest way to build object from BlockStreams
         Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
@@ -46,15 +65,16 @@ class GrpcBlockItemWriterTest {
 
         grpcBlockItemWriter.writePbjItem(proof);
 
-        verify(blockStreamStateManager).addItem(0L, proof);
+        verify(blockBufferService).addItem(0L, proof);
     }
 
     @Test
-    void testCloseBlock() {
-        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockStreamStateManager);
+    void testCompleteBlock() {
+        GrpcBlockItemWriter grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService);
 
+        grpcBlockItemWriter.openBlock(0);
         grpcBlockItemWriter.closeCompleteBlock();
 
-        verify(blockStreamStateManager).closeBlock(0L);
+        verify(blockBufferService).closeBlock(0);
     }
 }

@@ -5,6 +5,9 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
@@ -21,6 +24,8 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
     // as BreakableDataSource.saveRecords called from multiple threads.
     volatile int numCalls = 0;
     volatile int numTimesBroken = 0;
+
+    static final Set<VirtualDataSource> COPIES_TO_DESTROY = ConcurrentHashMap.newKeySet();
 
     public BrokenBuilder() {}
 
@@ -65,7 +70,11 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
     public BreakableDataSource copy(
             final VirtualDataSource snapshotMe, final boolean makeCopyActive, final boolean offlineUse) {
         final var breakableSnapshot = (BreakableDataSource) snapshotMe;
-        return new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive, offlineUse));
+        COPIES_TO_DESTROY.add(breakableSnapshot);
+        BreakableDataSource breakableDataSource =
+                new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive, offlineUse));
+        COPIES_TO_DESTROY.add(breakableDataSource);
+        return breakableDataSource;
     }
 
     @Override
@@ -89,5 +98,17 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
 
     public void nextAttempt() {
         this.numCalls = 0;
+    }
+
+    public static void closeDatasourceCopies() {
+        Iterator<VirtualDataSource> iterator = COPIES_TO_DESTROY.iterator();
+        while (iterator.hasNext()) {
+            try {
+                iterator.next().close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            iterator.remove();
+        }
     }
 }

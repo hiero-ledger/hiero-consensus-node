@@ -2,981 +2,575 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.node.app.spi.fixtures.util.LogCaptor;
-import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
-import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
-import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
+import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.OneOf;
 import io.grpc.stub.StreamObserver;
 import io.helidon.webclient.grpc.GrpcServiceClient;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.block.api.BlockItemSet;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.VarHandle;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Queue;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
-import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
+import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
-import org.junit.jupiter.api.AfterEach;
+import org.hiero.block.api.PublishStreamResponse.ResponseOneOfType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
-class BlockNodeConnectionTest {
+@ExtendWith(MockitoExtension.class)
+class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
-    private static final String TEST_ADDRESS = "localhost";
-    private static final int TEST_PORT = 8080;
-    private static final String TEST_CONNECTION_DESCRIPTOR = TEST_ADDRESS + ":" + TEST_PORT;
-    private static final long TEST_BLOCK_NUMBER = 42L;
+    private static final VarHandle eosTimestampsHandle;
 
-    @Mock
-    private BlockNodeConfig blockNodeConfig;
+    static {
+        try {
+            final Lookup lookup = MethodHandles.lookup();
+            eosTimestampsHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
+                    .findVarHandle(BlockNodeConnection.class, "endOfStreamTimestamps", Queue.class);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-    @Mock
-    private BlockNodeConnectionManager connectionManager;
-
-    @Mock
-    private BlockStreamStateManager blockStreamStateManager;
-
-    @Mock
-    private StreamObserver<PublishStreamRequest> requestObserver;
-
-    @Mock
-    private GrpcServiceClient grpcServiceClient;
-
-    @Mock
-    private BlockState blockState;
-
-    @LoggingTarget
-    private LogCaptor logCaptor;
-
-    @LoggingSubject
     private BlockNodeConnection connection;
 
+    private BlockNodeConnectionManager connectionManager;
+    private BlockBufferService stateManager;
+    private GrpcServiceClient grpcServiceClient;
+    private BlockStreamMetrics metrics;
+    private final String grpcEndpoint = "foo";
+    private StreamObserver<PublishStreamRequest> requestObserver;
+
     @BeforeEach
-    void setUp() throws Exception {
-        when(blockNodeConfig.address()).thenReturn(TEST_ADDRESS);
-        when(blockNodeConfig.port()).thenReturn(TEST_PORT);
+    void beforeEach() {
+        final ConfigProvider configProvider = createConfigProvider();
+        final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
+        connectionManager = mock(BlockNodeConnectionManager.class);
+        stateManager = mock(BlockBufferService.class);
+        grpcServiceClient = mock(GrpcServiceClient.class);
+        metrics = mock(BlockStreamMetrics.class);
+        requestObserver = mock(StreamObserver.class);
 
-        connection =
-                new BlockNodeConnection(blockNodeConfig, connectionManager, blockStreamStateManager, grpcServiceClient);
+        connection = new BlockNodeConnection(
+                configProvider, nodeConfig, connectionManager, stateManager, grpcServiceClient, metrics, grpcEndpoint);
 
-        // Set requestObserver via reflection to avoid establishing an actual gRPC connection
-        Field requestObserverField = BlockNodeConnection.class.getDeclaredField("requestObserver");
-        requestObserverField.setAccessible(true);
-        requestObserverField.set(connection, requestObserver);
-
-        // Set isActive to true via reflection
-        Field isActiveField = BlockNodeConnection.class.getDeclaredField("isActive");
-        isActiveField.setAccessible(true);
-        isActiveField.set(connection, new AtomicBoolean(true));
+        lenient().doReturn(requestObserver).when(grpcServiceClient).bidi(grpcEndpoint, connection);
     }
 
-    @AfterEach
-    void tearDown() {
-        connection.close();
-    }
-
-    /**
-     * Tests the flow where the current block number is -1, and we need to wait for a new block.
-     */
     @Test
-    void testRequestWorkerLoop_WaitsForNewBlock() throws Exception {
-        // Arrange
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerStarted = new AtomicBoolean(false);
-        AtomicBoolean workerStopped = new AtomicBoolean(false);
+    void testCreateRequestObserver() {
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+        connection.createRequestObserver();
 
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            workerStarted.set(true);
-
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-                // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
-                    try {
-                        requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-                methodExecutor.interrupt();
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            workerStopped.set(true);
-            latch.countDown();
-        });
-
-        // Wait for the worker to start
-        while (!workerStarted.get()) {
-            Thread.sleep(10);
-        }
-
-        // Simulate notifying a new block is available
-        connection.notifyNewBlockAvailable();
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-
-        // After the worker receives the notification, make sure it stops
-        Thread.sleep(100);
-        connection.close();
-
-        // Wait for the worker to stop
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-        assertTrue(workerStopped.get(), "Worker thread did not run to completion");
-
-        // Verify log messages
-        final String expectedWaitingLog =
-                "[] Waiting for new block to be available for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedWaitingLog)),
-                "Expected log message not found: " + expectedWaitingLog);
-        final String expectedClosedLog = "Closed connection to block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedClosedLog)),
-                "Expected log message not found: " + expectedClosedLog);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
+        verify(grpcServiceClient).bidi(grpcEndpoint, connection);
     }
 
-    /**
-     * Tests the flow where the block state is null for the current block number,
-     * so the method waits for a new block to become available.
-     */
     @Test
-    void testRequestWorkerLoop_BlockStateIsNull() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-        when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(null);
+    void testCreateRequestObserver_alreadyExists() {
+        connection.createRequestObserver();
+        connection.createRequestObserver();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerStarted = new AtomicBoolean(false);
-        AtomicBoolean validBlockState = new AtomicBoolean(false);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            workerStarted.set(true);
-
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-
-                // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
-                    try {
-                        requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-
-                // Wait a bit for the method to reach the waiting state
-                Thread.sleep(100);
-
-                // Then provide a valid block state and notify
-                when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(blockState);
-                when(blockState.isComplete()).thenReturn(true);
-                when(blockState.requests()).thenReturn(List.of());
-                validBlockState.set(true);
-
-                connection.notifyNewBlockAvailable();
-
-                // Wait a bit more for the method to process the valid block state
-                Thread.sleep(100);
-
-                // Then close the connection to stop the loop
-                connection.close();
-                methodExecutor.interrupt();
-
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            latch.countDown();
-        });
-
-        // Wait for the worker to complete its test logic
-        assertTrue(latch.await(3, TimeUnit.SECONDS), "Worker thread did not complete test logic");
-        assertTrue(validBlockState.get(), "Block state was not set to valid");
-
-        // Verify log messages indicate waiting for a new block
-        final String expectedWaitingLog =
-                "[] Waiting for new block to be available for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedWaitingLog)),
-                "Expected log message not found: " + expectedWaitingLog);
-        final String expectedClosedLog = "Closed connection to block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedClosedLog)),
-                "Expected log message not found: " + expectedClosedLog);
+        verify(grpcServiceClient).bidi(grpcEndpoint, connection); // should only be called once
+        verifyNoMoreInteractions(grpcServiceClient);
     }
 
-    /**
-     * Tests the flow where there are no requests available for the current block state
-     * and the block is not complete.
-     */
     @Test
-    void testRequestWorkerLoop_NoRequestsAvailable() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-        when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(blockState);
-        when(blockState.requests()).thenReturn(List.of());
-        when(blockState.isComplete()).thenReturn(false);
+    void testUpdatingConnectionState() {
+        final ConnectionState preUpdateState = connection.getConnectionState();
+        // this should be uninitialized because we haven't called connect yet
+        assertThat(preUpdateState).isEqualTo(ConnectionState.UNINITIALIZED);
+        connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerStarted = new AtomicBoolean(false);
-        AtomicBoolean notificationReceived = new AtomicBoolean(false);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            workerStarted.set(true);
-
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-                // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
-                    try {
-                        requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-
-                methodExecutor.interrupt();
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            notificationReceived.set(true);
-            latch.countDown();
-        });
-
-        // Wait for the worker to start
-        while (!workerStarted.get()) {
-            Thread.sleep(10);
-        }
-
-        // Simulate notifying a new request is available
-        connection.notifyNewRequestAvailable();
-
-        // After the worker receives the notification, make sure it stops
-        Thread.sleep(100);
-        connection.close();
-
-        // Wait for the worker to stop
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-        assertTrue(notificationReceived.get(), "Worker did not receive notification");
-
-        // Verify log messages indicate waiting for new requests
-        final String expectedProcessingLog =
-                "[] Processing block " + TEST_BLOCK_NUMBER + " for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedProcessingLog)),
-                "Expected log message not found: " + expectedProcessingLog);
-        final String expectedWaitingLog = "[] Waiting for new requests to be available for block " + TEST_BLOCK_NUMBER
-                + " on node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedWaitingLog)),
-                "Expected log message not found: " + expectedWaitingLog);
-        final String expectedClosedLog = "Closed connection to block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedClosedLog)),
-                "Expected log message not found: " + expectedClosedLog);
+        final ConnectionState postUpdateState = connection.getConnectionState();
+        assertThat(postUpdateState).isEqualTo(ConnectionState.ACTIVE);
     }
 
-    /**
-     * Tests the flow where there are requests available for the current block state,
-     * and the worker processes all of them.
-     */
     @Test
-    void testRequestWorkerLoop_ProcessAvailableRequests() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
+    void testHandleStreamError() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // do a quick sanity check on the state
+        final ConnectionState preState = connection.getConnectionState();
+        assertThat(preState).isEqualTo(ConnectionState.ACTIVE);
 
-        // Create mock requests
-        final PublishStreamRequest request1 = mock(PublishStreamRequest.class);
-        final PublishStreamRequest request2 = mock(PublishStreamRequest.class);
-        final List<PublishStreamRequest> requests = List.of(request1, request2);
-        final BlockItemSet blockItems = mock(BlockItemSet.class);
+        connection.handleStreamFailure();
 
-        when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(blockState);
-        when(blockState.requests()).thenReturn(requests);
-        when(blockState.isComplete()).thenReturn(true);
-        when(request1.blockItems()).thenReturn(blockItems);
-        when(request2.blockItems()).thenReturn(blockItems);
+        final ConnectionState postState = connection.getConnectionState();
+        assertThat(postState).isEqualTo(ConnectionState.UNINITIALIZED);
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean processedRequests = new AtomicBoolean(false);
-        AtomicReference<Long> finalBlockNumber = new AtomicReference<>(0L);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-                // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
-                    try {
-                        requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-                methodExecutor.interrupt();
-            } catch (Exception e) {
-                // Ignore
-            }
-            processedRequests.set(true);
-            latch.countDown();
-        });
-
-        // Wait a bit for the worker to process the requests
-        Thread.sleep(100);
-        finalBlockNumber.set(connection.getCurrentBlockNumber());
-        connection.close();
-
-        // Assert
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-        assertEquals(TEST_BLOCK_NUMBER + 1L, finalBlockNumber.get());
-        verify(requestObserver, times(2)).onNext(any(PublishStreamRequest.class));
-
-        // Verify log messages indicate processing of requests
-        final String expectedProcessingLog =
-                "[] Processing block " + TEST_BLOCK_NUMBER + " for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedProcessingLog)),
-                "Expected log message not found: " + expectedProcessingLog);
-        final String expectedSendingLog = "[] Sending request for block " + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedSendingLog)),
-                "Expected log message not found: " + expectedSendingLog);
-        final String expectedClosedLog = "Closed connection to block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedClosedLog)),
-                "Expected log message not found: " + expectedClosedLog);
-    }
-
-    /**
-     * Tests the flow where the block is complete and all requests have been processed,
-     * so the worker should move to the next block.
-     */
-    @Test
-    void testRequestWorkerLoop_MoveToNextBlock() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-
-        // Create mock requests
-        final PublishStreamRequest request1 = mock(PublishStreamRequest.class);
-        final List<PublishStreamRequest> requests = List.of(request1);
-        final BlockItemSet blockItems = mock(BlockItemSet.class);
-
-        when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(blockState);
-        when(blockState.requests()).thenReturn(requests);
-        when(blockState.isComplete()).thenReturn(true);
-        when(request1.blockItems()).thenReturn(blockItems);
-
-        // For the next block, return null to stop the loop
-        when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER + 1L)).thenReturn(null);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Long> finalBlockNumber = new AtomicReference<>(0L);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-                // Use a separate thread to execute the method so we can interrupt it later
-                Thread methodExecutor = Thread.ofPlatform().start(() -> {
-                    try {
-                        requestWorkerLoopMethod.invoke(connection);
-                    } catch (Exception e) {
-                        // Ignore
-                    }
-                });
-                methodExecutor.interrupt();
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            latch.countDown();
-        });
-
-        Thread.sleep(100);
-        finalBlockNumber.set(connection.getCurrentBlockNumber());
-        connection.close();
-
-        // Wait a bit for the worker to process the requests and move to the next block
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-
-        // Assert
-        assertEquals(TEST_BLOCK_NUMBER + 1L, finalBlockNumber.get());
-        verify(requestObserver, times(1)).onNext(any(PublishStreamRequest.class));
-
-        // Verify log messages indicate moving to the next block
-        final String expectedSendingLog = "[] Sending request for block " + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedSendingLog)),
-                "Expected log message not found: " + expectedSendingLog);
-        final String expectedCompletedLog = "[] Completed sending all requests for block " + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedCompletedLog)),
-                "Expected log message not found: " + expectedCompletedLog);
-    }
-
-    /**
-     * Tests the flow where an InterruptedException is thrown during the worker loop.
-     */
-    @Test
-    void testRequestWorkerLoop_InterruptedException() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-
-        // Make waiting for new block throw an InterruptedException
-        Object mockNewBlockAvailable = mock(Object.class);
-        doThrow(new InterruptedException()).when(mockNewBlockAvailable).wait();
-
-        Field newBlockAvailableField = BlockNodeConnection.class.getDeclaredField("newBlockAvailable");
-        newBlockAvailableField.setAccessible(true);
-        newBlockAvailableField.set(connection, mockNewBlockAvailable);
-
-        // We expect the worker to exit after the InterruptedException
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerExited = new AtomicBoolean(false);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-                requestWorkerLoopMethod.invoke(connection);
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            workerExited.set(true);
-            latch.countDown();
-        });
-
-        // Wait for the worker to exit
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-        assertTrue(workerExited.get(), "Worker did not exit after InterruptedException");
-
-        // Verify log messages for handling the InterruptedException
-        final String expectedErrorLog = "[] Request worker thread interrupted for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.errorLogs().stream().anyMatch(log -> log.contains(expectedErrorLog)),
-                "Expected log message not found: " + expectedErrorLog);
-    }
-
-    /**
-     * Tests the flow where a generic exception is thrown during the worker loop.
-     */
-    @Test
-    void testRequestWorkerLoop_GenericException() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-
-        // Make blockStreamStateManager.getBlockState throw a RuntimeException
-        when(blockStreamStateManager.getBlockState(anyLong())).thenThrow(new RuntimeException("Test exception"));
-
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean workerContinued = new AtomicBoolean(false);
-        AtomicInteger iterationCount = new AtomicInteger(0);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            // Call the method under test via reflection
-            try {
-                // Make the isActive field accessible and override it to stop after a few iterations
-                Field isActiveField = BlockNodeConnection.class.getDeclaredField("isActive");
-                isActiveField.setAccessible(true);
-
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-
-                // Only allow a few iterations to avoid an infinite loop
-                while (iterationCount.incrementAndGet() < 3) {
-                    requestWorkerLoopMethod.invoke(connection);
-                }
-
-                // If we reached here, the worker continued despite the exception
-                workerContinued.set(true);
-                isActiveField.set(connection, new AtomicBoolean(false));
-
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            latch.countDown();
-        });
-
-        // Wait for the worker to run a few iterations
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-        assertTrue(workerContinued.get(), "Worker did not continue after generic exception");
-
-        // Verify log messages for handling the generic exception
-        final String expectedErrorLog = "[] Error in request worker thread for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.errorLogs().stream().anyMatch(log -> log.contains(expectedErrorLog)),
-                "Expected log message not found: " + expectedErrorLog);
-    }
-
-    /**
-     * Tests the flow where an IndexOutOfBoundsException is thrown during processing of requests.
-     */
-    @Test
-    void testRequestWorkerLoop_IndexOutOfBoundsException() throws Exception {
-        // Arrange
-        connection.setCurrentBlockNumber(TEST_BLOCK_NUMBER);
-
-        // Set up a situation where an IndexOutOfBoundsException might occur
-        final List<PublishStreamRequest> requests = new ArrayList<>();
-        requests.add(mock(PublishStreamRequest.class));
-
-        when(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).thenReturn(blockState);
-        when(blockState.requests()).thenReturn(requests);
-        when(blockState.isComplete()).thenReturn(false);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicBoolean requestIndexResetCalled = new AtomicBoolean(false);
-
-        // Act - Start the worker thread
-        Thread workerThread = Thread.ofPlatform().name("TestWorker").start(() -> {
-            // Call the method under test via reflection
-            try {
-                Method requestWorkerLoopMethod = BlockNodeConnection.class.getDeclaredMethod("requestWorkerLoop");
-                requestWorkerLoopMethod.setAccessible(true);
-
-                // Call once, which should trigger the IndexOutOfBoundsException
-                requestWorkerLoopMethod.invoke(connection);
-
-                // Check if the currentRequestIndex was reset to a safe value
-                Field currentRequestIndexField = BlockNodeConnection.class.getDeclaredField("currentRequestIndex");
-                currentRequestIndexField.setAccessible(true);
-                AtomicInteger resetIndex = (AtomicInteger) currentRequestIndexField.get(connection);
-
-                if (resetIndex.get() == 0) {
-                    requestIndexResetCalled.set(true);
-                }
-            } catch (Exception e) {
-                // Ignore
-            }
-
-            latch.countDown();
-        });
-
-        // Wait for the worker to finish
-        assertTrue(latch.await(1, TimeUnit.SECONDS), "Worker thread did not stop");
-        assertTrue(requestIndexResetCalled.get(), "Request index was not reset after IndexOutOfBoundsException");
-
-        // Verify log messages for handling the IndexOutOfBoundsException
-        final String expectedErrorLog = "[] Error in request worker thread for node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.errorLogs().stream().anyMatch(log -> log.contains(expectedErrorLog)),
-                "Expected log message not found: " + expectedErrorLog);
-    }
-
-    /**
-     * Tests that the connection can properly jump to a specific block.
-     */
-    @Test
-    void testJumpToBlock() {
-        // Arrange
-        final long blockNumber = 100L;
-
-        // Act
-        connection.jumpToBlock(blockNumber);
-
-        // Assert
-        assertEquals(blockNumber, connection.getCurrentBlockNumber());
-        assertEquals(0, connection.getCurrentRequestIndex());
-
-        // Verify log messages for jumping to a block
-        final String expectedLog = "Setting current block number to " + blockNumber + " for node "
-                + TEST_CONNECTION_DESCRIPTOR + " without ending stream";
-        assertTrue(
-                logCaptor.infoLogs().stream().anyMatch(log -> log.contains(expectedLog))
-                        || logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
-    }
-
-    /**
-     * Tests that the connection properly ends the stream and restarts at a specific block.
-     */
-    @Test
-    void testEndStreamAndRestartAtBlock() {
-        // Arrange
-        final long blockNumber = 100L;
-
-        // Act
-        connection.endStreamAndRestartAtBlock(blockNumber);
-
-        // Assert
         verify(requestObserver).onCompleted();
-        assertEquals(blockNumber, connection.getCurrentBlockNumber());
-        assertEquals(0, connection.getCurrentRequestIndex());
-
-        // Verify log messages for ending stream and restarting
-        final String expectedLog = "Ending stream and restarting at block " + blockNumber;
-        assertTrue(
-                logCaptor.infoLogs().stream().anyMatch(log -> log.contains(expectedLog))
-                        || logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verify(connectionManager).jumpToBlock(-1L);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse with an Acknowledgement.
-     */
     @Test
-    void testOnNext_WithAcknowledgement() {
-        // Arrange
-        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .blockAlreadyExists(false)
-                .build();
-        final PublishStreamResponse response = PublishStreamResponse.newBuilder()
-                .acknowledgement(acknowledgement)
-                .build();
+    void testOnNext_acknowledgement_notStreaming() {
+        final PublishStreamResponse response = createBlockAckResponse(10L, false);
+        when(connectionManager.currentStreamingBlockNumber())
+                .thenReturn(-1L); // we aren't streaming anything to the block node
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
 
-        // Act
         connection.onNext(response);
 
-        verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
-
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
-                .isNull();
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
-
-        // Verify log messages for acknowledgement
-        final String expectedLog =
-                "Block " + TEST_BLOCK_NUMBER + " acknowledged and successfully processed by block node";
-        assertTrue(
-                logCaptor.infoLogs().stream().anyMatch(log -> log.contains(expectedLog))
-                        || logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected acknowledgement handling logs not found");
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 10L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse
-     * with an Acknowledgement for already verified block.
-     */
     @Test
-    void testOnNext_WithAcknowledgementWithAlreadyVerifiedBlock() {
-        // Arrange
-        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .blockAlreadyExists(true)
-                .build();
-        final PublishStreamResponse response = PublishStreamResponse.newBuilder()
-                .acknowledgement(acknowledgement)
-                .build();
+    void testOnNext_acknowledgement_olderThanCurrentStreamingAndProducing() {
+        final PublishStreamResponse response = createBlockAckResponse(8L, false);
 
-        // Act
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
+
         connection.onNext(response);
 
-        verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
 
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
-                .isNull();
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
-
-        // Verify log messages for acknowledgement
-        final String expectedLog = "Block " + TEST_BLOCK_NUMBER + " already exists on block node";
-        assertTrue(
-                logCaptor.warnLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected acknowledgement handling logs not found");
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 8L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse
-     * with an Acknowledgement for a block before the current one.
-     */
     @Test
-    void testOnNext_WithAcknowledgementWithBlockBeforeCurrent() {
-        final long currentBlockNumber = TEST_BLOCK_NUMBER + 1L;
-        connection.setCurrentBlockNumber(currentBlockNumber);
-        // Arrange
-        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .blockAlreadyExists(true)
-                .build();
-        final PublishStreamResponse response = PublishStreamResponse.newBuilder()
-                .acknowledgement(acknowledgement)
-                .build();
+    void testOnNext_acknowledgement_newerThanCurrentProducing() {
+        // I don't think this scenario is possible... we should never stream a block that is newer than the block
+        // currently being produced.
+        final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
-        // Act
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(11L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(10L);
+
         connection.onNext(response);
 
-        verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
-
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
-                .isNull();
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
-
-        // Verify log messages for acknowledgement
-        final String expectedLog = "Block " + TEST_BLOCK_NUMBER + " already exists on block node";
-        assertTrue(
-                logCaptor.warnLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected acknowledgement handling logs not found");
-        final String expectedLogForLowerBlockNumber = "Current block number " + currentBlockNumber
-                + " is higher than the acknowledged block number " + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLogForLowerBlockNumber)),
-                "Expected acknowledgement handling logs not found");
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 11L);
+        verify(connectionManager).jumpToBlock(12L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse
-     * with an Acknowledgement for a block after the current one.
-     */
     @Test
-    void testOnNext_WithAcknowledgementWithBlockAfterCurrent() {
-        final long currentBlockNumber = TEST_BLOCK_NUMBER - 1L;
-        final BlockNodeConnection connectionSpy = spy(connection);
+    void testOnNext_acknowledgement_newerThanCurrentStreaming() {
+        final PublishStreamResponse response = createBlockAckResponse(11L, false);
 
-        connectionSpy.setCurrentBlockNumber(currentBlockNumber);
-        // Arrange
-        final BlockAcknowledgement acknowledgement = BlockAcknowledgement.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .blockAlreadyExists(true)
-                .build();
-        final PublishStreamResponse response = PublishStreamResponse.newBuilder()
-                .acknowledgement(acknowledgement)
-                .build();
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(10L);
+        when(stateManager.getLastBlockNumberProduced()).thenReturn(12L);
 
-        // Act
-        connectionSpy.onNext(response);
+        connection.onNext(response);
 
-        verify(connectionManager, times(1)).updateLastVerifiedBlock(blockNodeConfig, TEST_BLOCK_NUMBER);
-        verify(blockStreamStateManager, times(1)).removeBlockStatesUpTo(TEST_BLOCK_NUMBER);
-        verify(connectionSpy, times(1)).jumpToBlock(TEST_BLOCK_NUMBER + 1L);
-
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER - 1L))
-                .isNull();
-        assertThat(blockStreamStateManager.getBlockState(TEST_BLOCK_NUMBER)).isNull();
-
-        // Verify log messages for acknowledgement
-        final String expectedLog = "Block " + TEST_BLOCK_NUMBER + " already exists on block node";
-        assertTrue(
-                logCaptor.warnLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected acknowledgement handling logs not found");
-        final String expectedLogForLowerBlockNumber = "Consensus node is behind and current block number "
-                + currentBlockNumber + " is before the acknowledged block number " + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLogForLowerBlockNumber)),
-                "Expected acknowledgement handling logs not found");
+        verify(connectionManager).currentStreamingBlockNumber();
+        verify(stateManager).getLastBlockNumberProduced();
+        verify(connectionManager).updateLastVerifiedBlock(connection.getNodeConfig(), 11L);
+        verify(connectionManager).jumpToBlock(12L);
+        verify(metrics).incrementAcknowledgedBlockCount();
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+        verifyNoMoreInteractions(metrics);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse with an EndOfStream.
-     */
     @Test
-    void testOnNext_WithEndOfStream() {
-        // Arrange
-        final BlockNodeConnection connectionSpy = spy(connection);
-        final PublishStreamResponse.EndOfStream endOfStream = PublishStreamResponse.EndOfStream.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .status(Code.INTERNAL_ERROR)
-                .build();
-        final PublishStreamResponse response =
-                PublishStreamResponse.newBuilder().endStream(endOfStream).build();
+    void testOnNext_endOfStream_exceededMaxPermitted() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, 10L);
 
-        // Act
-        connectionSpy.onNext(response);
+        // populate the end of stream timestamp queue with some data so the next call exceeds the max allowed
+        // the queue assumes chronological ordering, so make sure the oldest are added first
+        final Queue<Instant> eosTimestamps = (Queue<Instant>) eosTimestampsHandle.get(connection);
+        final Instant now = Instant.now();
+        eosTimestamps.add(now.minusSeconds(5));
+        eosTimestamps.add(now.minusSeconds(4));
+        eosTimestamps.add(now.minusSeconds(3));
+        eosTimestamps.add(now.minusSeconds(2));
+        eosTimestamps.add(now.minusSeconds(1));
 
-        // Assert connection restarts after the last verified block number
-        verify(connectionSpy, times(1)).endStreamAndRestartAtBlock(endOfStream.blockNumber() + 1L);
-        verify(connectionSpy, times(1)).close();
-        verify(connectionSpy, times(1)).setCurrentBlockNumber(endOfStream.blockNumber() + 1L);
-        verify(connectionSpy, times(1)).establishStream();
+        connection.onNext(response);
 
-        assertEquals(endOfStream.blockNumber() + 1L, connection.getCurrentBlockNumber());
-        assertEquals(0, connection.getCurrentRequestIndex());
+        assertThat(eosTimestamps).hasSize(6);
 
-        // Verify log messages for end of stream
-        final String expectedLog =
-                "Received EndOfStream from block node " + TEST_CONNECTION_DESCRIPTOR + " at block " + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog))
-                        || logCaptor.errorLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
+        verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(eq(connection), any(Duration.class));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse
-     * with a ResendBlock for the next block after the last verified one.
-     */
+    @ParameterizedTest
+    @EnumSource(
+            value = EndOfStream.Code.class,
+            names = {"INTERNAL_ERROR", "PERSISTENCE_FAILED"})
+    void testOnNext_endOfStream_blockNodeInternalError(final EndOfStream.Code responseCode) {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementEndOfStreamCount(responseCode);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = EndOfStream.Code.class,
+            names = {"TIMEOUT", "OUT_OF_ORDER", "BAD_STATE_PROOF"})
+    void testOnNext_endOfStream_clientFailures(final EndOfStream.Code responseCode) {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementEndOfStreamCount(responseCode);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
     @Test
-    void testOnNext_WithResendBlock() {
-        // Arrange
-        final BlockNodeConnection connectionSpy = spy(connection);
-        final PublishStreamResponse.ResendBlock resendBlock = PublishStreamResponse.ResendBlock.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .build();
-        final PublishStreamResponse response =
-                PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
+    void testOnNext_endOfStream_blockNodeGracefulShutdown() {
+        openConnectionAndResetMocks();
+        // STREAM_ITEMS_SUCCESS is sent when the block node is gracefully shutting down
+        final PublishStreamResponse response = createEndOfStreamResponse(Code.SUCCESS, 10L);
 
-        when(connectionManager.getLastVerifiedBlock(blockNodeConfig)).thenReturn(TEST_BLOCK_NUMBER - 1L);
-        // Act
-        connectionSpy.onNext(response);
+        connection.onNext(response);
 
-        // Assert connection restarts after the last verified block number
-        verify(connectionSpy, times(1)).endStreamAndRestartAtBlock(resendBlock.blockNumber());
-        verify(connectionSpy, times(1)).close();
-        verify(connectionSpy, times(1)).setCurrentBlockNumber(resendBlock.blockNumber());
-        verify(connectionSpy, times(1)).establishStream();
-
-        assertEquals(resendBlock.blockNumber(), connection.getCurrentBlockNumber());
-        assertEquals(0, connection.getCurrentRequestIndex());
-
-        // Verify log messages for resend block
-        final String expectedLog = "Received ResendBlock from block node " + TEST_CONNECTION_DESCRIPTOR + " for block "
-                + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
-        final String expectedLogForCorrectResendBlock = "Restarting stream at the next block " + TEST_BLOCK_NUMBER
-                + " after the last verified one for block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLogForCorrectResendBlock)),
-                "Expected log message not found: " + expectedLogForCorrectResendBlock);
+        verify(metrics).incrementEndOfStreamCount(Code.SUCCESS);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse
-     * with a ResendBlock for the next block after the last verified one.
-     */
     @Test
-    void testOnNext_WithResendBlockDifferentThanExpected() {
-        final var lastVerifiedBlockNumber = TEST_BLOCK_NUMBER * 2L;
+    void testOnNext_endOfStream_blockNodeBehind_blockExists() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, 10L);
+        when(stateManager.getBlockState(11L)).thenReturn(new BlockState(11L));
 
-        // Arrange
-        final BlockNodeConnection connectionSpy = spy(connection);
-        final PublishStreamResponse.ResendBlock resendBlock = PublishStreamResponse.ResendBlock.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .build();
-        final PublishStreamResponse response =
-                PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
+        connection.onNext(response);
 
-        when(connectionManager.getLastVerifiedBlock(blockNodeConfig)).thenReturn(lastVerifiedBlockNumber);
-
-        // Act
-        connectionSpy.onNext(response);
-
-        // Verify log messages for resend block
-        final String expectedLog = "Received ResendBlock from block node " + TEST_CONNECTION_DESCRIPTOR + " for block "
-                + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
-        final String expectedLogForDifferentResendBlock = "Received ResendBlock for block " + TEST_BLOCK_NUMBER
-                + " but last verified block is " + lastVerifiedBlockNumber;
-        assertTrue(
-                logCaptor.warnLogs().stream().anyMatch(log -> log.contains(expectedLogForDifferentResendBlock)),
-                "Expected log message not found: " + expectedLogForDifferentResendBlock);
+        verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
+        verify(stateManager).getBlockState(11L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
     }
 
-    /**
-     * Tests the onNext method handling a PublishStreamResponse
-     * with a ResendBlock for already acknowledged block.
-     */
     @Test
-    void testOnNext_WithResendBlockForAlreadyAcknowledgedBlock() {
-        // Arrange
-        final BlockNodeConnection connectionSpy = spy(connection);
-        final PublishStreamResponse.ResendBlock resendBlock = PublishStreamResponse.ResendBlock.newBuilder()
-                .blockNumber(TEST_BLOCK_NUMBER)
-                .build();
-        final PublishStreamResponse response =
-                PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
+    void testOnNext_endOfStream_blockNodeBehind_blockDoesNotExist() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, 10L);
+        when(stateManager.getBlockState(11L)).thenReturn(null);
 
-        when(connectionManager.isBlockAlreadyAcknowledged(TEST_BLOCK_NUMBER)).thenReturn(true);
+        connection.onNext(response);
 
-        // Act
-        connectionSpy.onNext(response);
-
-        // Verify log messages for resend block
-        final String expectedLog = "Received ResendBlock from block node " + TEST_CONNECTION_DESCRIPTOR + " for block "
-                + TEST_BLOCK_NUMBER;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
-        final String expectedLogForResendBlockAlreadyAcknowledged = "Block " + TEST_BLOCK_NUMBER
-                + " already acknowledged, skipping resend for block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream()
-                        .anyMatch(log -> log.contains(expectedLogForResendBlockAlreadyAcknowledged)),
-                "Expected log message not found: " + expectedLogForResendBlockAlreadyAcknowledged);
+        verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verify(stateManager).getBlockState(11L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
     }
 
-    /**
-     * Tests the onError method when an error is received from the stream.
-     */
+    @Test
+    void testOnNext_endOfStream_itemsUnknown() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createEndOfStreamResponse(Code.UNKNOWN, 10L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementEndOfStreamCount(Code.UNKNOWN);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testOnNext_skipBlock_sameAsStreaming() {
+        final PublishStreamResponse response = createSkipBlock(25L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(25L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementSkipBlockCount();
+        verify(connectionManager).jumpToBlock(26L); // jump to the response block number + 1
+        verify(connectionManager).currentStreamingBlockNumber();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testOnNext_skipBlock_notSameAsStreaming() {
+        final PublishStreamResponse response = createSkipBlock(25L);
+        when(connectionManager.currentStreamingBlockNumber()).thenReturn(26L);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementSkipBlockCount();
+        verify(connectionManager).currentStreamingBlockNumber();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testOnNext_resendBlock_blockExists() {
+        final PublishStreamResponse response = createResendBlock(10L);
+        when(stateManager.getBlockState(10L)).thenReturn(new BlockState(10L));
+
+        connection.onNext(response);
+
+        verify(metrics).incrementResendBlockCount();
+        verify(connectionManager).jumpToBlock(10L);
+        verify(stateManager).getBlockState(10L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+    }
+
+    @Test
+    void testOnNext_resendBlock_blockDoesNotExist() {
+        openConnectionAndResetMocks();
+
+        final PublishStreamResponse response = createResendBlock(10L);
+        when(stateManager.getBlockState(10L)).thenReturn(null);
+
+        connection.onNext(response);
+
+        verify(metrics).incrementResendBlockCount();
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verify(stateManager).getBlockState(10L);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(stateManager);
+    }
+
+    @Test
+    void testOnNext_unknown() {
+        final PublishStreamResponse response = new PublishStreamResponse(new OneOf<>(ResponseOneOfType.UNSET, null));
+
+        connection.onNext(response);
+
+        verify(metrics).incrementUnknownResponseCount();
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoInteractions(requestObserver);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testSendRequest() {
+        openConnectionAndResetMocks();
+
+        final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
+        final PublishStreamRequest request = createRequest(item);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.sendRequest(request);
+
+        verify(requestObserver).onNext(request);
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testSendRequest_notActive() {
+        final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
+        final PublishStreamRequest request = createRequest(item);
+
+        connection.createRequestObserver();
+        connection.updateConnectionState(ConnectionState.PENDING);
+        connection.sendRequest(request);
+
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testSendRequest_observerNull() {
+        final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
+        final PublishStreamRequest request = createRequest(item);
+
+        // don't create the observer
+        connection.updateConnectionState(ConnectionState.PENDING);
+        connection.sendRequest(request);
+
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testClose() {
+        openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        connection.close();
+
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(requestObserver).onCompleted();
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    @Test
+    void testClose_failure() {
+        openConnectionAndResetMocks();
+        doThrow(new RuntimeException("oh no!")).when(requestObserver).onCompleted();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+
+        connection.close();
+
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(requestObserver).onCompleted();
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
     @Test
     void testOnError() {
-        // Arrange
-        Throwable error = new RuntimeException("Stream error");
+        openConnectionAndResetMocks();
 
-        // Act
-        connection.onError(error);
+        connection.onError(new RuntimeException("oh bother"));
 
-        // Assert - connection manager is notified
-        verify(connectionManager).disconnectFromNode(blockNodeConfig);
+        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
-        // Verify log messages for onError
-        final String expectedLog = "[] Error on stream from block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.errorLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
+        verify(metrics).incrementOnErrorCount();
+
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
     }
 
-    /**
-     * Tests the onCompleted method when the stream is completed.
-     */
     @Test
-    void testOnCompleted() {
-        // Act
+    void testOnCompleted_streamClosingInProgress() {
+        openConnectionAndResetMocks();
+        connection.close(); // call this so we mark the connection as closing
+        resetMocks();
+
         connection.onCompleted();
 
-        // Assert - connection manager is notified
-        verify(connectionManager).disconnectFromNode(blockNodeConfig);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestObserver);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
 
-        // Verify log messages for onCompleted
-        final String expectedLog = "[] Stream completed for block node " + TEST_CONNECTION_DESCRIPTOR;
-        assertTrue(
-                logCaptor.debugLogs().stream().anyMatch(log -> log.contains(expectedLog)),
-                "Expected log message not found: " + expectedLog);
+    @Test
+    void testOnCompleted_streamClosingNotInProgress() {
+        openConnectionAndResetMocks();
+        // don't call close so we do not mark the connection as closing
+        connection.onCompleted();
+
+        verify(connectionManager).jumpToBlock(-1L);
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestObserver);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoInteractions(stateManager);
+    }
+
+    // Utilities
+
+    private void openConnectionAndResetMocks() {
+        connection.createRequestObserver();
+        // reset the mocks interactions to remove tracked interactions as a result of starting the connection
+        resetMocks();
+    }
+
+    private void resetMocks() {
+        reset(connectionManager, requestObserver, stateManager, metrics);
     }
 }

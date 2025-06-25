@@ -498,7 +498,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @Nullable final Address alias) {
         final var number = enhancement.operations().peekNextEntityNumber();
         pendingCreation = new PendingCreation(
-                alias == null ? asLongZeroAddress(entityIdFactory(), number) : alias,
+                alias == null ? asLongZeroAddress(number) : alias,
                 number,
                 origin != null ? evmFrameState.getIdNumber(origin) : MISSING_ENTITY_NUMBER,
                 body);

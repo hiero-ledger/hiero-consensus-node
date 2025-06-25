@@ -23,7 +23,7 @@ public record SingleNodeLogResultImpl(@NonNull NodeId nodeId, @NonNull List<Stru
      */
     @NonNull
     @Override
-    public SingleNodeLogResult ignoring(@NonNull final LogMarker marker) {
+    public SingleNodeLogResult suppressingLogMarker(@NonNull final LogMarker marker) {
         Objects.requireNonNull(marker, "marker cannot be null");
 
         if (markers().contains(marker.getMarker())) {

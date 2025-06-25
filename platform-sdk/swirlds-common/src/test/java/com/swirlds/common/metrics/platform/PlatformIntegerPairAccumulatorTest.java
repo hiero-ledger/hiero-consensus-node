@@ -13,7 +13,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.metrics.IntegerPairAccumulator;
-import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
@@ -192,21 +191,6 @@ class PlatformIntegerPairAccumulatorTest {
 
         // then
         assertThatCode(accumulator::reset).doesNotThrowAnyException();
-    }
-
-    @SuppressWarnings("removal")
-    @Test
-    void testGetStatBuffered() {
-        // given
-        final IntegerPairAccumulator.Config<Double> config =
-                new IntegerPairAccumulator.Config<>(CATEGORY, NAME, Double.class, AVERAGE);
-        final PlatformIntegerPairAccumulator<Double> accumulator = new PlatformIntegerPairAccumulator<>(config);
-
-        // when
-        final StatsBuffered actual = accumulator.getStatsBuffered();
-
-        // then
-        assertThat(actual).isNull();
     }
 
     @Test

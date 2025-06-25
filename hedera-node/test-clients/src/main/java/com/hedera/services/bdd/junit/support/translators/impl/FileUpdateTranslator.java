@@ -43,9 +43,13 @@ public class FileUpdateTranslator implements BlockTransactionPartsTranslator {
                                         .mapUpdateOrThrow()
                                         .keyOrThrow()
                                         .fileIdKeyOrThrow();
+                                // when the fileUpdate transaction is inside an AtomicBatch don't set exchange rate
+                                // on the translated record
                                 if (fileId.fileNum() == EXCHANGE_RATES_FILE_NUM) {
                                     baseTranslator.updateActiveRates(stateChange);
-                                    receiptBuilder.exchangeRate(baseTranslator.activeRates());
+                                    if (!parts.body().hasBatchKey()) {
+                                        receiptBuilder.exchangeRate(baseTranslator.activeRates());
+                                    }
                                 }
                             }
                         }
