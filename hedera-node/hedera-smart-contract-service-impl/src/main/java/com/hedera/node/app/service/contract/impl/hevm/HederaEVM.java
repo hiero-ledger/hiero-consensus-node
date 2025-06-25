@@ -6,7 +6,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ge
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.hyperledger.besu.evm.EVM;
@@ -72,7 +72,7 @@ public class HederaEVM extends EVM {
     private final HederaOpsDuration hederaOpsDuration;
 
     // Metrics
-    private final OpsDurationMetrics opsDurationMetrics;
+    private final ContractMetrics contractMetrics;
 
     /**
      * Instantiates a new Evm.
@@ -88,7 +88,7 @@ public class HederaEVM extends EVM {
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final EvmSpecVersion evmSpecVersion,
             @NonNull final HederaOpsDuration opsDuration,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
@@ -97,7 +97,7 @@ public class HederaEVM extends EVM {
 
         enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
         this.hederaOpsDuration = opsDuration;
-        this.opsDurationMetrics = opsDurationMetrics;
+        this.contractMetrics = contractMetrics;
     }
 
     @Override
@@ -227,7 +227,7 @@ public class HederaEVM extends EVM {
                         ? result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR
                         : opsDurationArray[opcode];
                 // Record the operation duration in the metrics
-                opsDurationMetrics.recordOpCodeOpsDuration(opcode, usedOpsDuration);
+                contractMetrics.opsDurationMetrics().recordOpCodeOpsDuration(opcode, usedOpsDuration);
 
                 // Check the duration of the operations every durationCheckShift opcodes.
                 // This is to avoid checking the duration too frequently and slowing down execution.

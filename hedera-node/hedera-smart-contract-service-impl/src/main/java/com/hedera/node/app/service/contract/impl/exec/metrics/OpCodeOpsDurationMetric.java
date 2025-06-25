@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.metrics;
 
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.metrics.api.Counter;
-import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -21,8 +17,7 @@ import javax.inject.Singleton;
 @Singleton
 public class OpCodeOpsDurationMetric {
     private static final String EVM_CATEGORY = "ops";
-    private static final String OPERATION_DURATION_SUFFIX = "_duration_ns";
-    private final Map<Integer, OpsDurationMetricTriple> opCodeOpsDuration = new HashMap<>();
+    private final Map<Integer, CountAccumulateAverageMetricTriplet> opCodeOpsDuration = new HashMap<>();
     private final Metrics metrics;
 
     public OpCodeOpsDurationMetric(@NonNull final Metrics metrics) {
@@ -36,24 +31,14 @@ public class OpCodeOpsDurationMetric {
      * @param durationNanos the duration in nanoseconds
      */
     public void recordOpCodeOpsDurationMetric(final int opcode, final long durationNanos) {
-        final var metric = opCodeOpsDuration.computeIfAbsent(opcode, this::createOpCodeOpsDurationMetric);
-        metric.update(durationNanos);
-    }
-
-    private OpsDurationMetricTriple createOpCodeOpsDurationMetric(final int opcode) {
-        final var averageConfig = new RunningAverageMetric.Config(
-                        EVM_CATEGORY, "op_" + opcode + OPERATION_DURATION_SUFFIX)
-                .withDescription("Average duration of EVM operation " + opcode + " in nanoseconds")
-                .withFormat(FORMAT_10_6);
-        final var counterConfig = new Counter.Config(EVM_CATEGORY, "op_" + opcode + "_count")
-                .withDescription("Count of EVM operation " + opcode);
-        final var accumulatorConfig = new LongAccumulator.Config(EVM_CATEGORY, "op_" + opcode + "_total_ns")
-                .withDescription("Total duration of EVM operation " + opcode + " in nanoseconds")
-                .withAccumulator(Long::sum);
-        return new OpsDurationMetricTriple(
-                metrics.getOrCreate(averageConfig),
-                metrics.getOrCreate(counterConfig),
-                metrics.getOrCreate(accumulatorConfig));
+        final var metric = opCodeOpsDuration.computeIfAbsent(
+                opcode,
+                _opcode -> CountAccumulateAverageMetricTriplet.create(
+                        metrics,
+                        EVM_CATEGORY,
+                        Integer.toString(opcode),
+                        "Ops duration of EVM opcode " + opcode + " in nanoseconds"));
+        metric.recordObservation(durationNanos);
     }
 
     /**
@@ -64,7 +49,7 @@ public class OpCodeOpsDurationMetric {
      */
     public double getAverageOpCodeOpsDuration(final int opcode) {
         final var metric = opCodeOpsDuration.get(opcode);
-        return metric != null ? metric.averageMetric().get() : 0.0;
+        return metric != null ? metric.average().get() : 0.0;
     }
 
     /**

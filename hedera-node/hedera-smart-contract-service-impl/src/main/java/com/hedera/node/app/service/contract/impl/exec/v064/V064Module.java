@@ -13,7 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallCodeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
@@ -88,7 +88,7 @@ public interface V064Module {
             @ServicesV064 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV064 @NonNull final FeatureFlags featureFlags,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
         return new TransactionProcessor(
                 frameBuilder,
                 frameRunner,
@@ -96,7 +96,7 @@ public interface V064Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                opsDurationMetrics);
+                contractMetrics);
     }
 
     @Provides
@@ -124,9 +124,9 @@ public interface V064Module {
             @ServicesV064 @NonNull final PrecompileContractRegistry registry,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
             @NonNull final HederaOpsDuration hederaOpsDuration,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
         return new CustomMessageCallProcessor(
-                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration, opsDurationMetrics);
+                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration, contractMetrics);
     }
 
     @Provides
@@ -138,7 +138,7 @@ public interface V064Module {
             @NonNull final GasCalculator gasCalculator,
             @CustomOps @NonNull final Set<Operation> customOps,
             @NonNull final HederaOpsDuration hederaOpsDuration,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
 
         oneTimeEVMModuleInitialization();
 
@@ -153,7 +153,7 @@ public interface V064Module {
                 evmConfiguration,
                 EvmSpecVersion.CANCUN,
                 hederaOpsDuration,
-                opsDurationMetrics);
+                contractMetrics);
     }
 
     @Provides

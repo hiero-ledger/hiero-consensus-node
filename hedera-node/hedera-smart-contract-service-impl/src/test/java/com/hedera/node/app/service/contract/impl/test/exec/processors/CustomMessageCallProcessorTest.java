@@ -25,7 +25,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
@@ -113,7 +113,7 @@ class CustomMessageCallProcessorTest {
     private HederaOpsDuration hederaOpsDuration;
 
     @Mock
-    private OpsDurationMetrics opsDurationMetrics;
+    private ContractMetrics contractMetrics;
 
     private CustomMessageCallProcessor subject;
 
@@ -126,7 +126,7 @@ class CustomMessageCallProcessorTest {
                 addressChecks,
                 Map.of(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, prngPrecompile),
                 hederaOpsDuration,
-                opsDurationMetrics);
+                contractMetrics);
     }
 
     @Test

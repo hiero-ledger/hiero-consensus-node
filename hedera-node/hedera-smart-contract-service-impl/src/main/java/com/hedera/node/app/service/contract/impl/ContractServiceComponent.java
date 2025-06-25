@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
@@ -43,7 +42,6 @@ public interface ContractServiceComponent {
          * @param verificationStrategies the current verification strategy to use
          * @param addOnTracers all operation tracer callbacks
          * @param contractMetrics holds all metrics for the smart contract service
-         * @param opsDurationMetrics holds all metrics for the ops duration in nanoseconds
          * @param systemContractMethodRegistry registry of all system contract methods
          * @param customOps any additional custom operations to use when constructing the EVM
          * @param entityIdFactory a factory for creating entity IDs
@@ -55,7 +53,6 @@ public interface ContractServiceComponent {
                 @BindsInstance VerificationStrategies verificationStrategies,
                 @BindsInstance @Nullable Supplier<List<OperationTracer>> addOnTracers,
                 @BindsInstance ContractMetrics contractMetrics,
-                @BindsInstance OpsDurationMetrics opsDurationMetrics,
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
                 @BindsInstance EntityIdFactory entityIdFactory);
@@ -70,11 +67,6 @@ public interface ContractServiceComponent {
      * @return contract metrics collection, instance
      */
     ContractMetrics contractMetrics();
-
-    /**
-     * @return OpsDuration metrics instance
-     */
-    OpsDurationMetrics opsDurationMetrics();
 
     /**
      * @return method registry for system contracts

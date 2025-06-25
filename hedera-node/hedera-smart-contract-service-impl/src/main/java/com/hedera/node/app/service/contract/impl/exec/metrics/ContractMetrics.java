@@ -14,9 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.platform.prometheus.NameConverter;
-import com.swirlds.metrics.api.Counter;
-import com.swirlds.metrics.api.Metric;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.metrics.api.*;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -50,6 +48,14 @@ public class ContractMetrics {
     private boolean p2MetricsEnabled;
     private final SystemContractMethodRegistry systemContractMethodRegistry;
 
+    private CountAccumulateAverageMetricTriplet transactionDuration;
+    private CountAccumulateAverageMetricTriplet successfulTransactionDuration;
+    private CountAccumulateAverageMetricTriplet failedTransactionDuration;
+    private CountAccumulateAverageMetricTriplet transactionGasUsed;
+    private LongGauge gasPrice;
+
+    private final OpsDurationMetrics opsDurationMetrics;
+
     // Counters that are the P1 metrics
 
     private final HashMap<HederaFunctionality, Counter> rejectedTxsCounters = new HashMap<>();
@@ -62,7 +68,7 @@ public class ContractMetrics {
         public final int index;
         public final String name;
 
-        private MethodMetricType(final int index, @NonNull final String name) {
+        MethodMetricType(final int index, @NonNull final String name) {
             this.index = index;
             this.name = name;
         }
@@ -70,7 +76,10 @@ public class ContractMetrics {
         public @NonNull String toString() {
             return this.name;
         }
-    };
+    }
+
+    public record TransactionProcessingSummary(
+            long durationNs, long opsDurationUnitsConsumed, long gasUsed, long gasPrice, boolean success) {}
 
     // Counters that are the P2 metrics, and maps that take `SystemContractMethods` into the specific counters
 
@@ -136,6 +145,7 @@ public class ContractMetrics {
                 requireNonNull(contractsConfigSupplier, "contracts configuration supplier must not be null");
         this.systemContractMethodRegistry =
                 requireNonNull(systemContractMethodRegistry, "systemContractMethodRegistry must not be null");
+        this.opsDurationMetrics = new OpsDurationMetrics(metrics);
     }
 
     // --------------------
@@ -186,6 +196,29 @@ public class ContractMetrics {
                 rejectedEthType3Counter = metric;
             }
         }
+
+        transactionDuration = CountAccumulateAverageMetricTriplet.create(
+                metrics,
+                METRIC_CATEGORY,
+                METRIC_SERVICE + "_transaction_duration",
+                "Actual duration of processed smart contract transactions in nanoseconds");
+        successfulTransactionDuration = CountAccumulateAverageMetricTriplet.create(
+                metrics,
+                METRIC_CATEGORY,
+                METRIC_SERVICE + "_successful_transaction_duration",
+                "Actual duration of successful smart contract transactions in nanoseconds");
+        failedTransactionDuration = CountAccumulateAverageMetricTriplet.create(
+                metrics,
+                METRIC_CATEGORY,
+                METRIC_SERVICE + "_failed_transaction_duration",
+                "Actual duration of failed smart contract transactions in nanoseconds");
+        transactionGasUsed = CountAccumulateAverageMetricTriplet.create(
+                metrics,
+                METRIC_CATEGORY,
+                METRIC_SERVICE + "_transaction_gas_used",
+                "Actual gas used by smart contract transactions");
+        gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + "_transaction_gas_price")
+                .withDescription("Gas price of the latest processed smart contract transaction"));
     }
 
     private @NonNull Counter makeCounter(
@@ -362,6 +395,23 @@ public class ContractMetrics {
         }
     }
 
+    public void recordProcessedTransaction(TransactionProcessingSummary summary) {
+        this.transactionDuration.recordObservation(summary.durationNs());
+        if (summary.success()) {
+            this.successfulTransactionDuration.recordObservation(summary.durationNs());
+        } else {
+            this.failedTransactionDuration.recordObservation(summary.durationNs());
+        }
+        this.transactionGasUsed.recordObservation(summary.gasUsed());
+        this.gasPrice.set(summary.gasPrice());
+
+        this.opsDurationMetrics.recordTxnTotalOpsDuration(summary.opsDurationUnitsConsumed());
+    }
+
+    public OpsDurationMetrics opsDurationMetrics() {
+        return opsDurationMetrics;
+    }
+
     // -----------------
     // Unit test helpers
 
@@ -436,6 +486,11 @@ public class ContractMetrics {
                 .sorted(Map.Entry.comparingByKey())
                 .map(e -> e.getKey() + ": " + e.getValue())
                 .collect(Collectors.joining("\n"));
+    }
+
+    @VisibleForTesting
+    public long getProcessedTransactionCount() {
+        return this.transactionDuration.counter().get();
     }
 
     // ---------------------------------

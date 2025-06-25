@@ -13,7 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallCodeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
@@ -79,7 +79,7 @@ public interface V038Module {
             @ServicesV038 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV038 @NonNull final FeatureFlags featureFlags,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
         return new TransactionProcessor(
                 frameBuilder,
                 frameRunner,
@@ -87,7 +87,7 @@ public interface V038Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                opsDurationMetrics);
+                contractMetrics);
     }
 
     @Provides
@@ -115,9 +115,9 @@ public interface V038Module {
             @ServicesV038 @NonNull final PrecompileContractRegistry registry,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
             @NonNull final HederaOpsDuration hederaOpsDuration,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
         return new CustomMessageCallProcessor(
-                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration, opsDurationMetrics);
+                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration, contractMetrics);
     }
 
     @Provides

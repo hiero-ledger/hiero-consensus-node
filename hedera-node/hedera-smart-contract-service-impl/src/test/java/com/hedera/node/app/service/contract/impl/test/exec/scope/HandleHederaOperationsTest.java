@@ -50,7 +50,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
@@ -128,7 +128,7 @@ class HandleHederaOperationsTest {
     private FeeCharging.Context feeChargingContext;
 
     @Mock
-    private OpsDurationMetrics opsDurationMetrics;
+    private ContractMetrics contractMetrics;
 
     private HandleHederaOperations subject;
 
@@ -144,7 +144,7 @@ class HandleHederaOperationsTest {
                 pendingCreationMetadataRef,
                 DEFAULT_ACCOUNTS_CONFIG,
                 entityIdFactory,
-                opsDurationMetrics);
+                contractMetrics);
     }
 
     @Test
@@ -514,7 +514,7 @@ class HandleHederaOperationsTest {
                 pendingCreationMetadataRef,
                 DEFAULT_ACCOUNTS_CONFIG,
                 entityIdFactory,
-                opsDurationMetrics);
+                contractMetrics);
         final var someBody = ContractCreateTransactionBody.newBuilder()
                 .adminKey(AN_ED25519_KEY)
                 .autoRenewAccountId(NON_SYSTEM_ACCOUNT_ID)

@@ -28,7 +28,7 @@ import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
@@ -67,7 +67,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     private final PrecompileContractRegistry precompiles;
     private final Map<Address, HederaSystemContract> systemContracts;
     private final HederaOpsDuration hederaOpsDuration;
-    private final OpsDurationMetrics opsDurationMetrics;
+    private final ContractMetrics contractMetrics;
 
     private enum ForLazyCreation {
         YES,
@@ -89,14 +89,14 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             @NonNull final AddressChecks addressChecks,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
             @NonNull final HederaOpsDuration hederaOpsDuration,
-            @NonNull final OpsDurationMetrics opsDurationMetrics) {
+            @NonNull final ContractMetrics contractMetrics) {
         super(evm, precompiles);
         this.featureFlags = Objects.requireNonNull(featureFlags);
         this.precompiles = Objects.requireNonNull(precompiles);
         this.addressChecks = Objects.requireNonNull(addressChecks);
         this.systemContracts = Objects.requireNonNull(systemContracts);
         this.hederaOpsDuration = Objects.requireNonNull(hederaOpsDuration);
-        this.opsDurationMetrics = Objects.requireNonNull(opsDurationMetrics);
+        this.contractMetrics = Objects.requireNonNull(contractMetrics);
     }
 
     /**
@@ -226,7 +226,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             frame.decrementRemainingGas(gasRequirement);
             final var duration = gasRequirement * hederaOpsDuration.precompileDurationMultiplier() / MULTIPLIER_FACTOR;
             incrementOpsDuration(frame, duration);
-            opsDurationMetrics.recordPrecompileOpsDuration(precompile.getName(), duration);
+            contractMetrics.opsDurationMetrics().recordPrecompileOpsDuration(precompile.getName(), duration);
             result = precompile.computePrecompile(frame.getInputData(), frame);
             if (result.isRefundGas()) {
                 frame.incrementRemainingGas(gasRequirement);
