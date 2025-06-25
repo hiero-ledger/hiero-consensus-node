@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.turtle.gossip;
+package org.hiero.otter.fixtures.turtle.gossip;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;

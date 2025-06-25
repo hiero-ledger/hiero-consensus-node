@@ -57,7 +57,7 @@ public class BirthRoundFreezeTest {
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
-        assertThat(network.getPcesResults()).hasMaxBirthRoundLessThanOrEqualTo(freezeRound);
+        assertThat(network.getPcesResults()).haveMaxBirthRoundLessThanOrEqualTo(freezeRound);
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.bumpConfigVersion();
@@ -67,7 +67,7 @@ public class BirthRoundFreezeTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
+        assertThat(network.getLogResults()).haveNoMessagesWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)

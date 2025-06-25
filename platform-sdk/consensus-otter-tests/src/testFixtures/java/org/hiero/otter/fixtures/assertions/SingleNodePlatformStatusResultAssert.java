@@ -12,33 +12,34 @@ import java.util.Set;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 
 /**
  * Assertions for {@link SingleNodeConsensusResult}.
  */
 @SuppressWarnings("UnusedReturnValue")
-public class SingleNodeStatusProgressionAssert
-        extends AbstractAssert<SingleNodeStatusProgressionAssert, SingleNodeStatusProgression> {
+public class SingleNodePlatformStatusResultAssert
+        extends AbstractAssert<SingleNodePlatformStatusResultAssert, SingleNodePlatformStatusResults> {
 
     /**
-     * Creates a new instance of {@link SingleNodeStatusProgressionAssert}.
+     * Creates a new instance of {@link SingleNodePlatformStatusResultAssert}.
      *
-     * @param actual the actual {@link SingleNodeStatusProgression} to assert
+     * @param actual the actual {@link SingleNodePlatformStatusResults} to assert
      */
-    public SingleNodeStatusProgressionAssert(@Nullable final SingleNodeStatusProgression actual) {
-        super(actual, SingleNodeStatusProgressionAssert.class);
+    public SingleNodePlatformStatusResultAssert(@Nullable final SingleNodePlatformStatusResults actual) {
+        super(actual, SingleNodePlatformStatusResultAssert.class);
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodeStatusProgression}.
+     * Creates an assertion for the given {@link SingleNodePlatformStatusResults}.
      *
-     * @param actual the {@link SingleNodeStatusProgression} to assert
-     * @return an assertion for the given {@link SingleNodeStatusProgression}
+     * @param actual the {@link SingleNodePlatformStatusResults} to assert
+     * @return an assertion for the given {@link SingleNodePlatformStatusResults}
      */
     @NonNull
-    public static SingleNodeStatusProgressionAssert assertThat(@Nullable final SingleNodeStatusProgression actual) {
-        return new SingleNodeStatusProgressionAssert(actual);
+    public static SingleNodePlatformStatusResultAssert assertThat(
+            @Nullable final SingleNodePlatformStatusResults actual) {
+        return new SingleNodePlatformStatusResultAssert(actual);
     }
 
     /**
@@ -49,7 +50,7 @@ public class SingleNodeStatusProgressionAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeStatusProgressionAssert hasSteps(
+    public SingleNodePlatformStatusResultAssert hasSteps(
             @NonNull final StatusProgressionStep first, @Nullable final StatusProgressionStep... rest) {
         isNotNull();
 
