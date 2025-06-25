@@ -29,8 +29,8 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
+    @NonNull
     public NodeId nodeId() {
         return collector.nodeId();
     }
