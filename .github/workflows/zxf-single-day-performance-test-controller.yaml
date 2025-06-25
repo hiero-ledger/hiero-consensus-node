@@ -21,8 +21,8 @@ on:
         type: string
       solo-version:
         required: true
-        default: ""
-        description: "The solo version to run the test with. If latest, then the latest solo version will be used."
+        default: "latest_tested_solo-charts0.59"
+        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true

@@ -164,7 +164,7 @@ jobs:
           inputs: '{
             "test-asset": "Latitude3",
             "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}",
-            "solo-version": "",
+            "solo-version": "latest_tested_solo-charts0.59",
             "nlg-accounts": 100000000,
             "nlg-time": "330m",
             "add-app-props": "",
