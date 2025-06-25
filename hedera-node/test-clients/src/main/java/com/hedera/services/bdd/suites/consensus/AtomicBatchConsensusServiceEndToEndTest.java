@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Stream;
-
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -30,6 +17,18 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
 public class AtomicBatchConsensusServiceEndToEndTest {
@@ -48,7 +47,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     private static final String newSubmitKey = "newSubmitKey";
     private static final String adminKey = "adminKey";
     private static final String newAdminKey = "newAdminKey";
-
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
@@ -84,10 +82,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -122,9 +117,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeDelete,
-                        deleteTopicAfterSubmitMessage)
+                atomicBatch(submitMessageBeforeDelete, deleteTopicAfterSubmitMessage)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -163,9 +156,9 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
                 atomicBatch(
-                        submitMessageFirstTransaction,
-                        submitMessageSecondTransaction,
-                        submitMessageThirdTransaction)
+                                submitMessageFirstTransaction,
+                                submitMessageSecondTransaction,
+                                submitMessageThirdTransaction)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -201,9 +194,9 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 createAccountsAndKeys(),
                 createImmutableTopicWithSubmitKey(submitKey, TOPIC_ID),
                 atomicBatch(
-                        submitMessageFirstTransaction,
-                        submitMessageSecondTransaction,
-                        submitMessageThirdTransaction)
+                                submitMessageFirstTransaction,
+                                submitMessageSecondTransaction,
+                                submitMessageThirdTransaction)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -239,10 +232,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        updateTopic,
-                        submitMessageBeforeDelete,
-                        deleteTopicAfterSubmitMessage)
+                atomicBatch(updateTopic, submitMessageBeforeDelete, deleteTopicAfterSubmitMessage)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -280,10 +270,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeDelete,
-                        deleteTopicTransaction,
-                        submitMessageAfterDelete)
+                atomicBatch(submitMessageBeforeDelete, deleteTopicTransaction, submitMessageAfterDelete)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -328,10 +315,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        updateTopic,
-                        deleteTopicTransaction,
-                        submitMessageAfterDelete)
+                atomicBatch(updateTopic, deleteTopicTransaction, submitMessageAfterDelete)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -374,10 +358,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeDelete,
-                        deleteTopicTransaction,
-                        updateTopic)
+                atomicBatch(submitMessageBeforeDelete, deleteTopicTransaction, updateTopic)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -422,10 +403,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKeyAndAutoRenew(adminKey, submitKey, AUTO_RENEW_ACCOUNT, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -442,7 +420,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> updateMutableTopicWithoutAutoRenewWithAutoRenewAccountAndPeriodAndSubmitMessagesSuccessInBatch() {
+    public Stream<DynamicTest>
+            updateMutableTopicWithoutAutoRenewWithAutoRenewAccountAndPeriodAndSubmitMessagesSuccessInBatch() {
 
         // submit message to topic inner transactions
         final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -472,10 +451,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -492,7 +468,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> updateMutableTopicWithoutAutoRenewWithAutoRenewAndSubmitMessagesNotSignedByAutoRenewFailsInBatch() {
+    public Stream<DynamicTest>
+            updateMutableTopicWithoutAutoRenewWithAutoRenewAndSubmitMessagesNotSignedByAutoRenewFailsInBatch() {
 
         // submit message to topic inner transactions
         final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -522,10 +499,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -570,10 +544,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createImmutableTopicWithSubmitKeyAndAutoRenew(submitKey, AUTO_RENEW_ACCOUNT, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -587,7 +558,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
     }
 
     @HapiTest
-    public Stream<DynamicTest> updateImmutableTopicWithoutAutoRenewWithAutoRenewAccountAndPeriodAndSubmitMessagesFailsInBatch() {
+    public Stream<DynamicTest>
+            updateImmutableTopicWithoutAutoRenewWithAutoRenewAccountAndPeriodAndSubmitMessagesFailsInBatch() {
 
         // submit message to topic inner transactions
         final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -617,23 +589,20 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createImmutableTopicWithSubmitKey(submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                 // confirm topic is not updated
-                getTopicInfo(TOPIC_ID).logged()
+                getTopicInfo(TOPIC_ID)
+                        .logged()
                         .hasMemo(TEST_MEMO)
                         .hasSubmitKey(submitKey)
                         .hasNoCustomFee()));
     }
 
-    // Can't delete immutable topic in batch
     @HapiTest
     public Stream<DynamicTest> deleteImmutableTopicAndSubmitMessageFailsInBatch() {
 
@@ -653,32 +622,26 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 .batchKey(BATCH_OPERATOR);
 
         // delete topic inner transaction
-        final var deleteTopicTransaction = deleteTopic(TOPIC_ID)
-                .payingWith(PAYER)
-                .via("deleteTopicTxn")
-                .batchKey(BATCH_OPERATOR);
+        final var deleteTopicTransaction =
+                deleteTopic(TOPIC_ID).payingWith(PAYER).via("deleteTopicTxn").batchKey(BATCH_OPERATOR);
 
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createImmutableTopicWithSubmitKey(submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        deleteTopicTransaction,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, deleteTopicTransaction, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                 // confirm topic is not updated
-                getTopicInfo(TOPIC_ID).logged()
+                getTopicInfo(TOPIC_ID)
+                        .logged()
                         .hasMemo(TEST_MEMO)
                         .hasSubmitKey(submitKey)
                         .hasNoCustomFee()));
     }
 
-    // Test cases with updates of adminKey and submitKey
-    // - Update mutable topic with new admin key signed by old and new admin key - This should succeed
     @HapiTest
     public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesSuccessInBatch() {
 
@@ -708,10 +671,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -725,7 +685,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    // - Update mutable topic with new admin key not signed by old admin key - This should fail
     @HapiTest
     public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesNotSignedByOldAdminKeyFailsInBatch() {
 
@@ -755,10 +714,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -772,7 +728,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    // - Update mutable topic with new submit key not signed by new submit key - This should fail
     @HapiTest
     public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesNotSignedByNewAdminKeyFailsInBatch() {
 
@@ -802,10 +757,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopic,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopic, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -819,7 +771,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    //- Update admin key and update the topic - signed by new admin key
     @HapiTest
     public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndUpdateTheTopicSuccessInBatch() {
 
@@ -856,11 +807,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopicAdminKey,
-                        updateTopicMemo,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopicAdminKey, updateTopicMemo, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -874,9 +821,9 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    // - Update admin key and update the topic, not signed by the new admin key - This should fail
     @HapiTest
-    public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndUpdateTheTopicNotSignedByTheNewAdminKeyFailsInBatch() {
+    public Stream<DynamicTest>
+            updateMutableTopicWithNewAdminKeyAndUpdateTheTopicNotSignedByTheNewAdminKeyFailsInBatch() {
 
         // submit message to topic inner transactions
         final var submitMessageBeforeUpdate = submitMessageTo(TOPIC_ID)
@@ -911,11 +858,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopicAdminKey,
-                        updateTopicMemo,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopicAdminKey, updateTopicMemo, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -929,7 +872,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    // - Update the submit key and update the topic, signed by the new submit key - This should succeed
     @HapiTest
     public Stream<DynamicTest> updateMutableTopicWithNewSubmitKeyAndSubmitMessagesSuccessInBatch() {
 
@@ -959,10 +901,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
         return hapiTest(flattened(
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
-                atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopicSubmitKey,
-                        submitMessageAfterUpdate)
+                atomicBatch(submitMessageBeforeUpdate, updateTopicSubmitKey, submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -976,7 +915,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    // - Update both the adminKey and the submit key and update the topic, signed by the new admin key and the new submit key - This should succeed
     @HapiTest
     public Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndNewSubmitKeyAndSubmitMessagesSuccessInBatch() {
 
@@ -1014,10 +952,10 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 createAccountsAndKeys(),
                 createMutableTopicWithSubmitKey(adminKey, submitKey, TOPIC_ID),
                 atomicBatch(
-                        submitMessageBeforeUpdate,
-                        updateTopicAdminKey,
-                        updateTopicSubmitKey,
-                        submitMessageAfterUpdate)
+                                submitMessageBeforeUpdate,
+                                updateTopicAdminKey,
+                                updateTopicSubmitKey,
+                                submitMessageAfterUpdate)
                         .payingWith(BATCH_OPERATOR)
                         .via("batchTxn")
                         .hasKnownStatus(SUCCESS),
@@ -1031,11 +969,6 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                         .hasNoCustomFee()));
     }
 
-    // Test cases with custom fees for topics
-    // Test with updates of the custom fees for topics - topic created with Fee Schedule Key
-    // Test cases with Fee exempt keys for topics
-
-
     private HapiTopicCreate createImmutableTopicWithSubmitKey(String submitKey, String topicId) {
         return new HapiTopicCreate(topicId)
                 .submitKeyName(submitKey)
@@ -1043,7 +976,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 .via("createTopicTxn");
     }
 
-    private HapiTopicCreate createImmutableTopicWithSubmitKeyAndAutoRenew(String submitKey, String autoRenewAccount, String topicId) {
+    private HapiTopicCreate createImmutableTopicWithSubmitKeyAndAutoRenew(
+            String submitKey, String autoRenewAccount, String topicId) {
         return new HapiTopicCreate(topicId)
                 .submitKeyName(submitKey)
                 .autoRenewAccountId(autoRenewAccount)
@@ -1052,7 +986,8 @@ public class AtomicBatchConsensusServiceEndToEndTest {
                 .via("createTopicTxn");
     }
 
-    private HapiTopicCreate createMutableTopicWithSubmitKeyAndAutoRenew(String adminKey, String submitKey, String autoRenewAccount, String topicId) {
+    private HapiTopicCreate createMutableTopicWithSubmitKeyAndAutoRenew(
+            String adminKey, String submitKey, String autoRenewAccount, String topicId) {
         return new HapiTopicCreate(topicId)
                 .adminKeyName(adminKey)
                 .submitKeyName(submitKey)
