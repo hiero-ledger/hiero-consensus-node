@@ -145,7 +145,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Tag(SMART_CONTRACT)
-@Tag(ADHOC)
 public class ContractCallSuite {
 
     public static final String TOKEN = "yahcliToken";

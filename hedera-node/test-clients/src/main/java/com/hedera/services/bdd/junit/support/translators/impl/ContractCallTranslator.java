@@ -34,7 +34,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                         .ifPresent(callContractOutput -> {
                             final var derivedBuilder =
                                     resultBuilderFrom(callContractOutput.evmTransactionResultOrThrow());
-                            if (parts.status() == SUCCESS && parts.isTopLevel()) {
+                            if (parts.status() == SUCCESS && (parts.isTopLevel() || parts.inBatch())) {
                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                 baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
                                 baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);

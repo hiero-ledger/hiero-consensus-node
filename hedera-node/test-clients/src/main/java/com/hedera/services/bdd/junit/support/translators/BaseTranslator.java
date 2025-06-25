@@ -98,6 +98,11 @@ import static java.util.stream.Collectors.toMap;
 public class BaseTranslator {
     private static final Logger log = LogManager.getLogger(BaseTranslator.class);
 
+    private static final Comparator<ContractID> CONTRACT_ID_NUM_COMPARATOR =
+            Comparator.comparingLong(ContractID::contractNumOrThrow);
+    private static final Comparator<ContractNonceInfo> NONCE_INFO_CONTRACT_ID_COMPARATOR =
+            Comparator.comparing(ContractNonceInfo::contractIdOrThrow, CONTRACT_ID_NUM_COMPARATOR);
+
     private static final Set<TransactionGroupRole> PARENT_ROLES =
             EnumSet.of(STANDALONE, PARENT, ENDING_PARENT, STARTING_PARENT);
 
@@ -384,6 +389,20 @@ public class BaseTranslator {
         resultBuilder.evmAddress(Bytes.wrap(ConversionUtils.explicitAddressOf(findContractOrThrow(contractId, stateChanges))));
     }
 
+    public void addSignerNonce(
+            @Nullable final AccountID senderId,
+            @NonNull final ContractFunctionResult.Builder derivedBuilder,
+            @NonNull final List<StateChange> remainingStateChanges) {
+        if (senderId != null) {
+            findAccount(senderId, remainingStateChanges).ifPresentOrElse(senderAccount -> {
+                if (senderAccount.ethereumNonce() != nonces.getOrDefault(senderId.accountNumOrThrow(), 0L)) {
+                    derivedBuilder.signerNonce(senderAccount.ethereumNonce());
+                }
+            }, () -> derivedBuilder.signerNonce(nonces.get(senderId.accountNumOrThrow())));
+        }
+    }
+
+
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
      * @param resultBuilder the builder to populate with created IDs
@@ -409,6 +428,7 @@ public class BaseTranslator {
                                 .contractNum(contractId.accountNumOrThrow()).build(), contract.ethereumNonce()));
                     }
                 });
+        changedNonces.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
         resultBuilder.contractNonces(changedNonces);
     }
 
@@ -873,5 +893,18 @@ public class BaseTranslator {
                 })
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static Optional<Account> findAccount(
+            @NonNull final AccountID accountId, @NonNull final List<StateChange> stateChanges) {
+        return stateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
+                .filter(StateChange::hasMapUpdate)
+                .map(StateChange::mapUpdateOrThrow)
+                .filter(change -> change.keyOrThrow().hasAccountIdKey())
+                .filter(change -> change.valueOrThrow().accountValueOrThrow().smartContract())
+                .map(change -> change.valueOrThrow().accountValueOrThrow())
+                .filter(account -> account.accountIdOrThrow().equals(accountId))
+                .findFirst();
     }
 }
