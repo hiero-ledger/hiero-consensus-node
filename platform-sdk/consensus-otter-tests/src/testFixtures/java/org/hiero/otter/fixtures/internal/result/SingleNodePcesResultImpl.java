@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
@@ -41,14 +40,11 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
 
         final Configuration configuration = platformContext.getConfiguration();
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
-        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
-
         try {
 
             final Path databaseDirectory = getDatabaseDirectory(platformContext, nodeId);
 
-            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps());
+            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(databaseDirectory, pcesConfig.permitGaps());
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }

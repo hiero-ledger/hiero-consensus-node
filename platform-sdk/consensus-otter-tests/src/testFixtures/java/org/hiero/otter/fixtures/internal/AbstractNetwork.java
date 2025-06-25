@@ -41,6 +41,7 @@ public abstract class AbstractNetwork implements Network {
     private static final Logger log = LogManager.getLogger();
 
     private static final Duration FREEZE_DELAY = Duration.ofSeconds(10);
+    protected boolean withDeterministicKeyGeneration;
 
     /**
      * The state of the network.
@@ -106,6 +107,14 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     public AsyncNetworkActions withTimeout(@NonNull final Duration timeout) {
         return new AsyncNetworkActionsImpl(timeout);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void withDeterministicKeyGeneration(boolean enabled) {
+        this.withDeterministicKeyGeneration = enabled;
     }
 
     /**
@@ -267,7 +276,7 @@ public abstract class AbstractNetwork implements Network {
 
             log.info("Sending freeze transaction...");
             final byte[] freezeTransaction =
-                    createFreezeTransaction(timeManager().now().plus(FREEZE_DELAY));
+                    createFreezeTransaction(timeManager().time().now().plus(FREEZE_DELAY));
             getNodes().stream()
                     .filter(Node::isActive)
                     .findFirst()

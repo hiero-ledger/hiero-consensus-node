@@ -70,7 +70,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration getConfiguration();
+    NodeConfiguration<?> getConfiguration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -154,4 +154,7 @@ public interface Node {
      */
     @NonNull
     SingleNodePcesResult getPcesResult();
+
+    @NonNull
+    NodeFileSystem getNodeFiles();
 }

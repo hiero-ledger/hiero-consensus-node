@@ -6,19 +6,26 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.AVERAGE_NETW
 import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEVIATION_NETWORK_DELAY;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -118,9 +125,27 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         executorService = Executors.newFixedThreadPool(
                 Math.min(count, Runtime.getRuntime().availableProcessors()));
 
-        final RandomRosterBuilder rosterBuilder =
-                RandomRosterBuilder.create(randotron).withSize(count).withRealKeysEnabled(true);
+        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(randotron)
+                .withSize(count)
+                .withRealKeysEnabled(!withDeterministicKeyGeneration);
+
         final Roster roster = rosterBuilder.build();
+        final Set<NodeId> nodeIds = roster.rosterEntries().stream()
+                .map(RosterEntry::nodeId)
+                .map(NodeId::of)
+                .collect(Collectors.toSet());
+        final Function<NodeId, KeysAndCerts> keyRetriever;
+
+        if (withDeterministicKeyGeneration) {
+            try {
+                var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds, null);
+                keyRetriever = keysAndCerts::get;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to generate keys and certs", e);
+            }
+        } else {
+            keyRetriever = rosterBuilder::getPrivateKeys;
+        }
 
         simulatedNetwork =
                 new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
@@ -128,7 +153,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
                 .map(RosterUtils::getNodeId)
                 .sorted()
-                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
+                .map(nodeId -> createTurtleNode(nodeId, roster, keyRetriever.apply(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
 
@@ -137,9 +162,30 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
 
     private TurtleNode createTurtleNode(
             @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts privateKeys) {
-        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         return new TurtleNode(
-                randotron, timeManager.time(), nodeId, roster, privateKeys, simulatedNetwork, logging, outputDir);
+                randotron,
+                timeManager.time(),
+                nodeId,
+                roster,
+                privateKeys,
+                simulatedNetwork,
+                logging,
+                rootOutputDirectory);
+    }
+
+    @Override
+    public void useInitialSnapshot(final @NonNull Path stateFile) {
+        nodes.forEach(node -> node.getNodeFiles().useSnapshot(stateFile));
+    }
+
+    public void copyStateSnapshotTo(final @NonNull Path outputDirectory) {
+        final TurtleNode someNode = nodes.getFirst();
+        final Path stateSnapshotDir = someNode.getNodeFiles().getLatestSnapshotStateDir();
+        try {
+            FileUtils.copyDirectory(stateSnapshotDir, outputDirectory.resolve(stateSnapshotDir.getFileName()));
+        } catch (IOException e) {
+            throw new RuntimeException("Could not save snapshot", e);
+        }
     }
 
     /**

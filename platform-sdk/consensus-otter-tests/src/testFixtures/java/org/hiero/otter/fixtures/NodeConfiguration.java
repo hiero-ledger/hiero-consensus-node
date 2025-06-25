@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * @param <T> the type of the configuration, allowing for method chaining
  */
-public interface NodeConfiguration<T extends NodeConfiguration> {
+public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
      * Updates a single property of the configuration.

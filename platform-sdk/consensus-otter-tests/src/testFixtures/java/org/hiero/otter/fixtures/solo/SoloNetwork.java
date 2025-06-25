@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.solo;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -102,6 +103,22 @@ public class SoloNetwork extends AbstractNetwork implements Network {
     @NonNull
     public List<Node> getNodes() {
         return publicNodes;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void useInitialSnapshot(@NonNull final Path stateFile) {
+        throw new UnsupportedOperationException("InstrumentedNode is not implemented yet!");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void copyStateSnapshotTo(@NonNull final Path outputDirectory) {
+        throw new UnsupportedOperationException("InstrumentedNode is not implemented yet!");
     }
 
     /**

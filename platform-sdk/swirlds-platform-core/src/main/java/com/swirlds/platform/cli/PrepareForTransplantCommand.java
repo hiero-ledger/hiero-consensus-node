@@ -5,16 +5,14 @@ import com.swirlds.base.time.Time;
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.SimpleRecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.state.SavedStateUtils;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.event.preconsensus.PcesEventFilter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Scanner;
 import picocli.CommandLine;
 
@@ -72,16 +70,22 @@ public class PrepareForTransplantCommand extends AbstractCommand {
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
-        final PlatformContext platformContext = PlatformContext.create(
-                configuration,
-                Time.getCurrent(),
-                new NoOpMetrics(),
-                FileSystemManager.create(configuration),
-                new SimpleRecycleBin(),
-                MerkleCryptographyFactory.create(configuration));
-
         System.out.println("Transplanting state from: " + statePath);
-        final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(statePath, platformContext);
+
+        final Path pcesFiles =
+                statePath.resolve(configuration.getConfigData(PcesConfig.class).databaseDirectory());
+
+        final Path outputDir = Files.createTempDirectory("pcesTmp");
+        final Path bkDir = Files.createDirectory(pcesFiles.getParent().resolve(".pcesbk"));
+
+        final long discardedEventCount =
+                PcesEventFilter.create(statePath).with(Time.getCurrent()).filter(pcesFiles, outputDir);
+
+        // move the old files to a bk directory
+        Files.move(pcesFiles, bkDir, StandardCopyOption.REPLACE_EXISTING);
+        // move the new files to the pces directory
+        Files.move(outputDir, pcesFiles, StandardCopyOption.REPLACE_EXISTING);
+
         System.out.printf(
                 "Transplant complete. %d events were discarded due to being from a future round.%n",
                 discardedEventCount);

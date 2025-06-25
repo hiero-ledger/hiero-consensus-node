@@ -417,7 +417,7 @@ public final class PlatformBuilder {
 
             // When we perform the migration to using birth round bounding, we will need to read
             // the old type and start writing the new type.
-            initialPcesFiles = PcesFileReader.readFilesFromDisk(
+            initialPcesFiles = PcesFileReader.readFilesFromDiskWithCompactionAndDiscResolution(
                     platformContext,
                     databaseDirectory,
                     initialState.get().getRound(),

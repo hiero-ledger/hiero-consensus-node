@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -32,10 +32,10 @@ public interface TimeManager {
     boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime);
 
     /**
-     * Returns the current time.
+     * Returns the time instance.
      *
-     * @return the current time
+     * @return the time instance
      */
     @NonNull
-    Instant now();
+    Time time();
 }

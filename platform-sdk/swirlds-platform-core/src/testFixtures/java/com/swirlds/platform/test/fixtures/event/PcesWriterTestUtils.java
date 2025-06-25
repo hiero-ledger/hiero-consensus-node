@@ -97,7 +97,8 @@ public class PcesWriterTestUtils {
             lastAncientIdentifier = Math.max(lastAncientIdentifier, event.getBirthRound());
         }
 
-        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDisk(platformContext, pcesDirectory, 0, false);
+        final PcesFileTracker pcesFiles = PcesFileReader.readFilesFromDiskWithCompactionAndDiscResolution(
+                platformContext, pcesDirectory, 0, false);
 
         // Verify that the events were written correctly
         final PcesMultiFileIterator eventsIterator = pcesFiles.getEventIterator(0, 0);

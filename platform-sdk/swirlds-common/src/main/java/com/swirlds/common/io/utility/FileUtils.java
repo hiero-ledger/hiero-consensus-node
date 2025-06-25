@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -316,6 +317,45 @@ public final class FileUtils {
         final List<Path> files = findFiles(dir, suffix);
         for (final Path file : files) {
             Files.delete(file);
+        }
+    }
+
+    /**
+     * Copies a whole directory to a new location, preserving the file dates.
+     * This method copies the specified directory and all its child directories and files to the specified destination. The destination is the new location and name of the directory. That is, copying /home/bar to /tmp/bang copies the contents of /home/bar into /tmp/bang. It does not create /tmp/bang/bar.
+     * The destination directory is created if it does not exist. If the destination directory does exist, then this method merges the source with the destination, with the source taking precedence.
+     * @param source an existing directory to copy, must not be null.
+     * @param destination  the new directory, must not be nul
+     * @throws IOException  if an error occurs
+     */
+    public static void copyDirectory(@NonNull final Path source, @NonNull final Path destination) throws IOException {
+        org.apache.commons.io.FileUtils.copyDirectory(source.toFile(), destination.toFile());
+    }
+
+    /**
+     *  Lists files and directories within a given directory.
+     *
+     * @param currentDir The Path to the parent directory.
+     * @return a list of all the paths representing the content of {@code currentDir}
+     */
+    @NonNull
+    public static List<Path> listFilesAndDirs(@NonNull final Path currentDir) {
+        if (!Files.exists(currentDir) || !Files.isDirectory(currentDir)) {
+            return List.of();
+        }
+
+        try (Stream<Path> walk = Files.list(currentDir)) {
+            return walk.filter(path -> {
+                        try {
+                            return !Files.isHidden(path);
+                        } catch (IOException e) {
+                            return false;
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+        } catch (IOException e) {
+            return List.of();
         }
     }
 }

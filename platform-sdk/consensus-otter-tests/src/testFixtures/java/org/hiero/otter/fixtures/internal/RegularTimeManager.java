@@ -3,9 +3,9 @@ package org.hiero.otter.fixtures.internal;
 
 import static org.awaitility.Awaitility.await;
 
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.function.BooleanSupplier;
 import org.awaitility.core.ConditionTimeoutException;
 import org.hiero.otter.fixtures.TimeManager;
@@ -41,8 +41,7 @@ public class RegularTimeManager implements TimeManager {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public Instant now() {
-        return Instant.now();
+    public @NonNull Time time() {
+        return Time.getCurrent();
     }
 }

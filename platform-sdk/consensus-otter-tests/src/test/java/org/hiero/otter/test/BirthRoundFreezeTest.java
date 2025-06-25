@@ -53,7 +53,7 @@ public class BirthRoundFreezeTest {
         // Events with a created time before this time should have a maximum birth round of
         // the freeze round. Events created after this time should have a birth round greater
         // than the freeze round.
-        final Instant postFreezeShutdownTime = timeManager.now();
+        final Instant postFreezeShutdownTime = timeManager.time().now();
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 

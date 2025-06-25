@@ -50,7 +50,7 @@ public final class StartupStateUtils {
     private StartupStateUtils() {}
 
     /**
-     * Used exclusively by {@link com.swirlds.platform.Browser} to get the initial state to be used by this node.
+     * Used by {@link com.swirlds.platform.Browser} and TurtleNode to get the initial state to be used by this node.
      * May return a state loaded from disk, or may return a genesis state if no valid state is found on disk.
      *
      * @param softwareVersion     the software version of the app

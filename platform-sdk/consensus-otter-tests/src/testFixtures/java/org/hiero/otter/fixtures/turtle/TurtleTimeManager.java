@@ -54,15 +54,6 @@ public class TurtleTimeManager implements TimeManager {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public Instant now() {
-        return time.now();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void waitFor(@NonNull final Duration waitTime) {
         log.info("Waiting for {}...", waitTime);
 

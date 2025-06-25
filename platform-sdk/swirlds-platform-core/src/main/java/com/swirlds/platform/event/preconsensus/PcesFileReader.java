@@ -32,6 +32,7 @@ public class PcesFileReader {
 
     /**
      * Scan the file system for event files and add them to the collection of tracked files.
+     * If indicated in the configuration, resolves discontinuities and compacts files.
      *
      * @param platformContext   the platform context
      * @param databaseDirectory the directory to scan for files
@@ -40,14 +41,36 @@ public class PcesFileReader {
      * @return the files read from disk
      * @throws IOException if there is an error reading the files
      */
-    public static PcesFileTracker readFilesFromDisk(
+    public static PcesFileTracker readFilesFromDiskWithCompactionAndDiscResolution(
             @NonNull final PlatformContext platformContext,
             @NonNull final Path databaseDirectory,
             final long startingRound,
             final boolean permitGaps)
             throws IOException {
 
-        Objects.requireNonNull(platformContext);
+        PcesConfig preconsensusEventStreamConfig =
+                platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final PcesFileTracker files = readFilesFromDisk(databaseDirectory, permitGaps);
+
+        if (files.getFileCount() != 0 && preconsensusEventStreamConfig.compactLastFileOnStartup()) {
+            compactSpanOfLastFile(files);
+        }
+
+        resolveDiscontinuities(databaseDirectory, files, platformContext.getRecycleBin(), startingRound);
+        return files;
+    }
+
+    /**
+     * Scan the file system for event files and add them to the collection of tracked files.
+     *
+     * @param databaseDirectory         the directory to scan for files
+     * @param permitGaps                if gaps are permitted in sequence number
+     * @return the files read from disk
+     * @throws IOException if there is an error reading the files
+     */
+    public static PcesFileTracker readFilesFromDisk(@NonNull final Path databaseDirectory, final boolean permitGaps)
+            throws IOException {
+
         Objects.requireNonNull(databaseDirectory);
 
         final PcesFileTracker files = new PcesFileTracker();
@@ -60,16 +83,6 @@ public class PcesFileReader {
                     .sorted()
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }
-
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
-        final boolean doInitialSpanCompaction = preconsensusEventStreamConfig.compactLastFileOnStartup();
-
-        if (files.getFileCount() != 0 && doInitialSpanCompaction) {
-            compactSpanOfLastFile(files);
-        }
-
-        resolveDiscontinuities(databaseDirectory, files, platformContext.getRecycleBin(), startingRound);
 
         return files;
     }
@@ -138,9 +151,9 @@ public class PcesFileReader {
      *
      * @param databaseDirectory the directory where PCES files are stored
      * @param files             the files that have been read from disk
-     * @param recycleBin the recycleBin
+     * @param recycleBin        the recycleBin used to delete files in case of discontinuities
      * @param startingRound     the round the system is starting from
-     * @throws IOException if there is an error deleting files
+     * @throws IOException      if there is an error deleting files
      */
     private static void resolveDiscontinuities(
             @NonNull final Path databaseDirectory,

@@ -26,6 +26,8 @@ testModuleInfo {
     requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
+    requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.common")
 }
 
 // Runs tests against the Turtle environment
