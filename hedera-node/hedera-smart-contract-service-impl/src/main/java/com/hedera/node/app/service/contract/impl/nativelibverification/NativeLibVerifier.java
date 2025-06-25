@@ -32,6 +32,7 @@ public final class NativeLibVerifier {
      */
     public void verifyNativeLibs() {
         final var nodeHaltEnabled = contractsConfigSupplier.get().nativeLibVerificationHaltEnabled();
+        LOGGER.info("Native library verification is {}", nodeHaltEnabled ? "enabled" : "disabled");
         NativeLibrary.getDefaultNativeLibs().stream()
                 .filter(lib -> !lib.isNative().get())
                 .peek(lib -> LOGGER.warn("Native library {} is not present", lib.name()))
@@ -40,6 +41,9 @@ public final class NativeLibVerifier {
                     if (nodeHaltEnabled) {
                         // if any of the native libraries is not present on the environment and
                         // `nativeLibVerificationHaltEnabled` is true we throw an exception to halt the node
+                        LOGGER.error(
+                                "Native library {} is not present with halt mode enabled! Shutting down node.",
+                                lib.name());
                         throw new IllegalStateException("Native libraries are not present with halt mode enabled");
                     }
                 });
