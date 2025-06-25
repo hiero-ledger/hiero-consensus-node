@@ -344,7 +344,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         } catch (UnknownHederaFunctionality ex) {
             throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
         }
-
         return dispatcher.dispatchComputeFees(new ChildFeeContextImpl(
                 feeManager,
                 this,
@@ -354,10 +353,18 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                 authorizer,
                 storeFactory.asReadOnly(),
                 consensusNow,
-                transactionCategory == TransactionCategory.BATCH_INNER ? verifier : null,
-                transactionCategory == TransactionCategory.BATCH_INNER
+                shouldChargeForSigVerification(txBody) ? verifier : null,
+                shouldChargeForSigVerification(txBody)
                         ? txnInfo.signatureMap().sigPair().size()
                         : 0));
+    }
+
+    private boolean shouldChargeForSigVerification(@NonNull final TransactionBody txBody) {
+        // Certain batch transactions can trigger child transactions inside the batch itself. Such child transactions
+        // must be verified with the parent transaction's context instead of the signatures on the child transaction.
+        // We therefore need to differentiate contextual child transactions from the batch's submitted inner transaction
+        // bodies themselves, which we'll do by checking the transaction body for an included batch key.
+        return transactionCategory == TransactionCategory.BATCH_INNER && txBody.hasBatchKey();
     }
 
     @NonNull

@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.internal.result;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
@@ -21,9 +21,9 @@ public record MultipleNodePcesResultsImpl(@NonNull List<SingleNodePcesResult> pc
      */
     @Override
     @NonNull
-    public MultipleNodePcesResults ignoring(@NonNull final Node node) {
+    public MultipleNodePcesResults suppressingNode(@NonNull final NodeId nodeId) {
         final List<SingleNodePcesResult> filtered = pcesResults.stream()
-                .filter(it -> Objects.equals(it.nodeId(), node.getSelfId()))
+                .filter(it -> Objects.equals(it.nodeId(), nodeId))
                 .toList();
         return new MultipleNodePcesResultsImpl(filtered);
     }
