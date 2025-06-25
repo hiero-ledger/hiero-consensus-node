@@ -7,11 +7,11 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
- * Interface that provides access to the status progression of a node.
+ * Interface that provides access to the status progression results of a node.
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
-public interface SingleNodeStatusProgression {
+public interface SingleNodePlatformStatusResults {
 
     /**
      * Returns the node ID of the node which status progression has been recorded.
