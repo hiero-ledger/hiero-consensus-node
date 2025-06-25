@@ -16,13 +16,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_EXPIRY_NOT_CON
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.SCHEDULE_CREATE_CONTRACT_CALL;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFees;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMemo;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.childAsOrdinary;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.createProvisionalSchedule;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
+import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMaxCustomFees;
+import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMemo;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;

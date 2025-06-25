@@ -16,8 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMaxCustomFees;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.checkMemo;
+import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMaxCustomFees;
+import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMemo;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
