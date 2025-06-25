@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -15,14 +18,10 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.datatypes.Address;
-
-import javax.inject.Inject;
 import java.util.Collections;
 import java.util.List;
-
-import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
+import org.hyperledger.besu.datatypes.Address;
 
 /**
  * A read-only {@link HederaOperations} implementation based on a {@link QueryContext}.

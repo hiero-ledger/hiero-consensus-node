@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static java.util.Objects.requireNonNull;
-
-public record HydratedEthTxData(@Nullable EthTxData ethTxData, @NonNull ResponseCodeEnum status,
-                                boolean hydratedFromFile) {
+public record HydratedEthTxData(
+        @Nullable EthTxData ethTxData, @NonNull ResponseCodeEnum status, boolean hydratedFromFile) {
     public HydratedEthTxData {
         requireNonNull(status);
         if (status == OK) {

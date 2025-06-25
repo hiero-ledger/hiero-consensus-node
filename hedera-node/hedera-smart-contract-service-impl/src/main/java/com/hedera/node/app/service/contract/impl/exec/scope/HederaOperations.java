@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
@@ -16,11 +18,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.datatypes.Address;
-
 import java.util.List;
-
-import static java.util.Objects.requireNonNull;
+import org.hyperledger.besu.datatypes.Address;
 
 /**
  * Provides the Hedera operations that only a {@link ProxyWorldUpdater} needs (but not a {@link DispatchingEvmFrameState}.

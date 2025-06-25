@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
@@ -37,6 +46,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -96,7 +106,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -107,15 +116,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-
-import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
-import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
-import static java.util.Objects.requireNonNull;
 
 /**
  * An implementation of {@link BlockStreamBuilder} that produces block items for a single user or
@@ -557,6 +557,9 @@ public class BlockStreamBuilder
      */
     public Output build() {
         final var blockItems = new ArrayList<BlockItem>();
+        // Construct the context here to capture any additional Ethereum transaction details needed
+        // for the legacy record before they are removed from the block stream output item
+        final var translationContext = translationContext();
         blockItems.add(BlockItem.newBuilder()
                 .eventTransaction(EventTransaction.newBuilder()
                         .applicationTransaction(getSerializedTransaction())
@@ -591,7 +594,7 @@ public class BlockStreamBuilder
                             .build())
                     .build());
         }
-        return new Output(blockItems, translationContext());
+        return new Output(blockItems, translationContext);
     }
 
     @Override
@@ -1257,14 +1260,13 @@ public class BlockStreamBuilder
                             .build());
                 case ETH_CALL ->
                     builder.ethereumCall(ethOutputBuilder()
-                            .evmCallTransactionResult(evmTransactionResult)
+                            .evmCallTransactionResult(ethEvmTransactionResult())
                             .build());
                 case ETH_CREATE ->
                     builder.ethereumCall(ethOutputBuilder()
-                            .evmCreateTransactionResult(evmTransactionResult)
+                            .evmCreateTransactionResult(ethEvmTransactionResult())
                             .build());
-                case ETH_THROTTLED ->
-                    builder.ethereumCall(ethOutputBuilder().build());
+                case ETH_THROTTLED -> builder.ethereumCall(ethOutputBuilder().build());
             }
             items.add(itemWith(builder));
         }
@@ -1287,6 +1289,31 @@ public class BlockStreamBuilder
                             .createdAccountId(accountId)
                             .build())));
         }
+    }
+
+    /**
+     * If the Ethereum call data was hydrated from a file, and we have the function parameters available,
+     * returns a copy of the {@link EvmTransactionResult} with the internal call context cleared except for
+     * the call data.
+     * <p>
+     * Otherwise returns a {@link EvmTransactionResult} with its internal context cleared.
+     * @return the {@link EvmTransactionResult} appropriate for an {@link EthereumOutput} item
+     */
+    private @Nullable EvmTransactionResult ethEvmTransactionResult() {
+        if (evmTransactionResult == null) {
+            return null;
+        }
+        if (!evmTransactionResult.hasInternalCallContext()) {
+            return evmTransactionResult;
+        }
+        final var externalizedContext = !hydratedFromFile
+                ? null
+                : new InternalCallContext(
+                        0, 0, evmTransactionResult.internalCallContextOrThrow().callData());
+        return evmTransactionResult
+                .copyBuilder()
+                .internalCallContext(externalizedContext)
+                .build();
     }
 
     private EthereumOutput.Builder ethOutputBuilder() {
@@ -1327,7 +1354,8 @@ public class BlockStreamBuilder
                         evmAddress.length() > 0 ? evmAddress : null,
                         changedNonceInfos,
                         stateChanges,
-                        senderNonce);
+                        senderNonce,
+                        evmTransactionResult == null ? null : evmTransactionResult.internalCallContext());
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures.state;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -14,12 +16,9 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static java.util.Objects.requireNonNull;
 
 public class FakeServiceMigrator implements ServiceMigrator {
     @Override

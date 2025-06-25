@@ -1,6 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideEvmActionTracer;
+import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideHederaEvmContext;
+import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideSenderEcdsaKey;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_SECP256K1_KEY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
@@ -32,31 +50,12 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
+import java.time.Instant;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.time.Instant;
-import java.util.Map;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
-import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideEvmActionTracer;
-import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideHederaEvmContext;
-import static com.hedera.node.app.service.contract.impl.exec.TransactionModule.provideSenderEcdsaKey;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_SECP256K1_KEY;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class TransactionModuleTest {

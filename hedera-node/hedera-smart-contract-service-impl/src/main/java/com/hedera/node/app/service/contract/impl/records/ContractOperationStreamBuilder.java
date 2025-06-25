@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.records;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -14,11 +16,8 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.Set;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * A {@code StreamBuilder} specialization for tracking the side effects of any transaction related to contracts.

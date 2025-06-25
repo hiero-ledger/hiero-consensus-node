@@ -1,27 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.common;
 
-import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
-import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.AbstractFullContract;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.spi.workflows.HandleException;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-
-import javax.inject.Singleton;
-
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
@@ -41,6 +20,26 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.PRECOMPILE_ERROR;
+
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.AbstractFullContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.spi.workflows.HandleException;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * Abstract class for native system contracts.

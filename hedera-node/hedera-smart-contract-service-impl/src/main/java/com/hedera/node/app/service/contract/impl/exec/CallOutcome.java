@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
@@ -16,11 +19,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBui
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static java.util.Objects.requireNonNull;
 
 /**
  * Summarizes the outcome of an EVM message call.
@@ -164,7 +163,8 @@ public record CallOutcome(
                 hevmResult.evmLogs(),
                 updatedNonceInfos,
                 txResult,
-                hevmResult.signerNonce(), null);
+                hevmResult.signerNonce(),
+                null);
     }
 
     /**

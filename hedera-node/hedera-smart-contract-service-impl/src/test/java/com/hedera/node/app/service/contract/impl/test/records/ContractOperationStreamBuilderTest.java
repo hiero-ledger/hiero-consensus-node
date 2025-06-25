@@ -47,7 +47,8 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
-                null, null);
+                null,
+                null);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
@@ -67,7 +68,8 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
-                null, null);
+                null,
+                null);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());

@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -30,22 +40,11 @@ import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.evm.log.Log;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
-
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
-import static java.util.Objects.requireNonNull;
+import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Translates a {@link TransactionResult} and, optionally, one or more {@link TransactionOutput}s within a given
@@ -226,10 +225,13 @@ public class BlockItemsTranslator {
                 .contractCallResult(result.resultData())
                 .errorMessage(result.errorMessage())
                 .gasUsed(result.gasUsed());
-        if (result.hasInternalCallContext()) {
-            final var callContext = result.internalCallContextOrThrow();
+        final var callContext = result.hasInternalCallContext()
+                ? result.internalCallContextOrThrow()
+                : context instanceof ContractOpContext contractOpContext ? contractOpContext.ethCallContext() : null;
+        if (callContext != null) {
             builder.gasUsed(callContext.gas()).amount(callContext.value()).functionParameters(callContext.callData());
-        } else if (context instanceof ContractOpContext contractContext) {
+        }
+        if (context instanceof ContractOpContext contractContext) {
             builder.signerNonce(contractContext.senderNonce());
             final var stateChanges = contractContext.stateChanges();
             final var createdIds = stateChanges.stream()

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -11,13 +14,9 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import javax.inject.Inject;
 import java.util.Map;
 import java.util.concurrent.Callable;
-
-import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
 
 /**
  * A utility class for running the {@code processTransaction()} call implied by the in-scope

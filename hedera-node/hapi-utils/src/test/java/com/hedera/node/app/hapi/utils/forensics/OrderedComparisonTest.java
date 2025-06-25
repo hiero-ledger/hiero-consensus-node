@@ -1,24 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.forensics;
 
-import com.google.protobuf.ByteString;
-import com.hedera.services.stream.proto.ContractAction;
-import com.hedera.services.stream.proto.TransactionSidecarRecord;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.Transaction;
-import com.hederahashgraph.api.proto.java.TransactionBody;
-import com.hederahashgraph.api.proto.java.TransactionRecord;
-import org.junit.jupiter.api.Test;
-
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.findDifferencesBetweenV6;
 import static com.hedera.node.app.hapi.utils.forensics.OrderedComparison.statusHistograms;
 import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6RecordStreamEntriesIn;
@@ -32,6 +14,23 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_NONCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.google.protobuf.ByteString;
+import com.hedera.services.stream.proto.ContractAction;
+import com.hedera.services.stream.proto.TransactionSidecarRecord;
+import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.Transaction;
+import com.hederahashgraph.api.proto.java.TransactionBody;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
 
 class OrderedComparisonTest {
     private static final Path WRONG_NONCE_STREAMS_DIR =

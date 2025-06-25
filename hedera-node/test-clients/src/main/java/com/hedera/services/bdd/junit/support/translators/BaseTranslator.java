@@ -1,6 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
+import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
+import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
+import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
+import static com.hedera.node.app.hapi.utils.EntityType.FILE;
+import static com.hedera.node.app.hapi.utils.EntityType.NODE;
+import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
+import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
+import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
+import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator.EXCHANGE_RATES_FILE_NUM;
+import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
+
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
@@ -45,10 +72,6 @@ import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransaction
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hyperledger.besu.evm.log.Log;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,33 +86,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
-import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
-import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
-import static com.hedera.node.app.hapi.utils.EntityType.FILE;
-import static com.hedera.node.app.hapi.utils.EntityType.NODE;
-import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
-import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
-import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
-import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
-import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator.EXCHANGE_RATES_FILE_NUM;
-import static java.util.Collections.emptyList;
-import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream
@@ -386,7 +385,8 @@ public class BaseTranslator {
         requireNonNull(resultBuilder);
         requireNonNull(stateChanges);
         requireNonNull(contractId);
-        resultBuilder.evmAddress(Bytes.wrap(ConversionUtils.explicitAddressOf(findContractOrThrow(contractId, stateChanges))));
+        resultBuilder.evmAddress(
+                Bytes.wrap(ConversionUtils.explicitAddressOf(findContractOrThrow(contractId, stateChanges))));
     }
 
     public void addSignerNonce(
@@ -394,14 +394,12 @@ public class BaseTranslator {
             @NonNull final ContractFunctionResult.Builder derivedBuilder,
             @NonNull final List<StateChange> remainingStateChanges) {
         if (senderId != null) {
-            findAccount(senderId, remainingStateChanges).ifPresentOrElse(senderAccount -> {
-                if (senderAccount.ethereumNonce() != nonces.getOrDefault(senderId.accountNumOrThrow(), 0L)) {
-                    derivedBuilder.signerNonce(senderAccount.ethereumNonce());
-                }
-            }, () -> derivedBuilder.signerNonce(nonces.get(senderId.accountNumOrThrow())));
+            findAccount(senderId, remainingStateChanges)
+                    .ifPresentOrElse(
+                            senderAccount -> derivedBuilder.signerNonce(senderAccount.ethereumNonce()),
+                            () -> derivedBuilder.signerNonce(nonces.get(senderId.accountNumOrThrow())));
         }
     }
-
 
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
@@ -414,7 +412,8 @@ public class BaseTranslator {
         requireNonNull(resultBuilder);
         requireNonNull(stateChanges);
         final List<ContractNonceInfo> changedNonces = new ArrayList<>();
-        stateChanges.stream().filter(StateChange::hasMapUpdate)
+        stateChanges.stream()
+                .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .filter(change -> change.valueOrThrow().hasAccountValue())
                 .map(change -> change.valueOrThrow().accountValueOrThrow())
@@ -422,10 +421,13 @@ public class BaseTranslator {
                 .forEach(contract -> {
                     final var contractId = contract.accountIdOrThrow();
                     if (contract.ethereumNonce() != nonces.getOrDefault(contractId.accountNumOrThrow(), 0L)) {
-                        changedNonces.add(new ContractNonceInfo(ContractID.newBuilder()
-                                .shardNum(contractId.shardNum())
-                                .realmNum(contractId.realmNum())
-                                .contractNum(contractId.accountNumOrThrow()).build(), contract.ethereumNonce()));
+                        changedNonces.add(new ContractNonceInfo(
+                                ContractID.newBuilder()
+                                        .shardNum(contractId.shardNum())
+                                        .realmNum(contractId.realmNum())
+                                        .contractNum(contractId.accountNumOrThrow())
+                                        .build(),
+                                contract.ethereumNonce()));
                     }
                 });
         changedNonces.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
@@ -471,7 +473,8 @@ public class BaseTranslator {
         spec.accept(receiptBuilder, recordBuilder);
         if (!isContractOp(parts) && parts.hasContractOutput()) {
             final var output = parts.callContractOutputOrThrow();
-            final var result = resultBuilderFrom(output.evmTransactionResultOrThrow()).build();
+            final var result =
+                    resultBuilderFrom(output.evmTransactionResultOrThrow()).build();
             recordBuilder.contractCallResult(result);
         }
         // If this transaction was executed by virtue of being scheduled, set its schedule ref
@@ -758,7 +761,6 @@ public class BaseTranslator {
         return activeRates;
     }
 
-
     /**
      * Updates the nonces for accounts after processing the given transactional unit.
      * @param unit the transactional unit to process
@@ -770,12 +772,12 @@ public class BaseTranslator {
                 final var key = mapUpdate.keyOrThrow();
                 if (key.hasAccountIdKey()) {
                     final var num = key.accountIdKeyOrThrow().accountNumOrThrow();
-                    nonces.put(num, mapUpdate.valueOrThrow().accountValueOrThrow().ethereumNonce());
+                    nonces.put(
+                            num, mapUpdate.valueOrThrow().accountValueOrThrow().ethereumNonce());
                 }
             }
         });
     }
-
 
     private void scanUnit(@NonNull final BlockTransactionalUnit unit) {
         unit.stateChanges().forEach(stateChange -> {
@@ -902,7 +904,7 @@ public class BaseTranslator {
                 .filter(StateChange::hasMapUpdate)
                 .map(StateChange::mapUpdateOrThrow)
                 .filter(change -> change.keyOrThrow().hasAccountIdKey())
-                .filter(change -> change.valueOrThrow().accountValueOrThrow().smartContract())
+                .filter(change -> !change.valueOrThrow().accountValueOrThrow().smartContract())
                 .map(change -> change.valueOrThrow().accountValueOrThrow())
                 .filter(account -> account.accountIdOrThrow().equals(accountId))
                 .findFirst();

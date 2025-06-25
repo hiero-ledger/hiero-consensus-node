@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.selfManagedCustomizedCreation;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -40,29 +55,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.datatypes.Address;
-
-import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.selfManagedCustomizedCreation;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
-import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
-import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
-import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.SUPPRESSING_TRANSACTION_CUSTOMIZER;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.transactionWith;
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
+import org.hyperledger.besu.datatypes.Address;
 
 /**
  * A fully mutable {@link HederaOperations} implementation based on a {@link HandleContext}.
@@ -392,7 +391,8 @@ public class HandleHederaOperations implements HederaOperations {
                 .transaction(transactionWith(TransactionBody.newBuilder()
                         .contractCreateInstance(synthContractCreationForExternalization(contractId))
                         .build()))
-                .evmCreateTransactionResult(EvmTransactionResult.newBuilder().contractId(contractId).build())
+                .evmCreateTransactionResult(
+                        EvmTransactionResult.newBuilder().contractId(contractId).build())
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(contractId)
                         .evmAddress(evmAddress)
@@ -450,7 +450,9 @@ public class HandleHederaOperations implements HederaOperations {
         streamBuilder
                 .createdContractID(newContractId)
                 .createdEvmAddress(evmAddress)
-                .evmCreateTransactionResult(EvmTransactionResult.newBuilder().contractId(newContractId).build())
+                .evmCreateTransactionResult(EvmTransactionResult.newBuilder()
+                        .contractId(newContractId)
+                        .build())
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(newContractId)
                         .evmAddress(evmAddress)

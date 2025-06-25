@@ -1,51 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.traceability;
 
-import com.esaulpaugh.headlong.abi.Address;
-import com.esaulpaugh.headlong.abi.Function;
-import com.google.common.hash.Hashing;
-import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.utils.ByteStringUtils;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiPropertySource;
-import com.hedera.services.bdd.spec.assertions.StateChange;
-import com.hedera.services.bdd.spec.assertions.StorageChange;
-import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hedera.services.bdd.spec.transactions.TxnVerbs;
-import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
-import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
-import com.hedera.services.bdd.suites.contract.Utils;
-import com.hedera.services.stream.proto.CallOperationType;
-import com.hedera.services.stream.proto.ContractAction;
-import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
-import com.hederahashgraph.api.proto.java.TokenID;
-import com.hederahashgraph.api.proto.java.TokenType;
-import com.hederahashgraph.api.proto.java.TransferList;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.tuweni.bytes.Bytes;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
-
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
-
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
@@ -130,6 +85,50 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
+
+import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Function;
+import com.google.common.hash.Hashing;
+import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ByteStringUtils;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.assertions.StateChange;
+import com.hedera.services.bdd.spec.assertions.StorageChange;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.transactions.TxnVerbs;
+import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hedera.services.bdd.suites.contract.Utils;
+import com.hedera.services.stream.proto.CallOperationType;
+import com.hedera.services.stream.proto.ContractAction;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.TokenID;
+import com.hederahashgraph.api.proto.java.TokenType;
+import com.hederahashgraph.api.proto.java.TransferList;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.tuweni.bytes.Bytes;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @OrderedInIsolation
@@ -3862,7 +3861,8 @@ public class TraceabilitySuite {
                         .hasKnownStatus(SUCCESS)
                         .via(FIRST_CREATE_TXN),
                 withOpContext((spec, opLog) -> {
-                    final HapiGetTxnRecord txnRecord = getTxnRecord(FIRST_CREATE_TXN).logged();
+                    final HapiGetTxnRecord txnRecord =
+                            getTxnRecord(FIRST_CREATE_TXN).logged();
                     allRunFor(
                             spec,
                             txnRecord,

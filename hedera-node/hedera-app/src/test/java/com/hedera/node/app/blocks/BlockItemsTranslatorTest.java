@@ -50,6 +50,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -82,8 +83,9 @@ class BlockItemsTranslatorTest {
     private static final Timestamp PARENT_CONSENSUS_TIME = new Timestamp(1_234_567, 0);
     private static final ScheduleID SCHEDULE_REF =
             ScheduleID.newBuilder().scheduleNum(123L).build();
-    private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
-            EvmTransactionResult.newBuilder().build();
+    private static final EvmTransactionResult EVM_TRANSACTION_RESULT = EvmTransactionResult.newBuilder()
+            .internalCallContext(InternalCallContext.newBuilder().value(666).build())
+            .build();
     private static final ContractFunctionResult FUNCTION_RESULT =
             ContractFunctionResult.newBuilder().amount(666L).build();
     private static final List<AssessedCustomFee> ASSESSED_CUSTOM_FEES = List.of(new AssessedCustomFee(
@@ -220,8 +222,8 @@ class BlockItemsTranslatorTest {
                 "ETHEREUM_TRANSACTION",
             })
     void contractOpsUseContractOpContext(@NonNull final HederaFunctionality function) {
-        final var context =
-                new ContractOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, function, CONTRACT_ID, null, null, List.of(), null);
+        final var context = new ContractOpContext(
+                MEMO, RATES, TXN_ID, Transaction.DEFAULT, function, CONTRACT_ID, null, null, List.of(), null, null);
 
         final var actualReceipt = BLOCK_ITEMS_TRANSLATOR.translateReceipt(context, TRANSACTION_RESULT);
         assertEquals(EXPECTED_BASE_RECEIPT.copyBuilder().contractID(CONTRACT_ID).build(), actualReceipt);
@@ -385,7 +387,17 @@ class BlockItemsTranslatorTest {
                 .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(
-                MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CALL, CONTRACT_ID, null, null, List.of(), null);
+                MEMO,
+                RATES,
+                TXN_ID,
+                Transaction.DEFAULT,
+                CONTRACT_CALL,
+                CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                null,
+                null);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -419,7 +431,17 @@ class BlockItemsTranslatorTest {
                 .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(
-                MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CALL, CONTRACT_ID, null, null, List.of(), null);
+                MEMO,
+                RATES,
+                TXN_ID,
+                Transaction.DEFAULT,
+                CONTRACT_CALL,
+                CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                null,
+                null);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -454,7 +476,17 @@ class BlockItemsTranslatorTest {
                 .contractCreate(new CreateContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(
-                MEMO, RATES, TXN_ID, Transaction.DEFAULT, CONTRACT_CREATE, CONTRACT_ID, null, null, List.of(), null);
+                MEMO,
+                RATES,
+                TXN_ID,
+                Transaction.DEFAULT,
+                CONTRACT_CREATE,
+                CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                null,
+                null);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -488,10 +520,21 @@ class BlockItemsTranslatorTest {
                 .ethereumCall(EthereumOutput.newBuilder()
                         .ethereumHash(ETH_HASH)
                         .ethereumCallResult(FUNCTION_RESULT)
+                        .evmCallTransactionResult(EVM_TRANSACTION_RESULT)
                         .build())
                 .build();
         final var context = new ContractOpContext(
-                MEMO, RATES, TXN_ID, Transaction.DEFAULT, ETHEREUM_TRANSACTION, CONTRACT_ID, null, null, List.of(), null);
+                MEMO,
+                RATES,
+                TXN_ID,
+                Transaction.DEFAULT,
+                ETHEREUM_TRANSACTION,
+                CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                null,
+                null);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -526,10 +569,21 @@ class BlockItemsTranslatorTest {
                 .ethereumCall(EthereumOutput.newBuilder()
                         .ethereumHash(ETH_HASH)
                         .ethereumCreateResult(FUNCTION_RESULT)
+                        .evmCreateTransactionResult(EVM_TRANSACTION_RESULT)
                         .build())
                 .build();
         final var context = new ContractOpContext(
-                MEMO, RATES, TXN_ID, Transaction.DEFAULT, ETHEREUM_TRANSACTION, CONTRACT_ID, null, null, List.of(), null);
+                MEMO,
+                RATES,
+                TXN_ID,
+                Transaction.DEFAULT,
+                ETHEREUM_TRANSACTION,
+                CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                null,
+                null);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(

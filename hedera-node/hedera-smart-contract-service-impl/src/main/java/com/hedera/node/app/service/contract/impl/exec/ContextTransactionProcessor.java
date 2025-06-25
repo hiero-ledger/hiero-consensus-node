@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -23,19 +27,15 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.OpsDurationConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
-
-import javax.inject.Inject;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
-import static java.util.Objects.requireNonNull;
+import javax.inject.Inject;
+import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
  * A small utility that runs the * {@code #processTransaction()} call implied by the
@@ -148,9 +148,12 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         .build();
                 requireNonNull(hederaEvmContext.streamBuilder()).addInitcode(initcode);
             }
+            final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
+                    ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
+                    : null;
             return CallOutcome.fromResultsWithMaybeSidecars(
-                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater),
-                    result.asEvmTxResultOf(ethTxDataIfApplicable()),
+                    result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
+                    result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
                     rootProxyWorldUpdater.getUpdatedContractNonces(),
                     result,
                     result.evmAddressIfCreatedIn(rootProxyWorldUpdater));
@@ -209,10 +212,13 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             result = result.withSignerNonce(sender.getNonce());
         }
 
+        final var ethCallData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
+                ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
+                : null;
         return CallOutcome.fromResultsWithoutSidecars(
-                result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater),
-                result.asEvmTxResultOf(ethTxDataIfApplicable()),
-                null,
+                result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
+                result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData),
+                rootProxyWorldUpdater.getUpdatedContractNonces(),
                 result);
     }
 

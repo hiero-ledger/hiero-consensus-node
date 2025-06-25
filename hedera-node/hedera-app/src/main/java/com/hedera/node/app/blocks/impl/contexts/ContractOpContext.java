@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.impl.TranslationContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -26,6 +27,7 @@ import java.util.List;
  * @param changedNonceInfos The list of contract IDs whose nonces were changed during the transaction, if any
  * @param stateChanges The state changes that occurred during the transaction
  * @param senderNonce if applicable, the nonce of the sender after the transaction
+ * @param ethCallContext if applicable, the context of an internal call in the transaction
  */
 public record ContractOpContext(
         @NonNull String memo,
@@ -37,6 +39,6 @@ public record ContractOpContext(
         @Nullable Bytes evmAddress,
         @Nullable List<ContractNonceInfo> changedNonceInfos,
         @NonNull List<StateChange> stateChanges,
-        @Nullable Long senderNonce)
-        implements TranslationContext {
-}
+        @Nullable Long senderNonce,
+        @Nullable InternalCallContext ethCallContext)
+        implements TranslationContext {}

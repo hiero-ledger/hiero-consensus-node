@@ -1,36 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
-import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
-import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.node.contract.EvmTransactionResult;
-import com.hedera.hapi.streams.ContractAction;
-import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractStateChanges;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
-import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
-import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.lifecycle.EntityIdFactory;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
-import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
-
-import java.util.Collections;
-import java.util.List;
-
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -54,6 +24,36 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActionType;
+import com.hedera.hapi.streams.ContractStateChanges;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
+import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.lifecycle.EntityIdFactory;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Collections;
+import java.util.List;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
+import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.log.Log;
 
 public record HederaEvmTransactionResult(
         long gasUsed,
@@ -89,32 +89,25 @@ public record HederaEvmTransactionResult(
 
     /**
      * Converts this result to a {@link ContractFunctionResult} for a transaction based on the given
-     * {@link RootProxyWorldUpdater}.
-     *
-     * @param updater the world updater
-     * @return the result
-     */
-    public ContractFunctionResult asProtoResultOf(@NonNull final RootProxyWorldUpdater updater) {
-        return asProtoResultOf(null, updater);
-    }
-
-    /**
-     * Converts this result to a {@link ContractFunctionResult} for a transaction based on the given
      * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
      * @param ethTxData the Ethereum transaction data if relevant
-     * @param updater   the world updater
+     * @param updater the world updater
+     * @param callData the call data if relevant
      * @return the result
      */
     public ContractFunctionResult asProtoResultOf(
-            @Nullable final EthTxData ethTxData, @NonNull final RootProxyWorldUpdater updater) {
+            @Nullable final EthTxData ethTxData,
+            @NonNull final RootProxyWorldUpdater updater,
+            @Nullable final Bytes callData) {
         if (haltReason != null) {
-            return withMaybeEthFields(asUncommittedFailureResult(errorMessageFor(haltReason)), ethTxData);
+            return withMaybeEthFields(asUncommittedFailureResult(errorMessageFor(haltReason)), ethTxData, callData);
         } else if (revertReason != null) {
             // This curious presentation of the revert reason is needed for backward compatibility
-            return withMaybeEthFields(asUncommittedFailureResult(errorMessageForRevert(revertReason)), ethTxData);
+            return withMaybeEthFields(
+                    asUncommittedFailureResult(errorMessageForRevert(revertReason)), ethTxData, callData);
         } else {
-            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData);
+            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData, callData);
         }
     }
 
@@ -123,17 +116,19 @@ public record HederaEvmTransactionResult(
      * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
      * @param ethTxData the Ethereum transaction data if relevant
+     * @param callData the call data if relevant
      * @return the result
      */
-    public EvmTransactionResult asEvmTxResultOf(@Nullable final EthTxData ethTxData) {
+    public EvmTransactionResult asEvmTxResultOf(@Nullable final EthTxData ethTxData, @Nullable final Bytes callData) {
         if (haltReason != null) {
-            return txWithMaybeEthFields(asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData);
+            return txWithMaybeEthFields(
+                    asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData, callData);
         } else if (revertReason != null) {
             // This curious presentation of the revert reason is needed for backward compatibility
             return txWithMaybeEthFields(
-                    asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)), ethTxData);
+                    asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)), ethTxData, callData);
         } else {
-            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(), ethTxData);
+            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(), ethTxData, callData);
         }
     }
 
@@ -367,20 +362,26 @@ public record HederaEvmTransactionResult(
     }
 
     private ContractFunctionResult withMaybeEthFields(
-            @NonNull final ContractFunctionResult.Builder builder, @Nullable final EthTxData ethTxData) {
+            @NonNull final ContractFunctionResult.Builder builder,
+            @Nullable final EthTxData ethTxData,
+            @Nullable final Bytes callData) {
         if (ethTxData != null) {
             builder.gas(ethTxData.gasLimit())
                     .amount(ethTxData.getAmount())
                     .senderId(senderId)
-                    .functionParameters(Bytes.wrap(ethTxData.callData()));
+                    .functionParameters(requireNonNull(callData));
         }
         return builder.build();
     }
 
     private EvmTransactionResult txWithMaybeEthFields(
-            @NonNull final EvmTransactionResult.Builder builder, @Nullable final EthTxData ethTxData) {
+            @NonNull final EvmTransactionResult.Builder builder,
+            @Nullable final EthTxData ethTxData,
+            @Nullable final Bytes callData) {
         if (ethTxData != null) {
-            builder.senderId(senderId);
+            builder.senderId(senderId)
+                    .internalCallContext(new InternalCallContext(
+                            ethTxData.gasLimit(), ethTxData.getAmount(), requireNonNull(callData)));
         }
         return builder.build();
     }

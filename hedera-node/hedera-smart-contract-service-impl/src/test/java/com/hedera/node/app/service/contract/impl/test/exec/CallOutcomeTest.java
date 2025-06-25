@@ -47,7 +47,8 @@ class CallOutcomeTest {
                 null,
                 null,
                 EvmTransactionResult.DEFAULT,
-                null, null);
+                null,
+                null);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
@@ -57,7 +58,7 @@ class CallOutcomeTest {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT.asProtoResultOf(updater),
+                SUCCESS_RESULT.asProtoResultOf(null, updater, null),
                 SUCCESS,
                 null,
                 null,
@@ -65,8 +66,9 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null),
-                SUCCESS_RESULT.signerNonce(), null);
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.signerNonce(),
+                null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 
@@ -74,7 +76,7 @@ class CallOutcomeTest {
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT.asProtoResultOf(updater),
+                SUCCESS_RESULT.asProtoResultOf(null, updater, null),
                 SUCCESS,
                 null,
                 null,
@@ -82,8 +84,9 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null),
-                SUCCESS_RESULT.signerNonce(), null);
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.signerNonce(),
+                null);
         assertNull(outcome.recipientIdIfCreated());
     }
 
@@ -91,7 +94,7 @@ class CallOutcomeTest {
     void calledIdIsFromResult() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome = new CallOutcome(
-                SUCCESS_RESULT.asProtoResultOf(updater),
+                SUCCESS_RESULT.asProtoResultOf(null, updater, null),
                 INVALID_CONTRACT_ID,
                 CALLED_CONTRACT_ID,
                 null,
@@ -99,8 +102,9 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
-                SUCCESS_RESULT.asEvmTxResultOf(null),
-                SUCCESS_RESULT.signerNonce(), null);
+                SUCCESS_RESULT.asEvmTxResultOf(null, null),
+                SUCCESS_RESULT.signerNonce(),
+                null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());
     }
 }

@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.TraceData;
@@ -10,17 +17,9 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.List;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
-import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
-import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
-import static java.util.Objects.requireNonNull;
 
 /**
  * Translates a contract create transaction into a {@link SingleTransactionRecord}.
@@ -43,11 +42,13 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
                             .ifPresent(createContractOutput -> {
-                                final var derivedBuilder = resultBuilderFrom(createContractOutput.evmTransactionResultOrThrow());
+                                final var derivedBuilder =
+                                        resultBuilderFrom(createContractOutput.evmTransactionResultOrThrow());
                                 if (parts.status() == SUCCESS) {
                                     if (parts.isTopLevel()) {
                                         // If all sidecars are disabled and there were no logs for a top-level creation,
-                                        // for parity we still need to fill in the result with empty logs and implied bloom
+                                        // for parity we still need to fill in the result with empty logs and implied
+                                        // bloom
                                         if (!parts.hasTraces()
                                                 && parts.transactionIdOrThrow().nonce() == 0) {
                                             derivedBuilder
@@ -60,8 +61,11 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                         baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
                                         baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);
                                     }
-                                    final var createdId = createContractOutput.evmTransactionResultOrThrow().contractIdOrThrow();
-                                    baseTranslator.addCreatedEvmAddressTo(derivedBuilder, createdId, remainingStateChanges);
+                                    final var createdId = createContractOutput
+                                            .evmTransactionResultOrThrow()
+                                            .contractIdOrThrow();
+                                    baseTranslator.addCreatedEvmAddressTo(
+                                            derivedBuilder, createdId, remainingStateChanges);
                                 }
                                 recordBuilder.contractCreateResult(derivedBuilder.build());
                             });

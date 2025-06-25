@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.common;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -15,10 +19,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
-
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 
 /**
  * Encapsulates a call to the HTS system contract.
@@ -101,7 +101,9 @@ public interface Call {
                     .senderId(senderId)
                     .contractId(contractId)
                     .internalCallContext(InternalCallContext.newBuilder()
-                            .callData(functionParameters).gas(remainingGas).value(nonGasCost))
+                            .callData(functionParameters)
+                            .gas(remainingGas)
+                            .value(nonGasCost))
                     .resultData(Bytes.EMPTY)
                     .errorMessage(INSUFFICIENT_GAS.protoName())
                     .gasUsed(fullResult().gasRequirement())
@@ -150,7 +152,9 @@ public interface Call {
                     .contractId(contractId)
                     .senderId(senderId)
                     .internalCallContext(InternalCallContext.newBuilder()
-                            .callData(functionParameters).gas(remainingGas).value(nonGasCost))
+                            .callData(functionParameters)
+                            .gas(remainingGas)
+                            .value(nonGasCost))
                     .resultData(tuweniToPbjBytes(fullResult.output()))
                     .errorMessage(errorMessage)
                     .gasUsed(fullResult().gasRequirement())

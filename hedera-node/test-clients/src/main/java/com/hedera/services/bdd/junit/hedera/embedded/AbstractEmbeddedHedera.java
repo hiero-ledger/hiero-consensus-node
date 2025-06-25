@@ -1,6 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
+import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
+import static com.swirlds.platform.system.InitTrigger.GENESIS;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
+import static java.util.Objects.requireNonNull;
+import static java.util.Spliterators.spliteratorUnknownSize;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.StreamSupport.stream;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
+
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.Hedera;
@@ -37,13 +50,6 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -52,19 +58,12 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.ADDRESS_BOOK;
-import static com.hedera.services.bdd.junit.hedera.embedded.fakes.FakePlatformContext.PLATFORM_CONFIG;
-import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static java.util.Objects.requireNonNull;
-import static java.util.Spliterators.spliteratorUnknownSize;
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.StreamSupport.stream;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
-import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Implementation support for {@link EmbeddedHedera}.
@@ -108,6 +107,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
      * Non-final because we may re-create state via {@link EmbeddedHedera#restart(FakeState)}.
      */
     protected FakeState state;
+
     protected Hedera hedera;
     protected SemanticVersion version;
     protected boolean blockStreamEnabled;
@@ -322,7 +322,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();
     }
-
 
     /**
      * Fails fast if somehow a user tries to manipulate the version when submitting to the default node account.
