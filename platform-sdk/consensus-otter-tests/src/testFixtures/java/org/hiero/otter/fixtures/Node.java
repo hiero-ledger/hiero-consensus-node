@@ -10,7 +10,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 
 /**
  * Interface representing a node in the network.
@@ -140,12 +140,12 @@ public interface Node {
     SingleNodeLogResult getLogResult();
 
     /**
-     * Gets the status progression of the node.
+     * Gets the status progression result of the node.
      *
-     * @return the status progression of the node
+     * @return the status progression result of the node
      */
     @NonNull
-    SingleNodeStatusProgression getStatusProgression();
+    SingleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
      * Gets the results related to PCES files.

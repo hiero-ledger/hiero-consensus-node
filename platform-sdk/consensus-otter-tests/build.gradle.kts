@@ -22,10 +22,19 @@ plugins {
 description = "Consensus Otter Test Framework"
 
 testModuleInfo {
+    requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.logging")
+    requires("com.swirlds.platform.core.test.fixtures")
     requires("org.apache.logging.log4j")
     requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+    requires("com.github.spotbugs.annotations")
+    requires("com.swirlds.component.framework")
+    requires("com.swirlds.metrics.api")
+    requires("org.hiero.consensus.utility")
 }
 
 // Runs tests against the Turtle environment
