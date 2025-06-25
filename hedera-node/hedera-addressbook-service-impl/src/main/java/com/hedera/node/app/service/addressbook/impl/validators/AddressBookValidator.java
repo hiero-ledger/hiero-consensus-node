@@ -152,8 +152,27 @@ public class AddressBookValidator {
         validateFalse(addressLen == 0 && endpoint.domainName().trim().isEmpty(), INVALID_ENDPOINT);
         validateFalse(
                 addressLen != 0 && !endpoint.domainName().trim().isEmpty(), IP_FQDN_CANNOT_BE_SET_FOR_SAME_ENDPOINT);
-        validateFalse(endpoint.domainName().trim().length() > nodesConfig.maxFqdnSize(), FQDN_SIZE_TOO_LARGE);
+        validateFqdnSize(endpoint, nodesConfig);
         validateFalse(addressLen != 0 && addressLen != 4, INVALID_IPV4_ADDRESS);
+    }
+
+    /**
+     * Validates that a {@code ServiceEndpoint} <b>only</b> contains a valid FQDN (with no IPv4 address)
+     *
+     * @param endpoint the endpoint to validate
+     * @param nodesConfig the nodes configuration
+     */
+    public void validateFqdnEndpoint(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        requireNonNull(endpoint);
+        requireNonNull(nodesConfig);
+
+        validateFalse(endpoint.domainName().isEmpty(), INVALID_SERVICE_ENDPOINT);
+        validateFqdnSize(endpoint, nodesConfig);
+        validateFalse(endpoint.ipAddressV4().length() > 0, INVALID_SERVICE_ENDPOINT);
+    }
+
+    private void validateFqdnSize(@NonNull final ServiceEndpoint endpoint, @NonNull final NodesConfig nodesConfig) {
+        validateFalse(endpoint.domainName().trim().length() > nodesConfig.maxFqdnSize(), FQDN_SIZE_TOO_LARGE);
     }
 
     /**

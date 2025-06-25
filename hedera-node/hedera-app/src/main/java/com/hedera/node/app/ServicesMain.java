@@ -34,7 +34,6 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
@@ -74,7 +73,6 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
@@ -90,7 +88,6 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -226,7 +223,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *  {@link ConsensusStateEventHandler}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
      *  instance itself.
-     *  <p>
+     * <p>
      *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
      *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
      *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query
@@ -322,8 +319,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hedera.setInitialStateHash(reservedState.hash());
 
         // --- Create the platform context and initialize the cryptography ---
-        final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-        final var currentRoster = requireNonNull(rosterStore.getActiveRoster());
+        final var rosterHistory = RosterUtils.createRosterHistory(state);
+        final var currentRoster = rosterHistory.getCurrentRoster();
         // For now we convert to a legacy representation of the roster for convenience
         final var addressBook = requireNonNull(buildAddressBook(currentRoster));
         if (!addressBook.contains(selfId)) {
@@ -334,7 +331,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         cryptography.digestSync(addressBook);
 
         // --- Now build the platform and start it ---
-        final var rosterHistory = RosterUtils.createRosterHistory(rosterStore);
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
                         Hedera.SWIRLD_NAME,
@@ -357,9 +353,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hedera.init(platform, selfId);
 
         // Initialize block node connections before starting the platform
-        final var waitPeriodForActiveConnection =
-                platformConfig.getConfigData(BlockStreamConfig.class).waitPeriodForActiveConnection();
-        hedera.initializeBlockNodeConnections(Duration.ofMinutes(waitPeriodForActiveConnection));
+        hedera.initializeBlockNodeConnections();
 
         platform.start();
         hedera.run();

@@ -4,6 +4,7 @@ package com.hedera.services.yahcli.config;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.readKeyPairFrom;
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.readECKeyFrom;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
@@ -219,17 +220,19 @@ public class ConfigManager {
     }
 
     private void assertDefaultNodeAccountIsKnown() {
+        final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
         defaultNodeAccount =
-                Optional.ofNullable(yahcli.getNodeAccount()).orElse(String.valueOf(targetNet.getDefaultNodeAccount()));
+                Optional.ofNullable(normalizedNodeAccount).orElse(String.valueOf(targetNet.getDefaultNodeAccount()));
     }
 
     private void assertDefaultPayerIsKnown() {
-        if (yahcli.getPayer() == null && targetNet.getDefaultPayer() == null) {
+        final var normalizedPayer = normalizePossibleIdLiteral(this, yahcli.getPayer());
+        if (normalizedPayer == null && targetNet.getDefaultPayer() == null) {
             fail(String.format(
                     "No payer was specified, and no default is available in %s for network" + " '%s'",
                     yahcli.getConfigLoc(), targetName));
         }
-        defaultPayer = Optional.ofNullable(yahcli.getPayer()).orElse(targetNet.getDefaultPayer());
+        defaultPayer = Optional.ofNullable(normalizedPayer).orElse(targetNet.getDefaultPayer());
     }
 
     private void assertTargetNetIsKnown() {
@@ -255,8 +258,9 @@ public class ConfigManager {
         targetNet = global.getNetworks().get(targetName);
         if (yahcli.getNodeIpv4Addr() != null) {
             final var ip = yahcli.getNodeIpv4Addr();
+            final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
             var nodeAccount =
-                    (yahcli.getNodeAccount() == null) ? MISSING_NODE_ACCOUNT : Long.parseLong(yahcli.getNodeAccount());
+                    (normalizedNodeAccount == null) ? MISSING_NODE_ACCOUNT : Long.parseLong(normalizedNodeAccount);
             final var nodes = targetNet.getNodes();
             if (nodeAccount == MISSING_NODE_ACCOUNT) {
                 for (final var node : nodes) {

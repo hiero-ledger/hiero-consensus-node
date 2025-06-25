@@ -2,261 +2,266 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIMULATOR;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeSimulatorVerbs.blockNodeSimulator;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
+import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
+import static java.time.temporal.ChronoUnit.SECONDS;
 
+import com.hedera.services.bdd.HapiBlockNode;
+import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
+import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
  * This suite is for testing with the block node simulator.
- *
- * <p>Note: This suite requires the block node simulator to be enabled.
- * Use the system property "hapi.spec.blocknode.mode=SIM" to enable it.
- * The testSubprocessWithBlockNodeSimulator task automatically sets this property.
  */
 @Tag(BLOCK_NODE_SIMULATOR)
 @OrderedInIsolation
 public class BlockNodeSimulatorSuite {
 
     @HapiTest
-    final Stream<DynamicTest> nominalStreamingBlocksNoErrors() {
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(0)
+    final Stream<DynamicTest> node0StreamingHappyPath() {
         return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true));
+                burstOfTps(300, Duration.ofSeconds(600)),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> node0BlockInternalError() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(0)
+    final Stream<DynamicTest> node0StreamingBufferFull() {
         return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.INTERNAL_ERROR)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5), // Timeframe window to search for messages
-                        Duration.ofSeconds(20), // Wait timeout for messages to appear
-                        "Received EndOfStream from block node localhost",
-                        "Restarting stream at block 0 due to STREAM_ITEMS_INTERNAL_ERROR for node localhost",
-                        "Ending stream and restarting at block 0 for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Set current block number to 0 for node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost",
-                        "Stream ended and restarted at block 0 for node localhost"));
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
     }
 
     @HapiTest
-    final Stream<DynamicTest> node0BlockTimeout() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
+    @HapiBlockNode(
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR),
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {1},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {2},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 3,
+                        blockNodeIds = {3},
+                        blockNodePriorities = {0}),
+            })
+    @Order(1)
+    final Stream<DynamicTest> allNodesStreamingHappyPath() {
         return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.TIMEOUT)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(20),
-                        "Received EndOfStream from block node localhost",
-                        "Restarting stream at block 0 due to STREAM_ITEMS_TIMEOUT for node localhost",
-                        "Ending stream and restarting at block 0 for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Set current block number to 0 for node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost",
-                        "Stream ended and restarted at block 0 for node localhost"));
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
-    final Stream<DynamicTest> node0BlockOutOfOrder() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(2)
+    final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsCanStreamGenesisBlock() {
+        final AtomicReference<Instant> time = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.OUT_OF_ORDER)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
+                doingContextual(spec -> portNumbers.add(spec.getBlockNodePortById(0))),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                doingContextual(spec -> time.set(Instant.now())),
+                blockNodeSimulator(0).sendEndOfStreamImmediately(Code.BEHIND).withBlockNumber(Long.MAX_VALUE),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(20),
-                        "Received EndOfStream from block node localhost",
-                        "Restarting stream at block 0 due to STREAM_ITEMS_OUT_OF_ORDER for node localhost",
-                        "Ending stream and restarting at block 0 for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Set current block number to 0 for node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost",
-                        "Stream ended and restarted at block 0 for node localhost"));
+                        time::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Block node reported it is behind. Will restart stream at block 0.",
+                                portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Received EndOfStream response (block=9223372036854775807, responseCode=BEHIND)",
+                                portNumbers.getFirst()))),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true));
     }
 
     @HapiTest
-    final Stream<DynamicTest> node0BlockBadStateProof() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1, 2, 3},
+                        blockNodePriorities = {0, 1, 2, 3})
+            })
+    @Order(3)
+    final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
+        final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
+        final List<Integer> portNumbers = new ArrayList<>();
         return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.BAD_STATE_PROOF)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                    portNumbers.add(spec.getBlockNodePortById(2));
+                    portNumbers.add(spec.getBlockNodePortById(3));
+                }),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeSimulator(0).shutDownImmediately(), // Pri 0
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
                         byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(20),
-                        "Received EndOfStream from block node localhost",
-                        "Restarting stream at block 0 due to STREAM_ITEMS_BAD_STATE_PROOF for node localhost",
-                        "Ending stream and restarting at block 0 for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Set current block number to 0 for node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost",
-                        "Stream ended and restarted at block 0 for node localhost"));
+                        connectionDropTime::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.getFirst()),
+                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
+                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(1)))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeSimulator(1).shutDownImmediately(), // Pri 1
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(1)),
+                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(2)),
+                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(2)),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                portNumbers.get(2)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(2)))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeSimulator(2).shutDownImmediately(), // Pri 2
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(10, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(2)),
+                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(3)),
+                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(3)),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                portNumbers.get(3)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(3)))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> connectionDropTime.set(Instant.now())),
+                blockNodeSimulator(1).startImmediately(),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(15, SECONDS),
+                        Duration.of(45, SECONDS),
+                        String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(1)),
+                        String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
+                                portNumbers.get(3)),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Connection successfully closed", portNumbers.get(3)),
+                        String.format(
+                                "The existing active connection (localhost:%s/ACTIVE) has an equal or higher priority"
+                                        + " than the connection (localhost:%s/CONNECTING) we are attempting to connect to"
+                                        + " and this new connection attempt will be ignored",
+                                portNumbers.get(1), portNumbers.get(2)))),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
     }
 
     @HapiTest
-    final Stream<DynamicTest> node0BlockBehind() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
+    @HapiBlockNode(
+            networkSize = 2,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0}),
+                @SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(4)
+    final Stream<DynamicTest> twoNodesStreamingOneBlockNodeHappyPath() {
         return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.BEHIND)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(20),
-                        "Received EndOfStream from block node localhost",
-                        "Restarting stream at block 0 due to STREAM_ITEMS_BEHIND for node localhost",
-                        "Ending stream and restarting at block 0 for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Set current block number to 0 for node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost",
-                        "Stream ended and restarted at block 0 for node localhost"));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> node0BlockPersistenceFailed() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
-        return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.PERSISTENCE_FAILED)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(20),
-                        "Received EndOfStream from block node localhost",
-                        "Restarting stream at block 0 due to STREAM_ITEMS_PERSISTENCE_FAILED for node localhost",
-                        "Ending stream and restarting at block 0 for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Set current block number to 0 for node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost",
-                        "Stream ended and restarted at block 0 for node localhost"));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> node0BlockSuccess() {
-        AtomicLong lastVerifiedBlockNumber = new AtomicLong(0);
-        AtomicReference<Instant> startTime = new AtomicReference<>();
-
-        return hapiTest(
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                doingContextual(spec -> startTime.set(Instant.now())),
-                blockNodeSimulator(0)
-                        .sendEndOfStreamImmediately(Code.SUCCESS)
-                        .withBlockNumber(Long.MAX_VALUE)
-                        .exposingLastVerifiedBlockNumber(lastVerifiedBlockNumber),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                assertHgcaaLogContainsTimeframe(
-                        byNodeId(0),
-                        startTime::get,
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(20),
-                        "Received EndOfStream from block node localhost",
-                        "Stream ended successfully for node localhost",
-                        "Request worker thread interrupted for node localhost",
-                        "Closed connection to block node localhost",
-                        "Establishing stream to block node localhost",
-                        "Started request worker thread for block node localhost"));
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }

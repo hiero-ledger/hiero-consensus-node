@@ -13,13 +13,19 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.MerkleNodeState;
+import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.address.AddressBookUtils;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
+import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
+import com.swirlds.state.spi.ReadableStates;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
+import java.util.Random;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -150,41 +156,59 @@ public class RosterUtilsTest {
 
     @Test
     void testCreateRosterHistory() {
-        // Mock the ReadableRosterStore
-        ReadableRosterStore rosterStore = mock(ReadableRosterStore.class);
+        final Random random = new Random();
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
 
-        // Create mock data
-        RoundRosterPair pair1 = new RoundRosterPair(1, Bytes.wrap(new byte[] {1}));
-        RoundRosterPair pair2 = new RoundRosterPair(2, Bytes.wrap(new byte[] {2}));
-        List<RoundRosterPair> roundRosterPairs = List.of(pair2, pair1);
+        final Roster currentRoster =
+                RandomRosterBuilder.create(random).withSize(4).build();
+        final Roster previousRoster =
+                RandomRosterBuilder.create(random).withSize(3).build();
+        RosterServiceStateMock.setup(state, currentRoster, 16L, previousRoster);
 
-        Roster roster1 = mock(Roster.class);
-        Roster roster2 = mock(Roster.class);
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
+        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
+    }
 
-        // Define behavior for the mock
-        when(rosterStore.getRosterHistory()).thenReturn(roundRosterPairs);
-        when(rosterStore.get(Bytes.wrap(new byte[] {1}))).thenReturn(roster1);
-        when(rosterStore.get(Bytes.wrap(new byte[] {2}))).thenReturn(roster2);
+    @Test
+    void testCreateRosterHistoryVerifyRound() {
+        final Random random = RandomUtils.getRandomPrintSeed();
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final Roster currentRoster =
+                RandomRosterBuilder.create(random).withSize(4).build();
+        final Roster previousRoster =
+                RandomRosterBuilder.create(random).withSize(3).build();
+        RosterServiceStateMock.setup(state, currentRoster, 16L, previousRoster);
 
-        // Call the method under test
-        RosterHistory rosterHistory = RosterUtils.createRosterHistory(rosterStore);
+        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
+        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
 
-        // Verify the results
-        assertEquals(roster2, rosterHistory.getCurrentRoster());
-        assertEquals(roster1, rosterHistory.getPreviousRoster());
-        assertEquals(roster1, rosterHistory.getRosterForRound(1));
-        assertEquals(roster2, rosterHistory.getRosterForRound(2));
+        assertEquals(currentRoster, rosterHistory.getRosterForRound(16));
+        assertEquals(currentRoster, rosterHistory.getRosterForRound(18));
+        assertEquals(currentRoster, rosterHistory.getRosterForRound(100));
+        assertEquals(currentRoster, rosterHistory.getRosterForRound(Integer.MAX_VALUE));
+        assertEquals(previousRoster, rosterHistory.getRosterForRound(15));
+        assertEquals(previousRoster, rosterHistory.getRosterForRound(0));
+        assertNull(rosterHistory.getRosterForRound(-1));
     }
 
     @Test
     void testCreateRosterHistoryNoActiveRosters() {
-        // Mock the ReadableRosterStore
-        ReadableRosterStore rosterStore = mock(ReadableRosterStore.class);
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        when(state.getReadableStates(RosterStateId.NAME)).thenReturn(null);
 
-        // Define behavior for the mock
-        when(rosterStore.getRosterHistory()).thenReturn(null);
+        assertThrows(NullPointerException.class, () -> RosterUtils.createRosterHistory(state));
+    }
 
-        assertThrows(NullPointerException.class, () -> RosterUtils.createRosterHistory(rosterStore));
+    @Test
+    void testCreateRosterHistoryNoRosters() {
+        final MerkleNodeState state = mock(MerkleNodeState.class);
+        RosterServiceStateMock.setup(state, null, 16L, null);
+
+        assertThrows(IllegalArgumentException.class, () -> RosterUtils.createRosterHistory(state));
     }
 
     @Test

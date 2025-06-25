@@ -10,7 +10,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 
 /**
  * Interface representing a node in the network.
@@ -29,8 +29,7 @@ public interface Node {
      * Kill the node without prior cleanup.
      *
      * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
-     * preserve the current state, or any other similar operation is made. To simulate a graceful
-     * shutdown, use {@link #shutdownGracefully()} instead.
+     * preserve the current state, or any other similar operation is made.
      *
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
@@ -38,21 +37,6 @@ public interface Node {
      * @throws InterruptedException if the thread is interrupted while waiting
      */
     void killImmediately() throws InterruptedException;
-
-    /**
-     * Shutdown the node gracefully.
-     *
-     * <p>This method simulates a graceful shutdown of the node. It allows the node to finish any
-     * ongoing work, preserve the current state, and perform any other necessary cleanup operations
-     * before shutting down. If the simulation of a sudden failure is desired, use
-     * {@link #killImmediately()} instead.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
-     * shut down. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
-     */
-    void shutdownGracefully() throws InterruptedException;
 
     /**
      * Start the node.
@@ -105,6 +89,15 @@ public interface Node {
     PlatformStatus platformStatus();
 
     /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#ACTIVE}.
+     *
+     * @return {@code true} if the node is active, {@code false} otherwise
+     */
+    default boolean isActive() {
+        return platformStatus() == PlatformStatus.ACTIVE;
+    }
+
+    /**
      * Gets the software version of the node.
      *
      * @return the software version of the node
@@ -147,12 +140,12 @@ public interface Node {
     SingleNodeLogResult getLogResult();
 
     /**
-     * Gets the status progression of the node.
+     * Gets the status progression result of the node.
      *
-     * @return the status progression of the node
+     * @return the status progression result of the node
      */
     @NonNull
-    SingleNodeStatusProgression getStatusProgression();
+    SingleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
      * Gets the results related to PCES files.
