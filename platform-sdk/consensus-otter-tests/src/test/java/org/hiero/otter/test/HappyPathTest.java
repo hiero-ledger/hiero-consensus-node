@@ -2,6 +2,7 @@
 package org.hiero.otter.test;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
@@ -12,7 +13,6 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import java.time.Duration;
 import org.apache.logging.log4j.Level;
-import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -24,7 +24,7 @@ public class HappyPathTest {
 
     @Disabled
     @OtterTest
-    void testHappyPath(TestEnvironment env) throws InterruptedException {
+    void testHappyPath(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -46,6 +46,8 @@ public class HappyPathTest {
 
         assertThat(network.getPcesResults()).hasAllBirthRoundsEqualTo(1);
 
-        assertThat(network.getConsensusResults()).haveEqualRoundsIgnoringLast(Percentage.withPercentage(1));
+        assertThat(network.getConsensusResults())
+                .roundsInCommonAreEqual()
+                .hasMaxDifferenceInLastRoundNum(withPercentage(1));
     }
 }

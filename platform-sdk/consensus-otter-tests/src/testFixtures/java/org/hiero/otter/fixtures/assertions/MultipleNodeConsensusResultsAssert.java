@@ -108,31 +108,32 @@ public class MultipleNodeConsensusResultsAssert
                 continue;
             }
 
-            // Get the same rounds from this node as the node with the fewest rounds and compare them
-            final List<ConsensusRound> commonNodeRounds = roundsFromNodeToAssert.rounds().subList(0, shortestSize);
-            Assertions.assertThat(roundsFromNodeToAssert.rounds())
+            // Get the same rounds from this node as create by the node with the fewest rounds and compare them
+            final List<ConsensusRound> commonNodeRounds =
+                    roundsFromNodeToAssert.rounds().subList(0, shortestSize);
+            Assertions.assertThat(commonNodeRounds)
                     .withFailMessage(
                             "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            roundsFromNodeToAssert.nodeId(),
                             fewestNodeRoundsResult.nodeId(),
-                            roundsFromNodeToAssert.rounds(),
-                            commonNodeRounds)
-                    .containsExactlyElementsOf(commonNodeRounds);
+                            roundsFromNodeToAssert.nodeId(),
+                            commonNodeRounds,
+                            fewestNodeRoundsResult.rounds())
+                    .containsExactlyElementsOf(fewestNodeRoundsResult.rounds());
         }
 
         return this;
     }
 
     /**
-     * Verifies that all nodes have produced the same rounds acknowledging that nodes may have progressed differently
-     * (up to a given maximum).
+     * Verifies that the difference in the number of rounds produced by the fastest and the slowest node is less than or
+     * equal to the given percentage.
      *
-     * @param expectedDifference the maximum percentage of rounds that some nodes may have progressed farther than
-     *                           others
+     * @param expectedDifference the percentage of difference in number of consensus rounds that is allowed between the
+     *                           fastest and the slowest node
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert haveEqualRoundsIgnoringLast(
+    public MultipleNodeConsensusResultsAssert hasMaxDifferenceInLastRoundNum(
             @NonNull final Percentage expectedDifference) {
         isNotNull();
 
@@ -161,23 +162,6 @@ public class MultipleNodeConsensusResultsAssert
             failWithMessage(
                     "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %2.f%%",
                     expectedDifference, actualDifference);
-        }
-
-        // Check that all nodes produced the same consensus rounds as are in the longest list
-        for (final NodeRoundsResult currentNodeResult : currentRoundResults) {
-            if (currentNodeResult.nodeId().equals(longestResult.nodeId())) {
-                continue;
-            }
-            final int size = currentNodeResult.size();
-            final List<ConsensusRound> expectedSublist = longestResult.rounds().subList(0, size);
-            Assertions.assertThat(currentNodeResult.rounds())
-                    .withFailMessage(
-                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            currentNodeResult.nodeId(),
-                            longestResult.nodeId(),
-                            currentNodeResult.rounds(),
-                            expectedSublist)
-                    .containsExactlyElementsOf(expectedSublist);
         }
 
         return this;
