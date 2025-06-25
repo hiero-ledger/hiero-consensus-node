@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.OtterResult;
@@ -71,10 +71,10 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
      */
     @NonNull
     @Override
-    public MultipleNodeLogResults ignoring(@NonNull final Node node) {
-        Objects.requireNonNull(node, "node cannot be null");
+    public MultipleNodeLogResults suppressingNode(@NonNull final NodeId nodeId) {
+        Objects.requireNonNull(nodeId, "nodeId cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
-                .filter(res -> Objects.equals(res.nodeId(), node.getSelfId()))
+                .filter(res -> Objects.equals(res.nodeId(), nodeId))
                 .toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
@@ -85,10 +85,10 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
      */
     @NonNull
     @Override
-    public MultipleNodeLogResults ignoring(@NonNull final LogMarker marker) {
+    public MultipleNodeLogResults suppressingLogMarker(@NonNull final LogMarker marker) {
         Objects.requireNonNull(marker, "marker cannot be null");
         final List<SingleNodeLogResult> filteredResults =
-                results.stream().map(res -> res.ignoring(marker)).toList();
+                results.stream().map(res -> res.suppressingLogMarker(marker)).toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
     }

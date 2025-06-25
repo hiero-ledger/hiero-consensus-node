@@ -14,7 +14,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
@@ -105,12 +105,12 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns a {@link SingleNodeStatusProgression} of the current state.
+     * Returns a {@link SingleNodePlatformStatusResults} of the current state.
      *
-     * @return the {@link SingleNodeStatusProgression}
+     * @return the {@link SingleNodePlatformStatusResults}
      */
-    public SingleNodeStatusProgression getStatusProgression() {
-        return new SingleNodeStatusProgressionImpl(nodeId, new ArrayList<>(platformStatuses));
+    public SingleNodePlatformStatusResults getStatusProgression() {
+        return new SingleNodePlatformStatusResultsImpl(nodeId, new ArrayList<>(platformStatuses));
     }
 
     /**

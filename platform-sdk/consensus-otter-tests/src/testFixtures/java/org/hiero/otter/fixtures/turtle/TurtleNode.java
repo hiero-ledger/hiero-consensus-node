@@ -58,7 +58,7 @@ import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
@@ -219,24 +219,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      * {@inheritDoc}
      */
     @Override
-    public void shutdownGracefully() throws InterruptedException {
-        try {
-            ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
-
-            if (platformWiring != null) {
-                platformWiring.flushIntakePipeline();
-            }
-            doShutdownNode();
-
-        } finally {
-            ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void start() {
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, selfId.toString());
@@ -312,7 +294,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
      */
     @Override
     @NonNull
-    public SingleNodeStatusProgression getStatusProgression() {
+    public SingleNodePlatformStatusResults getPlatformStatusResults() {
         return resultsCollector.getStatusProgression();
     }
 
@@ -475,14 +457,6 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
         @Override
         public void killImmediately() throws InterruptedException {
             TurtleNode.this.killImmediately();
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void shutdownGracefully() throws InterruptedException {
-            TurtleNode.this.shutdownGracefully();
         }
 
         /**
