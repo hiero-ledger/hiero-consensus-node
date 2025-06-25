@@ -322,8 +322,8 @@ public interface BinaryState {
 The goal of this refactoring is to provide a clean, low-level interface for interacting with state.
 The implementation of this interface should have minimal dependencies and **must not** depend on the HAPI module.
 
-The existing `State` interface, along with its related interfaces and implementations, will be moved to the `hedera-app` module. To reduce the changeset,
-target package should be exactly the same - `com.swirlds.state`.
+The existing `State` interface, along with its related interfaces and implementations, will be moved to the `hedera-app` module,
+to `com.hedera.node.app.state` package.
 
 However, to make this migration possible, we need to refactor the code in `swirlds-platform-core` that depends on the `State` interface and the related classes.
 
