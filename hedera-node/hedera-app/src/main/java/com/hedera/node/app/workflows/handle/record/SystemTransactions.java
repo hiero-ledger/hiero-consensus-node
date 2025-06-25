@@ -111,6 +111,7 @@ import javax.inject.Singleton;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
 
@@ -487,10 +488,11 @@ public class SystemTransactions {
         requireNonNull(state);
         requireNonNull(now);
         final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var rosterStore = readableStoreFactory.getStore(ReadableRosterStoreImpl.class);
+        final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(now, state, dispatch -> {
         }, false);
+        log.info("Dispatching synthetic node updates for round {}, {}", currentRoundNum, rosterStore.isTransplantInProgress());
         if (rosterStore.isTransplantInProgress()) {
             log.info("Roster transplant in progress, dispatching node updates");
 
@@ -552,10 +554,12 @@ public class SystemTransactions {
                     log.info("Node {} in state is not part of the override network and is being marked deleted", i);
                 }
             }
+
             final var writableStates = state.getWritableStates(RosterService.NAME);
             final var writableRosterStore = new WritableRosterStore(writableStates);
             writableRosterStore.updateTransplantInProgress(false);
             ((CommittableWritableStates) writableStates).commit();
+            log.info("Roster transplant completed, node updates dispatched");
 
             return true;
         }

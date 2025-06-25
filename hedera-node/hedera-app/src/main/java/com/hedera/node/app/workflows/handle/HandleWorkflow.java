@@ -270,7 +270,7 @@ public class HandleWorkflow {
                         round.getRoundNum());
             }
         } catch (Exception e) {
-            logger.warn("Failed to reward active nodes", e);
+            logger.warn("Failed to dispatch transplant updates", e);
         }
 
         configureTssCallbacks(state);
