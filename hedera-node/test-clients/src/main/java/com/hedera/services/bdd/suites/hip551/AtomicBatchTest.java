@@ -977,12 +977,12 @@ public class AtomicBatchTest {
                                         .via("updateKyc")
                                         .sigMapPrefixes(uniqueWithFullPrefixesFor("newAdminKey", batchOperator))
                                         .signedBy("newAdminKey", batchOperator))
-                        .payingWith(batchOperator),
-                getTxnRecord("updateKyc").logged());
+                        .payingWith(batchOperator)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
-    @DisplayName("Updated required key in batch")
+    @DisplayName("Additional verifications scale as expected")
     public Stream<DynamicTest> additionalVerificationsScaleAsExpected() {
         final var overlappingKeyGen = OverlappingKeyGenerator.withAtLeastOneOverlappingByte(3);
         final var feeOneSigMint = new AtomicLong();
