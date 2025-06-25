@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -23,11 +22,9 @@ public interface Network {
      *
      * @param count the number of nodes to add
      * @return a list of the added nodes
-     * @throws IOException if an I/O error occurs while adding nodes
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
     @NonNull
-    List<Node> addNodes(int count) throws IOException, InterruptedException;
+    List<Node> addNodes(int count);
 
     /**
      * Start the network with the currently configured setup.
@@ -35,11 +32,8 @@ public interface Network {
      * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
      * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws IOException if an I/O error occurs while starting the network
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws IOException, InterruptedException;
+    void start();
 
     /**
      * Add an instrumented node to the network.

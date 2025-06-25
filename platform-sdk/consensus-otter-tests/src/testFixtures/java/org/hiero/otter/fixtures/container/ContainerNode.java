@@ -10,7 +10,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
@@ -38,7 +37,7 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
@@ -120,15 +119,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public void shutdownGracefully() throws InterruptedException {
-        defaultAsyncAction.shutdownGracefully();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void start() throws IOException, InterruptedException {
+    public void start() {
         defaultAsyncAction.start();
     }
 
@@ -180,7 +171,7 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     @NonNull
-    public SingleNodeStatusProgression getStatusProgression() {
+    public SingleNodePlatformStatusResults getPlatformStatusResults() {
         return resultsCollector.getStatusProgression();
     }
 
@@ -196,11 +187,8 @@ public class ContainerNode extends AbstractNode implements Node {
     /**
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws IOException if an I/O error occurs while sending the destroy command
-     * @throws InterruptedException if the thread is interrupted while waiting for the command to complete
      */
-    void destroy() throws IOException, InterruptedException {
+    void destroy() {
         if (lifeCycle == RUNNING) {
             if (channel != null) {
                 channel.shutdownNow();
@@ -232,7 +220,7 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
-        public void start() throws IOException, InterruptedException {
+        public void start() {
             throwIfIn(LifeCycle.RUNNING, "Node has already been started.");
             throwIfIn(LifeCycle.DESTROYED, "Node has already been destroyed.");
 
@@ -268,7 +256,7 @@ public class ContainerNode extends AbstractNode implements Node {
                 }
 
                 @Override
-                public void onError(Throwable t) {
+                public void onError(@NonNull final Throwable t) {
                     log.error("gRPC error from node {}", selfId, t);
                 }
 
@@ -279,14 +267,6 @@ public class ContainerNode extends AbstractNode implements Node {
             });
 
             lifeCycle = RUNNING;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public void shutdownGracefully() {
-            throw new UnsupportedOperationException("Not implemented yet!");
         }
 
         /**

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
-import java.io.IOException;
-
 /**
  * Interface for performing asynchronous network actions such as starting, freezing, and shutting down the network
  * with a specified timeout.
@@ -14,11 +12,8 @@ public interface AsyncNetworkActions {
      * Start the network with the currently configured setup and timeout
      *
      * @see Network#start()
-     *
-     * @throws IOException if an I/O error occurs while starting the network
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws IOException, InterruptedException;
+    void start();
 
     /**
      * Freezes the network with the configured timeout.

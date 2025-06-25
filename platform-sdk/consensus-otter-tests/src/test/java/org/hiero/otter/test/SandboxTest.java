@@ -12,7 +12,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.Level;
@@ -34,7 +33,7 @@ public class SandboxTest {
 
     @OtterTest
     @Disabled
-    void testConsistencyNDReconnect(TestEnvironment env) throws IOException, InterruptedException {
+    void testConsistencyNDReconnect(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -67,7 +66,7 @@ public class SandboxTest {
 
     @OtterTest
     @Disabled
-    void testBranching(TestEnvironment env) throws IOException, InterruptedException {
+    void testBranching(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 

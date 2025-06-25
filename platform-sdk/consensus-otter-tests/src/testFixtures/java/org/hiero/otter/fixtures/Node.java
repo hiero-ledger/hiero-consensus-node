@@ -5,7 +5,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.IOException;
 import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -44,11 +43,8 @@ public interface Node {
      *
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
      * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws IOException if an I/O error occurs while starting the node
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws IOException, InterruptedException;
+    void start();
 
     /**
      * Allows to override the default timeout for node operations.

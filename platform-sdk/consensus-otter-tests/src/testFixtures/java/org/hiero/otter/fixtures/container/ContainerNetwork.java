@@ -104,7 +104,7 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     @NonNull
-    public List<Node> addNodes(final int count) throws IOException, InterruptedException {
+    public List<Node> addNodes(final int count) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
         final List<ContainerNode> newNodes = new ArrayList<>();
