@@ -25,7 +25,7 @@ public interface MultipleNodePcesResults {
     /**
      * Excludes the results of a specific node from the current results.
      *
-     * @param nodeId the {@link NodeId} of the node which result is to be excluded
+     * @param nodeId the {@link NodeId} of the node whose result is to be excluded
      * @return a new instance of {@link MultipleNodePcesResults} with the specified node's result excluded
      */
     @NonNull
@@ -34,7 +34,7 @@ public interface MultipleNodePcesResults {
     /**
      * Excludes the results of a specific node from the current results.
      *
-     * @param node the node which result is to be excluded
+     * @param node the node whose result is to be excluded
      * @return a new instance of {@link MultipleNodePcesResults} with the specified node's result excluded
      */
     @NonNull

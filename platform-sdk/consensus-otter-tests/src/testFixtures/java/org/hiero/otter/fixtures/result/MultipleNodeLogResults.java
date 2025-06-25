@@ -26,7 +26,7 @@ public interface MultipleNodeLogResults {
     /**
      * Excludes the log results of a specific node from the current results.
      *
-     * @param nodeId the {@link NodeId} of the node which log results are to be excluded
+     * @param nodeId the {@link NodeId} of the node whose log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
      */
     @NonNull
@@ -35,7 +35,7 @@ public interface MultipleNodeLogResults {
     /**
      * Excludes the log results of a specific node from the current results.
      *
-     * @param node the node which log results are to be excluded
+     * @param node the node whose log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
      */
     @NonNull

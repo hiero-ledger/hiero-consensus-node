@@ -25,7 +25,7 @@ public interface MultipleNodePlatformStatusResults {
     /**
      * Excludes the status progression of a specific node from the current results.
      *
-     * @param nodeId the {@link NodeId} of the node which status progression is to be excluded
+     * @param nodeId the {@link NodeId} of the node whose status progression is to be excluded
      * @return a new instance of {@link MultipleNodePlatformStatusResults} with the specified node's status progression excluded
      */
     @NonNull
@@ -34,7 +34,7 @@ public interface MultipleNodePlatformStatusResults {
     /**
      * Excludes the status progression of a specific node from the current results.
      *
-     * @param node the node which status progression is to be excluded
+     * @param node the node whose status progression is to be excluded
      * @return a new instance of {@link MultipleNodePlatformStatusResults} with the specified node's status progression excluded
      */
     @NonNull

@@ -87,7 +87,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(final NodeId nodeId) {
+    public MultipleNodeConsensusResultsContinuousAssert startSuppressingNode(@NonNull final NodeId nodeId) {
         suppressedNodeIds.add(nodeId);
         return this;
     }
@@ -110,7 +110,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(final NodeId nodeId) {
+    public MultipleNodeConsensusResultsContinuousAssert stopSuppressingNode(@NonNull final NodeId nodeId) {
         suppressedNodeIds.remove(nodeId);
         return this;
     }

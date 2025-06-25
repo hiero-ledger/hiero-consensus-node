@@ -11,7 +11,6 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
@@ -57,7 +56,7 @@ public class ContainerNetwork extends AbstractNetwork {
     private long nextNodeId = 1L;
 
     /**
-     * Constructor for SoloNetwork.
+     * Constructor for {@link ContainerNetwork}.
      *
      * @param timeManager the time manager to use
      * @param transactionGenerator the transaction generator to use
@@ -183,11 +182,8 @@ public class ContainerNetwork extends AbstractNetwork {
     /**
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
-     *
-     * @throws IOException if an I/O error occurs during the shutdown process
-     * @throws InterruptedException if the thread is interrupted while waiting for the shutdown process to complete
      */
-    void destroy() throws IOException, InterruptedException {
+    void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final ContainerNode node : nodes) {
