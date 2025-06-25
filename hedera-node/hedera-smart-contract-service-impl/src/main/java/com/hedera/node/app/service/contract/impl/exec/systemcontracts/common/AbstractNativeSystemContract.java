@@ -23,7 +23,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.AbstractFullContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
@@ -56,7 +55,6 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
 
     private final CallFactory callFactory;
     private final ContractMetrics contractMetrics;
-    private final OpsDurationMetrics opsDurationMetrics;
     private final HederaOpsDuration duration;
 
     protected AbstractNativeSystemContract(
@@ -64,13 +62,11 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             @NonNull final CallFactory callFactory,
             @NonNull final GasCalculator gasCalculator,
             @NonNull final ContractMetrics contractMetrics,
-            @NonNull final OpsDurationMetrics opsDurationMetrics,
             @NonNull final HederaOpsDuration duration) {
         super(name, gasCalculator);
         this.callFactory = requireNonNull(callFactory);
         this.contractMetrics = requireNonNull(contractMetrics);
         this.duration = requireNonNull(duration);
-        this.opsDurationMetrics = requireNonNull(opsDurationMetrics);
     }
 
     @Override
@@ -190,9 +186,11 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     private void reportToMetrics(@NonNull final Call call, @NonNull final FullResult fullResult) {
         contractMetrics.incrementSystemMethodCall(
                 call.getSystemContractMethod(), fullResult.result().getState());
-        opsDurationMetrics.recordSystemContractOpsDuration(
-                call.getSystemContractMethod(),
-                Math.round(fullResult.gasRequirement() * duration.systemContractDurationMultiplier()));
+        contractMetrics
+                .opsDurationMetrics()
+                .recordSystemContractOpsDuration(
+                        call.getSystemContractMethod(),
+                        Math.round(fullResult.gasRequirement() * duration.systemContractDurationMultiplier()));
     }
 
     private static void externalizeFailure(

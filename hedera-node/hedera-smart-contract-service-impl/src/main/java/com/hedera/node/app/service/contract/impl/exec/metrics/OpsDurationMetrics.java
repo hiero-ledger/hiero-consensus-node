@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import javax.inject.Inject;
 
 public class OpsDurationMetrics {
     private final SystemContractOpsDurationMetric systemContractOpsDurationMetric;
@@ -15,7 +14,6 @@ public class OpsDurationMetrics {
     private final OpsDurationPerTransactionMetrics opsDurationPerTransactionMetrics;
     private final TransactionThrottledByOpsDurationMetric transactionThrottledByOpsDurationMetric;
 
-    @Inject
     public OpsDurationMetrics(@NonNull final Metrics metrics) {
         requireNonNull(metrics, "Metrics cannot be null");
         this.systemContractOpsDurationMetric = new SystemContractOpsDurationMetric(metrics);
@@ -71,7 +69,7 @@ public class OpsDurationMetrics {
      * @param opCode the EVM op code that was executed
      * @param durationNanos the duration in nanoseconds
      */
-    public void recordOpCodeOpsDuration(@NonNull final int opCode, final long durationNanos) {
+    public void recordOpCodeOpsDuration(final int opCode, final long durationNanos) {
         opCodeOpsDurationMetric.recordOpCodeOpsDurationMetric(opCode, durationNanos);
     }
 
@@ -81,7 +79,7 @@ public class OpsDurationMetrics {
      * @param opCode the EVM op code to get duration for
      * @return the average duration in nanoseconds
      */
-    public double getAverageOpCodeOpsDuration(@NonNull final int opCode) {
+    public double getAverageOpCodeOpsDuration(final int opCode) {
         return opCodeOpsDurationMetric.getAverageOpCodeOpsDuration(opCode);
     }
 
@@ -91,7 +89,7 @@ public class OpsDurationMetrics {
      * @param opCode the EVM op code to get count for
      * @return the count of operations executed
      */
-    public long getOpCodeOpsDurationCount(@NonNull final int opCode) {
+    public long getOpCodeOpsDurationCount(final int opCode) {
         return opCodeOpsDurationMetric.getOpCodeOpsDurationCount(opCode);
     }
 
@@ -100,7 +98,7 @@ public class OpsDurationMetrics {
      * @param opCode the EVM op code to get total duration for
      * @return the total duration in nanoseconds
      */
-    public long getTotalOpCodeOpsDuration(@NonNull final int opCode) {
+    public long getTotalOpCodeOpsDuration(final int opCode) {
         return opCodeOpsDurationMetric.getTotalOpCodeOpsDuration(opCode);
     }
 

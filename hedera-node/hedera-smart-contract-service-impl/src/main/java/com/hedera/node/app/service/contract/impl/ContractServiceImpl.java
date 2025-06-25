@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.DefaultVerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
@@ -68,7 +67,6 @@ public class ContractServiceImpl implements ContractService {
                 () -> appContext.configSupplier().get().getConfigData(ContractsConfig.class);
         final var systemContractMethodRegistry = new SystemContractMethodRegistry();
         final var contractMetrics = new ContractMetrics(metrics, contractsConfigSupplier, systemContractMethodRegistry);
-        final var opsDurationMetrics = new OpsDurationMetrics(metrics);
 
         this.component = DaggerContractServiceComponent.factory()
                 .create(
@@ -79,7 +77,6 @@ public class ContractServiceImpl implements ContractService {
                         Optional.ofNullable(verificationStrategies).orElseGet(DefaultVerificationStrategies::new),
                         addOnTracers,
                         contractMetrics,
-                        opsDurationMetrics,
                         systemContractMethodRegistry,
                         customOps,
                         appContext.idFactory());
