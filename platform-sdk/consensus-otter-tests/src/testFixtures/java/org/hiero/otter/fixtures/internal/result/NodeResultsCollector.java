@@ -13,9 +13,9 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
-import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Helper class that collects all test results of a node.

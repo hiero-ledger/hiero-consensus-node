@@ -11,7 +11,7 @@ import org.hiero.otter.fixtures.Node;
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
-public interface MultipleNodeLogResults {
+public interface MultipleNodeLogResults extends OtterResult {
 
     /**
      * Returns the list of {@link SingleNodeLogResult} for all nodes
@@ -20,6 +20,15 @@ public interface MultipleNodeLogResults {
      */
     @NonNull
     List<SingleNodeLogResult> results();
+
+    /**
+     * Subscribes to log entries logged by the nodes.
+     *
+     * <p>The subscriber will be notified every time a new log entry is logged.
+     *
+     * @param subscriber the subscriber that will receive the log entries
+     */
+    void subscribe(@NonNull LogSubscriber subscriber);
 
     /**
      * Excludes the log results of a specific node from the current results.

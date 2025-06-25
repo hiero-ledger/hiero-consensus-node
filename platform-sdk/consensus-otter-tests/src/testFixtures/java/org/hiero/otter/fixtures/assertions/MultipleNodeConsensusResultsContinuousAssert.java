@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
-import static org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction.CONTINUE;
-import static org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction.UNSUBSCRIBE;
+import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
+import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -13,6 +13,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Continuous assertions for {@link MultipleNodeConsensusResults}.
@@ -25,11 +26,10 @@ public class MultipleNodeConsensusResultsContinuousAssert
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeConsensusResults}.
      *
-     * @param multipleNodeConsensusResults the actual {@link MultipleNodeConsensusResults} to assert
+     * @param actual the actual {@link MultipleNodeConsensusResults} to assert
      */
-    public MultipleNodeConsensusResultsContinuousAssert(
-            @Nullable final MultipleNodeConsensusResults multipleNodeConsensusResults) {
-        super(multipleNodeConsensusResults, MultipleNodeConsensusResultsContinuousAssert.class);
+    public MultipleNodeConsensusResultsContinuousAssert(@Nullable final MultipleNodeConsensusResults actual) {
+        super(actual, MultipleNodeConsensusResultsContinuousAssert.class);
     }
 
     /**

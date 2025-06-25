@@ -15,11 +15,10 @@ public class SingleNodeConsensusResultContinuousAssert
     /**
      * Creates a continuous assertion for the given {@link SingleNodeConsensusResult}.
      *
-     * @param singleNodeConsensusResult the actual {@link SingleNodeConsensusResult} to assert
+     * @param actual the actual {@link SingleNodeConsensusResult} to assert
      */
-    public SingleNodeConsensusResultContinuousAssert(
-            @Nullable final SingleNodeConsensusResult singleNodeConsensusResult) {
-        super(singleNodeConsensusResult, SingleNodeConsensusResultContinuousAssert.class);
+    public SingleNodeConsensusResultContinuousAssert(@Nullable final SingleNodeConsensusResult actual) {
+        super(actual, SingleNodeConsensusResultContinuousAssert.class);
     }
 
     /**
