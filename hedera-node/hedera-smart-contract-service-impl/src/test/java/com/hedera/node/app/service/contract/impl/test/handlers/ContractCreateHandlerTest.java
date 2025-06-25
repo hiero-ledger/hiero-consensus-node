@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCa
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -40,6 +41,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.util.List;
@@ -76,7 +78,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
     private ContextTransactionProcessor processor;
 
     @Mock
-    private ContractCreateStreamBuilder recordBuilder;
+    private ContractCreateStreamBuilder streamBuilder;
 
     @Mock
     private HandleContext.SavepointStack stack;
@@ -114,7 +116,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(handleContext.savepointStack()).willReturn(stack);
-        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(component.hederaOperations()).willReturn(hederaOperations);
@@ -130,12 +132,14 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                null);
+                Bytes.EMPTY);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
-        given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(streamBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(streamBuilder);
+        given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
+        given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
+        given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(streamBuilder);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
     }
@@ -147,7 +151,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(handleContext.savepointStack()).willReturn(stack);
-        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
@@ -163,9 +167,11 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.createdContractID(null)).willReturn(recordBuilder);
-        given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(streamBuilder.createdContractID(null)).willReturn(streamBuilder);
+        given(streamBuilder.contractCreateResult(expectedResult)).willReturn(streamBuilder);
+        given(streamBuilder.createdEvmAddress(any())).willReturn(streamBuilder);
+        given(streamBuilder.evmCreateTransactionResult(any())).willReturn(streamBuilder);
+        given(streamBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(streamBuilder);
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
     }
 

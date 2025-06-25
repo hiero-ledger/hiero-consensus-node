@@ -117,16 +117,16 @@ public record CallOutcome(
      * @param result the contract function result
      * @param txResult the concise EVM transaction result
      * @param changedNonceInfos if not null, the contract IDs that had their nonce changed during the call
-     * @param hevmResult the result after EVM transaction execution
      * @param evmAddress if not null, the EVM address of the contract that created
+     * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
      */
     public static CallOutcome fromResultsWithMaybeSidecars(
             @Deprecated @NonNull final ContractFunctionResult result,
             @NonNull final EvmTransactionResult txResult,
             @Nullable List<ContractNonceInfo> changedNonceInfos,
-            @NonNull final HederaEvmTransactionResult hevmResult,
-            @Nullable final Bytes evmAddress) {
+            @Nullable final Bytes evmAddress,
+            @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
                 result,
                 hevmResult.finalStatus(),
@@ -145,6 +145,7 @@ public record CallOutcome(
      * @param result the contract function result
      * @param txResult the concise EVM transaction result
      * @param updatedNonceInfos if not null, the contract IDs that had their nonce changed during the call
+     * @param evmAddress if not null, the EVM address of the contract that created
      * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
      */
@@ -152,6 +153,7 @@ public record CallOutcome(
             @NonNull final ContractFunctionResult result,
             @NonNull final EvmTransactionResult txResult,
             @Nullable final List<ContractNonceInfo> updatedNonceInfos,
+            @Nullable Bytes evmAddress,
             @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
                 result,
@@ -164,7 +166,7 @@ public record CallOutcome(
                 updatedNonceInfos,
                 txResult,
                 hevmResult.signerNonce(),
-                null);
+                evmAddress);
     }
 
     /**
@@ -178,7 +180,7 @@ public record CallOutcome(
      * @param changedNonceInfos the contract IDs that had their nonce changed during the call
      * @param txResult the concise EVM transaction result
      * @param newSenderNonce if applicable, the new sender nonce after the call
-     * @param createdEvmAddress
+     * @param createdEvmAddress if applicable, the EVM address of the contract that was created
      */
     public CallOutcome {
         requireNonNull(result);

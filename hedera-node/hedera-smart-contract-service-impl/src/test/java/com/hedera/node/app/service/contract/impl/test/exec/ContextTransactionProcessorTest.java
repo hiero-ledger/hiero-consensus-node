@@ -42,6 +42,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -127,7 +128,7 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
-                null,
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -170,7 +171,7 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
-                null,
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -211,7 +212,7 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
-                null,
+                List.of(),
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null);

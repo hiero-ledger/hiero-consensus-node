@@ -118,8 +118,8 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                     .systemOperations()
                     .dispatch(synthBody(), key -> Decision.INVALID, senderId, ContractCallStreamBuilder.class)
                     .contractCallResult(data)
-                    .evmCallTransactionResult(txResult)
-                    .entropyBytes(tuweniToPbjBytes(randomNum));
+                    .entropyBytes(tuweniToPbjBytes(randomNum))
+                    .evmCallTransactionResult(txResult);
         }
     }
 

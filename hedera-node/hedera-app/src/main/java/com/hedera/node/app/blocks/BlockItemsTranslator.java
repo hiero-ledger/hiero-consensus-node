@@ -20,7 +20,6 @@ import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
-import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
@@ -164,10 +163,10 @@ public class BlockItemsTranslator {
                             translatingExtractor(CONTRACT_CREATE_EXTRACTOR, context, logs),
                             outputs));
                 } else if (function == ETHEREUM_TRANSACTION) {
+                    recordBuilder.ethereumHash(((ContractOpContext) context).ethHash());
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
-                        recordBuilder.ethereumHash(ethOutput.ethereumHash());
                         switch (ethOutput.txnResult().kind()) {
                             case EVM_CALL_TRANSACTION_RESULT ->
                                 recordBuilder.contractCallResult(
@@ -247,12 +246,7 @@ public class BlockItemsTranslator {
             }
             final var changedNonceIds = contractContext.changedNonceInfos();
             if (changedNonceIds != null && !changedNonceIds.isEmpty()) {
-                final List<ContractNonceInfo> nonceInfos = new ArrayList<>(changedNonceIds.size());
-                changedNonceIds.forEach(info -> nonceInfos.add(new ContractNonceInfo(
-                        info.contractIdOrThrow(),
-                        findContractOrThrow(info.contractIdOrThrow(), stateChanges)
-                                .ethereumNonce())));
-                builder.contractNonces(nonceInfos);
+                builder.contractNonces(changedNonceIds);
             }
             attachLogsTo(builder, logs);
         }

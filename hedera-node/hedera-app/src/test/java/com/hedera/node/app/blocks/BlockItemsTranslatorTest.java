@@ -223,7 +223,18 @@ class BlockItemsTranslatorTest {
             })
     void contractOpsUseContractOpContext(@NonNull final HederaFunctionality function) {
         final var context = new ContractOpContext(
-                MEMO, RATES, TXN_ID, Transaction.DEFAULT, function, CONTRACT_ID, null, null, List.of(), null, null);
+                MEMO,
+                RATES,
+                TXN_ID,
+                Transaction.DEFAULT,
+                function,
+                CONTRACT_ID,
+                null,
+                null,
+                List.of(),
+                null,
+                null,
+                Bytes.EMPTY);
 
         final var actualReceipt = BLOCK_ITEMS_TRANSLATOR.translateReceipt(context, TRANSACTION_RESULT);
         assertEquals(EXPECTED_BASE_RECEIPT.copyBuilder().contractID(CONTRACT_ID).build(), actualReceipt);
@@ -397,7 +408,8 @@ class BlockItemsTranslatorTest {
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                Bytes.EMPTY);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -441,7 +453,8 @@ class BlockItemsTranslatorTest {
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                Bytes.EMPTY);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -486,7 +499,8 @@ class BlockItemsTranslatorTest {
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                Bytes.EMPTY);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
@@ -534,13 +548,14 @@ class BlockItemsTranslatorTest {
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                ETH_HASH);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
-                        .ethereumHash(Bytes.EMPTY)
+                        .ethereumHash(ETH_HASH)
                         .receipt(EXPECTED_BASE_RECEIPT
                                 .copyBuilder()
                                 .contractID(CONTRACT_ID)
@@ -583,13 +598,14 @@ class BlockItemsTranslatorTest {
                 null,
                 List.of(),
                 null,
-                null);
+                null,
+                ETH_HASH);
 
         final var actualRecordNoOutput = BLOCK_ITEMS_TRANSLATOR.translateRecord(context, TRANSACTION_RESULT, null);
         assertEquals(
                 EXPECTED_BASE_RECORD
                         .copyBuilder()
-                        .ethereumHash(Bytes.EMPTY)
+                        .ethereumHash(ETH_HASH)
                         .receipt(EXPECTED_BASE_RECEIPT
                                 .copyBuilder()
                                 .contractID(CONTRACT_ID)

@@ -154,9 +154,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             return CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
                     result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
-                    rootProxyWorldUpdater.getUpdatedContractNonces(),
-                    result,
-                    result.evmAddressIfCreatedIn(rootProxyWorldUpdater));
+                    result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
+                    result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
+                    result);
         } catch (HandleException e) {
             final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
             final var senderId = sender != null ? sender.hederaId() : hevmTransaction.senderId();
@@ -218,7 +218,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
                 result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData),
-                rootProxyWorldUpdater.getUpdatedContractNonces(),
+                null,
+                null,
                 result);
     }
 

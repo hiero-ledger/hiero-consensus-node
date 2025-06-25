@@ -28,6 +28,7 @@ import java.util.List;
  * @param stateChanges The state changes that occurred during the transaction
  * @param senderNonce if applicable, the nonce of the sender after the transaction
  * @param ethCallContext if applicable, the context of an internal call in the transaction
+ * @param ethHash if applicable, the hash of the Ethereum transaction
  */
 public record ContractOpContext(
         @NonNull String memo,
@@ -40,5 +41,6 @@ public record ContractOpContext(
         @Nullable List<ContractNonceInfo> changedNonceInfos,
         @NonNull List<StateChange> stateChanges,
         @Nullable Long senderNonce,
-        @Nullable InternalCallContext ethCallContext)
+        @Nullable InternalCallContext ethCallContext,
+        @NonNull Bytes ethHash)
         implements TranslationContext {}

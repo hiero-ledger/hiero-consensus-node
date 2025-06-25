@@ -17,6 +17,7 @@ import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,7 @@ class CallOutcomeTest {
                 null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                null);
+                Bytes.EMPTY);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 

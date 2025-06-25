@@ -1252,7 +1252,6 @@ public class BlockStreamBuilder
         }
         if (evmTransactionResult != null || ethereumHash.length() > 0) {
             final var builder = TransactionOutput.newBuilder();
-            requireNonNull(evmTransactionResult);
             switch (requireNonNull(contractOpType)) {
                 case CREATE ->
                     builder.contractCreate(CreateContractOutput.newBuilder()
@@ -1359,7 +1358,8 @@ public class BlockStreamBuilder
                         changedNonceInfos,
                         stateChanges,
                         senderNonce,
-                        evmTransactionResult == null ? null : evmTransactionResult.internalCallContext());
+                        evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
+                        ethereumHash);
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,
