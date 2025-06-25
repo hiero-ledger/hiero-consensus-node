@@ -7,7 +7,6 @@ import static com.swirlds.metrics.api.Metric.ValueType.STD_DEV;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.metrics.PlatformMetric;
 import com.swirlds.common.metrics.StatEntry;
 import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.metrics.api.MetricConfig;
@@ -23,7 +22,7 @@ import java.util.function.Supplier;
  * Platform-implementation of {@link StatEntry}
  */
 @SuppressWarnings("removal")
-public class PlatformStatEntry extends AbstractMetric implements PlatformMetric, StatEntry {
+public class PlatformStatEntry extends AbstractMetric implements StatEntry {
 
     private final @NonNull DataType dataType;
     /**
@@ -138,16 +137,6 @@ public class PlatformStatEntry extends AbstractMetric implements PlatformMetric,
         } else if (buffered != null) {
             buffered.reset(halfLife);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Nullable
-    @SuppressWarnings("removal")
-    @Override
-    public StatsBuffered getStatsBuffered() {
-        return getBuffered();
     }
 
     /**

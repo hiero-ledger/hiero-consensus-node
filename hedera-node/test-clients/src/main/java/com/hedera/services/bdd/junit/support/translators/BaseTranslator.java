@@ -102,7 +102,7 @@ public class BaseTranslator {
     private static final Comparator<ContractNonceInfo> NONCE_INFO_CONTRACT_ID_COMPARATOR =
             Comparator.comparing(ContractNonceInfo::contractIdOrThrow, CONTRACT_ID_NUM_COMPARATOR);
 
-    private static final Set<TransactionGroupRole> PARENT_ROLES =
+    public static final Set<TransactionGroupRole> PARENT_ROLES =
             EnumSet.of(STANDALONE, PARENT, ENDING_PARENT, STARTING_PARENT);
 
     /**

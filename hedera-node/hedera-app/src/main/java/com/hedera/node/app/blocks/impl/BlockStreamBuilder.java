@@ -560,12 +560,16 @@ public class BlockStreamBuilder
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
         final var translationContext = translationContext();
-        blockItems.add(BlockItem.newBuilder()
-                .eventTransaction(EventTransaction.newBuilder()
-                        .applicationTransaction(getSerializedTransaction())
-                        .transactionGroupRole(role)
-                        .build())
-                .build());
+        // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
+        // can be inferred from the parent transaction.
+        if (category != HandleContext.TransactionCategory.BATCH_INNER) {
+            blockItems.add(BlockItem.newBuilder()
+                    .eventTransaction(EventTransaction.newBuilder()
+                            .applicationTransaction(getSerializedTransaction())
+                            .transactionGroupRole(role)
+                            .build())
+                    .build());
+        }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
         if (slotUsages != null || contractActions != null || initcodes != null || logs != null) {

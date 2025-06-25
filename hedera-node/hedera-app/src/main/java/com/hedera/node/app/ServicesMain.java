@@ -73,7 +73,6 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Optional;
@@ -224,7 +223,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      *  {@link ConsensusStateEventHandler}---and the implementation of that
      *  injected by {@link Hedera#newStateRoot()} delegates these calls back to the Hedera
      *  instance itself.
-     *  <p>
+     * <p>
      *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
      *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
      *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query
@@ -354,9 +353,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hedera.init(platform, selfId);
 
         // Initialize block node connections before starting the platform
-        final var waitPeriodForActiveConnection =
-                platformConfig.getConfigData(BlockStreamConfig.class).waitPeriodForActiveConnection();
-        hedera.initializeBlockNodeConnections(Duration.ofMinutes(waitPeriodForActiveConnection));
+        hedera.initializeBlockNodeConnections();
 
         platform.start();
         hedera.run();

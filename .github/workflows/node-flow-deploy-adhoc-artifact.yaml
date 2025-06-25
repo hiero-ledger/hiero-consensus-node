@@ -8,6 +8,12 @@ on:
         type: boolean
         required: false
         default: false
+      ref:
+        required: true
+        description: "Git Reference (branch, tag, or commit SHA)"
+      ref-name:
+        required: true
+        description: "Git Reference Name (branch name or tag name)"
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -41,6 +47,8 @@ jobs:
       java-version: ${{ github.event.inputs.java-version || '21.0.6' }}
       java-distribution: ${{ github.event.inputs.java-distribution || 'temurin' }}
       gradle-version: ${{ github.event.inputs.gradle-version || 'wrapper' }}
+      ref: ${{ github.event.inputs.ref }}
+      ref-name: ${{ github.event.inputs.ref-name }}
 
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
