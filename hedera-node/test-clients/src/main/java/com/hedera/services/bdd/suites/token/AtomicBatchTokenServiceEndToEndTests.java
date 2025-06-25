@@ -293,24 +293,24 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             // create transfer tokens inner transactions
             final var tokenTransferFirstReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .via("transferFirstTxn")
                     .batchKey(BATCH_OPERATOR);
 
             final var tokenTransferSecondReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                            movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                     .payingWith(OWNER)
                     .via("transferSecondTxn")
                     .batchKey(BATCH_OPERATOR);
 
             final var tokenAirdrops = tokenAirdrop(
-                    movingUnique(NFT_FOR_END_TO_END, 3L).between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
-                    movingUnique(NFT_FOR_END_TO_END, 4L)
-                            .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
-                    movingUnique(NFT_FOR_END_TO_END, 5L)
-                            .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
-                    movingUnique(NFT_FOR_END_TO_END, 6L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                            movingUnique(NFT_FOR_END_TO_END, 3L).between(OWNER, RECEIVER_WITH_FREE_AUTO_ASSOCIATIONS),
+                            movingUnique(NFT_FOR_END_TO_END, 4L)
+                                    .between(OWNER, RECEIVER_WITH_UNLIMITED_AUTO_ASSOCIATIONS),
+                            movingUnique(NFT_FOR_END_TO_END, 5L)
+                                    .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS),
+                            movingUnique(NFT_FOR_END_TO_END, 6L).between(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                     .payingWith(OWNER)
                     .via("airdropsTxn")
                     .batchKey(BATCH_OPERATOR);
@@ -328,12 +328,12 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                     // perform the atomic batch transaction
                     atomicBatch(
-                            mintNFT,
-                            associateFirstReceiver,
-                            associateSecondReceiver,
-                            tokenTransferFirstReceiver,
-                            tokenTransferSecondReceiver,
-                            tokenAirdrops)
+                                    mintNFT,
+                                    associateFirstReceiver,
+                                    associateSecondReceiver,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver,
+                                    tokenAirdrops)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
@@ -375,7 +375,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             // create transfer tokens inner transactions
             final var tokenTransferFirstReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_END_TO_END, 15L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            movingUnique(NFT_FOR_END_TO_END, 15L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .via("transferFirstTxn")
                     .batchKey(BATCH_OPERATOR);
@@ -388,10 +388,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     createImmutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey),
 
                     // perform the atomic batch transaction
-                    atomicBatch(
-                            mintNFT,
-                            associateFirstReceiver,
-                            tokenTransferFirstReceiver)
+                    atomicBatch(mintNFT, associateFirstReceiver, tokenTransferFirstReceiver)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -425,13 +422,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             // create transfer tokens inner transactions
             final var tokenTransferFirstReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .via("transferFirstTxn")
                     .batchKey(BATCH_OPERATOR);
 
             final var tokenTransferSecondReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                            movingUnique(NFT_FOR_END_TO_END, 2L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                     .payingWith(OWNER)
                     .via("transferSecondTxn")
                     .batchKey(BATCH_OPERATOR);
@@ -452,12 +449,12 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                     // perform the atomic batch transaction
                     atomicBatch(
-                            mintNFT,
-                            associateFirstReceiver,
-                            associateSecondReceiver,
-                            tokenTransferFirstReceiver,
-                            tokenTransferSecondReceiver,
-                            deleteToken)
+                                    mintNFT,
+                                    associateFirstReceiver,
+                                    associateSecondReceiver,
+                                    tokenTransferFirstReceiver,
+                                    tokenTransferSecondReceiver,
+                                    deleteToken)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
@@ -469,9 +466,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 8L),
 
                     // confirm token was deleted
-                    cryptoTransfer(
-                            movingUnique(NFT_FOR_END_TO_END, 5L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
-                                    .hasKnownStatus(TOKEN_WAS_DELETED)));
+                    cryptoTransfer(movingUnique(NFT_FOR_END_TO_END, 5L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            .hasKnownStatus(TOKEN_WAS_DELETED)));
         }
 
         @HapiTest
@@ -506,10 +502,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     createMutableNFT(NFT_FOR_END_TO_END, OWNER, nftSupplyKey, adminKey),
 
                     // perform the atomic batch transaction
-                    atomicBatch(
-                            mintNFT,
-                            burnNFT,
-                            deleteToken)
+                    atomicBatch(mintNFT, burnNFT, deleteToken)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
@@ -519,8 +512,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_END_TO_END, 0L),
 
                     // confirm token was deleted
-                    cryptoTransfer(
-                            movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                    cryptoTransfer(movingUnique(NFT_FOR_END_TO_END, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .hasKnownStatus(TOKEN_WAS_DELETED)));
         }
 
@@ -544,7 +536,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
-                    moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            moving(10L, FT_FOR_TOKEN_KYC).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("transferFirstTxn")
@@ -556,10 +548,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     createImmutableFTWithKyc(FT_FOR_TOKEN_KYC, OWNER, kycKey),
 
                     // perform the atomic batch transaction
-                    atomicBatch(
-                            associateFirstReceiver,
-                            grantTokenKYC,
-                            tokenTransferFirstReceiver)
+                    atomicBatch(associateFirstReceiver, grantTokenKYC, tokenTransferFirstReceiver)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
@@ -592,7 +581,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("transferFirstTxn")
@@ -605,10 +594,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
 
                     // perform the atomic batch transaction
-                    atomicBatch(
-                            associateFirstReceiver,
-                            freezeToken,
-                            tokenTransferFirstReceiver)
+                    atomicBatch(associateFirstReceiver, freezeToken, tokenTransferFirstReceiver)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -639,7 +625,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
             // transfer tokens to associated account
             final var tokenTransferFirstReceiver = cryptoTransfer(
-                    movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                            movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                     .payingWith(OWNER)
                     .signedBy(OWNER)
                     .via("transferFirstTxn")
@@ -652,10 +638,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
                     mintNFT(NFT_FOR_TOKEN_FREEZE, 0, 10),
 
                     // perform the atomic batch transaction
-                    atomicBatch(
-                            associateFirstReceiver,
-                            unfreezeToken,
-                            tokenTransferFirstReceiver)
+                    atomicBatch(associateFirstReceiver, unfreezeToken, tokenTransferFirstReceiver)
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
@@ -830,7 +813,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
     @DisplayName("Token Operations Tests - including Pause, Unpause, Freeze, Unfreeze, Burn, Wipe and Delete")
     class TokenOperationsTests {
 
-        @Nested@DisplayName("Pause and Unpause Tests")
+        @Nested
+        @DisplayName("Pause and Unpause Tests")
         class PauseAndUnpauseTests {
             @HapiTest
             @DisplayName("Unpause and Transfer fungible token success in batch")
@@ -845,13 +829,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferSecondReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -886,13 +870,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferSecondReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -940,13 +924,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferSecondReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -968,10 +952,10 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                         // perform the atomic batch transaction
                         atomicBatch(
-                                unpauseFungibleToken,
-                                tokenTransferFirstReceiver,
-                                tokenTransferSecondReceiver,
-                                pauseFungibleToken)
+                                        unpauseFungibleToken,
+                                        tokenTransferFirstReceiver,
+                                        tokenTransferSecondReceiver,
+                                        pauseFungibleToken)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS),
@@ -992,13 +976,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferSecondReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1046,13 +1030,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferSecondReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1087,7 +1071,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1126,7 +1110,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1165,7 +1149,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1219,7 +1203,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_PAUSE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1301,7 +1285,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1342,7 +1326,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1382,7 +1366,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1423,7 +1407,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1470,7 +1454,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1504,7 +1488,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1544,7 +1528,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1584,7 +1568,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1624,7 +1608,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // unfreeze the non-fungible token
                 final var unfreezeNonFungibleTokenForOneAccount = tokenUnfreeze(
-                        NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
+                                NFT_FOR_TOKEN_FREEZE, RECEIVER_ASSOCIATED_FIRST)
                         .payingWith(OWNER)
                         .signedBy(OWNER, freezeKey)
                         .via("unfreezeTxn")
@@ -1632,13 +1616,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferSecondReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1661,10 +1645,10 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                         // perform the atomic batch transaction
                         atomicBatch(
-                                unfreezeNonFungibleTokenForOneAccount,
-                                tokenTransferFirstReceiver,
-                                tokenTransferSecondReceiver,
-                                freezeNonFungibleToken)
+                                        unfreezeNonFungibleTokenForOneAccount,
+                                        tokenTransferFirstReceiver,
+                                        tokenTransferSecondReceiver,
+                                        freezeNonFungibleToken)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -1693,7 +1677,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated accounts
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                movingUnique(NFT_FOR_TOKEN_FREEZE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1792,7 +1776,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1843,7 +1827,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1855,7 +1839,11 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                         // perform the atomic batch transaction
-                        atomicBatch(tokenTransferFirstReceiver, burnFungibleToken, wipeFungibleToken, deleteFungibleToken)
+                        atomicBatch(
+                                        tokenTransferFirstReceiver,
+                                        burnFungibleToken,
+                                        wipeFungibleToken,
+                                        deleteFungibleToken)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS),
@@ -1886,13 +1874,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferOwner = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1931,13 +1919,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferOwner = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -1984,13 +1972,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferOwner = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2002,7 +1990,11 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                         // perform the atomic batch transaction
-                        atomicBatch(tokenTransferFirstReceiver, burnFungibleToken, wipeFungibleToken, tokenTransferOwner)
+                        atomicBatch(
+                                        tokenTransferFirstReceiver,
+                                        burnFungibleToken,
+                                        wipeFungibleToken,
+                                        tokenTransferOwner)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -2043,13 +2035,13 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
 
                 final var tokenTransferOwner = cryptoTransfer(
-                        moving(1L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
+                                moving(1L, FT_FOR_TOKEN_BURN).between(RECEIVER_ASSOCIATED_FIRST, OWNER))
                         .payingWith(OWNER)
                         .via("transferSecondTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2062,11 +2054,11 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                         // perform the atomic batch transaction
                         atomicBatch(
-                                tokenTransferFirstReceiver,
-                                burnFungibleToken,
-                                wipeFungibleToken,
-                                deleteFungibleToken,
-                                tokenTransferOwner)
+                                        tokenTransferFirstReceiver,
+                                        burnFungibleToken,
+                                        wipeFungibleToken,
+                                        deleteFungibleToken,
+                                        tokenTransferOwner)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -2178,7 +2170,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2222,7 +2214,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2266,7 +2258,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2310,7 +2302,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2363,7 +2355,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2375,7 +2367,11 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                         // perform the atomic batch transaction
-                        atomicBatch(tokenTransferFirstReceiver, updateBurnAndWipeKeys, burnFungibleToken, wipeFungibleToken)
+                        atomicBatch(
+                                        tokenTransferFirstReceiver,
+                                        updateBurnAndWipeKeys,
+                                        burnFungibleToken,
+                                        wipeFungibleToken)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS),
@@ -2459,7 +2455,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2471,7 +2467,11 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                         // perform the atomic batch transaction
-                        atomicBatch(tokenTransferFirstReceiver, updateBurnAndWipeKeys, burnFungibleToken, wipeFungibleToken)
+                        atomicBatch(
+                                        tokenTransferFirstReceiver,
+                                        updateBurnAndWipeKeys,
+                                        burnFungibleToken,
+                                        wipeFungibleToken)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -2484,7 +2484,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
             }
 
             @HapiTest
-            @DisplayName("Update Burn and Wipe keys of fungible token created without burn and wipe keys fails in batch")
+            @DisplayName(
+                    "Update Burn and Wipe keys of fungible token created without burn and wipe keys fails in batch")
             public Stream<DynamicTest> updateBurnAndWipeKeysOfFTWithoutKeysFailsInBatch() {
 
                 // update the fungible token
@@ -2512,7 +2513,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
 
                 // transfer tokens to associated account
                 final var tokenTransferFirstReceiver = cryptoTransfer(
-                        moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
+                                moving(10L, FT_FOR_TOKEN_BURN).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                         .payingWith(OWNER)
                         .via("transferFirstTxn")
                         .batchKey(BATCH_OPERATOR);
@@ -2524,7 +2525,11 @@ public class AtomicBatchTokenServiceEndToEndTests {
                         tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_FOR_TOKEN_BURN),
 
                         // perform the atomic batch transaction
-                        atomicBatch(tokenTransferFirstReceiver, updateBurnAndWipeKeys, burnFungibleToken, wipeFungibleToken)
+                        atomicBatch(
+                                        tokenTransferFirstReceiver,
+                                        updateBurnAndWipeKeys,
+                                        burnFungibleToken,
+                                        wipeFungibleToken)
                                 .payingWith(BATCH_OPERATOR)
                                 .via("batchTxn")
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED),
@@ -3111,10 +3116,7 @@ public class AtomicBatchTokenServiceEndToEndTests {
     }
 
     private HapiTokenCreate createDummyToken() {
-        return tokenCreate(DUMMY)
-                .tokenType(FUNGIBLE_COMMON)
-                .treasury(OWNER)
-                .initialSupply(100L);
+        return tokenCreate(DUMMY).tokenType(FUNGIBLE_COMMON).treasury(OWNER).initialSupply(100L);
     }
 
     private HapiTokenCreate createImmutableFT(String tokenName, String treasury) {
@@ -3149,7 +3151,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .adminKey(adminKey);
     }
 
-    private HapiTokenCreate createMutableFTWithPauseKey(String tokenName, String treasury, String adminKey, String pauseKey) {
+    private HapiTokenCreate createMutableFTWithPauseKey(
+            String tokenName, String treasury, String adminKey, String pauseKey) {
         return tokenCreate(tokenName)
                 .tokenType(FUNGIBLE_COMMON)
                 .treasury(treasury)
@@ -3158,7 +3161,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .pauseKey(pauseKey);
     }
 
-    private HapiTokenCreate createMutableFTWithSupplyAndWipeKey(String tokenName, String treasury, String adminKey, String supplyKey, String wipeKey) {
+    private HapiTokenCreate createMutableFTWithSupplyAndWipeKey(
+            String tokenName, String treasury, String adminKey, String supplyKey, String wipeKey) {
         return tokenCreate(tokenName)
                 .tokenType(FUNGIBLE_COMMON)
                 .treasury(treasury)
@@ -3168,7 +3172,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .wipeKey(wipeKey);
     }
 
-    private HapiTokenCreate createMutableFTWithSupplyKey(String tokenName, String treasury, String adminKey, String supplyKey) {
+    private HapiTokenCreate createMutableFTWithSupplyKey(
+            String tokenName, String treasury, String adminKey, String supplyKey) {
         return tokenCreate(tokenName)
                 .tokenType(FUNGIBLE_COMMON)
                 .treasury(treasury)
@@ -3177,7 +3182,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .supplyKey(supplyKey);
     }
 
-    private HapiTokenCreate createMutableFTWithWipeKey(String tokenName, String treasury, String adminKey, String wipeKey) {
+    private HapiTokenCreate createMutableFTWithWipeKey(
+            String tokenName, String treasury, String adminKey, String wipeKey) {
         return tokenCreate(tokenName)
                 .tokenType(FUNGIBLE_COMMON)
                 .treasury(treasury)
@@ -3203,7 +3209,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .supplyKey(supplyKey);
     }
 
-    private HapiTokenCreate createImmutableNFTWithFreezeKey(String tokenName, String treasury, String supplyKey, String freezeKey) {
+    private HapiTokenCreate createImmutableNFTWithFreezeKey(
+            String tokenName, String treasury, String supplyKey, String freezeKey) {
         return tokenCreate(tokenName)
                 .initialSupply(0)
                 .treasury(treasury)
@@ -3212,7 +3219,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
                 .freezeKey(freezeKey);
     }
 
-    private HapiTokenCreate createMutableNFTWithFreezeKey(String tokenName, String treasury, String supplyKey, String freezeKey, String adminKey) {
+    private HapiTokenCreate createMutableNFTWithFreezeKey(
+            String tokenName, String treasury, String supplyKey, String freezeKey, String adminKey) {
         return tokenCreate(tokenName)
                 .initialSupply(0)
                 .treasury(treasury)
@@ -3223,7 +3231,8 @@ public class AtomicBatchTokenServiceEndToEndTests {
     }
 
     private HapiTokenMint mintNFT(String tokenName, int rangeStart, int rangeEnd) {
-        return mintToken(tokenName,
+        return mintToken(
+                tokenName,
                 IntStream.range(rangeStart, rangeEnd)
                         .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
                         .toList());
