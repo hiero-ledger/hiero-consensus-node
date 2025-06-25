@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -105,7 +106,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     /**
      * Counter for tracking consecutive high latency events.
      */
-    private int consecutiveHighLatencyEvents;
+    private final AtomicInteger consecutiveHighLatencyEvents = new AtomicInteger(0);
     /**
      * Queue for tracking the instances of EndOfStream responses received from the block node for this connection. This
      * queue will be periodically pruned.
@@ -241,22 +242,22 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
             if (latencyMs > highLatencyThresholdMs) {
                 blockStreamMetrics.recordHighLatencyEvent(nodeAddress);
-                consecutiveHighLatencyEvents++;
+                int highLatencyCount = consecutiveHighLatencyEvents.incrementAndGet();
 
-                if (consecutiveHighLatencyEvents >= highLatencyEventsBeforeSwitching) {
+                if (highLatencyCount >= highLatencyEventsBeforeSwitching) {
                     logger.info(
                             "[{}] Block node has exceeded high latency threshold {} times consecutively. "
                                     + "Latest latency: {}ms. Switching to a different node.",
                             this,
-                            consecutiveHighLatencyEvents,
+                            highLatencyCount,
                             latencyMs);
 
-                    consecutiveHighLatencyEvents = 0;
+                    consecutiveHighLatencyEvents.set(0);
                     close();
                     blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
                 }
             } else {
-                consecutiveHighLatencyEvents = 0;
+                consecutiveHighLatencyEvents.set(0);
             }
 
             logger.debug(
