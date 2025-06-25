@@ -170,6 +170,15 @@ public interface BinaryState extends FastCopyable {
      */
     <T> T queuePeek(int id, Codec<T> codec);
 
+    /**
+     * Creates an iterator to traverse the elements of the queue with a given id.
+     *
+     * @param id  The id of the queue to iterate over.
+     *
+     * @return An iterator for the elements of the queue.
+     */
+    <T> Iterator<T> iterateOnQueue(int id, Codec<T> codec);
+
 
     /**
      * Calculates a hash for the state in a blocking manner. If the hash is already calculated, this method
