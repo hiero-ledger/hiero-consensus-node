@@ -4,8 +4,10 @@ package org.hiero.otter.fixtures;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
+import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
 
 public class ProtobufConverter {
     private ProtobufConverter() {}
@@ -479,6 +481,36 @@ public class ProtobufConverter {
         return com.hedera.hapi.platform.state.legacy.JudgeId.newBuilder()
                 .setCreatorId(googleJudgeId.creatorId())
                 .setJudgeHash(toGoogle(googleJudgeId.judgeHash()))
+                .build();
+    }
+
+    /**
+     * Converts a ProtoConsensusRounds to List<ConsensusRound>
+     *
+     * @param googleRounds the ProtoConsensusRounds to convert
+     * @return the converted ConsensusRound
+     */
+    @NonNull
+    public static List<org.hiero.consensus.model.hashgraph.ConsensusRound> fromGoogle(
+            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds googleRounds) {
+        return googleRounds.getRoundsList().stream()
+                .map(ProtobufConverter::fromGoogle)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Converts a List<ConsensusRound> to ProtoConsensusRounds
+     *
+     * @param platformRounds the ConsensusRounds to convert
+     * @return the converted ConsensusRound
+     */
+    @NonNull
+    public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds toGoogle(
+            @NonNull final List<org.hiero.consensus.model.hashgraph.ConsensusRound> platformRounds) {
+        final List<ProtoConsensusRound> googleRounds =
+                platformRounds.stream().map(ProtobufConverter::toGoogle).toList();
+        return org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds.newBuilder()
+                .addAllRounds(googleRounds)
                 .build();
     }
 

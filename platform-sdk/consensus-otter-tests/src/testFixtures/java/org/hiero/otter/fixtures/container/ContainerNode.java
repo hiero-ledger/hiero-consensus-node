@@ -249,6 +249,8 @@ public class ContainerNode extends AbstractNode implements Node {
                         }
                     } else if (value.hasLogEntry()) {
                         receivedLogs.add(ProtobufConverter.fromGoogle(value.getLogEntry()));
+                    } else if (value.hasConsensusRounds()) {
+                        resultsCollector.addConsensusRounds(ProtobufConverter.fromGoogle(value.getConsensusRounds()));
                     } else {
                         // Other message types can be handled later
                         log.info(value);
