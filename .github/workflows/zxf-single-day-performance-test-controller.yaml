@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Performance Test"
+name: "ZXF: [CITR] Single Day Performance Test Controller"
 on:
   workflow_dispatch:
     inputs:
@@ -138,7 +138,7 @@ jobs:
       - name: Set output for run-single-day-performance-test
         id: run-citr-performance-test
         run: echo "result=success" >> $GITHUB_OUTPUT
-  #    uses: .github/workflows/zxc-run-single-day-performance-test.yaml
+  #    uses: .github/workflows/zxc-single-day-performance-test.yaml
   #    with:
   #      namespace: ${{ inputs.namespace }}
   #      hcn-version: "${{ inputs.hcn-version }}"
