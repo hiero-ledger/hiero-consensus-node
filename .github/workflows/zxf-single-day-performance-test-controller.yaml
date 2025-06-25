@@ -3,7 +3,7 @@ name: "ZXF: [CITR] Single Day Performance Test Controller"
 on:
   workflow_dispatch:
     inputs:
-      namespace:
+      test-asset:
         required: true
         default: "Latitude3"
         description: "Performance test on given namespace"
@@ -14,15 +14,15 @@ on:
           - Latitude2
           - Latitude3
           - Latitude4
-      hcn-version:
+      ref:
         required: true
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
       solo-version:
         required: true
-        default: "latest_tested_solo-charts0.59"
-        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
+        default: ""
+        description: "The solo version to run the test with. If latest, then the latest solo version will be used."
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
@@ -101,12 +101,12 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.inputs.hcn-version }}
+          ref: ${{ inputs.ref }}
 
       - name: Verify Tag
         env:
           PROMOTED_GREP_PATTERN: "build-.{5}" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ github.event.inputs.hcn-version }}"
+          CHECK_TAG: "${{ inputs.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
@@ -117,7 +117,7 @@ jobs:
             BUILD_NUMBER="${CHECK_TAG: -5}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
           else
-            echo "::error title=Invalid Tag::The provided tag (${github.event.inputs.tag-to-run}) is not a valid build tag."
+            echo "::error title=Invalid Tag::The provided tag (${inputs.ref}) is not a valid build tag."
             exit 1
           fi
 
@@ -140,15 +140,15 @@ jobs:
         run: echo "result=success" >> $GITHUB_OUTPUT
   #    uses: .github/workflows/zxc-single-day-performance-test.yaml
   #    with:
-  #      namespace: ${{ inputs.namespace }}
-  #      hcn-version: "${{ inputs.hcn-version }}"
-  #      solo-version: "${{ inputs.solo-version }}"
-  #      nlg-accounts: "${{ inputs.nlg-accounts }}"
-  #      nlg-time: "${{ inputs.nlg-time }}"
+  #      test-asset:    "${{ inputs.test-asset }}"
+  #      ref:           "${{ inputs.ref }}"
+  #      solo-version:  "${{ inputs.solo-version }}"
+  #      nlg-accounts:  "${{ inputs.nlg-accounts }}"
+  #      nlg-time:      "${{ inputs.nlg-time }}"
   #      add-app-props: "${{ inputs.add-app-props }}"
-  #      add-settings: "${{ inputs.add-settings }}"
-  #      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
-  #      crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
+  #      add-settings:  "${{ inputs.add-settings }}"
+  #      crypto-bench-merkle-db-java-args:    "${{ inputs.crypto-bench-merkle-db-java-args }}"
+  #      crypto-bench-merkle-db-test-params:  "${{ inputs.crypto-bench-merkle-db-test-params }}"
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
@@ -165,7 +165,7 @@ jobs:
       - name: Checkout Consensus Node
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.event.inputs.tag-to-run }}
+          ref: ${{ inputs.ref }}
 
       - name: Tag SDPT Passing
         run: |
@@ -199,7 +199,7 @@ jobs:
         id: find-commit-author-slack
         continue-on-error: true
         env:
-          BUILD_TAG: ${{ inputs.tag-to-run }}
+          BUILD_TAG: ${{ inputs.ref }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
         run: |
           # Extract the commit and user information from the build tag
@@ -312,7 +312,7 @@ jobs:
                         },
                         {
                           "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag-to-run }}>"
+                          "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
                         },
                         {
                           "type": "mrkdwn",
@@ -368,7 +368,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.tag-to-run }}
+          ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -472,7 +472,7 @@ jobs:
                       },
                       {
                         "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.tag-to-run }}>"
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ inputs.ref }}>"
                       },
                       {
                         "type": "mrkdwn",
