@@ -4,6 +4,8 @@ package org.hiero.otter.fixtures.container;
 import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
@@ -93,17 +95,15 @@ public class ContainerNode extends AbstractNode implements Node {
             final String message = "%s: %s".formatted(alias, frame.getUtf8StringWithoutLineEnding());
             log.log(level, message);
         };
-        final PlatformStatusLogParser platformStatusLogParser =
-                new PlatformStatusLogParser(newValue -> platformStatus = newValue);
 
         //noinspection resource
         this.container = new GenericContainer<>(dockerImage)
                 .withNetwork(network)
                 .withNetworkAliases(alias)
-                .withLogConsumer(logWriter.andThen(platformStatusLogParser))
-                .withExposedPorts(8080);
+                .withExposedPorts(CONTROL_PORT);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
+                .maxInboundMessageSize(32 * 1024 * 1024)
                 .usePlaintext()
                 .build();
     }
@@ -238,34 +238,33 @@ public class ContainerNode extends AbstractNode implements Node {
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
-                    if (value.hasPlatformStatusChange()) {
-                        final PlatformStatusChange change = value.getPlatformStatusChange();
-                        final String statusName = change.getNewStatus();
-                        try {
-                            final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
-                            platformStatus = newStatus;
-                            resultsCollector.addPlatformStatus(newStatus);
-                        } catch (final IllegalArgumentException e) {
-                            log.warn("Received unknown platform status: {}", statusName);
+                    switch (value.getEventCase()) {
+                        case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
+                        case LOG_ENTRY ->
+                                receivedLogs.add(ProtobufConverter.fromGoogle(value.getLogEntry()));
+                        case CONSENSUS_ROUNDS ->
+                                resultsCollector.addConsensusRounds(
+                                        ProtobufConverter.fromGoogle(value.getConsensusRounds()));
+                        default -> {
+                            final String message =
+                                    String.format(
+                                            "Received unknown message type from node %s: %s", selfId, value.getEventCase());
+                            throw new RuntimeException(message);
                         }
-                    } else if (value.hasLogEntry()) {
-                        receivedLogs.add(ProtobufConverter.fromGoogle(value.getLogEntry()));
-                    } else if (value.hasConsensusRounds()) {
-                        resultsCollector.addConsensusRounds(ProtobufConverter.fromGoogle(value.getConsensusRounds()));
-                    } else {
-                        // Other message types can be handled later
-                        log.info(value);
                     }
                 }
 
                 @Override
-                public void onError(@NonNull final Throwable t) {
-                    log.error("gRPC error from node {}", selfId, t);
+                public void onError(@NonNull final Throwable error) {
+                    final String message = String.format("gRPC error from node %s", selfId);
+                    fail(message, error);
                 }
 
                 @Override
                 public void onCompleted() {
-                    // nothing
+                    if (lifeCycle != DESTROYED && lifeCycle != SHUTDOWN) {
+                        fail("Node " + selfId + " has closed the connection while running the test");
+                    }
                 }
             });
 
@@ -281,7 +280,18 @@ public class ContainerNode extends AbstractNode implements Node {
             if (channel != null) {
                 channel.shutdownNow();
             }
-            container.stop();
+        }
+    }
+
+    private void handlePlatformChange(@NonNull final EventMessage value) {
+        final PlatformStatusChange change = value.getPlatformStatusChange();
+        final String statusName = change.getNewStatus();
+        try {
+            final PlatformStatus newStatus = PlatformStatus.valueOf(statusName);
+            platformStatus = newStatus;
+            resultsCollector.addPlatformStatus(newStatus);
+        } catch (final IllegalArgumentException e) {
+            log.warn("Received unknown platform status: {}", statusName);
         }
     }
 }

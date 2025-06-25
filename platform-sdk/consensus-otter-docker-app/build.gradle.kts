@@ -45,24 +45,18 @@ tasks.testFixturesJar {
     }
 }
 
-tasks.register<Sync>("copyTestFixturesLib") {
-    from(configurations.testFixturesRuntimeClasspath)
-    into(layout.buildDirectory.dir("data/lib"))
-}
-
-tasks.register<Sync>("copyTestFixturesApp") {
-    from(tasks.testFixturesJar)
-    into(layout.buildDirectory.dir("data/apps"))
-    rename { "DockerApp.jar" }
-}
-
-tasks.register<Sync>("copyDockerfile") {
-    from(layout.projectDirectory.file("src/testFixtures/docker/Dockerfile"))
+tasks.register<Sync>("copyDockerizedApp") {
     into(layout.buildDirectory.dir("data"))
+    from(layout.projectDirectory.file("src/testFixtures/docker/Dockerfile"))
+    into("apps") {
+        from(tasks.testFixturesJar)
+        rename { "DockerApp.jar" }
+    }
+    into("lib") {
+        from(configurations.testFixturesRuntimeClasspath)
+    }
 }
 
 tasks.assemble {
-    dependsOn("copyTestFixturesLib")
-    dependsOn("copyTestFixturesApp")
-    dependsOn("copyDockerfile")
+    dependsOn("copyDockerizedApp")
 }

@@ -303,16 +303,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private void doStartNode() {
 
         final Configuration currentConfiguration = nodeConfiguration.createConfiguration();
-        final org.hiero.consensus.model.node.NodeId oldNodeId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
+        final org.hiero.consensus.model.node.NodeId legacyNodeId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
 
         setupGlobalMetrics(currentConfiguration);
 
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
         MerkleDb.resetDefaultInstancePath();
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldNodeId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacyNodeId);
         final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, oldNodeId);
+                metrics, currentConfiguration, getStaticThreadManager(), time, fileSystemManager, legacyNodeId);
 
         platformContext = TestPlatformContextBuilder.create()
                 .withTime(time)
@@ -333,7 +333,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                oldNodeId,
+                legacyNodeId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -348,7 +348,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         version,
                         initialState,
                         TurtleApp.INSTANCE,
-                        oldNodeId,
+                        legacyNodeId,
                         eventStreamLoc,
                         rosterHistory,
                         platformStateFacade)
@@ -363,12 +363,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final PlatformComponentBuilder platformComponentBuilder = platformBuilder.buildComponentBuilder();
         final PlatformBuildingBlocks platformBuildingBlocks = platformComponentBuilder.getBuildingBlocks();
 
-        final SimulatedGossip gossip = network.getGossipInstance(oldNodeId);
+        final SimulatedGossip gossip = network.getGossipInstance(legacyNodeId);
         gossip.provideIntakeEventCounter(platformBuildingBlocks.intakeEventCounter());
 
         platformComponentBuilder
                 .withMetricsDocumentationEnabled(false)
-                .withGossip(network.getGossipInstance(oldNodeId));
+                .withGossip(network.getGossipInstance(legacyNodeId));
 
         platformWiring = platformBuildingBlocks.platformWiring();
 

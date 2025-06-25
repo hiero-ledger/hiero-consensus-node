@@ -58,12 +58,6 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
      */
     @NonNull
     Configuration createConfiguration() {
-        return createBasicConfigBuilder()
-                .withSource(new SimpleConfigSource(overriddenProperties))
-                .getOrCreateConfig();
-    }
-
-    private TestConfigBuilder createBasicConfigBuilder() {
         return new TestConfigBuilder()
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
@@ -72,6 +66,9 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
                 .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory)
                 .withValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
-                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString())
+                .withSource(new SimpleConfigSource(overriddenProperties))
+                .getOrCreateConfig();
     }
+
 }

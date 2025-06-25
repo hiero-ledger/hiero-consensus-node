@@ -23,7 +23,6 @@ import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -126,10 +125,10 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
                 new SimulatedNetwork(randotron, roster, AVERAGE_NETWORK_DELAY, STANDARD_DEVIATION_NETWORK_DELAY);
 
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
-                .map(RosterUtils::getNodeId)
+                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
                 .sorted()
                 .map(nodeId -> createTurtleNode(
-                        NodeId.newBuilder().id(nodeId.id()).build(), roster, rosterBuilder.getPrivateKeys(nodeId)))
+                        nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
 

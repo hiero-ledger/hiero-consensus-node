@@ -2,8 +2,6 @@
 package org.hiero.consensus.otter.docker.app;
 
 import com.hedera.hapi.platform.state.legacy.NodeId;
-import com.hederahashgraph.api.proto.java.Roster;
-import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -15,6 +13,8 @@ import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.LogEntry;
+import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
 import org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -46,7 +46,7 @@ public final class DockerInit {
 
     private DockerInit() {
         grpcServer = ServerBuilder.forPort(GRPC_PORT)
-                .addService(new TestControlImpl(this))
+                .addService(new TestControlImpl())
                 .build();
     }
 
@@ -62,19 +62,16 @@ public final class DockerInit {
     /**
      * gRPC implementation that delegates to the {@link DockerInit} singleton.
      */
-    private static final class TestControlImpl extends TestControlGrpc.TestControlImplBase {
+    private final class TestControlImpl extends TestControlGrpc.TestControlImplBase {
 
-        private final DockerInit context;
-
-        private TestControlImpl(final DockerInit context) {
-            this.context = context;
+        private TestControlImpl() {
         }
 
         @Override
         public void start(
                 @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
 
-            if (context.app != null) {
+            if (app != null) {
                 responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
                 return;
             }
@@ -86,28 +83,35 @@ public final class DockerInit {
                         .asRuntimeException());
                 return;
             }
+            if (!request.hasVersion()) {
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("version has to be specified")
+                        .asRuntimeException());
+                return;
+            }
+            if (!request.hasRoster()) {
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("roster has to be specified")
+                        .asRuntimeException());
+                return;
+            }
 
             try {
-                final SemanticVersion version =
-                        request.hasVersion() ? request.getVersion() : SemanticVersion.getDefaultInstance();
-
-                final Roster roster = request.hasRoster() ? request.getRoster() : Roster.getDefaultInstance();
-
-                context.app = new DockerApp(
+                app = new DockerApp(
                         ProtobufConverter.fromGoogle(selfId),
-                        ProtobufConverter.fromGoogle(version),
-                        ProtobufConverter.fromGoogle(roster),
+                        ProtobufConverter.fromGoogle(request.getVersion()),
+                        ProtobufConverter.fromGoogle(request.getRoster()),
                         KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
                         request.getOverriddenPropertiesMap());
 
                 // Forward platform status changes to the caller
-                context.app.registerPlatformStatusChangeListener(notification -> {
-                    final var platformStatusChangeMsg =
+                app.registerPlatformStatusChangeListener(notification -> {
+                    final PlatformStatusChange platformStatusChangeMsg =
                             org.hiero.otter.fixtures.container.proto.PlatformStatusChange.newBuilder()
                                     .setNewStatus(notification.getNewStatus().name())
                                     .build();
 
-                    final var eventMessage = EventMessage.newBuilder()
+                    final EventMessage eventMessage = EventMessage.newBuilder()
                             .setPlatformStatusChange(platformStatusChangeMsg)
                             .build();
 
@@ -115,11 +119,11 @@ public final class DockerInit {
                 });
 
                 // Forward consensus rounds
-                context.app.registerConsensusRoundListener(rounds -> {
+                app.registerConsensusRoundListener(rounds -> {
                     final List<ProtoConsensusRound> protoRounds =
                             rounds.stream().map(ProtobufConverter::toGoogle).toList();
 
-                    final var eventMessage = EventMessage.newBuilder()
+                    final EventMessage eventMessage = EventMessage.newBuilder()
                             .setConsensusRounds(ProtoConsensusRounds.newBuilder()
                                     .addAllRounds(protoRounds)
                                     .build())
@@ -129,13 +133,13 @@ public final class DockerInit {
 
                 // Forward StructuredLog entries via gRPC using InMemoryAppender listener
                 InMemoryAppender.addListener((StructuredLog log) -> {
-                    final var logEntry = ProtobufConverter.toGoogle(log);
-                    final var eventMsg =
+                    final LogEntry logEntry = ProtobufConverter.toGoogle(log);
+                    final EventMessage eventMsg =
                             EventMessage.newBuilder().setLogEntry(logEntry).build();
                     responseObserver.onNext(eventMsg);
                 });
 
-                context.app.start();
+                app.start();
             } catch (final Exception e) {
                 responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
             }

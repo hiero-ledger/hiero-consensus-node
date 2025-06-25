@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -110,11 +111,10 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final List<ContainerNode> newNodes = new ArrayList<>();
         final List<RosterEntry> rosterEntries = new ArrayList<>();
-        final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
+        final Map<NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
 
-        for (final var oldSelfId : keysAndCerts.keySet()) {
-            final NodeId selfId = NodeId.newBuilder().id(oldSelfId.id()).build();
-            final byte[] sigCertBytes = getSigCertBytes(oldSelfId, keysAndCerts);
+        for (final NodeId selfId : keysAndCerts.keySet()) {
+            final byte[] sigCertBytes = getSigCertBytes(selfId, keysAndCerts);
 
             rosterEntries.add(RosterEntry.newBuilder()
                     .nodeId(selfId.id())
@@ -129,10 +129,9 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        for (final var oldSelfId : keysAndCerts.keySet()) {
-            final NodeId selfId = NodeId.newBuilder().id(oldSelfId.id()).build();
+        for (final NodeId selfId : keysAndCerts.keySet()) {
             final ContainerNode node =
-                    new ContainerNode(selfId, roster, keysAndCerts.get(oldSelfId), network, dockerImage);
+                    new ContainerNode(selfId, roster, keysAndCerts.get(selfId), network, dockerImage);
             newNodes.add(node);
         }
         nodes.addAll(newNodes);
@@ -141,23 +140,29 @@ public class ContainerNetwork extends AbstractNetwork {
 
     @NonNull
     private static byte[] getSigCertBytes(
-            final org.hiero.consensus.model.node.NodeId oldSelfId,
-            final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> keysAndCerts) {
+            final NodeId selfId,
+            final Map<NodeId, KeysAndCerts> keysAndCerts) {
         try {
-            return keysAndCerts.get(oldSelfId).sigCert().getEncoded();
+            return keysAndCerts.get(selfId).sigCert().getEncoded();
         } catch (final CertificateEncodingException e) {
             throw new RuntimeException(e);
         }
     }
 
     @NonNull
-    private static Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> getKeysAndCerts(final int count) {
+    private static Map<NodeId, KeysAndCerts> getKeysAndCerts(final int count) {
         try {
-            return CryptoStatic.generateKeysAndCerts(
-                    IntStream.range(0, count)
-                            .mapToObj(org.hiero.consensus.model.node.NodeId::of)
-                            .toList(),
+            final List<org.hiero.consensus.model.node.NodeId> nodeIds = IntStream.range(0, count)
+                    .mapToObj(org.hiero.consensus.model.node.NodeId::of)
+                    .toList();
+            final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> legacyNodeIdKeysAndCertsMap = CryptoStatic.generateKeysAndCerts(
+                    nodeIds,
                     null);
+            return legacyNodeIdKeysAndCertsMap.entrySet().stream()
+                    .collect(Collectors.toMap(
+                            entry -> NodeId.newBuilder().id(entry.getKey().id()).build(),  // or use a factory method if needed
+                            Map.Entry::getValue
+                    ));
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }

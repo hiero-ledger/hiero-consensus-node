@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.assertj.core.api.AbstractAssert;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
@@ -142,7 +143,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
 
             @Override
             public SubscriberAction onConsensusRounds(
-                    @NonNull final org.hiero.consensus.model.node.NodeId nodeId,
+                    @NonNull final NodeId nodeId,
                     final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
@@ -191,8 +192,8 @@ public class MultipleNodeConsensusResultsContinuousAssert
                 .append(roundNum)
                 .append(" has the following differences:\n");
         for (int i = 0; i < round1.getEventCount(); i++) {
-            final var event1 = round1.getConsensusEvents().get(i);
-            final var event2 = round2.getConsensusEvents().get(i);
+            final PlatformEvent event1 = round1.getConsensusEvents().get(i);
+            final PlatformEvent event2 = round2.getConsensusEvents().get(i);
             if (!event1.equals(event2)) {
                 sb.append("Event ").append(i).append(" differs:\n");
                 sb.append("Node ").append(node1.id()).append(" produced\n").append(event1);

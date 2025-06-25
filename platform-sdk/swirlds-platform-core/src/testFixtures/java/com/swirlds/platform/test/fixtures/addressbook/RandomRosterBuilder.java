@@ -4,6 +4,7 @@ package com.swirlds.platform.test.fixtures.addressbook;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
@@ -168,6 +169,19 @@ public class RandomRosterBuilder {
     }
 
     /**
+     * Convenience method to retrieve the private keys for a node using HAPI NodeId.
+     * This method internally converts the HAPI NodeId to the platform-specific NodeId format.
+     *
+     * @param nodeId the node id
+     * @return the private keys
+     * @see RandomRosterBuilder#getPrivateKeys(NodeId)
+     */
+    @NonNull
+    public KeysAndCerts getPrivateKeys(@NonNull final com.hedera.hapi.platform.state.NodeId nodeId) {
+        return getPrivateKeys(NodeId.of(nodeId.id()));
+    }
+
+    /**
      * Get the private keys for a node. Should only be called after the roster has been built and only if
      * {@link #withRealKeysEnabled(boolean)} was set to true.
      *
@@ -226,5 +240,9 @@ public class RandomRosterBuilder {
                 throw new RuntimeException();
             }
         }
+    }
+
+    private Object getPrivateKeys(final RosterEntry nodeId) {
+        return null;
     }
 }

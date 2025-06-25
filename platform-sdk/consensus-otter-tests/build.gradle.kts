@@ -31,7 +31,9 @@ testModuleInfo {
 
 // Runs tests against the Turtle environment
 tasks.register<Test>("testTurtle") {
-    useJUnitPlatform {}
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = configurations.testRuntimeClasspath.get()
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -49,9 +51,11 @@ tasks.register<Test>("testTurtle") {
 
 // Runs tests against the Container environment
 tasks.register<Test>("testContainer") {
-    dependsOn(":consensus-otter-docker-app:assemble")
+    dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
 
-    useJUnitPlatform {}
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = configurations.testRuntimeClasspath.get()
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)

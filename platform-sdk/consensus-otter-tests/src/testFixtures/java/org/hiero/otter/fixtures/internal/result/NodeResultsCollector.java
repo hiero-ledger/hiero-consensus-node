@@ -56,7 +56,7 @@ public class NodeResultsCollector {
         if (!destroyed) {
             consensusRounds.addAll(rounds);
             consensusRoundSubscribers.removeIf(subscriber ->
-                    subscriber.onConsensusRounds(org.hiero.consensus.model.node.NodeId.of(nodeId.id()), rounds)
+                    subscriber.onConsensusRounds(nodeId, rounds)
                             == SubscriberAction.UNSUBSCRIBE);
         }
     }
