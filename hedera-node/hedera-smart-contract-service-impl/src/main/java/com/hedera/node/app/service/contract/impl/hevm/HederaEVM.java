@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.hevm;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.checkHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -217,7 +218,7 @@ public class HederaEVM extends EVM {
                  ** against new versions of the EVM class.
                  */
                 usedOpsDuration += opsDurationArray[opcode] == 0
-                        ? result.getGasCost() * hederaOpsDuration.opsDurationMultiplier()
+                        ? result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR
                         : opsDurationArray[opcode];
 
                 // Check the duration of the operations every durationCheckShift opcodes.
