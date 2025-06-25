@@ -42,7 +42,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Set;
+import java.util.Collections;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -286,7 +286,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @NonNull
     @Override
     public SingleNodeLogResult getLogResult() {
-        return new SingleNodeLogResultImpl(selfId, Set.of());
+        return new SingleNodeLogResultImpl(selfId, Collections.emptySet());
     }
 
     /**
