@@ -307,7 +307,7 @@ public class FrameUtils {
         requireNonNull(featureFlags);
 
         Long maybeGrandfatheredNumber = null;
-        if (isLongZero(entityIdFactory(frame), address)) {
+        if (isLongZero(address)) {
             try {
                 maybeGrandfatheredNumber =
                         asNumberedContractId(entityIdFactory(frame), address).contractNum();
@@ -357,7 +357,7 @@ public class FrameUtils {
     }
 
     private static boolean isQualifiedDelegate(@NonNull final Address recipient, @NonNull final MessageFrame frame) {
-        return isLongZero(entityIdFactory(frame), recipient)
+        return isLongZero(recipient)
                 && contractsConfigOf(frame).permittedDelegateCallers().contains(numberOfLongZero(recipient));
     }
 
@@ -389,7 +389,10 @@ public class FrameUtils {
     public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
         final HederaOpsDurationCounter opsDurationCounter =
                 initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        opsDurationCounter.incrementOpsDuration(opsDuration);
+        if (opsDurationCounter != null) {
+            opsDurationCounter.incrementOpsDuration(opsDuration);
+            checkHederaOpsDuration(frame, opsDuration);
+        }
     }
 
     /**
@@ -401,6 +404,10 @@ public class FrameUtils {
     public static long getHederaOpsDuration(@NonNull final MessageFrame frame) {
         final HederaOpsDurationCounter opsDurationCounter =
                 initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        return opsDurationCounter.getOpsDurationCounter();
+        return opsDurationCounter == null ? 0L : opsDurationCounter.getOpsDurationCounter();
+    }
+
+    public static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
+        proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
     }
 }

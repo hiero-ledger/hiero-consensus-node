@@ -27,6 +27,7 @@ import com.hedera.node.config.data.AtomicBatchConfig;
 import com.hedera.node.config.data.AutoRenew2Config;
 import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.BalancesConfig;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
@@ -45,6 +46,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.NodesConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.hedera.node.config.data.RatesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -87,6 +89,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 BalancesConfig.class,
                 BlockRecordStreamConfig.class,
                 BlockStreamConfig.class,
+                BlockNodeConnectionConfig.class,
                 BootstrapConfig.class,
                 CacheConfig.class,
                 ConsensusConfig.class,
@@ -111,7 +114,8 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 VersionConfig.class,
                 TssConfig.class,
                 JumboTransactionsConfig.class,
-                GrpcUsageTrackerConfig.class);
+                GrpcUsageTrackerConfig.class,
+                OpsDurationConfig.class);
     }
 
     @NonNull

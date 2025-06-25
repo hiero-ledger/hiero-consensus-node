@@ -65,6 +65,7 @@ public interface ContractCallStreamBuilder extends ContractOperationStreamBuilde
      * @return this builder
      */
     @NonNull
+    @Deprecated
     ContractCallStreamBuilder contractCallResult(@Nullable ContractFunctionResult result);
 
     /**

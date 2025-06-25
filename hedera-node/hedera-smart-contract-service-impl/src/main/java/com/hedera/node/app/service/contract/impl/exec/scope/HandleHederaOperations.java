@@ -40,6 +40,7 @@ import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -381,7 +382,7 @@ public class HandleHederaOperations implements HederaOperations {
     public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
         final var recordBuilder = context.savepointStack()
                 .addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE)
-                .contractID(contractId)
+                .createdContractID(contractId)
                 .status(SUCCESS)
                 .transaction(transactionWith(TransactionBody.newBuilder()
                         .contractCreateInstance(synthContractCreationForExternalization(contractId))
@@ -441,7 +442,7 @@ public class HandleHederaOperations implements HederaOperations {
         final var newContractId = contractID.copyBuilder().build();
         pendingCreationMetadataRef.set(newContractId, pendingCreationMetadata);
         streamBuilder
-                .contractID(newContractId)
+                .createdContractID(newContractId)
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(newContractId)
                         .evmAddress(evmAddress)
@@ -523,5 +524,11 @@ public class HandleHederaOperations implements HederaOperations {
 
     private boolean needsStandardization(@NonNull final ContractCreateTransactionBody op) {
         return op.hasInitcode() || op.gas() > 0L || op.initialBalance() > 0L;
+    }
+
+    @Override
+    @Nullable
+    public ThrottleAdviser getThrottleAdviser() {
+        return context.throttleAdviser();
     }
 }

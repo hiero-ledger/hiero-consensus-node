@@ -21,8 +21,9 @@ public interface PcesFileWriter {
      * Write an event to the file.
      *
      * @param event the event to write
+     * @return the length of the written data
      */
-    void writeEvent(@NonNull final GossipEvent event) throws IOException;
+    long writeEvent(@NonNull final GossipEvent event) throws IOException;
 
     /**
      * Flush the file.
@@ -43,7 +44,4 @@ public interface PcesFileWriter {
      * @return the size of the file in bytes
      */
     long fileSize();
-
-    /** Keeps stats of the writing process */
-    PcesFileWriterStats getStats();
 }

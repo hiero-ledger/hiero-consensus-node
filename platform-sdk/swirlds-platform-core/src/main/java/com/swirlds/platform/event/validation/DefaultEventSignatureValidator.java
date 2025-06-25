@@ -4,7 +4,6 @@ package com.swirlds.platform.event.validation;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
@@ -12,20 +11,19 @@ import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.gossip.IntakeEventCounter;
-import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.Map;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterEntryNotFoundException;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -45,19 +43,9 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private final SignatureVerifier signatureVerifier;
 
     /**
-     * The previous roster map. May be null.
+     * The complete roster history, i.e. all rosters for non-ancient rounds.
      */
-    private Map<Long, RosterEntry> previousRosterMap;
-
-    /**
-     * The current roster map.
-     */
-    private Map<Long, RosterEntry> currentRosterMap;
-
-    /**
-     * The current software version.
-     */
-    private final SemanticVersion currentSoftwareVersion;
+    private RosterHistory rosterHistory;
 
     /**
      * The current event window.
@@ -85,73 +73,24 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      *
      * @param platformContext        the platform context
      * @param signatureVerifier      a verifier for checking event signatures
-     * @param currentSoftwareVersion the current software version
-     * @param previousRoster    the previous address book
-     * @param currentRoster     the current address book
+     * @param rosterHistory    the complete roster history
      * @param intakeEventCounter     keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultEventSignatureValidator(
             @NonNull final PlatformContext platformContext,
             @NonNull final SignatureVerifier signatureVerifier,
-            @NonNull final SemanticVersion currentSoftwareVersion,
-            @Nullable final Roster previousRoster,
-            @NonNull final Roster currentRoster,
+            @Nullable final RosterHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.signatureVerifier = Objects.requireNonNull(signatureVerifier);
-        this.currentSoftwareVersion = Objects.requireNonNull(currentSoftwareVersion);
-        this.previousRosterMap = RosterUtils.toMap(previousRoster);
-        this.currentRosterMap = RosterUtils.toMap(Objects.requireNonNull(currentRoster));
+        this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.rateLimitedLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
 
         this.validationFailedAccumulator = platformContext.getMetrics().getOrCreate(VALIDATION_FAILED_CONFIG);
 
-        eventWindow = EventWindow.getGenesisEventWindow(platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode());
-    }
-
-    /**
-     * Determine whether the previous roster or the current roster should be used to verify an event's
-     * signature.
-     * <p>
-     * Logs an error and returns null if an applicable roster cannot be selected
-     *
-     * @param event the event to be validated
-     * @return the applicable roster map, or null if an applicable roster cannot be selected
-     */
-    @Nullable
-    private Map<Long, RosterEntry> determineApplicableRosterMap(@NonNull final PlatformEvent event) {
-        final SemanticVersion eventVersion = event.getSoftwareVersion();
-
-        final int softwareComparison =
-                HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(currentSoftwareVersion, eventVersion);
-        if (softwareComparison < 0) {
-            // current software version is less than event software version
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Cannot validate events for software version {} that is greater than the current software version {}",
-                    eventVersion,
-                    currentSoftwareVersion);
-            return null;
-        } else if (softwareComparison > 0) {
-            // current software version is greater than event software version
-            if (previousRosterMap == null) {
-                rateLimitedLogger.error(
-                        EXCEPTION.getMarker(),
-                        "Cannot validate events for software version {} that is less than the current software version {} without a previous roster",
-                        eventVersion,
-                        currentSoftwareVersion);
-                return null;
-            }
-            return previousRosterMap;
-        } else {
-            // current software version is equal to event software version
-            return currentRosterMap;
-        }
+        eventWindow = EventWindow.getGenesisEventWindow();
     }
 
     /**
@@ -161,15 +100,19 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * @return true if the event has a valid signature, otherwise false
      */
     private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        final Map<Long, RosterEntry> applicableRosterMap = determineApplicableRosterMap(event);
-        if (applicableRosterMap == null) {
-            // this occurrence was already logged while attempting to determine the applicable roster
+        final Roster applicableRoster = rosterHistory.getRosterForRound(event.getBirthRound());
+        if (applicableRoster == null) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Cannot validate events for birth round {} without a roster",
+                    event.getBirthRound());
             return false;
         }
-
         final NodeId eventCreatorId = event.getCreatorId();
-
-        if (!applicableRosterMap.containsKey(eventCreatorId.id())) {
+        final RosterEntry rosterEntry;
+        try {
+            rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
+        } catch (RosterEntryNotFoundException e) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),
                     "Node {} doesn't exist in applicable roster. Event: {}",
@@ -178,7 +121,8 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return false;
         }
 
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(applicableRosterMap.get(eventCreatorId.id()));
+        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+
         final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
         if (publicKey == null) {
             rateLimitedLogger.error(
@@ -235,8 +179,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * {@inheritDoc}
      */
     @Override
-    public void updateRosters(@NonNull final RosterUpdate rosterUpdate) {
-        this.previousRosterMap = RosterUtils.toMap(rosterUpdate.previousRoster());
-        this.currentRosterMap = RosterUtils.toMap(rosterUpdate.currentRoster());
+    public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
+        this.rosterHistory = Objects.requireNonNull(rosterHistory);
     }
 }

@@ -278,7 +278,7 @@ public class AddressBookUtils {
                 RosterUtils.setActiveRoster(
                         state,
                         RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
-                        platformStateFacade.roundOf(state));
+                        platformStateFacade.roundOf(state) + 1);
             }
         }
 

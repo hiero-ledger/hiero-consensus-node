@@ -5,8 +5,6 @@ import static com.hedera.hapi.node.base.AccountID.AccountOneOfType.ACCOUNT_NUM;
 import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasOrElse;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.extractIdFromAddressAlias;
-import static com.hedera.node.app.service.token.AliasUtils.extractRealmFromAddressAlias;
-import static com.hedera.node.app.service.token.AliasUtils.extractShardFromAddressAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static java.util.Objects.requireNonNull;
 
@@ -203,10 +201,10 @@ public class ReadableAccountStoreImpl implements ReadableAccountStore {
         // An alias may either be long-zero (in which case it isn't in our alias map), or it may be
         // any other form of valid alias (in which case it will be in the map). So we do a quick check
         // first to see if it is a valid long zero, and if not, then we look it up in the map.
-        if (isEntityNumAlias(alias, shardNum, realmNum)) {
+        if (isEntityNumAlias(alias)) {
             return AccountID.newBuilder()
-                    .shardNum(extractShardFromAddressAlias(alias))
-                    .realmNum(extractRealmFromAddressAlias(alias))
+                    .shardNum(shardNum)
+                    .realmNum(realmNum)
                     .accountNum(extractIdFromAddressAlias(alias))
                     .build();
         }

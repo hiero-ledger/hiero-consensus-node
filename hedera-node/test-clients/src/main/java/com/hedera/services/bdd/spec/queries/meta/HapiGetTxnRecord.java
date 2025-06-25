@@ -298,6 +298,16 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         return this;
     }
 
+    /**
+     * Specifies the expected number of child records for this transaction.
+     * <p>
+     * <b>Note:</b> This method returns all child records, which may include records from the end of the staking period.
+     * If you do not specifically require staking period records, it is recommended to use
+     * {@code hasNonStakingChildRecordCount()} for more consistent results.
+     *
+     * @param count the expected number of child records
+     * @return this {@code HapiGetTxnRecord} instance for method chaining
+     */
     public HapiGetTxnRecord hasChildRecordCount(final int count) {
         requestChildRecords = true;
         childRecordsCount = OptionalInt.of(count);

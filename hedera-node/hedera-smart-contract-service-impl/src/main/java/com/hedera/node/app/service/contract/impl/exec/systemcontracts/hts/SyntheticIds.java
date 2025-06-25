@@ -81,7 +81,7 @@ public class SyntheticIds {
                         : AccountID.newBuilder().accountNum(0L).build();
             }
 
-            if (isLongZero(nativeOperations.entityIdFactory(), address)) {
+            if (isLongZero(address)) {
                 // References to missing long-zero addresses are synthesized as aliases for
                 // credits and numeric ids for debits
                 return isCredit

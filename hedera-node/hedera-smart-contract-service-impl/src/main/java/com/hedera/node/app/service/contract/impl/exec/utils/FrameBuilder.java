@@ -88,7 +88,7 @@ public class FrameBuilder {
             final long intrinsicGas) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-        final var nominalCoinbase = asLongZeroAddress(worldUpdater.entityIdFactory(), ledgerConfig.fundingAccount());
+        final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
         final var contextVariables = contextVariablesFrom(config, context, intrinsicGas);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
@@ -139,8 +139,8 @@ public class FrameBuilder {
             contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.streamBuilder());
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
+            contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(0L));
         }
-        contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(intrinsicGas));
         return contextEntries;
     }
 

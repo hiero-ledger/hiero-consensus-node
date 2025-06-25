@@ -92,8 +92,8 @@ jobs:
       # Set up the npm dependencies and cache on the tck-client
       - name: Set up the tck-client
         run: |
-          npm install
           npm cache clean --force
+          npm install
         working-directory: platform-sdk/regression
 
       # Set up the npm dependencies and cache on the sdk-server
@@ -110,7 +110,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@0.36.0
+        run: npm install -g @hashgraph/solo@0.37.1
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -138,21 +138,59 @@ jobs:
           solo node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror-node deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
 
-          nohup kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:50211 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-monitor -n ${{ env.SOLO_NAMESPACE }} 5600:5600 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-rest -n ${{ env.SOLO_NAMESPACE }} 5551:5551 > /dev/null 2>&1 &
-          nohup kubectl port-forward svc/mirror-rest-java -n ${{ env.SOLO_NAMESPACE }} 8084:8084 > /dev/null 2>&1 &
+          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
+          kubectl port-forward svc/mirror-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
 
       # Start the TCK client
       - name: Start tck-client
         env:
-          OPERATOR_ACCOUNT_ID: "0.0.1002"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b657004220420a608e2130a0a3cb34f86e757303c862bee353d9ab77ba4387ec084f881d420d4"
-          NODE_TIMEOUT: 15000
+          OPERATOR_ACCOUNT_ID: "0.0.2"
+          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
+          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
+          NODE_IP: "127.0.0.1:50211"
+          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
+          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
         run: |
           solo account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
+          cp .env.custom_node .env
           npm run test
         working-directory: platform-sdk/regression # required
+
+      - name: SDK TCK Regression Test Report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: SDK TCK Regression Test Report
+          path: "**/platform-sdk/regression/mochawesome-report/mochawesome.*"
+          retention-days: 7
+
+      # Collect run logs in a log file, ignore last job as it is the one that runs this workflow
+      - name: Collect run logs in a log file
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job ${job_id}..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "${job_id}" -r '.jobs[] | select(.databaseId == ${job_id}) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/"${job_id}"/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: Run Logs
+          path: run.log
 
       # Stop the TCK server
       - name: Stop tck-server
@@ -166,3 +204,104 @@ jobs:
         if: ${{ always() }}
         run: |
           kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
+
+  report-tck-regression-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hiero-network-node-linux-large
+    needs: tck-regression
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
+        with:
+          egress-policy: audit
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          COLOR="#FF0000"
+          if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          fi
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":vertical_traffic_light: Hiero Consensus Node - TCK Regression Test Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*TCK Regression Panel was executed. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "TCK Regression Panel Result"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.tck-regression.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report Status to TCK Working Group
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

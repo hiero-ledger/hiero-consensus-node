@@ -1,35 +1,30 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_OPS_DURATION_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.function.Supplier;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class HederaOpsDurationTest {
-    @Test
-    void testAllDurationsAreLoaded() {
-        String json = "{\"opsDuration\":{\"1\":100}," + "\"gasBasedDurationMultiplier\":{\"ops\":566}}";
-        Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(json.getBytes());
-        HederaOpsDuration opsDuration = new HederaOpsDuration(streamSupplier, new ObjectMapper());
+    private HederaOpsDuration hederaOpsDuration;
 
-        opsDuration.loadOpsDuration();
-
-        assertEquals(100, opsDuration.getOpsDuration().get(1));
-        assertEquals(566, opsDuration.opsDurationMultiplier());
+    @BeforeEach
+    void setUp() {
+        hederaOpsDuration = new HederaOpsDuration();
     }
 
     @Test
-    void testLoadOpsDurationThrowsOnBrokenJson() {
-        String invalidJson = "{\"opsDuration\":";
-        Supplier<InputStream> streamSupplier = () -> new ByteArrayInputStream(invalidJson.getBytes());
-        HederaOpsDuration opsDuration = new HederaOpsDuration(streamSupplier, new ObjectMapper());
+    void testAllDurationsAreLoadedFromConfig() {
+        hederaOpsDuration.applyDurationFromConfig(DEFAULT_OPS_DURATION_CONFIG);
 
-        assertThrows(IllegalStateException.class, opsDuration::loadOpsDuration);
+        assertEquals(123, hederaOpsDuration.getOpsDuration().get(1));
+        assertEquals(105, hederaOpsDuration.getOpsDuration().get(2));
+        assertEquals(2091, hederaOpsDuration.getOpsDuration().get(250));
+        assertEquals(566, hederaOpsDuration.opsDurationMultiplier());
+        assertEquals(1575, hederaOpsDuration.precompileDurationMultiplier());
+        assertEquals(566, hederaOpsDuration.systemContractDurationMultiplier());
     }
 }

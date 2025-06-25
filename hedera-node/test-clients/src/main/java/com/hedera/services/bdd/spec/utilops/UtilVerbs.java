@@ -759,7 +759,17 @@ public class UtilVerbs {
      * @return the operation that sleeps until the beginning of the next block stream block
      */
     public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
-        return new HapiSpecWaitUntilNextBlock();
+        return waitUntilNextBlocks(1);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next N block stream blocks.
+     *
+     * @param blocksToWait the number of blocks to wait for
+     * @return the operation that sleeps until the beginning of the next N block stream blocks
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlocks(final int blocksToWait) {
+        return new HapiSpecWaitUntilNextBlock().waitingForBlocks(blocksToWait);
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(
@@ -1923,8 +1933,7 @@ public class UtilVerbs {
                     .sorted(Comparator.comparing(ContractID::getContractNum))
                     .toList();
             final var createdId = createdIds.get(creationNum);
-            final var accDetails = getContractInfo(CommonUtils.hex(
-                            asEvmAddress(createdId.getShardNum(), createdId.getRealmNum(), createdId.getContractNum())))
+            final var accDetails = getContractInfo(CommonUtils.hex(asEvmAddress(createdId.getContractNum())))
                     .logged();
             allRunFor(spec, accDetails);
         });
@@ -2483,6 +2492,10 @@ public class UtilVerbs {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(asAddress(account)), amount, isApproval);
     }
 
+    public static Tuple accountAmount(final Address accountAddress, final Long amount, final boolean isApproval) {
+        return Tuple.of(accountAddress, amount, isApproval);
+    }
+
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount);
     }
@@ -2570,7 +2583,7 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        if (isLongZeroAddress(spec.shard(), spec.realm(), explicitFromHeadlong(address))) {
+        if (isLongZeroAddress(explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));
