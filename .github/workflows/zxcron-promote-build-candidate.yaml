@@ -160,8 +160,7 @@ jobs:
         with:
           workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main
-          # ensure we are always using the workflow definition from the main branch
+          ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "test-asset": "Latitude3",
