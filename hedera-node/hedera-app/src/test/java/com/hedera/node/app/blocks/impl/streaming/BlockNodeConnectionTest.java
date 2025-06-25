@@ -322,12 +322,18 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(response);
 
         verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
-        verify(requestObserver).onCompleted();
-        verify(connectionManager).jumpToBlock(-1L);
+        verify(requestObserver, times(2)).onCompleted();
+        verify(connectionManager, times(2)).jumpToBlock(-1L);
         verify(stateManager, times(1)).getEarliestAvailableBlockNumber();
         verify(stateManager, times(1)).getHighestAckedBlockNumber();
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
         verify(stateManager).getBlockState(11L);
+        verify(requestObserver)
+                .onNext(PublishStreamRequest.newBuilder()
+                        .endStream(PublishStreamRequest.EndStream.newBuilder()
+                                .endCode(PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
+                                .build())
+                        .build());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestObserver);
         verifyNoMoreInteractions(connectionManager);

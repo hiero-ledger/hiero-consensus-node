@@ -332,7 +332,12 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                                     .earliestBlockNumber(earliestBlockNumber)
                                     .latestBlockNumber(highestAckedBlockNumber))
                             .build();
+
+                    createRequestObserver();
+                    updateConnectionState(ConnectionState.ACTIVE);
                     sendRequest(endStream);
+
+                    close();
 
                     blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
                 }
