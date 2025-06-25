@@ -40,6 +40,7 @@ import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -83,6 +84,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@OrderedInIsolation
 public class AdditionalHip1064Tests {
 
     @BeforeAll
