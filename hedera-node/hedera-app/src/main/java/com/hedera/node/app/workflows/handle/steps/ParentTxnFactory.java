@@ -34,7 +34,6 @@ import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.EntityNumGeneratorImpl;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
@@ -61,7 +60,6 @@ import com.hedera.node.app.workflows.handle.TransactionType;
 import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
-import com.hedera.node.app.workflows.prehandle.BatchInnerTxnPreHandle;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
@@ -332,18 +330,6 @@ public class ParentTxnFactory {
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
 
-        BatchInnerTxnPreHandle innerTxnPreHandler = (txn, previousPreHandleResult) -> {
-            final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
-            return preHandleWorkflow.preHandleTransaction(
-                    creatorInfo,
-                    readableStoreFactory,
-                    accountStore,
-                    txn,
-                    previousPreHandleResult,
-                    null,
-                    PreHandleWorkflow.InnerTransaction.YES);
-        };
-
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -370,7 +356,7 @@ public class ParentTxnFactory {
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
                 preHandleResult.innerResults(),
-                innerTxnPreHandler,
+                preHandleWorkflow,
                 transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {

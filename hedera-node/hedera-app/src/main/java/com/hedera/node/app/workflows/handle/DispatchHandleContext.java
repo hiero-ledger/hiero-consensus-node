@@ -23,6 +23,7 @@ import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
@@ -54,9 +55,9 @@ import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
-import com.hedera.node.app.workflows.prehandle.BatchInnerTxnPreHandle;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -107,8 +108,8 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
     @Nullable
     private final List<PreHandleResult> preHandleResults;
 
-    @NonNull
-    private final BatchInnerTxnPreHandle innerTxnPreHandler;
+    @Nullable
+    private final PreHandleWorkflow preHandleWorkflow;
 
     public DispatchHandleContext(
             @NonNull final Instant consensusNow,
@@ -136,7 +137,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
             @NonNull final DispatchMetadata handleMetaData,
             @NonNull final TransactionChecker transactionChecker,
             @Nullable final List<PreHandleResult> preHandleResults,
-            @Nullable final BatchInnerTxnPreHandle innerTxnPreHandler,
+            @Nullable final PreHandleWorkflow preHandleWorkflow,
             @NonNull final TransactionCategory transactionCategory) {
         this.consensusNow = requireNonNull(consensusNow);
         this.creatorInfo = requireNonNull(creatorInfo);
@@ -166,7 +167,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         this.transactionChecker = requireNonNull(transactionChecker);
         this.transactionCategory = requireNonNull(transactionCategory);
         this.preHandleResults = preHandleResults;
-        this.innerTxnPreHandler = innerTxnPreHandler;
+        this.preHandleWorkflow = preHandleWorkflow;
     }
 
     @NonNull
@@ -397,14 +398,23 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
         requireNonNull(options);
         PreHandleResult childPreHandleResult = null;
         // Compute pre-handle results for the inner transactions and pass them to the child dispatch.
-        final var batchInnerTxnBytes = options.dispatchMetadata().getMetadata(INNER_TRANSACTION_BYTES, Bytes.class);
-        if (options.category() == BATCH_INNER && batchInnerTxnBytes.isPresent()) {
+        if (options.category() == BATCH_INNER) {
             // Get precomputed maybeReusablePreHandleResult if available, otherwise null
             PreHandleResult maybeReusablePreHandleResult =
                     (preHandleResults != null && !preHandleResults.isEmpty()) ? preHandleResults.removeFirst() : null;
             // Signature verification will be performed only if the maybeReusablePreHandleResult is null
             // or there are updates to the keys.
-            childPreHandleResult = innerTxnPreHandler.preHandle(batchInnerTxnBytes.get(), maybeReusablePreHandleResult);
+            final var batchInnerTxnBytes = options.dispatchMetadata()
+                    .getMetadata(INNER_TRANSACTION_BYTES, Bytes.class)
+                    .orElseThrow();
+            childPreHandleResult = preHandleWorkflow.preHandleTransaction(
+                    creatorInfo,
+                    storeFactory.asReadOnly(),
+                    storeFactory.readableStore(ReadableAccountStore.class),
+                    batchInnerTxnBytes,
+                    maybeReusablePreHandleResult,
+                    (s) -> {},
+                    PreHandleWorkflow.InnerTransaction.YES);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(

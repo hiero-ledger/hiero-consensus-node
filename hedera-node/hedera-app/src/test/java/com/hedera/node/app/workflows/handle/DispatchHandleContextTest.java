@@ -20,7 +20,6 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletionsTest.asTxn;
-import static com.hedera.node.app.workflows.prehandle.BatchInnerTxnPreHandle.NOOP_BATCH_INNER_TXN_PREHANDLER;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
@@ -107,6 +106,7 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -251,6 +251,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Mock
     private DeduplicationCache deduplicationCache;
+
+    @Mock
+    private PreHandleWorkflow preHandleWorkflow;
 
     private ServiceApiFactory apiFactory;
     private ReadableStoreFactory readableStoreFactory;
@@ -420,7 +423,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             EMPTY_METADATA,
             transactionChecker,
             List.of(result),
-            NOOP_BATCH_INNER_TXN_PREHANDLER,
+            preHandleWorkflow,
             USER
         };
 
@@ -824,7 +827,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 EMPTY_METADATA,
                 transactionChecker,
                 results,
-                NOOP_BATCH_INNER_TXN_PREHANDLER,
+                preHandleWorkflow,
                 category);
     }
 
