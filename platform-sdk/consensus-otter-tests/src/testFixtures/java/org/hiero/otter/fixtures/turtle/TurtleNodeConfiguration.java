@@ -70,5 +70,4 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
                 .withSource(new SimpleConfigSource(overriddenProperties))
                 .getOrCreateConfig();
     }
-
 }

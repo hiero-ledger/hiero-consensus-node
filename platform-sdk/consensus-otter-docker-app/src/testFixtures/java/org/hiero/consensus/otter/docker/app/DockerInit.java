@@ -64,8 +64,7 @@ public final class DockerInit {
      */
     private final class TestControlImpl extends TestControlGrpc.TestControlImplBase {
 
-        private TestControlImpl() {
-        }
+        private TestControlImpl() {}
 
         @Override
         public void start(

@@ -52,11 +52,7 @@ tasks.register<Sync>("copyDockerizedApp") {
         from(tasks.testFixturesJar)
         rename { "DockerApp.jar" }
     }
-    into("lib") {
-        from(configurations.testFixturesRuntimeClasspath)
-    }
+    into("lib") { from(configurations.testFixturesRuntimeClasspath) }
 }
 
-tasks.assemble {
-    dependsOn("copyDockerizedApp")
-}
+tasks.assemble { dependsOn("copyDockerizedApp") }

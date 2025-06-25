@@ -240,15 +240,13 @@ public class ContainerNode extends AbstractNode implements Node {
                 public void onNext(final EventMessage value) {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
-                        case LOG_ENTRY ->
-                                receivedLogs.add(ProtobufConverter.fromGoogle(value.getLogEntry()));
+                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.fromGoogle(value.getLogEntry()));
                         case CONSENSUS_ROUNDS ->
-                                resultsCollector.addConsensusRounds(
-                                        ProtobufConverter.fromGoogle(value.getConsensusRounds()));
+                            resultsCollector.addConsensusRounds(
+                                    ProtobufConverter.fromGoogle(value.getConsensusRounds()));
                         default -> {
-                            final String message =
-                                    String.format(
-                                            "Received unknown message type from node %s: %s", selfId, value.getEventCase());
+                            final String message = String.format(
+                                    "Received unknown message type from node %s: %s", selfId, value.getEventCase());
                             throw new RuntimeException(message);
                         }
                     }

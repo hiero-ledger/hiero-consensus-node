@@ -55,9 +55,8 @@ public class NodeResultsCollector {
         requireNonNull(rounds);
         if (!destroyed) {
             consensusRounds.addAll(rounds);
-            consensusRoundSubscribers.removeIf(subscriber ->
-                    subscriber.onConsensusRounds(nodeId, rounds)
-                            == SubscriberAction.UNSUBSCRIBE);
+            consensusRoundSubscribers.removeIf(
+                    subscriber -> subscriber.onConsensusRounds(nodeId, rounds) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 

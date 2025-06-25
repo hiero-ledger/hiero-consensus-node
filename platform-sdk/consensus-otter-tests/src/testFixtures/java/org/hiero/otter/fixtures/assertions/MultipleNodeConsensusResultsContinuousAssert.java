@@ -143,8 +143,7 @@ public class MultipleNodeConsensusResultsContinuousAssert
 
             @Override
             public SubscriberAction onConsensusRounds(
-                    @NonNull final NodeId nodeId,
-                    final @NonNull List<ConsensusRound> rounds) {
+                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
                         final NodeId protoNodeId =

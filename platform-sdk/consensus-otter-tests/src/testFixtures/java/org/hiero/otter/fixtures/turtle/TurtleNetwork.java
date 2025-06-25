@@ -127,8 +127,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
                 .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
                 .sorted()
-                .map(nodeId -> createTurtleNode(
-                        nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
+                .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
 

@@ -139,9 +139,7 @@ public class ContainerNetwork extends AbstractNetwork {
     }
 
     @NonNull
-    private static byte[] getSigCertBytes(
-            final NodeId selfId,
-            final Map<NodeId, KeysAndCerts> keysAndCerts) {
+    private static byte[] getSigCertBytes(final NodeId selfId, final Map<NodeId, KeysAndCerts> keysAndCerts) {
         try {
             return keysAndCerts.get(selfId).sigCert().getEncoded();
         } catch (final CertificateEncodingException e) {
@@ -155,14 +153,14 @@ public class ContainerNetwork extends AbstractNetwork {
             final List<org.hiero.consensus.model.node.NodeId> nodeIds = IntStream.range(0, count)
                     .mapToObj(org.hiero.consensus.model.node.NodeId::of)
                     .toList();
-            final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> legacyNodeIdKeysAndCertsMap = CryptoStatic.generateKeysAndCerts(
-                    nodeIds,
-                    null);
+            final Map<org.hiero.consensus.model.node.NodeId, KeysAndCerts> legacyNodeIdKeysAndCertsMap =
+                    CryptoStatic.generateKeysAndCerts(nodeIds, null);
             return legacyNodeIdKeysAndCertsMap.entrySet().stream()
                     .collect(Collectors.toMap(
-                            entry -> NodeId.newBuilder().id(entry.getKey().id()).build(),  // or use a factory method if needed
-                            Map.Entry::getValue
-                    ));
+                            entry -> NodeId.newBuilder()
+                                    .id(entry.getKey().id())
+                                    .build(), // or use a factory method if needed
+                            Map.Entry::getValue));
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }
