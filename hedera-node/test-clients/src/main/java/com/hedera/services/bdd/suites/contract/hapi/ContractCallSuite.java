@@ -4,14 +4,7 @@ package com.hedera.services.bdd.suites.contract.hapi;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.contractIdFromHexedMirrorAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.idAsHeadlongAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -80,10 +73,15 @@ import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIForContract;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.numAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.NESTED_LAZY_CREATE_VIA_CONSTRUCTOR;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.SALT;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.ECDSA_KEY;
@@ -116,7 +114,6 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.esaulpaugh.headlong.abi.TypeFactory;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -154,7 +151,7 @@ public class ContractCallSuite {
     private static final String ALICE = "Alice";
 
     private static final long DEPOSIT_AMOUNT = 1000;
-    private static final long GAS_TO_OFFER = 2_000_000L;
+    private static final long GAS_TO_OFFER = 1_000_000L;
 
     public static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
     public static final String SIMPLE_UPDATE_CONTRACT = "SimpleUpdate";
@@ -287,18 +284,13 @@ public class ContractCallSuite {
     final Stream<DynamicTest> lowLevelEcrecCallBehavior() {
         final var TEST_CONTRACT = "TestContract";
         final var somebody = "somebody";
-        final var account = SHARD_AND_REALM + "1";
+        final var account = "1";
         return hapiTest(
                 uploadInitCode(TEST_CONTRACT),
-                contractCreate(
-                                TEST_CONTRACT,
-                                idAsHeadlongAddress(AccountID.newBuilder()
-                                        .setShardNum(SHARD)
-                                        .setRealmNum(REALM)
-                                        .setAccountNum(2)
-                                        .build()),
-                                BigInteger.ONE)
-                        .balance(ONE_HBAR),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        contractCreate(TEST_CONTRACT, numAsHeadlongAddress(spec, 2), BigInteger.ONE)
+                                .balance(ONE_HBAR))),
                 cryptoCreate(somebody),
                 balanceSnapshot("start", account),
                 cryptoUpdate(account).receiverSigRequired(true).signedBy(GENESIS),
@@ -604,7 +596,7 @@ public class ContractCallSuite {
                         contractCall(WHITELISTER, "addToWhitelist", asHeadlongAddress(childEip1014.get()))
                                 .payingWith(DEFAULT_PAYER),
                         contractCallWithFunctionAbi(
-                                        asContractString(contractIdFromHexedMirrorAddress(childMirror.get())),
+                                        asContractString(contractIdFromHexedMirrorAddress(spec, childMirror.get())),
                                         getABIFor(FUNCTION, "isWhitelisted", WHITELISTER),
                                         asHeadlongAddress(getNestedContractAddress(WHITELISTER, spec)))
                                 .payingWith(DEFAULT_PAYER)
@@ -687,7 +679,6 @@ public class ContractCallSuite {
         final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
         final AtomicReference<String> addressBookMirror = new AtomicReference<>();
         final AtomicReference<String> jurisdictionMirror = new AtomicReference<>();
-
         return hapiTest(
                 getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
                 withOpContext((spec, opLog) -> defaultPayerMirror.set((unhex(
@@ -698,12 +689,14 @@ public class ContractCallSuite {
                 // support
                 contractCreate(addressBook)
                         .gas(1_000_000L)
-                        .exposingNumTo(num -> addressBookMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
+                        .exposingContractIdTo(id -> addressBookMirror.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),
                 contractCreate(jurisdictions)
                         .gas(4_000_000L)
-                        .exposingNumTo(num -> jurisdictionMirror.set(asHexedSolidityAddress(SHARD, REALM, num)))
+                        .exposingContractIdTo(id -> jurisdictionMirror.set(
+                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
                         .withExplicitParams(() -> EXPLICIT_JURISDICTION_CONS_PARAMS)
                         .payingWith(DEFAULT_CONTRACT_SENDER)
                         .refusingEthConversion(),
@@ -1796,9 +1789,8 @@ public class ContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT + to).saveToRegistry("contract_to"),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
                 withOpContext((spec, log) -> {
-                    var cto = spec.registry()
-                            .getContractInfo(TRANSFERRING_CONTRACT + to)
-                            .getContractAccountID();
+                    var cto = asSolidityAddress(
+                            spec.registry().getContractInfo("contract_to").getContractID());
                     var transferCall = contractCall(
                                     TRANSFERRING_CONTRACT,
                                     TRANSFER_TO_ADDRESS,
@@ -2118,6 +2110,7 @@ public class ContractCallSuite {
                                 .savingSnapshot(ACCOUNT_INFO_AFTER_CALL)
                                 .payingWith(GENESIS))),
                 assertionsHold((spec, opLog) -> {
+                    final var callRecord = spec.registry().getTransactionRecord("txn");
                     final var fee = spec.registry().getTransactionRecord("txn").getTransactionFee();
                     final var accountBalanceBeforeCall =
                             spec.registry().getAccountInfo(ACCOUNT_INFO).getBalance();
@@ -2565,9 +2558,7 @@ public class ContractCallSuite {
 
         return hapiTest(
                 withOpContext((spec, ctxLog) -> spec.registry()
-                        .saveContractId(
-                                BAD_EVM_ADDRESS_CONTRACT,
-                                asContractIdWithEvmAddress(ByteString.copyFrom(unhex(BAD_EVM_ADDRESS))))),
+                        .saveContractId(BAD_EVM_ADDRESS_CONTRACT, spec, ByteString.copyFrom(unhex(BAD_EVM_ADDRESS)))),
                 withOpContext((spec, ctxLog) -> allRunFor(
                         spec,
                         contractCallWithFunctionAbi(BAD_EVM_ADDRESS_CONTRACT, getABIFor(FUNCTION, NAME, ERC_721_ABI))
@@ -2576,7 +2567,7 @@ public class ContractCallSuite {
     }
 
     private String getNestedContractAddress(final String contract, final HapiSpec spec) {
-        return HapiPropertySource.asHexedSolidityAddress(spec.registry().getContractId(contract));
+        return asHexedSolidityAddress(spec.registry().getContractId(contract));
     }
 
     private ByteString bookInterpolated(final byte[] jurisdictionInitcode, final String addressBookMirror) {

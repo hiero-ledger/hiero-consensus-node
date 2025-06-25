@@ -38,11 +38,11 @@ public final class OutputNoEventsLostValidation implements ConsensusOutputValida
             // no consensus reached, nothing to check
             return;
         }
-        final long nonAncientGen = RoundCalculationUtils.getAncientThreshold(
+        final long nonAncientThreshold = RoundCalculationUtils.getAncientThreshold(
                 CONFIG.roundsNonAncient(), output.getConsensusRounds().getLast().getSnapshot());
 
         for (final PlatformEvent event : output.getAddedEvents()) {
-            if (event.getGeneration() >= nonAncientGen) {
+            if (event.getBirthRound() >= nonAncientThreshold) {
                 // non-ancient events are not checked
                 continue;
             }
@@ -50,7 +50,7 @@ public final class OutputNoEventsLostValidation implements ConsensusOutputValida
                 fail(String.format(
                         "An ancient event should be either stale or consensus, but not both!\n"
                                 + "nonAncientGen=%d, Event %s, stale=%s, consensus=%s",
-                        nonAncientGen,
+                        nonAncientThreshold,
                         event.getDescriptor(),
                         stale.containsKey(event.getHash()),
                         cons.containsKey(event.getHash())));

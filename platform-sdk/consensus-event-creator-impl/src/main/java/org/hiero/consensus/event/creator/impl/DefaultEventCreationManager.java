@@ -15,6 +15,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
@@ -56,6 +58,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration unhealthyDuration = Duration.ZERO;
 
+    private final FutureEventBuffer futureEventBuffer;
+
     /**
      * Constructor.
      *
@@ -77,7 +81,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
-        this.eventCreationRules = AggregateEventCreationRules.of(rules);
+        eventCreationRules = AggregateEventCreationRules.of(rules);
+        futureEventBuffer =
+                new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
         phase = new PhaseTimerBuilder<>(
                         platformContext, platformContext.getTime(), "platform", EventCreationStatus.class)
@@ -113,12 +119,16 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         return newEvent;
     }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
-        creator.registerEvent(event);
+        final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+        if (nonFutureEvent != null) {
+            creator.registerEvent(event);
+        }
     }
 
     /**
@@ -127,6 +137,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         creator.setEventWindow(eventWindow);
+        futureEventBuffer.updateEventWindow(eventWindow).forEach(creator::registerEvent);
     }
 
     /**
@@ -136,6 +147,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
     public void clear() {
         creator.clear();
         phase.activatePhase(IDLE);
+        futureEventBuffer.clear();
+        final EventWindow eventWindow = EventWindow.getGenesisEventWindow();
+        futureEventBuffer.updateEventWindow(eventWindow);
     }
 
     /**

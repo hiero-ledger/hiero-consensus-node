@@ -32,12 +32,12 @@ public class BalanceReconciliationValidator implements RecordStreamValidator {
 
     @Override
     @SuppressWarnings("java:S106")
-    public void validateRecordsAndSidecars(final List<RecordWithSidecars> recordsWithSidecars, long shard, long realm) {
+    public void validateRecordsAndSidecars(final List<RecordWithSidecars> recordsWithSidecars) {
         getExpectedBalanceFrom(recordsWithSidecars);
         System.out.println("Expected balances: " + expectedBalances);
 
         final var validationSpecs = TestBase.extractContextualizedSpecsFrom(
-                List.of(() -> new BalanceValidation(expectedBalances, accountClassifier, shard, realm)),
+                List.of(() -> new BalanceValidation(expectedBalances, accountClassifier)),
                 TestBase::contextualizedSpecsFromConcurrent);
         concurrentExecutionOf(validationSpecs);
     }

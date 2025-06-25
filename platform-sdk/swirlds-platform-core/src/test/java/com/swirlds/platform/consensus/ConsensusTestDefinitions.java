@@ -7,16 +7,14 @@ import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createPartitionedOtherParentAffinityMatrix;
 import static com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
-import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.utility.Threshold;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestNode;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestOrchestrator;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusTestUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.OrchestratorBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.TestInput;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.NumberOfConsensusRoundsValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventRatioValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsAddedInDifferentOrderValidation;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.OutputEventsEqualityValidation;
@@ -28,14 +26,11 @@ import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import com.swirlds.platform.test.fixtures.event.source.ForkingEventSource;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.Spliterators;
@@ -43,7 +38,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
-import org.hiero.consensus.config.EventConfig;
+import org.assertj.core.api.Assertions;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -579,49 +575,6 @@ public final class ConsensusTestDefinitions {
                 consensusOutputValidatorWithEventRatio);
     }
 
-    public static void syntheticSnapshot(@NonNull final TestInput input) {
-        final long round = 100;
-        final long lastConsensusOrder = 4000;
-
-        final ConsensusTestOrchestrator orchestrator =
-                OrchestratorBuilder.builder().setTestInput(input).build();
-        final Instant snapshotTimestamp = Instant.now();
-        final Configuration configuration = input.platformContext().getConfiguration();
-        orchestrator.getNodes().forEach(n -> {
-            final int numEvents = orchestrator.getEventFraction(0.5);
-            n.getEventEmitter().setCheckpoint(numEvents);
-            final List<EventImpl> events = n.getEventEmitter().emitEvents(numEvents);
-            n.getEventEmitter().reset();
-            final Optional<EventImpl> maxGenEvent = events.stream()
-                    .max(Comparator.comparingLong(EventImpl::getGeneration).thenComparing(EventImpl::getCreatorId));
-            final ConsensusSnapshot syntheticSnapshot = SyntheticSnapshot.generateSyntheticSnapshot(
-                    round,
-                    lastConsensusOrder,
-                    snapshotTimestamp,
-                    configuration.getConfigData(ConsensusConfig.class),
-                    configuration.getConfigData(EventConfig.class).getAncientMode(),
-                    maxGenEvent.orElseThrow().getBaseEvent());
-            n.getIntake().loadSnapshot(syntheticSnapshot);
-        });
-
-        orchestrator.generateEvents(0.5);
-        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType1 =
-                new ConsensusOutputValidator(Set.of(
-                        new OutputEventsEqualityValidation(),
-                        OutputEventRatioValidation.blank().setMaximumConsensusRatio(0)));
-        orchestrator.validateAndClear(
-                // only 1 event will actually be added, that is the judge, so there can be no variation in the order
-                consensusOutputValidatorWithEventRatioType1);
-
-        orchestrator.generateEvents(0.5);
-        final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
-                new ConsensusOutputValidator(Set.of(
-                        new OutputEventsAddedInDifferentOrderValidation(),
-                        new OutputEventsEqualityValidation(),
-                        OutputEventRatioValidation.blank().setMinimumConsensusRatio(0.8)));
-        orchestrator.validate(consensusOutputValidatorWithEventRatioType2);
-    }
-
     /**
      * Tests loading a genesis snapshot and continuing consensus from there
      */
@@ -629,11 +582,7 @@ public final class ConsensusTestDefinitions {
         final ConsensusTestOrchestrator orchestrator =
                 OrchestratorBuilder.builder().setTestInput(input).build();
         for (final ConsensusTestNode node : orchestrator.getNodes()) {
-            node.getIntake()
-                    .loadSnapshot(SyntheticSnapshot.getGenesisSnapshot(input.platformContext()
-                            .getConfiguration()
-                            .getConfigData(EventConfig.class)
-                            .getAncientMode()));
+            node.getIntake().loadSnapshot(SyntheticSnapshot.getGenesisSnapshot());
         }
 
         final ConsensusOutputValidator consensusOutputValidatorWithEventRatioType2 =
@@ -643,5 +592,36 @@ public final class ConsensusTestDefinitions {
                         OutputEventRatioValidation.standard()
                                 .setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
         orchestrator.generateAllEvents().validateAndClear(consensusOutputValidatorWithEventRatioType2);
+    }
+
+    /**
+     * Tests the consensus freeze functionality
+     */
+    public static void consensusFreezeTests(@NonNull final TestInput input) {
+        final ConsensusOutputValidator consensusOutputValidator = new ConsensusOutputValidator(Set.of(
+                new OutputEventsAddedInDifferentOrderValidation(),
+                new OutputEventsEqualityValidation(),
+                OutputEventRatioValidation.standard().setMinimumConsensusRatio(0.9 - (0.05 * input.numberOfNodes()))));
+
+        final ConsensusTestOrchestrator orchestrator =
+                OrchestratorBuilder.builder().setTestInput(input).build();
+
+        // generate half of the events and validate
+        orchestrator.generateEvents(0.5).validateAndClear(consensusOutputValidator);
+        // freeze all the nodes
+        orchestrator.forEachNode(node -> node.getIntake().getFreezeCheckHolder().setFreezeCheckRef(i -> true));
+        // generate the rest of the events
+        orchestrator.generateEvents(0.5);
+        // validate that exactly 1 round reached consensus (the freeze round) and that its equal on all nodes
+        orchestrator.validate(new ConsensusOutputValidator(
+                Set.of(new NumberOfConsensusRoundsValidation(1), new OutputEventsEqualityValidation())));
+
+        orchestrator.forEachNode(n -> {
+            final ConsensusRound lastConsensusRound =
+                    n.getIntake().getConsensusRounds().getLast();
+            Assertions.assertThat(lastConsensusRound.getEventWindow().newEventBirthRound())
+                    .withFailMessage("The event birth round should be equal to the freeze round")
+                    .isEqualTo(lastConsensusRound.getRoundNum());
+        });
     }
 }

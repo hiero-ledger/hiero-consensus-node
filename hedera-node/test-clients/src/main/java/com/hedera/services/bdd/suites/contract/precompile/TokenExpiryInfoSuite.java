@@ -19,7 +19,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
-import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.toAddressStringWithShardAndRealm;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -29,6 +28,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
@@ -75,8 +75,6 @@ import org.junit.jupiter.api.Tag;
 @DisplayName("updateTokenExpiryInfo")
 public class TokenExpiryInfoSuite {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
-    private static final Address MISSING_LONG_ZERO_ADDRESS =
-            asHeadlongAddress(toAddressStringWithShardAndRealm(Long.toHexString(Integer.MAX_VALUE)));
     private static final String TOKEN_EXPIRY_CONTRACT = "TokenExpiryContract";
     private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String UPDATED_AUTO_RENEW_ACCOUNT = "updatedAutoRenewAccount";
@@ -147,19 +145,16 @@ public class TokenExpiryInfoSuite {
         @HapiTest
         @DisplayName("still cannot set an invalid auto-renew account")
         final Stream<DynamicTest> cannotSetInvalidAutoRenewAccount() {
-            return hapiTest(
-                    // This function takes four arguments---a token address, an expiry second, an auto-renew account
-                    // address, and an auto-renew period---and tries to update the token at that address with the given
-                    // metadata; here we set an invalid auto-renew account address
-                    tokenExpiryContract
-                            .call(
-                                    "updateExpiryInfoForToken",
-                                    mutableToken,
-                                    0L,
-                                    MISSING_LONG_ZERO_ADDRESS,
-                                    MONTH_IN_SECONDS)
-                            .andAssert(
-                                    txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT)));
+            return hapiTest(withOpContext((spec, log) -> {
+                final var missingLongZeroAddress = asHeadlongAddress(asSolidityAddress(spec, Integer.MAX_VALUE));
+                // This function takes four arguments---a token address, an expiry second, an auto-renew account
+                // address, and an auto-renew period---and tries to update the token at that address with the given
+                // metadata; here we set an invalid auto-renew account address
+                final var callOp = tokenExpiryContract
+                        .call("updateExpiryInfoForToken", mutableToken, 0L, missingLongZeroAddress, MONTH_IN_SECONDS)
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_AUTORENEW_ACCOUNT));
+                allRunFor(spec, callOp);
+            }));
         }
 
         @HapiTest

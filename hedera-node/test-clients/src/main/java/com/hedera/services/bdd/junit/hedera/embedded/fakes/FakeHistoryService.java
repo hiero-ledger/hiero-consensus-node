@@ -6,6 +6,7 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
+import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.roster.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -62,5 +63,10 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public HistoryHandlers handlers() {
         return delegate.handlers();
+    }
+
+    @Override
+    public void onFinishedConstruction(@Nullable OnProofFinished cb) {
+        delegate.onFinishedConstruction(cb);
     }
 }

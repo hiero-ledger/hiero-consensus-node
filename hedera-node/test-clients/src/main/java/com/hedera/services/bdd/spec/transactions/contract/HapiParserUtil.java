@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hederahashgraph.api.proto.java.Key;
 import org.apache.tuweni.bytes.Bytes;
+import org.bouncycastle.util.encoders.Hex;
 
 public class HapiParserUtil {
 
@@ -70,16 +70,8 @@ public class HapiParserUtil {
         return expandedArray;
     }
 
-    // Generate an address with the shard, realm and passed number. All the values are padded till the required length.
-    public static String toAddressStringWithShardAndRealm(String number) {
-        String shardHex = Integer.toHexString(SHARD);
-        shardHex = "000000".substring(0, 6 - shardHex.length()) + shardHex;
-
-        String realmHex = Long.toHexString(REALM);
-        realmHex = "0000000000000000".substring(0, 16 - realmHex.length()) + realmHex;
-
-        number = "0000000000000000".substring(0, 16 - number.length()) + number;
-
-        return "0x00" + shardHex + realmHex + number;
+    // Generate an address with the passed in number. All the values are padded till the required length.
+    public static String toAddressString(String number) {
+        return "0x00" + Hex.toHexString(asEvmAddress(Long.parseLong(number, 16)));
     }
 }

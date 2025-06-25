@@ -4,9 +4,6 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractIdWithEvmAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -66,8 +63,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.WEIBARS_IN_A_TINYBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
-import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -258,7 +256,7 @@ public class EthereumSuite {
                                                 .logs(inOrder())
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -440,7 +438,7 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> etx014ContractCreateInheritsSignerProperties() {
-        final AtomicReference<String> contractID = new AtomicReference<>();
+        final AtomicReference<String> contractNum = new AtomicReference<>();
         final String MEMO = "memo";
         final String PROXY = "proxy";
         final long INITIAL_BALANCE = 100L;
@@ -467,10 +465,7 @@ public class EthereumSuite {
                             .balance(INITIAL_BALANCE)
                             .gasPrice(10L)
                             .maxGasAllowance(ONE_HUNDRED_HBARS)
-                            .exposingNumTo(num -> contractID.set(asHexedSolidityAddress(
-                                    (int) spec.setup().defaultShard().getShardNum(),
-                                    spec.setup().defaultRealm().getRealmNum(),
-                                    num)))
+                            .exposingNumTo(num -> contractNum.set(String.valueOf(num)))
                             .gasLimit(1_000_000L)
                             .hasKnownStatus(SUCCESS);
                     getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey());
@@ -483,7 +478,7 @@ public class EthereumSuite {
                             .gasLimit(1_000_000L)
                             .hasKnownStatus(SUCCESS);
                     getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged();
-                    sourcing(() -> getContractInfo(contractID.get())
+                    sourcing(() -> getContractInfo(contractNum.get())
                             .has(contractWith()
                                     .defaultAdminKey()
                                     .autoRenew(AUTO_RENEW_PERIOD)
@@ -582,7 +577,7 @@ public class EthereumSuite {
                                                 .logs(inOrder())
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -672,7 +667,7 @@ public class EthereumSuite {
                                                                 List.of(eventSignatureOf("Info(address,address)")))))
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -720,17 +715,13 @@ public class EthereumSuite {
                     final var expectedThirdChildContractAddress = contractAddress(expectedParentContractAddress, 3);
 
                     final var parentId = createdIds.get(0);
-                    final var parentContractId = CommonUtils.hex(
-                            asEvmAddress(parentId.getShardNum(), parentId.getRealmNum(), parentId.getContractNum()));
+                    final var parentContractId = CommonUtils.hex(asEvmAddress(parentId.getContractNum()));
                     final var firstChildId = createdIds.get(1);
-                    final var firstChildContractId = CommonUtils.hex(asEvmAddress(
-                            firstChildId.getShardNum(), firstChildId.getRealmNum(), firstChildId.getContractNum()));
+                    final var firstChildContractId = CommonUtils.hex(asEvmAddress(firstChildId.getContractNum()));
                     final var secondChildId = createdIds.get(2);
-                    final var secondChildContractId = CommonUtils.hex(asEvmAddress(
-                            secondChildId.getShardNum(), secondChildId.getRealmNum(), secondChildId.getContractNum()));
+                    final var secondChildContractId = CommonUtils.hex(asEvmAddress(secondChildId.getContractNum()));
                     final var thirdChildId = createdIds.get(3);
-                    final var thirdChildContractId = CommonUtils.hex(asEvmAddress(
-                            thirdChildId.getShardNum(), thirdChildId.getRealmNum(), thirdChildId.getContractNum()));
+                    final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
                             .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
@@ -866,7 +857,7 @@ public class EthereumSuite {
                                                 .logs(inOrder())
                                                 .senderId(spec.registry()
                                                         .getAccountID(spec.registry()
-                                                                .keyAliasIdFor(SECP_256K1_SOURCE_KEY)
+                                                                .keyAliasIdFor(spec, SECP_256K1_SOURCE_KEY)
                                                                 .getAlias()
                                                                 .toStringUtf8())))
                                         .ethereumHash(ByteString.copyFrom(
@@ -977,8 +968,8 @@ public class EthereumSuite {
     final Stream<DynamicTest> accountDeletionResetsTheAliasNonce() {
 
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
         final AtomicReference<AccountID> aliasedAccountId = new AtomicReference<>();
         final AtomicReference<String> tokenNum = new AtomicReference<>();
         final var totalSupply = 50;
@@ -994,10 +985,9 @@ public class EthereumSuite {
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
                     partyId.set(registry.getAccountID(PARTY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(evmAddressBytes);
+                    partyAlias.set(asSolidityAddress(partyId.get()));
+                    counterAlias.set(addressBytes);
                 }),
                 tokenCreate("token")
                         .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -1008,12 +998,12 @@ public class EthereumSuite {
                         .exposingCreatedIdTo(tokenNum::set),
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
-                    var op2 = getAliasedAccountInfo(counterAlias.get())
+                    var op2 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .logged()
                             .exposingIdTo(aliasedAccountId::set)
                             .has(accountWith()
@@ -1038,7 +1028,7 @@ public class EthereumSuite {
                             .hasKnownStatus(ResponseCodeEnum.SUCCESS);
 
                     // assert account nonce is increased to 1
-                    var op4 = getAliasedAccountInfo(counterAlias.get())
+                    var op4 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             .logged()
                             .has(accountWith().nonce(1));
 
@@ -1052,12 +1042,12 @@ public class EthereumSuite {
                 // try to create a new account with the same alias
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .hasKnownStatus(SUCCESS);
 
-                    var op2 = getAliasedAccountInfo(counterAlias.get())
+                    var op2 = getAliasedAccountInfo(ByteString.copyFrom(counterAlias.get()))
                             // TBD: balance should be 4 or 2 hbars
                             .has(accountWith().nonce(0).balance(2 * ONE_HBAR));
 
@@ -1262,9 +1252,7 @@ public class EthereumSuite {
 
                     spec.registry()
                             .saveContractId(
-                                    HTS_SYSTEM_CONTRACT,
-                                    asContractIdWithEvmAddress(
-                                            ByteString.copyFrom(unhex(HTS_SYSTEM_CONTRACT_ADDRESS))));
+                                    HTS_SYSTEM_CONTRACT, spec, ByteString.copyFrom(unhex(HTS_SYSTEM_CONTRACT_ADDRESS)));
                     allRunFor(
                             spec,
                             ethereumCallWithFunctionAbi(

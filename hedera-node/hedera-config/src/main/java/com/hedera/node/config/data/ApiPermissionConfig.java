@@ -198,7 +198,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange approveAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteAllowances,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange utilPrng,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange atomicBatch,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange atomicBatch,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange createFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateFile,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteFile,

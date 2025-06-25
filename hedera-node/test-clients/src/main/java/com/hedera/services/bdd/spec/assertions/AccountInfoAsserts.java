@@ -89,8 +89,12 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
     }
 
     public AccountInfoAsserts stakedAccountId(String acctNum) {
+        return stakedAccountId(Long.parseLong(acctNum));
+    }
+
+    public AccountInfoAsserts stakedAccountId(long acctNum) {
         registerProvider((spec, o) -> assertEquals(
-                asAccount(spec.shard(), spec.realm(), Long.parseLong(acctNum)),
+                asAccount(spec.shard(), spec.realm(), acctNum),
                 ((AccountInfo) o).getStakingInfo().getStakedAccountId(),
                 "Bad stakedAccountId id!"));
         return this;

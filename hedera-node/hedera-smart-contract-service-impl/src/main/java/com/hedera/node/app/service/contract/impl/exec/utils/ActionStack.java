@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.service.contract.impl.utils.OpcodeUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -99,8 +98,8 @@ public class ActionStack {
      *
      * @return a view of this stack ready to be put in a sidecar
      */
-    public @NonNull ContractActions asContractActions() {
-        return new ContractActions(allActions.stream().map(ActionWrapper::get).toList());
+    public @NonNull List<ContractAction> asContractActions() {
+        return allActions.stream().map(ActionWrapper::get).toList();
     }
 
     /**

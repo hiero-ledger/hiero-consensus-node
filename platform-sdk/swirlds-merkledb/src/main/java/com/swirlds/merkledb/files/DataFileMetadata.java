@@ -2,19 +2,14 @@
 package com.swirlds.merkledb.files;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_COMPACTION_LEVEL;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_CREATION_NANOS;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_CREATION_SECONDS;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_INDEX;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_ITEMS_COUNT;
-import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILEMETADATA_ITEM_VERSION;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_METADATA;
 
+import com.hedera.pbj.runtime.FieldDefinition;
+import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.utility.ToStringBuilder;
 import java.io.IOException;
@@ -23,9 +18,33 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * DataFile's metadata that is stored in the data file's footer
+ * Data file's metadata that is stored in the data file's header.
+ *
+ * @see DataFileWriter
+ * @see DataFileReader
  */
 public final class DataFileMetadata {
+
+    // Data file metadata protobuf fields
+    private static final FieldDefinition FIELD_INDEX =
+            new FieldDefinition("index", FieldType.UINT32, false, true, false, 1);
+
+    private static final FieldDefinition FIELD_CREATION_SECONDS =
+            new FieldDefinition("creationDateSeconds", FieldType.UINT64, false, false, false, 2);
+
+    private static final FieldDefinition FIELD_CREATION_NANOS =
+            new FieldDefinition("creationDateNanos", FieldType.UINT32, false, false, false, 3);
+
+    @Deprecated
+    private static final FieldDefinition FIELD_ITEMS_COUNT =
+            new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
+
+    @Deprecated
+    private static final FieldDefinition FIELD_ITEM_VERSION =
+            new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
+
+    private static final FieldDefinition FIELD_COMPACTION_LEVEL =
+            new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
 
     /**
      * Maximum level of compaction for storage files.
@@ -38,50 +57,36 @@ public final class DataFileMetadata {
     /** The creation date of this file */
     private final Instant creationDate;
 
-    /**
-     * The number of data items the file contains. When metadata is loaded from a file, the number
-     * of items is read directly from there. When metadata is created by {@link DataFileWriter} for
-     * new files during flushes or compactions, this field is set to 0 initially and then updated
-     * right before the file is finished writing. For such new files, no code needs their metadata
-     * until they are fully written, so wrong (zero) item count shouldn't be an issue.
-     */
-    private volatile long itemsCount;
-
     /** The level of compaction this file has. See {@link DataFileCompactor}*/
     private final byte compactionLevel;
 
-    // Set in writeTo()
-    private long dataItemCountHeaderOffset = 0;
-
     /**
-     * Create a new DataFileMetadata with complete set of data
+     * Create a new metadata with complete set of data
      *
-     * @param itemsCount The number of data items the file contains
      * @param index The file index, in a data file collection
      * @param creationDate The creation data of this file, this is critical as it is used when
      *     merging two files to know which files data is newer.
+     * @param compactionLevel The level of compaction this file has. See {@link DataFileCompactor}
      */
-    public DataFileMetadata(
-            final long itemsCount, final int index, final Instant creationDate, final int compactionLevel) {
-        this.itemsCount = itemsCount;
+    public DataFileMetadata(final int index, final Instant creationDate, final int compactionLevel) {
+        assert compactionLevel >= 0 && compactionLevel < MAX_COMPACTION_LEVEL;
+
         this.index = index;
         this.creationDate = creationDate;
-        assert compactionLevel >= 0 && compactionLevel < MAX_COMPACTION_LEVEL;
         this.compactionLevel = (byte) compactionLevel;
     }
 
     /**
-     * Create a DataFileMetadata loading it from a existing file
+     * Load new metadata from the file header.
      *
      * @param file The file to read metadata from
      * @throws IOException If there was a problem reading metadata footer from the file
      */
-    public DataFileMetadata(Path file) throws IOException {
+    public static DataFileMetadata readFromFile(Path file) throws IOException {
         // Defaults
         int index = 0;
         long creationSeconds = 0;
         int creationNanos = 0;
-        long itemsCount = 0;
         byte compactionLevel = 0;
 
         // Read values from the file, skipping all data items
@@ -95,19 +100,19 @@ public final class DataFileMetadata {
                     in.limit(in.position() + metadataSize);
                     try {
                         while (in.hasRemaining()) {
-                            final int metadataTag = in.readVarInt(false);
-                            final int metadataFieldNum = metadataTag >> TAG_FIELD_OFFSET;
-                            if (metadataFieldNum == FIELD_DATAFILEMETADATA_INDEX.number()) {
+                            final int metadataFieldTag = in.readVarInt(false);
+                            final int metadataFieldNum = metadataFieldTag >> TAG_FIELD_OFFSET;
+                            if (metadataFieldNum == FIELD_INDEX.number()) {
                                 index = in.readVarInt(false);
-                            } else if (metadataFieldNum == FIELD_DATAFILEMETADATA_CREATION_SECONDS.number()) {
+                            } else if (metadataFieldNum == FIELD_CREATION_SECONDS.number()) {
                                 creationSeconds = in.readVarLong(false);
-                            } else if (metadataFieldNum == FIELD_DATAFILEMETADATA_CREATION_NANOS.number()) {
+                            } else if (metadataFieldNum == FIELD_CREATION_NANOS.number()) {
                                 creationNanos = in.readVarInt(false);
-                            } else if (metadataFieldNum == FIELD_DATAFILEMETADATA_ITEMS_COUNT.number()) {
-                                itemsCount = in.readLong();
-                            } else if (metadataFieldNum == FIELD_DATAFILEMETADATA_ITEM_VERSION.number()) {
+                            } else if (metadataFieldNum == FIELD_ITEMS_COUNT.number()) {
+                                in.readLong(); // data items count is not used
+                            } else if (metadataFieldNum == FIELD_ITEM_VERSION.number()) {
                                 in.readVarLong(false); // this field is no longer used
-                            } else if (metadataFieldNum == FIELD_DATAFILEMETADATA_COMPACTION_LEVEL.number()) {
+                            } else if (metadataFieldNum == FIELD_COMPACTION_LEVEL.number()) {
                                 final int compactionLevelInt = in.readVarInt(false);
                                 assert compactionLevelInt < MAX_COMPACTION_LEVEL;
                                 compactionLevel = (byte) compactionLevelInt;
@@ -132,56 +137,38 @@ public final class DataFileMetadata {
             }
         }
 
-        // Initialize this object
-        this.index = index;
-        this.creationDate = Instant.ofEpochSecond(creationSeconds, creationNanos);
-        this.itemsCount = itemsCount;
-        this.compactionLevel = compactionLevel;
+        // additional check if metadata was not found
+        if (index == 0 && creationSeconds == 0 && creationNanos == 0) {
+            throw new IllegalArgumentException("No metadata found in file: " + file);
+        }
+
+        return new DataFileMetadata(index, Instant.ofEpochSecond(creationSeconds, creationNanos), compactionLevel);
     }
 
-    void writeTo(final BufferedData out) {
-        ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_METADATA, fieldsSizeInBytes(), this::writeFields);
+    <T extends WritableSequentialData> void writeTo(final T out) {
+        ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_METADATA, calculateFieldsSizeInBytes(), this::writeFields);
     }
 
-    private void writeFields(final WritableSequentialData out) {
+    /**
+     * Write metadata fields to the file.
+     */
+    private <T extends WritableSequentialData> void writeFields(final T out) {
         if (getIndex() != 0) {
-            ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_INDEX);
+            ProtoWriterTools.writeTag(out, FIELD_INDEX);
             out.writeVarInt(getIndex(), false);
         }
+
         final Instant creationInstant = getCreationDate();
-        ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_CREATION_SECONDS);
+        ProtoWriterTools.writeTag(out, FIELD_CREATION_SECONDS);
         out.writeVarLong(creationInstant.getEpochSecond(), false);
-        ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_CREATION_NANOS);
+
+        ProtoWriterTools.writeTag(out, FIELD_CREATION_NANOS);
         out.writeVarInt(creationInstant.getNano(), false);
-        dataItemCountHeaderOffset = out.position();
-        ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_ITEMS_COUNT);
-        out.writeLong(0); // will be updated later
+
         if (getCompactionLevel() != 0) {
-            ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_COMPACTION_LEVEL);
+            ProtoWriterTools.writeTag(out, FIELD_COMPACTION_LEVEL);
             out.writeVarInt(compactionLevel, false);
         }
-    }
-
-    /**
-     * Get the number of data items the file contains. If this method is called before the
-     * corresponding file is completely written by {@link DataFileWriter}, the return value is 0.
-     */
-    public long getDataItemCount() {
-        return itemsCount;
-    }
-
-    /**
-     * Updates number of data items in the file. This method must be called after metadata is
-     * written to a file using {@link #writeTo(BufferedData)}.
-     *
-     * <p>This method is called by {@link DataFileWriter} right before the file is finished writing.
-     */
-    void updateDataItemCount(final BufferedData out, final long count) {
-        this.itemsCount = count;
-        assert dataItemCountHeaderOffset != 0;
-        out.position(dataItemCountHeaderOffset);
-        ProtoWriterTools.writeTag(out, FIELD_DATAFILEMETADATA_ITEMS_COUNT);
-        out.writeLong(count);
     }
 
     /** Get the files index, out of a set of data files */
@@ -194,30 +181,25 @@ public final class DataFileMetadata {
         return creationDate;
     }
 
-    // For testing purposes. In low-level data file tests, skip this number of bytes from the
-    // beginning of the file before reading data items, assuming file metadata is always written
-    // first, then data items
+    // For testing purposes
     int metadataSizeInBytes() {
-        return ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_METADATA, fieldsSizeInBytes());
+        return ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_METADATA, calculateFieldsSizeInBytes());
     }
 
-    private int fieldsSizeInBytes() {
+    private int calculateFieldsSizeInBytes() {
         int size = 0;
         if (index != 0) {
-            size += ProtoWriterTools.sizeOfTag(FIELD_DATAFILEMETADATA_INDEX, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+            size += ProtoWriterTools.sizeOfTag(FIELD_INDEX, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
             size += ProtoWriterTools.sizeOfVarInt32(index);
         }
-        size += ProtoWriterTools.sizeOfTag(
-                FIELD_DATAFILEMETADATA_CREATION_SECONDS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+        size += ProtoWriterTools.sizeOfTag(FIELD_CREATION_SECONDS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
         size += ProtoWriterTools.sizeOfVarInt64(creationDate.getEpochSecond());
-        size += ProtoWriterTools.sizeOfTag(
-                FIELD_DATAFILEMETADATA_CREATION_NANOS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+
+        size += ProtoWriterTools.sizeOfTag(FIELD_CREATION_NANOS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
         size += ProtoWriterTools.sizeOfVarInt64(creationDate.getNano());
-        size += ProtoWriterTools.sizeOfTag(FIELD_DATAFILEMETADATA_ITEMS_COUNT, ProtoConstants.WIRE_TYPE_FIXED_64_BIT);
-        size += Long.BYTES;
+
         if (compactionLevel != 0) {
-            size += ProtoWriterTools.sizeOfTag(
-                    FIELD_DATAFILEMETADATA_COMPACTION_LEVEL, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
+            size += ProtoWriterTools.sizeOfTag(FIELD_COMPACTION_LEVEL, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
             size += ProtoWriterTools.sizeOfVarInt32(compactionLevel);
         }
         return size;
@@ -231,7 +213,6 @@ public final class DataFileMetadata {
     @Override
     public String toString() {
         return new ToStringBuilder(this)
-                .append("itemsCount", itemsCount)
                 .append("index", index)
                 .append("creationDate", creationDate)
                 .toString();
@@ -249,8 +230,7 @@ public final class DataFileMetadata {
             return false;
         }
         final DataFileMetadata that = (DataFileMetadata) o;
-        return itemsCount == that.itemsCount
-                && index == that.index
+        return index == that.index
                 && compactionLevel == that.compactionLevel
                 && Objects.equals(this.creationDate, that.creationDate);
     }
@@ -260,6 +240,6 @@ public final class DataFileMetadata {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(itemsCount, index, creationDate, compactionLevel);
+        return Objects.hash(index, creationDate, compactionLevel);
     }
 }

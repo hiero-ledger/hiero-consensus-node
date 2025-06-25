@@ -10,10 +10,10 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -31,7 +31,7 @@ public class DelegateCallOperationSuite {
                         .hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
-                    final var solidityAddress = HapiPropertySource.asHexedSolidityAddress(id);
+                    final var solidityAddress = asHexedSolidityAddress(id);
 
                     final var contractCall = contractCall(contract, "delegateCall", asHeadlongAddress(solidityAddress))
                             .hasKnownStatus(SUCCESS);

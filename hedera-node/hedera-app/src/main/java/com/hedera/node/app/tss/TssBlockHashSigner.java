@@ -115,12 +115,12 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public long activeSchemeId() {
-        return (hintsService == null) ? 1 : hintsService.activeSchemeId();
+    public long schemeId() {
+        return (hintsService == null) ? 1 : hintsService.schemeId();
     }
 
     @Override
-    public Bytes activeVerificationKey() {
+    public Bytes verificationKey() {
         return (hintsService == null) ? Bytes.EMPTY : hintsService.activeVerificationKeyOrThrow();
     }
 }

@@ -48,7 +48,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.scratchpad;
     exports com.swirlds.platform.system;
     exports com.swirlds.platform.system.address;
-    exports com.swirlds.platform.system.events;
     exports com.swirlds.platform.system.transaction;
     exports com.swirlds.platform.system.state.notifications;
     exports com.swirlds.platform.system.status;
@@ -107,6 +106,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state.service;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
+    exports com.swirlds.platform.freeze;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

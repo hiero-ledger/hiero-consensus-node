@@ -180,6 +180,16 @@ public class ConsensusTestOrchestrator {
         }
     }
 
+    /**
+     * Execute the given consumer for each node
+     * @param consumer the consumer to execute
+     */
+    public void forEachNode(@NonNull final Consumer<ConsensusTestNode> consumer) {
+        for (final ConsensusTestNode node : nodes) {
+            consumer.accept(node);
+        }
+    }
+
     public List<Long> getWeights() {
         return weights;
     }

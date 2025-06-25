@@ -6,6 +6,11 @@ on:
       ref:
         description: Git Commit Reference for the XTS prep tag
         required: true
+      dry-run-enabled:
+        description: "If true, the workflow will not create a tag, but will validate the commit."
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -93,7 +98,7 @@ jobs:
 
       # move the tag if successful
       - name: Tag Code and push
-        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' }}
+        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' && !inputs.dry-run-enabled }}
         run: |
           # Check if the tag exists
           set +e
@@ -112,8 +117,8 @@ jobs:
           git push --set-upstream origin --tags
 
       - name: Report failure
-        if: ${{ !cancelled() && failure() && always() }}
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -128,7 +133,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":grey_exclamation: Hedera Services - XTS Candidate Tagging Failed",
+                        "text": ":grey_exclamation: Hiero Consensus Node - XTS Candidate Tagging Failed",
                         "emoji": true
                       }
                     },
@@ -139,7 +144,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
                       }
                     }
                   ]

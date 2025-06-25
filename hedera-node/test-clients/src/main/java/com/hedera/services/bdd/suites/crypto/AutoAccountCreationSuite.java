@@ -4,12 +4,9 @@ package com.hedera.services.bdd.suites.crypto;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.PropertySource.asAccount;
-import static com.hedera.services.bdd.spec.PropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
@@ -61,7 +58,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
-import static com.hedera.services.bdd.suites.contract.Utils.accountId;
+import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
@@ -86,6 +84,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Key;
@@ -213,7 +212,6 @@ public class AutoAccountCreationSuite {
         final AtomicReference<AccountID> counterId = new AtomicReference<>();
         final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
         final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
-
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
                 newKeyNamed(MULTI_KEY),
@@ -252,9 +250,9 @@ public class AutoAccountCreationSuite {
                     counterAlias.set(ByteString.copyFrom(asSolidityAddress(counterId.get())));
 
                     cryptoTransfer((x, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
-                                    .addTransfers(aaWith(SPONSOR, -1))
+                                    .addTransfers(aaWith(spec, SPONSOR, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))
-                                    .addTransfers(aaWith(TOKEN_TREASURY, -1))
+                                    .addTransfers(aaWith(spec, TOKEN_TREASURY, -1))
                                     .addTransfers(aaWith(asAccount("0.0." + partyAlias.get()), +1))))
                             .signedBy(DEFAULT_PAYER, PARTY, SPONSOR)
                             .hasKnownStatus(ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
@@ -576,7 +574,7 @@ public class AutoAccountCreationSuite {
         // The expected (network + service) fee for two token transfers to a receiver
         // with no auto-creation; note it is approximate because the fee will vary slightly
         // with the size of the sig map, depending on the lengths of the public key prefixes required
-        final long approxTransferFee = 1215188L;
+        final long approxTransferFee = 1162008L;
 
         return hapiTest(
                 newKeyNamed(VALID_ALIAS),
@@ -772,7 +770,7 @@ public class AutoAccountCreationSuite {
     final Stream<DynamicTest> failureAfterHollowAccountCreationReclaimsAlias() {
         final var underfunded = "underfunded";
         final var secondTransferTxn = "SecondTransferTxn";
-        final AtomicReference<ByteString> targetAddress = new AtomicReference<>();
+        final AtomicReference<byte[]> targetAddress = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(LAZY_CREATE_SPONSOR).balance(INITIAL_BALANCE * ONE_HBAR),
@@ -782,7 +780,7 @@ public class AutoAccountCreationSuite {
                             .getKey(SECP_256K1_SOURCE_KEY)
                             .getECDSASecp256K1()
                             .toByteArray();
-                    final var evmAddress = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
+                    final var evmAddress = recoverAddressFromPubKey(ecdsaKey);
                     targetAddress.set(evmAddress);
                     final var controlledOp = cryptoTransfer((sameSpec, b) -> {
                                 final var sponsorId = spec.registry().getAccountID(LAZY_CREATE_SPONSOR);
@@ -790,7 +788,7 @@ public class AutoAccountCreationSuite {
                                 final var funding = spec.registry().getAccountID(FUNDING);
                                 b.setTransfers(TransferList.newBuilder()
                                         .addAccountAmounts(aaWith(sponsorId, -ONE_HUNDRED_HBARS))
-                                        .addAccountAmounts(aaWith(spec, evmAddress, +ONE_HUNDRED_HBARS))
+                                        .addAccountAmounts(Utils.aaWith(spec, evmAddress, +ONE_HUNDRED_HBARS))
                                         .addAccountAmounts(aaWith(underfundedId, -ONE_HUNDRED_HBARS))
                                         .addAccountAmounts(aaWith(funding, +ONE_HUNDRED_HBARS))
                                         .build());
@@ -804,8 +802,8 @@ public class AutoAccountCreationSuite {
                 }),
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords().logged(),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).nodePayment(123).hasAnswerOnlyPrecheck(INVALID_ACCOUNT_ID),
-                sourcing(() -> cryptoTransfer(
-                                tinyBarsFromTo(LAZY_CREATE_SPONSOR, targetAddress.get(), ONE_HUNDRED_HBARS))
+                sourcing(() -> cryptoTransfer(tinyBarsFromTo(
+                                LAZY_CREATE_SPONSOR, ByteString.copyFrom(targetAddress.get()), ONE_HUNDRED_HBARS))
                         .signedBy(DEFAULT_PAYER, LAZY_CREATE_SPONSOR)
                         .via(secondTransferTxn)),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged());
@@ -1223,8 +1221,8 @@ public class AutoAccountCreationSuite {
     final Stream<DynamicTest> transferHbarsToEVMAddressAlias() {
 
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
 
         return hapiTest(
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
@@ -1235,19 +1233,19 @@ public class AutoAccountCreationSuite {
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
                     assert addressBytes != null;
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
                     partyId.set(registry.getAccountID(PARTY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(evmAddressBytes);
+                    partyAlias.set(asSolidityAddress(partyId.get()));
+                    counterAlias.set(addressBytes);
                 }),
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(spec, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(aaWith(spec, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(spec, partyAlias.get(), -2 * ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(spec, counterAlias.get(), +2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
-                    var op2 = getAliasedAccountInfo(counterAlias.get())
+                    final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
+                    var op2 = getAliasedAccountInfo(counterAliasStr)
                             .has(accountWith()
                                     .expectedBalanceWithChargedUsd(2 * ONE_HBAR, 0, 0)
                                     .hasEmptyKey()
@@ -1264,7 +1262,7 @@ public class AutoAccountCreationSuite {
                     allRunFor(spec, op1, op2, txnRequiringHollowAccountSignature);
                 }),
                 getTxnRecord(HBAR_XFER)
-                        .hasChildRecordCount(1)
+                        .hasNonStakingChildRecordCount(1)
                         .hasChildRecords(recordWith().status(SUCCESS).memo(LAZY_MEMO)),
                 // and transfers to the 0.0.ECDSA_BYTES alias should succeed.
                 cryptoTransfer(tinyBarsFromToWithAlias(PARTY, SECP_256K1_SOURCE_KEY, ONE_HBAR))
@@ -1326,8 +1324,8 @@ public class AutoAccountCreationSuite {
         final var fungibleToken = "fungibleToken";
         final AtomicReference<TokenID> ftId = new AtomicReference<>();
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
-        final AtomicReference<ByteString> partyAlias = new AtomicReference<>();
-        final AtomicReference<ByteString> counterAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
+        final AtomicReference<byte[]> counterAlias = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1339,27 +1337,25 @@ public class AutoAccountCreationSuite {
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
                     assert addressBytes != null;
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
                     ftId.set(registry.getTokenID(fungibleToken));
                     partyId.set(registry.getAccountID(PARTY));
-                    partyAlias.set(ByteString.copyFrom(asSolidityAddress(partyId.get())));
-                    counterAlias.set(evmAddressBytes);
+                    partyAlias.set(asSolidityAddress(partyId.get()));
+                    counterAlias.set(addressBytes);
                 }),
                 withOpContext((spec, opLog) -> {
-                    opLog.warn("Creating hollow account with alias "
-                            + Arrays.toString(counterAlias.get().toByteArray()));
-                    opLog.warn("From party with alias "
-                            + Arrays.toString(partyAlias.get().toByteArray()));
+                    opLog.warn("Creating hollow account with alias " + Arrays.toString(counterAlias.get()));
+                    opLog.warn("From party with alias " + Arrays.toString(partyAlias.get()));
                     /* hollow account created with fungible token transfer as expected */
                     final var cryptoTransferWithLazyCreate = cryptoTransfer(
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(ftId.get())
-                                            .addTransfers(aaWith(spec, partyAlias.get(), -500))
-                                            .addTransfers(aaWith(spec, counterAlias.get(), +500))))
+                                            .addTransfers(Utils.aaWith(spec, partyAlias.get(), -500))
+                                            .addTransfers(Utils.aaWith(spec, counterAlias.get(), +500))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(FT_XFER);
 
-                    final var getHollowAccountInfoAfterCreation = getAliasedAccountInfo(counterAlias.get())
+                    final var evmAliasStr = ByteString.copyFrom(counterAlias.get());
+                    final var getHollowAccountInfoAfterCreation = getAliasedAccountInfo(evmAliasStr)
                             .hasToken(relationshipWith(fungibleToken).balance(500))
                             .has(accountWith()
                                     .hasEmptyKey()
@@ -1380,13 +1376,12 @@ public class AutoAccountCreationSuite {
                             txnRequiringHollowAccountSignature);
 
                     /* transfers of hbar or fungible tokens to the hollow account should succeed */
-                    final var hbarTransfer = cryptoTransfer(
-                                    tinyBarsFromTo(PARTY, counterAlias.get(), ONE_HUNDRED_HBARS))
+                    final var hbarTransfer = cryptoTransfer(tinyBarsFromTo(PARTY, evmAliasStr, ONE_HUNDRED_HBARS))
                             .hasKnownStatus(SUCCESS)
                             .via(TRANSFER_TXN_2);
 
                     final var fungibleTokenTransfer = cryptoTransfer(
-                                    moving(5, fungibleToken).between(PARTY, counterAlias.get()))
+                                    moving(5, fungibleToken).between(PARTY, evmAliasStr))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(TRANSFER_TXN_2);
 
@@ -1396,7 +1391,7 @@ public class AutoAccountCreationSuite {
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(TRANSFER_TXN_2);
 
-                    final var getHollowAccountInfoAfterTransfers = getAliasedAccountInfo(counterAlias.get())
+                    final var getHollowAccountInfoAfterTransfers = getAliasedAccountInfo(evmAliasStr)
                             .hasToken(relationshipWith(fungibleToken).balance(506))
                             .has(accountWith()
                                     .hasEmptyKey()
@@ -1452,8 +1447,8 @@ public class AutoAccountCreationSuite {
                                     (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(nftId.get())
                                             .addNftTransfers(ocWith(
-                                                    accountId(spec, partyAlias.get()),
-                                                    accountId(spec, counterAlias.get()),
+                                                    accountIdFromEvmAddress(spec, partyAlias.get()),
+                                                    accountIdFromEvmAddress(spec, counterAlias.get()),
                                                     1L))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(NFT_XFER);
@@ -1519,8 +1514,7 @@ public class AutoAccountCreationSuite {
 
     @HapiTest
     final Stream<DynamicTest> cannotAutoCreateWithTxnToLongZero() {
-        final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
-        final var longZeroAddress = ByteString.copyFrom(asSolidityAddress(shard, realm, 5555));
+        final AtomicReference<byte[]> evmAddress = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -1530,13 +1524,15 @@ public class AutoAccountCreationSuite {
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
-                    final var evmAddressBytes = ByteString.copyFrom(addressBytes);
-                    evmAddress.set(evmAddressBytes);
+                    evmAddress.set(addressBytes);
                 }),
                 withOpContext((spec, opLog) -> {
-                    final var validTransfer = cryptoTransfer(tinyBarsFromTo(PAYER, evmAddress.get(), ONE_HBAR))
+                    final var evmAddressStr = ByteString.copyFrom(evmAddress.get());
+                    final var validTransfer = cryptoTransfer(tinyBarsFromTo(PAYER, evmAddressStr, ONE_HBAR))
                             .hasKnownStatus(SUCCESS)
                             .via("passedTxn");
+
+                    final var longZeroAddress = ByteString.copyFrom(asSolidityAddress(spec, 5555));
 
                     final var invalidTransferToLongZero = cryptoTransfer(
                                     tinyBarsFromTo(PAYER, longZeroAddress, ONE_HBAR))
@@ -1546,11 +1542,12 @@ public class AutoAccountCreationSuite {
                     allRunFor(spec, validTransfer, invalidTransferToLongZero);
                 }),
                 withOpContext((spec, opLog) -> {
+                    final var evmAddressStr = ByteString.copyFrom(evmAddress.get());
                     getTxnRecord("failedTxn").logged();
                     getTxnRecord("passedTxn")
-                            .hasChildRecordCount(1)
+                            .hasNonStakingChildRecordCount(1)
                             .hasChildRecords(
-                                    recordWith().status(SUCCESS).memo(LAZY_MEMO).alias(evmAddress.get()));
+                                    recordWith().status(SUCCESS).memo(LAZY_MEMO).alias(evmAddressStr));
                 }));
     }
 

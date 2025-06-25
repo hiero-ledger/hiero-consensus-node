@@ -171,6 +171,7 @@ class DiskStartupNetworksTest {
             assertThat(rosterEntry.gossipEndpoint().getFirst().ipAddressV4())
                     .isEqualTo(Bytes.wrap(new byte[] {127, 0, 0, 1}));
             assertThat(rosterEntry.gossipEndpoint().getLast().domainName()).isEqualTo("localhost");
+            assertThat(network.nodeMetadata().get(i).node().declineReward()).isTrue();
         }
     }
 

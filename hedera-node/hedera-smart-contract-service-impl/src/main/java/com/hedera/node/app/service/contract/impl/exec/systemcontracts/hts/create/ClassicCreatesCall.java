@@ -119,7 +119,7 @@ public class ClassicCreatesCall extends AbstractCall {
                             .externalizePreemptedDispatch(syntheticCreate, INSUFFICIENT_TX_FEE, TOKEN_CREATE),
                     RC_AND_ADDRESS_ENCODER.encode(Tuple.of((long) INSUFFICIENT_TX_FEE.protoOrdinal(), ZERO_ADDRESS)));
         } else {
-            operations().collectFee(spenderId, nonGasCost);
+            operations().collectHtsFee(spenderId, nonGasCost);
         }
 
         final var op = syntheticCreate.tokenCreationOrThrow();
@@ -222,8 +222,7 @@ public class ClassicCreatesCall extends AbstractCall {
     private LegacyActivation legacyActivationIn(@NonNull final MessageFrame frame) {
         final var literal = configOf(frame).getConfigData(ContractsConfig.class).keysLegacyActivations();
         final var contractNum = Long.parseLong(literal.substring(literal.indexOf("[") + 1, literal.indexOf("]")));
-        final var pbjAddress =
-                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(entityIdFactory(frame), contractNum));
+        final var pbjAddress = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(asEvmAddress(contractNum));
         return new LegacyActivation(contractNum, pbjAddress, pbjToBesuAddress(pbjAddress));
     }
 }

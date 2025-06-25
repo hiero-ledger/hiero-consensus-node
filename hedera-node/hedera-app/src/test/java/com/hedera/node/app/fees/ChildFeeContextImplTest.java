@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -70,12 +71,15 @@ class ChildFeeContextImplTest {
     @Mock
     private ReadableStoreFactory storeFactory;
 
+    @Mock
+    private AppKeyVerifier verifier;
+
     private ChildFeeContextImpl subject;
 
     @BeforeEach
     void setUp() {
         subject = new ChildFeeContextImpl(
-                feeManager, context, SAMPLE_BODY, PAYER_ID, true, authorizer, storeFactory, NOW);
+                feeManager, context, SAMPLE_BODY, PAYER_ID, true, authorizer, storeFactory, NOW, verifier, 0);
     }
 
     @Test
@@ -104,7 +108,16 @@ class ChildFeeContextImplTest {
     @Test
     void propagatesInvalidBodyAsIllegalStateException() {
         subject = new ChildFeeContextImpl(
-                feeManager, context, TransactionBody.DEFAULT, PAYER_ID, true, authorizer, storeFactory, NOW);
+                feeManager,
+                context,
+                TransactionBody.DEFAULT,
+                PAYER_ID,
+                true,
+                authorizer,
+                storeFactory,
+                NOW,
+                verifier,
+                0);
         assertThrows(IllegalStateException.class, () -> subject.feeCalculatorFactory()
                 .feeCalculator(SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES));
     }

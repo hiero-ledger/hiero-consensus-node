@@ -30,11 +30,11 @@ public class FreezeOnlyCommand implements Callable<Integer> {
         final var config = ConfigUtils.configFrom(yahcli);
 
         final var freezeStartTime = Utils.parseFormattedInstant(startTime);
-        final var delegate = new FreezeHelperSuite(config.asSpecConfig(), freezeStartTime, false);
+        final var delegate = new FreezeHelperSuite(config, freezeStartTime, false);
 
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - " + "freeze scheduled for " + startTime);
         } else {
             COMMON_MESSAGES.warn("FAILED - freeze is not scheduled for " + startTime);

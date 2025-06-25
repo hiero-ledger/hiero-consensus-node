@@ -12,8 +12,6 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asSchedule;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTopic;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.encodeParametersForConstructor;
@@ -259,11 +257,15 @@ public class TxnUtils {
                     .setAlias(asLiteralEvmAddress(s))
                     .build();
         }
-        return isIdLiteral(s)
-                ? asAccount(s)
-                : (lookupSpec.registry().hasAccountId(s)
-                        ? lookupSpec.registry().getAccountID(s)
-                        : lookUpAccount(lookupSpec, s));
+        if (isIdLiteral(s)) {
+            return asAccount(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asAccount(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().hasAccountId(s)
+                ? lookupSpec.registry().getAccountID(s)
+                : lookUpAccount(lookupSpec, s);
     }
 
     private static AccountID lookUpAccount(final HapiSpec spec, final String alias) {
@@ -279,15 +281,33 @@ public class TxnUtils {
     }
 
     public static TokenID asTokenId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asToken(s) : lookupSpec.registry().getTokenID(s);
+        if (isIdLiteral(s)) {
+            return asToken(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asToken(String.valueOf(lookupSpec.shard()), String.valueOf(lookupSpec.realm()), s);
+        }
+        return lookupSpec.registry().getTokenID(s);
     }
 
     public static ScheduleID asScheduleId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asSchedule(s) : lookupSpec.registry().getScheduleId(s);
+        if (isIdLiteral(s)) {
+            return asSchedule(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asSchedule(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getScheduleId(s);
     }
 
     public static TopicID asTopicId(final String s, final HapiSpec lookupSpec) {
-        return isIdLiteral(s) ? asTopic(s) : lookupSpec.registry().getTopicID(s);
+        if (isIdLiteral(s)) {
+            return asTopic(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asTopic(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getTopicID(s);
     }
 
     public static FileID asFileId(final String s, final HapiSpec lookupSpec) {
@@ -325,7 +345,13 @@ public class TxnUtils {
                     .setEvmAddress(ByteString.copyFrom(CommonUtils.unhex(effS)))
                     .build();
         }
-        return isIdLiteral(s) ? asContract(s) : lookupSpec.registry().getContractId(s);
+        if (isIdLiteral(s)) {
+            return asContract(s);
+        }
+        if (isNumericLiteral(s)) {
+            return asContract(lookupSpec.shard(), lookupSpec.realm(), Long.parseLong(s));
+        }
+        return lookupSpec.registry().getContractId(s);
     }
 
     public static String txnToString(final Transaction txn) {
@@ -667,6 +693,10 @@ public class TxnUtils {
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public static List<TransactionRecord> nonStakingRecordsFrom(@NonNull final List<TransactionRecord> records) {
+        return records.stream().filter(TxnUtils::isNotEndOfStakingPeriodRecord).toList();
     }
 
     public static boolean isEndOfStakingPeriodRecord(final TransactionRecord record) {

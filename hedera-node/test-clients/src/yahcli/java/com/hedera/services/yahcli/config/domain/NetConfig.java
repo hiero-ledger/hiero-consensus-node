@@ -96,7 +96,7 @@ public class NetConfig {
     public String toString() {
         return MoreObjects.toStringHelper(this)
                 .add("defaultPayer", defaultPayer)
-                .add("defaultNodeAccount", asEntityString(shard, realm, defaultNodeAccount))
+                .add("defaultNodeAccount", asEntityString(getShard(), getRealm(), defaultNodeAccount))
                 .add("nodes", nodes)
                 .add("allowedReceiverAccountIds", allowedReceiverAccountIds)
                 .add("shard", shard)

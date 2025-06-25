@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.REALM;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.ContractActionType;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -12,6 +11,15 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class ValidContractIdsAssertion implements RecordStreamAssertion {
+
+    private final long shard;
+    private final long realm;
+
+    public ValidContractIdsAssertion(HapiSpec spec) {
+        this.shard = spec.shard();
+        this.realm = spec.realm();
+    }
+
     @Override
     public boolean isApplicableToSidecar(TransactionSidecarRecord sidecar) {
         return true;
@@ -111,17 +119,17 @@ public class ValidContractIdsAssertion implements RecordStreamAssertion {
     }
 
     private boolean isValidId(long shard, long realm, long num) {
-        return shard == SHARD && realm == REALM && num >= 1 && num < Integer.MAX_VALUE;
+        return shard == this.shard && realm == this.realm && num >= 1 && num < Integer.MAX_VALUE;
     }
 
     private boolean isValidRecipient(long shard, long realm, long num) {
-        return shard == SHARD && realm == REALM && num >= 0 && num < Integer.MAX_VALUE;
+        return shard == this.shard && realm == this.realm && num >= 0 && num < Integer.MAX_VALUE;
     }
 
     private boolean isValidOrFailedBytecodeCreationId(long shard, long realm, long num) {
         if (shard == 0 && realm == 0 && num == 0) {
             return true;
         }
-        return shard == SHARD && realm == REALM && num >= 0 && num < Integer.MAX_VALUE;
+        return shard == this.shard && realm == this.realm && num >= 0 && num < Integer.MAX_VALUE;
     }
 }

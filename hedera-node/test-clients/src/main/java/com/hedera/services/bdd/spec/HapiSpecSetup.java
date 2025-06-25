@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType;
 import static com.hedera.services.bdd.spec.keys.deterministic.Bip0032.mnemonicToEd25519Key;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bytecodePath;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
@@ -18,14 +19,13 @@ import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.hederahashgraph.api.proto.java.ShardID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.security.PrivateKey;
@@ -62,7 +62,7 @@ public class HapiSpecSetup {
             DEFAULT_PROPERTY_SOURCE =
                     inPriorityOrder(asSources(Stream.of(Stream.of(sources), Stream.of(BASE_DEFAULT_PROPERTY_SOURCE))
                             .flatMap(Function.identity())
-                            .toArray(n -> new Object[n])));
+                            .toArray(Object[]::new)));
         }
         return DEFAULT_PROPERTY_SOURCE;
     }
@@ -324,13 +324,6 @@ public class HapiSpecSetup {
         return props.get("default.payer.name");
     }
 
-    // (FUTURE) Don't distinguish between default and custom shard/realm in the public contract. Encapsulate each as an
-    // implementation detail instead
-    @Deprecated
-    public RealmID defaultRealm() {
-        return props.getRealm("default.realm");
-    }
-
     /**
      * Returns whether a {@link HapiSpec} should automatically take and fuzzy-match snapshots of the record stream.
      *
@@ -352,13 +345,6 @@ public class HapiSpecSetup {
 
     public boolean defaultReceiverSigRequired() {
         return props.getBoolean("default.receiverSigRequired");
-    }
-
-    // (FUTURE) Don't distinguish between default and custom shard/realm in the public contract. Encapsulate as an
-    // implementation detail instead
-    @Deprecated
-    public ShardID defaultShard() {
-        return props.getShard("default.shard");
     }
 
     public int defaultThresholdM() {
@@ -493,6 +479,10 @@ public class HapiSpecSetup {
         return props.get("invalid.contract.name");
     }
 
+    public Address missingAddress() {
+        return Utils.mirrorAddrWith(props.getAccount("missing.address"));
+    }
+
     public Boolean suppressUnrecoverableNetworkFailures() {
         return props.getBoolean("warnings.suppressUnrecoverableNetworkFailures");
     }
@@ -585,18 +575,11 @@ public class HapiSpecSetup {
     }
 
     public boolean getConfigTLS() {
-        boolean useTls = false;
-        switch (this.tls()) {
-            case ON:
-                useTls = Boolean.TRUE;
-                break;
-            case OFF:
-                useTls = Boolean.FALSE;
-                break;
-            case ALTERNATE:
-                useTls = r.nextBoolean();
-        }
-        return useTls;
+        return switch (this.tls()) {
+            case ON -> Boolean.TRUE;
+            case OFF -> Boolean.FALSE;
+            case ALTERNATE -> r.nextBoolean();
+        };
     }
 
     TxnProtoStructure txnProtoStructure() {

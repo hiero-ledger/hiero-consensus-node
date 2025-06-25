@@ -189,6 +189,9 @@ public class PlatformTestingToolConsensusStateEventHandler
      */
     private QuorumTriggeredAction<ControlAction> controlQuorum;
 
+    /** The round number of the freeze round */
+    private final AtomicLong freezeRound = new AtomicLong(-1);
+
     public PlatformTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
     }
@@ -746,6 +749,9 @@ public class PlatformTestingToolConsensusStateEventHandler
         updateTransactionCounters(state);
         round.forEachEventTransaction((event, transaction) ->
                 handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
+        if (platformStateFacade.isFreezeRound(state, round)) {
+            freezeRound.set(round.getRoundNum());
+        }
     }
 
     /**
@@ -1160,14 +1166,21 @@ public class PlatformTestingToolConsensusStateEventHandler
     }
 
     /**
-     * For every 3 consensus rounds, seal the consensus round.
+     * For every 3 consensus rounds, seal the consensus round. If it's a freeze round, seal it regardless of the round
+     * number.
      *
      * @param round the current consensus round
      * @param state the current state of the platform testing tool
-     * @return {@code true} every 3 consensus rounds
+     * @return {@code true} when the round should be sealed, {@code false} otherwise
      */
     @Override
     public boolean onSealConsensusRound(@NonNull Round round, @NonNull PlatformTestingToolState state) {
+        // if this is a freeze round, we need to seal it
+        // we cannot check the freeze time in the state at this point, because lastFrozenTime has already been updated
+        // so we remember the freeze round number in onHandleConsensusRound and check it here
+        if (round.getRoundNum() == freezeRound.get()) {
+            return true;
+        }
         return round.getRoundNum() % 3 == 0;
     }
 

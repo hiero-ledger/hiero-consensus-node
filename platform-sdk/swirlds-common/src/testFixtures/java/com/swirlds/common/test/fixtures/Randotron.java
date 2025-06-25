@@ -210,4 +210,9 @@ public final class Randotron extends Random {
     public long getSeed() {
         return seed;
     }
+
+    @Override
+    public String toString() {
+        return "Randotron{" + seed + "L}";
+    }
 }

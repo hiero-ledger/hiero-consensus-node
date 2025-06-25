@@ -24,9 +24,9 @@ public class SpecialFileHashCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         var config = ConfigUtils.configFrom(sysFilesCommand.getYahcli());
 
-        var delegate = new SpecialFileHashSuite(config.asSpecConfig(), specialFile);
+        var delegate = new SpecialFileHashSuite(config, specialFile);
         delegate.runSuiteSync();
 
-        return (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) ? 0 : 1;
+        return (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) ? 0 : 1;
     }
 }

@@ -8,10 +8,9 @@ import java.util.function.Supplier;
  * {@link Supplier}
  */
 @FunctionalInterface
-public interface NoArgsConstructor extends Supplier<RuntimeConstructable> {
+public interface NoArgsConstructor {
     /**
      * @return a new instance of the {@link RuntimeConstructable}
      */
-    @Override
     RuntimeConstructable get();
 }

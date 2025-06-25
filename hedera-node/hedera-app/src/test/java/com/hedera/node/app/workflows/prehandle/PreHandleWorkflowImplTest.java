@@ -346,7 +346,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             // But when we check the future for the signature, we find it will end up failing.
             // (And the handle workflow will deal with this)
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result1.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result1.verificationResults());
             final var result = verifier.verificationFor(key);
             assertThat(result.passed()).isFalse();
             // And we do NOT see this transaction registered with the deduplication cache
@@ -506,7 +506,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.payer()).isEqualTo(payerAccount);
             // and the payer sig check succeeds
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(payerKey);
             assertThat(payerFutureResult.passed()).isTrue();
             // but the other checks fail
@@ -562,7 +562,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.responseCode()).isEqualTo(OK);
             assertThat(result.payer()).isEqualTo(ALICE.accountID());
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(payerKey);
             assertThat(payerFutureResult.passed()).isTrue();
             assertThat(result.txInfo()).isNotNull();
@@ -612,7 +612,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.responseCode()).isEqualTo(OK);
             assertThat(result.payer()).isEqualTo(ALICE.accountID());
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(payerKey);
             assertThat(payerFutureResult.passed()).isTrue();
             assertThat(result.txInfo()).isNotNull();
@@ -664,7 +664,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.responseCode()).isEqualTo(OK);
             assertThat(result.payer()).isEqualTo(ALICE.accountID());
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(payerKey);
             assertThat(payerFutureResult.passed()).isTrue();
             assertThat(result.txInfo()).isSameAs(batchTxInfo);
@@ -672,7 +672,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.innerResults()).size().isEqualTo(1);
             final var innerResult = result.innerResults().get(0);
             assertThat(innerResult.txInfo()).isEqualTo(innerTxInfo);
-            final AppKeyVerifier innerVerifier = new DefaultKeyVerifier(1, config, innerResult.verificationResults());
+            final AppKeyVerifier innerVerifier = new DefaultKeyVerifier(config, innerResult.verificationResults());
             final var innerPayerResult = innerVerifier.verificationFor(payerKey);
             assertThat(innerPayerResult.passed()).isTrue();
             // And we do see this transaction and inner transaction registered with the deduplication cache
@@ -716,7 +716,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.responseCode()).isEqualTo(OK);
             assertThat(result.payer()).isEqualTo(ALICE.accountID());
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(payerKey);
             assertThat(payerFutureResult.passed()).isTrue();
             assertThat(result.txInfo()).isNotNull();
@@ -751,7 +751,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.responseCode()).isEqualTo(OK);
             assertThat(result.payer()).isEqualTo(hollowAccountID);
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(hollowAccountAlias);
             assertThat(payerFutureResult.passed()).isTrue();
             assertThat(payerFutureResult.evmAlias()).isEqualTo(hollowAccountAlias);
@@ -802,7 +802,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.payer()).isEqualTo(payerAccountID);
             // and the payer sig check succeeds
             final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-            final AppKeyVerifier verifier = new DefaultKeyVerifier(1, config, result.verificationResults());
+            final AppKeyVerifier verifier = new DefaultKeyVerifier(config, result.verificationResults());
             final var payerFutureResult = verifier.verificationFor(payerKey);
             assertThat(payerFutureResult.passed()).isTrue();
             // and the non-payer sig check for the hollow account works

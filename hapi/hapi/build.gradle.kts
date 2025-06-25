@@ -3,7 +3,8 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.protobuf")
     id("org.hiero.gradle.feature.test-fixtures")
-    id("com.hedera.pbj.pbj-compiler") version "0.11.0"
+    id("com.hedera.pbj.pbj-compiler") version "0.11.6"
+    // ATTENTION: keep in sync with pbj version in 'hiero-dependency-versions/build.gradle.kts'
 }
 
 description = "Hedera API"
@@ -37,6 +38,7 @@ testModuleInfo {
     requires("com.google.protobuf.util")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+    requires("org.assertj.core")
 }
 
 tasks.test {

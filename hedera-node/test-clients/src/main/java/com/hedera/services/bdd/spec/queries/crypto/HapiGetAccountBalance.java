@@ -333,7 +333,7 @@ public class HapiGetAccountBalance extends HapiQueryOp<HapiGetAccountBalance> {
                         .setAlias(rawAlias)
                         .build();
             } else {
-                id = spec.registry().keyAliasIdFor(aliasKeySource);
+                id = spec.registry().keyAliasIdFor(spec, aliasKeySource);
             }
             config = b -> b.setAccountID(id);
         }

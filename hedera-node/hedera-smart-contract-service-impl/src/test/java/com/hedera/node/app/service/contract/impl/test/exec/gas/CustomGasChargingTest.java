@@ -132,7 +132,7 @@ class CustomGasChargingTest {
                 null,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(SENDER_ID, unusedGas * NETWORK_GAS_PRICE);
+        verify(worldUpdater).refundGasFee(SENDER_ID, unusedGas * NETWORK_GAS_PRICE);
     }
 
     @Test
@@ -149,8 +149,8 @@ class CustomGasChargingTest {
                 relayer,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(RELAYER_ID, allowanceUsed);
-        verify(worldUpdater).refundFee(SENDER_ID, refund - allowanceUsed);
+        verify(worldUpdater).refundGasFee(RELAYER_ID, allowanceUsed);
+        verify(worldUpdater).refundGasFee(SENDER_ID, refund - allowanceUsed);
     }
 
     @Test
@@ -166,7 +166,7 @@ class CustomGasChargingTest {
                 relayer,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                 worldUpdater);
-        verify(worldUpdater).refundFee(RELAYER_ID, refund);
+        verify(worldUpdater).refundGasFee(RELAYER_ID, refund);
         verifyNoMoreInteractions(worldUpdater);
     }
 
@@ -211,7 +211,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(0, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, transaction.gasCostGiven(NETWORK_GAS_PRICE));
+        verify(worldUpdater).collectGasFee(SENDER_ID, transaction.gasCostGiven(NETWORK_GAS_PRICE), false);
     }
 
     @Test
@@ -260,7 +260,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(gasCost, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(RELAYER_ID, gasCost);
+        verify(worldUpdater).collectGasFee(RELAYER_ID, gasCost, false);
     }
 
     @Test
@@ -279,7 +279,7 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(0, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, gasCost);
+        verify(worldUpdater).collectGasFee(SENDER_ID, gasCost, true);
     }
 
     @Test
@@ -364,8 +364,8 @@ class CustomGasChargingTest {
                 worldUpdater,
                 transaction);
         assertEquals(relayerGasCost, chargingResult.relayerAllowanceUsed());
-        verify(worldUpdater).collectFee(SENDER_ID, transaction.offeredGasCost());
-        verify(worldUpdater).collectFee(RELAYER_ID, relayerGasCost);
+        verify(worldUpdater).collectGasFee(SENDER_ID, transaction.offeredGasCost(), true);
+        verify(worldUpdater).collectGasFee(RELAYER_ID, relayerGasCost, false);
     }
 
     @Test
@@ -378,7 +378,8 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS));
+        verify(worldUpdater)
+                .collectGasFee(SENDER_ID, Math.multiplyExact(NETWORK_GAS_PRICE, TestHelpers.INTRINSIC_GAS), false);
     }
 
     @Test
@@ -391,7 +392,7 @@ class CustomGasChargingTest {
                 wellKnownContextWith(blocks, false, tinybarValues, systemContractGasCalculator),
                 worldUpdater,
                 wellKnownHapiCall());
-        verify(worldUpdater).collectFee(SENDER_ID, ONE_HBAR_IN_TINYBARS);
+        verify(worldUpdater).collectGasFee(SENDER_ID, ONE_HBAR_IN_TINYBARS, false);
     }
 
     private void givenWellKnownIntrinsicGasCost() {

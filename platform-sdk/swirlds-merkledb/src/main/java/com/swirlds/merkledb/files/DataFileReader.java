@@ -111,7 +111,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      */
     public DataFileReader(final MerkleDbConfig dbConfig, final Path path) throws IOException {
-        this(dbConfig, path, new DataFileMetadata(path));
+        this(dbConfig, path, DataFileMetadata.readFromFile(path));
     }
 
     /**
@@ -121,8 +121,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @param path the path to the data file
      * @param metadata the file's metadata to save loading from file
      */
-    public DataFileReader(final MerkleDbConfig dbConfig, final Path path, final DataFileMetadata metadata)
-            throws IOException {
+    DataFileReader(final MerkleDbConfig dbConfig, final Path path, final DataFileMetadata metadata) throws IOException {
         this.dbConfig = dbConfig;
         maxFileChannels = dbConfig.maxFileChannelsPerFileReader();
         threadsPerFileChannel = dbConfig.maxThreadsPerFileChannel();
@@ -151,7 +150,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * is created for a new file, which is still being written in a different thread, it's marked as
      * completed right after the file is fully written and the writer is closed.
      */
-    public void setFileCompleted() {
+    void setFileCompleted() {
         try {
             fileSizeBytes.set(fileChannels.get(0).size());
         } catch (final IOException e) {
@@ -281,7 +280,10 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
 
     @Override
     public void close() throws IOException {
-        open.set(false);
+        if (!open.compareAndSet(true, false)) {
+            return;
+        }
+
         for (int i = 0; i < maxFileChannels; i++) {
             final FileChannel fileChannel = fileChannels.getAndSet(i, null);
             if (fileChannel != null) {

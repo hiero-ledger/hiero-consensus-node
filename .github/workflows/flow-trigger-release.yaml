@@ -72,7 +72,7 @@ jobs:
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
       - name: Setup Node
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 
@@ -101,7 +101,7 @@ jobs:
         run: git push --set-upstream origin "${{ steps.branch.outputs.name }}"
 
       - name: Git-Semver Setup Action
-        uses: DJ-BBot/setup-git-semver@b6b17c8e4e6b307d2a66fd93797a9d30e48836e1 # v1.0.4
+        uses: DJ-BBot/setup-git-semver@6bb4ebdd43599b4b1ce2db197bd364612128d175 # v1.0.6
 
       - name: Identify Current Version Number
         run: |
@@ -211,7 +211,7 @@ jobs:
           cat RELEASE.md
 
       - name: Publish Release Notes
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        uses: step-security/action-gh-release@868edcd064bf35267c4b218913c3d36d547086b4 # v2.2.2
         if: ${{ inputs.alpha-release != true }} # Skip step if alpha-release is true
         with:
           name: v${{ steps.next-release.outputs.version }}

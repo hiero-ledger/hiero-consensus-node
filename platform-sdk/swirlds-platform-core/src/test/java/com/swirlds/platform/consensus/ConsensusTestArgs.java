@@ -11,10 +11,8 @@ import static com.swirlds.common.test.fixtures.WeightGenerators.SINGLE_NODE_STRO
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import java.util.stream.Stream;
-import org.hiero.consensus.config.EventConfig_;
 
 public class ConsensusTestArgs {
 
@@ -27,12 +25,6 @@ public class ConsensusTestArgs {
     /** The default platform context to use for tests. */
     public static final PlatformContext DEFAULT_PLATFORM_CONTEXT =
             TestPlatformContextBuilder.create().build();
-    /** The platform context to use for tests that use the birth round as ancient threshold. */
-    public static final PlatformContext BIRTH_ROUND_PLATFORM_CONTEXT = TestPlatformContextBuilder.create()
-            .withConfiguration(new TestConfigBuilder()
-                    .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, true)
-                    .getOrCreateConfig())
-            .build();
 
     static Stream<ConsensusTestParams> orderInvarianceTests() {
         return Stream.of(
@@ -161,5 +153,12 @@ public class ConsensusTestArgs {
 
     public static Stream<ConsensusTestParams> nodeRemoveTestParams() {
         return Stream.of(new ConsensusTestParams(4, RANDOM, RANDOM_WEIGHT_DESC));
+    }
+
+    public static Stream<ConsensusTestParams> threeNetworkTypes() {
+        return Stream.of(
+                new ConsensusTestParams(2, INCREMENTING, INCREMENTAL_NODE_WEIGHT_DESC),
+                new ConsensusTestParams(9, BALANCED, BALANCED_WEIGHT_DESC),
+                new ConsensusTestParams(50, RANDOM, RANDOM_WEIGHT_DESC));
     }
 }

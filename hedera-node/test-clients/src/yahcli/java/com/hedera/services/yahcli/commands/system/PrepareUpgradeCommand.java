@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.system;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.Yahcli;
@@ -34,13 +36,15 @@ public class PrepareUpgradeCommand implements Callable<Integer> {
     public Integer call() throws Exception {
         final var config = ConfigUtils.configFrom(yahcli);
 
-        final var upgradeFile = "0.0." + upgradeFileNum;
+        final var normalizedUpgradeFileNum = normalizePossibleIdLiteral(config, upgradeFileNum);
+        final var upgradeFile =
+                asEntityString(config.shard().getShardNum(), config.realm().getRealmNum(), normalizedUpgradeFileNum);
         final var unhexedHash = CommonUtils.unhex(upgradeFileHash);
-        final var delegate = new UpgradeHelperSuite(config.asSpecConfig(), unhexedHash, upgradeFile);
+        final var delegate = new UpgradeHelperSuite(config, unhexedHash, upgradeFile);
 
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - NMT upgrade staged from " + upgradeFile + " artifacts ZIP");
         } else {
             COMMON_MESSAGES.warn("FAILED - NMT software upgrade is not in staged ");

@@ -2,14 +2,11 @@
 package org.hiero.consensus.event.creator.impl.stale;
 
 import com.swirlds.component.framework.transformers.RoutableData;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
@@ -47,16 +44,12 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
     /**
      * Constructor.
      *
-     * @param configuration the configuration
      * @param metrics       the {@link Metrics} system
      * @param selfId        the ID of this node
      */
-    public DefaultStaleEventDetector(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final NodeId selfId) {
+    public DefaultStaleEventDetector(@NonNull final Metrics metrics, @NonNull final NodeId selfId) {
         this.selfId = Objects.requireNonNull(selfId);
-        final AncientMode ancientMode =
-                configuration.getConfigData(EventConfig.class).getAncientMode();
-        this.selfEvents = new StandardSequenceMap<>(0, 1024, true, ancientMode::selectIndicator);
+        this.selfEvents = new StandardSequenceMap<>(0, 1024, true, EventDescriptorWrapper::birthRound);
         this.metrics = new StaleEventDetectorMetrics(metrics);
     }
 
@@ -101,7 +94,7 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
 
         final List<PlatformEvent> staleEvents = new ArrayList<>();
         currentEventWindow = consensusRound.getEventWindow();
-        selfEvents.shiftWindow(currentEventWindow.getAncientThreshold(), (descriptor, event) -> staleEvents.add(event));
+        selfEvents.shiftWindow(currentEventWindow.ancientThreshold(), (descriptor, event) -> staleEvents.add(event));
 
         final List<RoutableData<StaleEventDetectorOutput>> output = new ArrayList<>(staleEvents.size());
         for (final PlatformEvent event : staleEvents) {
@@ -118,7 +111,7 @@ public class DefaultStaleEventDetector implements StaleEventDetector {
     @Override
     public void setInitialEventWindow(@NonNull final EventWindow initialEventWindow) {
         this.currentEventWindow = Objects.requireNonNull(initialEventWindow);
-        selfEvents.shiftWindow(currentEventWindow.getAncientThreshold());
+        selfEvents.shiftWindow(currentEventWindow.ancientThreshold());
     }
 
     /**

@@ -50,6 +50,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -82,20 +83,23 @@ public class V0490FileSchema extends Schema {
     private static final Logger logger = LogManager.getLogger(V0490FileSchema.class);
 
     public static final String BLOBS_KEY = "FILES";
-    public static final String UPGRADE_FILE_KEY = "UPGRADE_FILE";
     public static final String UPGRADE_DATA_KEY = "UPGRADE_DATA[FileID[shardNum=%d, realmNum=%d, fileNum=%d]]";
 
     /**
      * The default throttle definitions resource. Used as the ultimate fallback if the configured file and resource is
      * not found.
      */
-    private static final String DEFAULT_THROTTLES_RESOURCE = "/genesis/throttles.json";
+    private static final String DEFAULT_THROTTLES_RESOURCE = "genesis/throttles.json";
 
     /**
-     * A hint to the database system of the maximum number of files we will store. This MUST NOT BE CHANGED. If it is
-     * changed, then the database has to be rebuilt.
+     * A hint to the database system of the expected maximum number of files we will store. This hint
+     * is used by the database to optimize its indices. If more than this number of files are actually
+     * stored, the database can handle that just fine.
+     *
+     * <p>If this number is changed, it will not have any effect on existing networks. Only new
+     * deployments will use the updated hint.
      */
-    private static final int MAX_FILES_HINT = 50_000_000;
+    private static final int MAX_FILES_HINT = 50_000;
     /**
      * The version of the schema.
      */
@@ -274,7 +278,7 @@ public class V0490FileSchema extends Schema {
      */
     public Bytes genesisFeeSchedules(@NonNull final Configuration config) {
         final var resourceName = config.getConfigData(BootstrapConfig.class).feeSchedulesJsonResource();
-        try (final var in = V0490FileSchema.class.getResourceAsStream(resourceName)) {
+        try (final var in = loadResourceInPackage(resourceName)) {
             final var feeScheduleJsonBytes = requireNonNull(in).readAllBytes();
             final var feeSchedule = parseFeeSchedules(feeScheduleJsonBytes);
             return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedule);
@@ -480,7 +484,7 @@ public class V0490FileSchema extends Schema {
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (apiPermissionsContent == null) {
             final var resourceName = "api-permission.properties";
-            try (final var in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName)) {
+            try (final var in = loadResourceInRoot(resourceName)) {
                 apiPermissionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("API Permissions loaded from classpath resource {}", resourceName);
             } catch (IOException | NullPointerException e) {
@@ -574,8 +578,7 @@ public class V0490FileSchema extends Schema {
 
         // Otherwise, load from the classpath. If that cannot be done, we have a totally broken build.
         if (throttleDefinitionsContent == null) {
-            try (final var in =
-                    Thread.currentThread().getContextClassLoader().getResourceAsStream(throttleDefinitionsResource)) {
+            try (final var in = loadResourceInPackage(throttleDefinitionsResource)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info("Throttle definitions loaded from classpath resource {}", throttleDefinitionsResource);
             } catch (IOException | NullPointerException e) {
@@ -587,7 +590,7 @@ public class V0490FileSchema extends Schema {
 
         if (throttleDefinitionsContent == null) {
             // Load the default throttle definitions resource
-            try (final var in = V0490FileSchema.class.getResourceAsStream(DEFAULT_THROTTLES_RESOURCE)) {
+            try (final var in = loadResourceInPackage(DEFAULT_THROTTLES_RESOURCE)) {
                 throttleDefinitionsContent = new String(requireNonNull(in).readAllBytes(), UTF_8);
                 logger.info(
                         "Throttle definitions loaded from default fallback classpath resource {}",
@@ -682,5 +685,19 @@ public class V0490FileSchema extends Schema {
                 .shardNum(hederaConfig.shard())
                 .fileNum(fileNum)
                 .build();
+    }
+
+    /**
+     * Loads a resource from within a package. The package must be within the loading Module or exported/opened.
+     */
+    private static InputStream loadResourceInPackage(String resourcePath) {
+        return V0490FileSchema.class.getResourceAsStream("/" + resourcePath);
+    }
+
+    /**
+     * Loads a resource from the root of any Jar file (not inside a package).
+     */
+    private static InputStream loadResourceInRoot(String resourceName) {
+        return Thread.currentThread().getContextClassLoader().getResourceAsStream(resourceName);
     }
 }

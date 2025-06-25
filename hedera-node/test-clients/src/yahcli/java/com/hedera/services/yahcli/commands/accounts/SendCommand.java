@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.commands.accounts;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.yahcli.Yahcli;
 import com.hedera.services.yahcli.config.ConfigUtils;
 import com.hedera.services.yahcli.suites.SendSuite;
-import com.hedera.services.yahcli.suites.Utils;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -54,14 +55,22 @@ public class SendCommand implements Callable<Integer> {
             description = "for an HTS token denomination, the number of decimals")
     Integer decimals;
 
+    @CommandLine.Option(
+            names = {"--inside-batch"},
+            paramLabel = "<AtomicBatch?>",
+            defaultValue = "false",
+            description = "whether to send the transfer inside a batch")
+    Boolean insideBatch;
+
     @Override
     public Integer call() throws Exception {
         var config = ConfigUtils.configFrom(accountsCommand.getYahcli());
 
-        if (!config.isAllowListEmptyOrContainsAccount(Long.parseLong(beneficiary))) {
+        var normalizedBeneficiary = normalizePossibleIdLiteral(config, beneficiary);
+        if (!config.isAllowListEmptyOrContainsAccount(Long.parseLong(normalizedBeneficiary))) {
             throw new CommandLine.ParameterException(
                     accountsCommand.getYahcli().getSpec().commandLine(),
-                    "Beneficiary " + beneficiary + " supposed to be in allow list");
+                    "Beneficiary " + normalizedBeneficiary + " supposed to be in allow list");
         }
 
         long amount;
@@ -70,27 +79,28 @@ public class SendCommand implements Callable<Integer> {
             amount = validatedTinybars(accountsCommand.getYahcli(), amountRepr, denomination);
             denomination = null;
         } else {
-            denomination = Utils.extractAccount(denomination);
             amount = validatedUnits(amountRepr, decimals);
         }
         final var effectiveMemo = memo != null ? memo : "";
         var delegate = new SendSuite(
-                config.asSpecConfig(),
-                beneficiary,
+                config,
+                normalizedBeneficiary,
                 amount,
                 effectiveMemo,
                 denomination,
-                accountsCommand.getYahcli().isScheduled());
+                accountsCommand.getYahcli().isScheduled(),
+                insideBatch);
         delegate.runSuiteSync();
 
-        if (delegate.getFinalSpecs().get(0).getStatus() == HapiSpec.SpecStatus.PASSED) {
+        final var firstSpec = delegate.getFinalSpecs().getFirst();
+        if (firstSpec.getStatus() == HapiSpec.SpecStatus.PASSED) {
             COMMON_MESSAGES.info("SUCCESS - "
                     + "sent "
                     + amountRepr
                     + " "
                     + originalDenomination
                     + " to account "
-                    + beneficiary
+                    + asEntityString(firstSpec.shard(), firstSpec.realm(), normalizedBeneficiary)
                     + " with memo: '"
                     + memo
                     + "'");
@@ -101,7 +111,7 @@ public class SendCommand implements Callable<Integer> {
                     + " "
                     + originalDenomination
                     + " to account "
-                    + beneficiary
+                    + normalizedBeneficiary
                     + " with memo: '"
                     + memo
                     + "'");
@@ -118,8 +128,9 @@ public class SendCommand implements Callable<Integer> {
     public static long validatedTinybars(final Yahcli yahcli, final String amountRepr, final String denomination) {
         final var amount = Long.parseLong(amountRepr.replaceAll("_", ""));
         return switch (denomination) {
-            default -> throw new CommandLine.ParameterException(
-                    yahcli.getSpec().commandLine(), "Denomination must be one of { tinybar | hbar | kilobar }");
+            default ->
+                throw new CommandLine.ParameterException(
+                        yahcli.getSpec().commandLine(), "Denomination must be one of { tinybar | hbar | kilobar }");
             case "tinybar" -> amount;
             case "hbar" -> amount * TINYBARS_PER_HBAR;
             case "kilobar" -> amount * TINYBARS_PER_KILOBAR;

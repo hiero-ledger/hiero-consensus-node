@@ -55,7 +55,7 @@ class SignedStateTests {
 
     @AfterEach
     void tearDown() {
-        RandomSignedStateGenerator.forgetAllBuiltSignedStatesWithoutReleasing();
+        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
     }
 
     /**
@@ -82,6 +82,7 @@ class SignedStateTests {
         if (releaseCallback != null) {
             doAnswer(invocation -> {
                         releaseCallback.run();
+                        invocation.callRealMethod();
                         return null;
                     })
                     .when(state)

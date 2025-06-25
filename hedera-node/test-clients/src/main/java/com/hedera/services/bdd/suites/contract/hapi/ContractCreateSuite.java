@@ -2,9 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -54,7 +51,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateBlockStream;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.CHAIN_ID;
@@ -69,6 +65,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
@@ -94,16 +91,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
-import com.hedera.hapi.block.stream.output.TransactionOutput.TransactionOneOfType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -111,6 +101,8 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.utils.Signing;
+import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -131,7 +123,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.base.utility.CommonUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -193,13 +184,13 @@ public class ContractCreateSuite {
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(true)
-                        .stakedAccountId(SHARD_AND_REALM + "10")
+                        .stakedAccountId("10")
                         .refusingEthConversion(),
                 getContractInfo(contract)
                         .has(contractWith()
                                 .isDeclinedReward(true)
                                 .noStakingNodeId()
-                                .stakedAccountId(SHARD_AND_REALM + "10")),
+                                .stakedAccountId("10")),
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
@@ -214,13 +205,13 @@ public class ContractCreateSuite {
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
-                        .stakedAccountId(SHARD_AND_REALM + "10")
+                        .stakedAccountId("10")
                         .refusingEthConversion(),
                 getContractInfo(contract)
                         .has(contractWith()
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
-                                .stakedAccountId(SHARD_AND_REALM + "10"))
+                                .stakedAccountId("10"))
                         .logged(),
                 /* sentinel values throw */
                 contractCreate(contract)
@@ -265,13 +256,12 @@ public class ContractCreateSuite {
     @HapiTest
     final Stream<DynamicTest> cannotSendToNonExistentAccount() {
         final var contract = "Multipurpose";
-        Object[] donationArgs =
-                new Object[] {new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, 666666L)), "Hey, Ma!"};
 
-        return hapiTest(
-                uploadInitCode(contract),
-                contractCreate(contract).balance(666),
-                contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+        return hapiTest(uploadInitCode(contract), contractCreate(contract).balance(666), withOpContext((spec, log) -> {
+            final Object[] donationArgs = {new BigInteger(asSolidityAddress(spec, 666_666L)), "Hey, Ma!"};
+            final var callOp = contractCall(contract, "donate", donationArgs).hasKnownStatus(CONTRACT_REVERT_EXECUTED);
+            allRunFor(spec, callOp);
+        }));
     }
 
     @HapiTest
@@ -394,20 +384,20 @@ public class ContractCreateSuite {
                     secondStickId.set(createdIds.get(2).getContractNum());
                     thirdStickId.set(createdIds.get(3).getContractNum());
                 }),
-                sourcing(() -> getContractInfo(SHARD_AND_REALM + firstStickId.get())
-                        .has(contractWith().immutableContractKey(SHARD_AND_REALM + firstStickId.get()))
+                sourcing(() -> getContractInfo(String.valueOf(firstStickId.get()))
+                        .has(contractWith().immutableContractKey(String.valueOf(firstStickId.get())))
                         .logged()),
-                sourcing(() -> getContractInfo(SHARD_AND_REALM + secondStickId.get())
-                        .has(contractWith().immutableContractKey(SHARD_AND_REALM + secondStickId.get()))
+                sourcing(() -> getContractInfo(String.valueOf(secondStickId.get()))
+                        .has(contractWith().immutableContractKey(String.valueOf(secondStickId.get())))
                         .logged()),
                 sourcing(() ->
-                        getContractInfo(SHARD_AND_REALM + thirdStickId.get()).logged()),
+                        getContractInfo(String.valueOf(thirdStickId.get())).logged()),
                 contractCall(contract, "light").via("lightTxn"),
-                sourcing(() -> getContractInfo(SHARD_AND_REALM + firstStickId.get())
+                sourcing(() -> getContractInfo(String.valueOf(firstStickId.get()))
                         .has(contractWith().isDeleted())),
-                sourcing(() -> getContractInfo(SHARD_AND_REALM + secondStickId.get())
+                sourcing(() -> getContractInfo(String.valueOf(secondStickId.get()))
                         .has(contractWith().isDeleted())),
-                sourcing(() -> getContractInfo(SHARD_AND_REALM + thirdStickId.get())
+                sourcing(() -> getContractInfo(String.valueOf(thirdStickId.get()))
                         .has(contractWith().isDeleted())));
     }
 
@@ -570,8 +560,8 @@ public class ContractCreateSuite {
         final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var newKey = "delegateContractKey";
 
-        final AtomicLong justSendContractNum = new AtomicLong();
-        final AtomicLong beneficiaryAccountNum = new AtomicLong();
+        final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
+        final AtomicReference<AccountID> beneficiaryAccountId = new AtomicReference<>();
 
         return hapiTest(
                 uploadInitCode(justSendContract, sendInternalAndDelegateContract),
@@ -579,14 +569,14 @@ public class ContractCreateSuite {
                 // when it has EVM address alias (isNotPriority check fails)
                 contractCreate(justSendContract)
                         .gas(300_000L)
-                        .exposingNumTo(justSendContractNum::set)
+                        .exposingContractIdTo(justSendContractId::set)
                         .refusingEthConversion(),
                 contractCreate(sendInternalAndDelegateContract).gas(300_000L).balance(2 * totalToSend),
                 cryptoCreate(beneficiary)
                         .balance(0L)
                         .keyShape(origKey.signedWith(sigs(ON, sendInternalAndDelegateContract)))
                         .receiverSigRequired(true)
-                        .exposingCreatedIdTo(id -> beneficiaryAccountNum.set(id.getAccountNum())),
+                        .exposingCreatedIdTo(beneficiaryAccountId::set),
                 /* Without delegateContractId permissions, the second send via delegate call will
                  * fail, so only half of totalToSend will make it to the beneficiary. (Note the entire
                  * call doesn't fail because exceptional halts in "raw calls" don't automatically
@@ -594,8 +584,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, justSendContractNum.get())),
-                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, beneficiaryAccountNum.get())),
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(totalToSend / 2),
                 /* But now we update the beneficiary to have a delegateContractId */
@@ -604,8 +594,8 @@ public class ContractCreateSuite {
                 sourcing(() -> contractCall(
                         sendInternalAndDelegateContract,
                         "sendRepeatedlyTo",
-                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, justSendContractNum.get())),
-                        new BigInteger(HapiPropertySource.asSolidityAddress(shard, realm, beneficiaryAccountNum.get())),
+                        new BigInteger(asSolidityAddress(justSendContractId.get())),
+                        new BigInteger(asSolidityAddress(beneficiaryAccountId.get())),
                         BigInteger.valueOf(totalToSend / 2))),
                 getAccountBalance(beneficiary).hasTinyBars(3 * (totalToSend / 2)));
     }
@@ -884,13 +874,7 @@ public class ContractCreateSuite {
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, CONTRACT_REVERT_EXECUTED);
                     ts.set(record.getConsensusTimestamp());
-                    asserRecordContractId(record, false);
-                }),
-                // check if CONTRACT_REVERT_EXECUTED block DON`T contains expected contractIds
-                validateBlockStream().withBlockValidation(blocks -> {
-                    // get last TRANSACTION_OUTPUT in all blocks
-                    final var item = getLastContractCreateTx(blocks, ts.get());
-                    asserBlockContractId(item, false);
+                    assertRecordContractId(record, false);
                 }));
     }
 
@@ -905,13 +889,7 @@ public class ContractCreateSuite {
                 withOpContext((spec, opLog) -> {
                     final var record = getRecord(spec, txn, SUCCESS);
                     ts.set(record.getConsensusTimestamp());
-                    asserRecordContractId(record, true);
-                }),
-                // check if block contains expected contractIds
-                validateBlockStream().withBlockValidation(blocks -> {
-                    // get last TRANSACTION_OUTPUT in all blocks
-                    final var item = getLastContractCreateTx(blocks, ts.get());
-                    asserBlockContractId(item, true);
+                    assertRecordContractId(record, true);
                 }));
     }
 
@@ -942,57 +920,11 @@ public class ContractCreateSuite {
         return record;
     }
 
-    private TransactionOutput getLastContractCreateTx(List<Block> blocks, Timestamp timestamp) {
-        return blocks.stream()
-                .flatMap(e -> e.items().stream())
-                .map(BlockItem::item)
-                .filter(e -> ItemOneOfType.TRANSACTION_OUTPUT.equals(e.kind()))
-                .<TransactionOutput>map(OneOf::as)
-                .filter(e -> TransactionOneOfType.CONTRACT_CREATE.equals(
-                        e.transaction().kind()))
-                // match txn by timestamp, because there is other CONTRACT_CREATE txn
-                .filter(e -> e.contractCreateOrThrow().sidecars().stream()
-                        .anyMatch(s -> s.consensusTimestamp().seconds() == timestamp.getSeconds()
-                                && s.consensusTimestamp().nanos() == timestamp.getNanos()))
-                .reduce((f, s) -> s)
-                .orElseGet(() -> Assertions.fail("TRANSACTION_OUTPUT -> CONTRACT_CREATE mot found"));
-    }
-
-    private void asserRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
+    private void assertRecordContractId(TransactionRecord record, boolean shouldContractIdExists) {
         // check record->receipt->contractId
         assertEquals(shouldContractIdExists, record.getReceipt().hasContractID());
         // check record->contractCreateResult->contractId
         assertEquals(shouldContractIdExists, record.getContractCreateResult().hasContractID());
-    }
-
-    private void asserBlockContractId(TransactionOutput item, boolean shouldContractIdExists) {
-        assertTrue(item.hasContractCreate());
-        // check sidecars->actions->recipient, sidecars->bytecode->contractId
-        item.contractCreateOrThrow().sidecars().forEach(sidecar -> {
-            if (sidecar.hasActions()) {
-                sidecar.actionsOrThrow()
-                        .contractActions()
-                        .forEach(action -> assertEquals(shouldContractIdExists, action.hasRecipientContract()));
-            } else if (sidecar.hasBytecode()) {
-                assertEquals(shouldContractIdExists, sidecar.bytecodeOrThrow().hasContractId());
-            }
-        });
-        // check contractCreate->contractCreateResult->contractId
-        assertTrue(item.contractCreateOrThrow().hasContractCreateResult());
-        assertEquals(
-                shouldContractIdExists,
-                item.contractCreateOrThrow().contractCreateResult().hasContractID());
-        // check contractCreate->contractCreateResult->contractNonces->contractId
-        assertEquals(
-                !shouldContractIdExists,
-                item.contractCreateOrThrow()
-                        .contractCreateResult()
-                        .contractNonces()
-                        .isEmpty());
-        item.contractCreateOrThrow()
-                .contractCreateResult()
-                .contractNonces()
-                .forEach(nonce -> assertEquals(shouldContractIdExists, nonce.hasContractId()));
     }
 
     private EthTxData placeholderEthTx() {

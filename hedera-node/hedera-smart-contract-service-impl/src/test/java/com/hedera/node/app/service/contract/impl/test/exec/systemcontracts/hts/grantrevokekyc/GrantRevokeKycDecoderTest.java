@@ -8,6 +8,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantrevokekyc.GrantRevokeKycDecoder;
@@ -26,6 +27,9 @@ class GrantRevokeKycDecoderTest {
     @Mock
     private AddressIdConverter addressIdConverter;
 
+    @Mock
+    private HederaNativeOperations nativeOperations;
+
     private final GrantRevokeKycDecoder subject = new GrantRevokeKycDecoder();
 
     @Test
@@ -35,6 +39,8 @@ class GrantRevokeKycDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
 
         final var body = subject.decodeGrantKyc(attempt);
@@ -48,6 +54,9 @@ class GrantRevokeKycDecoderTest {
                 .array();
         given(attempt.inputBytes()).willReturn(encoded);
         given(attempt.addressIdConverter()).willReturn(addressIdConverter);
+        given(attempt.nativeOperations()).willReturn(nativeOperations);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+
         givenConvertible(OWNER_HEADLONG_ADDRESS, OWNER_ID);
 
         final var body = subject.decodeRevokeKyc(attempt);

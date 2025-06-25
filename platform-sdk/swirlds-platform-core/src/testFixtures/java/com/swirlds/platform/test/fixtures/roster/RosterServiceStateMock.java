@@ -79,7 +79,9 @@ public final class RosterServiceStateMock {
 
         if (currentRoster != null) {
             final Bytes rosterHash = RosterUtils.hash(currentRoster).getBytes();
-            when(rosterMap.get(eq(new ProtoBytes(rosterHash)))).thenReturn(currentRoster);
+            final ProtoBytes value = new ProtoBytes(rosterHash);
+            when(rosterMap.get(eq(value))).thenReturn(currentRoster);
+            when(rosterMap.contains(eq(value))).thenReturn(true);
             roundRosterPairs.add(new RoundRosterPair(round, rosterHash));
         }
 
@@ -90,7 +92,9 @@ public final class RosterServiceStateMock {
                                 + Roster.JSON.toJSON(previousRoster));
             }
             final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();
-            when(rosterMap.get(eq(new ProtoBytes(previousRosterHash)))).thenReturn(previousRoster);
+            final ProtoBytes value = new ProtoBytes(previousRosterHash);
+            when(rosterMap.get(eq(value))).thenReturn(previousRoster);
+            when(rosterMap.contains(eq(value))).thenReturn(true);
             roundRosterPairs.add(new RoundRosterPair(0, previousRosterHash));
         }
 

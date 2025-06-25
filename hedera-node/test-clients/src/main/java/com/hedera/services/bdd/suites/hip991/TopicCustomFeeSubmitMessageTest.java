@@ -54,6 +54,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -68,6 +69,7 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.stream.Stream;
@@ -1783,23 +1785,51 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         }
 
         @HapiTest
-        @DisplayName("Submit a large message to topic with customFees and validate the fee")
-        final Stream<DynamicTest> submitLargeMessageToTopicWithFee() {
-            final byte[] messageBytes = new byte[501];
-            Arrays.fill(messageBytes, (byte) 0b1);
+        @DisplayName("validate fee scales as message bytes increase")
+        final Stream<DynamicTest> validateFeeScaling() {
+            final byte[] messageBytes513 = new byte[513];
+            final byte[] messageBytes800 = new byte[800];
+            final byte[] messageBytes1000 = new byte[1000];
+            final byte[] messageBytes1024 = new byte[1024];
+            Arrays.fill(messageBytes513, (byte) 0b1);
+            Arrays.fill(messageBytes800, (byte) 0b1);
+            Arrays.fill(messageBytes1000, (byte) 0b1);
+            Arrays.fill(messageBytes1024, (byte) 0b1);
 
             return hapiTest(flattened(
+                    newKeyNamed(SUBMIT_KEY),
                     cryptoCreate("collector").balance(0L),
-                    // create topic with hbar fees
                     createTopic(TOPIC).withConsensusCustomFee(fixedConsensusHbarFee(10, "collector")),
-                    // submit message
+                    submitMessageTo(TOPIC).message("test").payingWith(SUBMITTER).via("simpleSubmit"),
                     submitMessageTo(TOPIC)
-                            .message(messageBytes)
+                            .message(messageBytes513)
                             .payingWith(SUBMITTER)
-                            .via("submit"),
-                    // assert topic fee collector balance
-                    getAccountBalance("collector").hasTinyBars(10),
-                    validateChargedUsdWithin("submit", 0.10, 0.1)));
+                            .via("submit513"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes800)
+                            .payingWith(SUBMITTER)
+                            .via("submit800"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes1000)
+                            .payingWith(SUBMITTER)
+                            .via("submit1000"),
+                    submitMessageTo(TOPIC)
+                            .message(messageBytes1024)
+                            .payingWith(SUBMITTER)
+                            .via("submit1024"),
+                    submitMessageTo(TOPIC)
+                            .message("test")
+                            .signedBy(SUBMITTER, SUBMIT_KEY)
+                            .sigMapPrefixes(uniqueWithFullPrefixesFor(SUBMITTER, SUBMIT_KEY))
+                            .payingWith(SUBMITTER)
+                            .via("extraSigs"),
+                    getAccountBalance("collector").hasTinyBars(60),
+                    validateChargedUsdWithin("simpleSubmit", 0.05, 0.1),
+                    validateChargedUsdWithin("submit513", 0.051, 0.1),
+                    validateChargedUsdWithin("submit800", 0.055999, 0.1),
+                    validateChargedUsdWithin("submit1000", 0.06, 0.1),
+                    validateChargedUsdWithin("submit1024", 0.06, 0.1),
+                    validateChargedUsdWithin("extraSigs", 0.0792, 0.1)));
         }
 
         @HapiTest
@@ -1858,6 +1888,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                                 .hasNonStakingChildRecordCount(0)
                                 .logged();
                         allRunFor(spec, submitTxnRecord);
+                        validateTransactionFees(submitTxnRecord.getResponseRecord());
                     }),
                     // assert topic fee collector balance
                     getAccountBalance(collector).hasTokenBalance(tokenName, 1),
@@ -1865,6 +1896,14 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     getAccountBalance(denomCollector)
                             .hasTokenBalance(denomToken, 1)
                             .hasTinyBars(ONE_HBAR)));
+        }
+
+        private void validateTransactionFees(final TransactionRecord record) {
+            final var feeCreditSum = record.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAccountID().getAccountNum() < 1000)
+                    .mapToInt(aa -> (int) aa.getAmount())
+                    .sum();
+            assertEquals(record.getTransactionFee(), feeCreditSum);
         }
 
         @HapiTest

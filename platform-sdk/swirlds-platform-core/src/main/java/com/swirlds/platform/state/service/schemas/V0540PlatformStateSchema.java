@@ -78,10 +78,6 @@ public class V0540PlatformStateSchema extends Schema {
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.EPOCH);
             final var basicConfig = ctx.platformConfig().getConfigData(BasicConfig.class);
-            final long genesisFreezeTime = basicConfig.genesisFreezeTime();
-            if (genesisFreezeTime > 0) {
-                v.setFreezeTime(Instant.ofEpochSecond(genesisFreezeTime));
-            }
         };
     }
 }

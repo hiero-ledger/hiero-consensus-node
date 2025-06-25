@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.yahcli.suites;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
+import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
+import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hederahashgraph.api.proto.java.FileID;
 import java.io.File;
 import java.time.Instant;
@@ -32,24 +36,29 @@ public class Utils {
         }
     }
 
-    public static String extractAccount(final String account) {
-        if (isIdLiteral(account)) {
-            return account;
+    public static String extractEntity(final long shard, final long realm, final String entity) {
+        if (isIdLiteral(entity)) {
+            return entity;
         } else {
             try {
-                long number = Long.parseLong(account);
-                return "0.0." + number;
+                long number = Long.parseLong(entity);
+                return asEntityString(shard, realm, number);
             } catch (NumberFormatException ignore) {
                 throw new IllegalArgumentException("Named accounts not yet supported!");
             }
         }
     }
 
+    // (FUTURE) Remove this method. It's temporary scaffolding until all yahcli ops are properly using shard/realm
+    public static String extractAccount(final String account) {
+        return extractEntity(HapiPropertySource.getConfigShard(), HapiPropertySource.getConfigRealm(), account);
+    }
+
     public static Instant parseFormattedInstant(final String timeStampInStr) {
         return Instant.from(DATE_TIME_FORMAT.parse(timeStampInStr));
     }
 
-    enum ServiceType {
+    public enum ServiceType {
         CRYPTO,
         CONSENSUS,
         TOKEN,
@@ -96,6 +105,13 @@ public class Utils {
 
     public static String nameOf(FileID fid) {
         return Optional.ofNullable(IDS_TO_NAMES.get(fid)).orElse("<N/A>");
+    }
+
+    public static void mismatchedShardRealmMsg(ConfigManager config, final String entityId) {
+        COMMON_MESSAGES.warn("Configured shard/realm for entity ID " + entityId + " does not match "
+                + "the target network's configured shard/realm of "
+                + config.shard().getShardNum() + "." + config.realm().getRealmNum()
+                + "! Using shard/realm configured for network instead.");
     }
 
     public static EnumSet<ServiceType> rationalizedServices(final String[] services) {
