@@ -42,11 +42,11 @@ on:
         description: "Test execution time"
         type: choice
         options:
-          - '3'
-          - '9'
-          - '21'
-          - '180'
-          - '330'
+          - "3"
+          - "9"
+          - "21"
+          - "180"
+          - "330"
       add-app-props:
         required: false
         default: ""
