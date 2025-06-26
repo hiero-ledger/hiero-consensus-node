@@ -134,7 +134,7 @@ public class MultipleNodeConsensusResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert hasMaxDifferenceInLastRoundNum(
+    public MultipleNodeConsensusResultsAssert haveMaxDifferenceInLastRoundNum(
             @NonNull final Percentage expectedDifference) {
         isNotNull();
 

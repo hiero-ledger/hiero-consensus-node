@@ -71,7 +71,7 @@ public class BirthRoundFreezeTest {
         assertThat(network.getConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)
                 .roundsInCommonAreEqual()
-                .hasMaxDifferenceInLastRoundNum(withPercentage(5))
+                .haveMaxDifferenceInLastRoundNum(withPercentage(5))
                 .haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
 
         assertThat(network.getPcesResults()).haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
