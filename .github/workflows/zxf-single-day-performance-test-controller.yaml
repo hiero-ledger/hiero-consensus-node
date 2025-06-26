@@ -125,33 +125,20 @@ jobs:
     name: Run Single Day Performance Test
     needs: verify-tag
     if: ${{ needs.verify-tag.result == 'success' || inputs.dry-run-enabled == true}}
-    # turn off the steps and use the reusable workflow when it's been moved to CN repo
-    runs-on: hiero-network-node-linux-medium
-    outputs:
-      result: ${{ steps.run-citr-performance-test.outputs.result }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
-        with:
-          egress-policy: audit
-
-      - name: Set output for run-single-day-performance-test
-        id: run-citr-performance-test
-        run: echo "result=success" >> $GITHUB_OUTPUT
-  #    uses: .github/workflows/zxc-single-day-performance-test.yaml
-  #    with:
-  #      test-asset:    "${{ inputs.test-asset }}"
-  #      ref:           "${{ inputs.ref }}"
-  #      solo-version:  "${{ inputs.solo-version }}"
-  #      nlg-accounts:  "${{ inputs.nlg-accounts }}"
-  #      nlg-time:      "${{ inputs.nlg-time }}"
-  #      add-app-props: "${{ inputs.add-app-props }}"
-  #      add-settings:  "${{ inputs.add-settings }}"
-  #      crypto-bench-merkle-db-java-args:    "${{ inputs.crypto-bench-merkle-db-java-args }}"
-  #      crypto-bench-merkle-db-test-params:  "${{ inputs.crypto-bench-merkle-db-test-params }}"
-  #    secrets:
-  #      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}"
-  #      nlg-access-token: ${{ secrets.CITR_NLG_ACCESS_TOKEN }}
+    uses: .github/workflows/zxc-single-day-performance-test.yaml
+    with:
+      test-asset: "${{ inputs.test-asset }}"
+      ref: "${{ inputs.ref }}"
+      solo-version: "${{ inputs.solo-version }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      add-settings: "${{ inputs.add-settings }}"
+      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
+      crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
+    secrets:
+      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}"
+      nlg-access-token: ${{ secrets.CITR_NLG_ACCESS_TOKEN }}
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
