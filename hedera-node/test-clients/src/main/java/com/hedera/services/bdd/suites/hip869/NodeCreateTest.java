@@ -42,7 +42,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -286,9 +285,7 @@ public class NodeCreateTest {
      * Check that node creation succeeds with gossip and service endpoints using ips and all optional fields are recorded.
      * @see <a href="https://github.com/hashgraph/hedera-improvement-proposal/blob/main/HIP/hip-869.md#specification">HIP-869</a>
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.webProxyEndpointsEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> allFieldsSetHappyCaseForIps() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate()
                 .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
@@ -296,7 +293,6 @@ public class NodeCreateTest {
                 // The web proxy endpoint can never be an IP address
                 .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_FQDN);
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate,
                 verifyCanonicalCreate(nodeCreate),
@@ -313,11 +309,11 @@ public class NodeCreateTest {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.gossipFqdnRestricted", "nodes.webProxyEndpointsEnabled"})
+            overrides = {"nodes.gossipFqdnRestricted"})
     final Stream<DynamicTest> allFieldsSetHappyCaseForDomains() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate();
         return hapiTest(
-                overridingTwo("nodes.gossipFqdnRestricted", "false", "nodes.webProxyEndpointsEnabled", "true"),
+                overriding("nodes.gossipFqdnRestricted", "false"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate,
                 verifyCanonicalCreate(nodeCreate),
@@ -325,24 +321,6 @@ public class NodeCreateTest {
                     assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_FQDNS, node.gossipEndpoint());
                     assertEqualServiceEndpoints(SERVICES_ENDPOINTS_FQDNS, node.serviceEndpoint());
                     assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
-                }));
-    }
-
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.gossipFqdnRestricted"})
-    final Stream<DynamicTest> allFieldsButProxyEndpointSet() throws CertificateEncodingException {
-        final var nodeCreate = canonicalNodeCreate().withNoWebProxyEndpoint();
-        return hapiTest(
-                overriding("nodes.gossipFqdnRestricted", "false"),
-                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
-                nodeCreate,
-                verifyCanonicalCreate(nodeCreate),
-                // nodes.webProxyEndpointsEnabled should default to false, resulting in a null proxy endpoint
-                viewNode("nodeCreate", node -> {
-                    assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_FQDNS, node.gossipEndpoint());
-                    assertEqualServiceEndpoints(SERVICES_ENDPOINTS_FQDNS, node.serviceEndpoint());
-                    assertNull(node.grpcProxyEndpoint());
                 }));
     }
 
@@ -355,10 +333,9 @@ public class NodeCreateTest {
                 nodeCreate.hasKnownStatus(GRPC_WEB_PROXY_NOT_SUPPORTED));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> webProxyAsIpAddressIsRejected() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("nodeCreate")
                         .adminKey("adminKey")
@@ -624,10 +601,9 @@ public class NodeCreateTest {
                         .hasKnownStatus(UNAUTHORIZED));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> createNodeWithDefaultGrpcProxyFails() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")

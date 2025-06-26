@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.result;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -11,6 +12,7 @@ import org.hiero.otter.fixtures.Node;
  *
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
+@SuppressWarnings("unused")
 public interface MultipleNodeLogResults {
 
     /**
@@ -24,18 +26,29 @@ public interface MultipleNodeLogResults {
     /**
      * Excludes the log results of a specific node from the current results.
      *
-     * @param node the node whose log results are to be excluded
+     * @param nodeId the {@link NodeId} of the node which log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
      */
     @NonNull
-    MultipleNodeLogResults ignoring(@NonNull Node node);
+    MultipleNodeLogResults suppressingNode(@NonNull NodeId nodeId);
+
+    /**
+     * Excludes the log results of a specific node from the current results.
+     *
+     * @param node the node which log results are to be excluded
+     * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
+     */
+    @NonNull
+    default MultipleNodeLogResults suppressingNode(@NonNull final Node node) {
+        return suppressingNode(node.getSelfId());
+    }
 
     /**
      * Excludes the log results associated with the specified log marker from the current results.
      *
-     * @param marker the {@link LogMarker} whose associated log results are to be excluded
+     * @param marker the {@link LogMarker} which associated log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified log marker's results removed
      */
     @NonNull
-    MultipleNodeLogResults ignoring(@NonNull LogMarker marker);
+    MultipleNodeLogResults suppressingLogMarker(@NonNull LogMarker marker);
 }

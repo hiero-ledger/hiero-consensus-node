@@ -8,7 +8,6 @@ import static org.hiero.otter.fixtures.turtle.TurtleTestEnvironment.STANDARD_DEV
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.turtle.gossip.SimulatedNetwork;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -30,6 +29,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
+import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.

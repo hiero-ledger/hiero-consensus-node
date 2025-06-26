@@ -89,7 +89,7 @@ import org.hyperledger.besu.evm.log.Log;
 public class BaseTranslator {
     private static final Logger log = LogManager.getLogger(BaseTranslator.class);
 
-    private static final Set<TransactionGroupRole> PARENT_ROLES =
+    public static final Set<TransactionGroupRole> PARENT_ROLES =
             EnumSet.of(STANDALONE, PARENT, ENDING_PARENT, STARTING_PARENT);
 
     /**

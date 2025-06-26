@@ -8,19 +8,19 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
-import org.hiero.otter.fixtures.assertions.MultipleNodeStatusProgressionAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
-import org.hiero.otter.fixtures.assertions.SingleNodeStatusProgressionAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
-import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 
 /**
  * This class contains all {@code assertThat()} methods for test results of the Otter framework.
@@ -86,25 +86,27 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
-     * Creates an assertion for the given {@link SingleNodeStatusProgression}.
+     * Creates an assertion for the given {@link SingleNodePlatformStatusResults}.
      *
-     * @param actual the {@link SingleNodeStatusProgression} to assert
-     * @return an assertion for the given {@link SingleNodeStatusProgression}
+     * @param actual the {@link SingleNodePlatformStatusResults} to assert
+     * @return an assertion for the given {@link SingleNodePlatformStatusResults}
      */
     @NonNull
-    public static SingleNodeStatusProgressionAssert assertThat(@Nullable final SingleNodeStatusProgression actual) {
-        return SingleNodeStatusProgressionAssert.assertThat(actual);
+    public static SingleNodePlatformStatusResultAssert assertThat(
+            @Nullable final SingleNodePlatformStatusResults actual) {
+        return SingleNodePlatformStatusResultAssert.assertThat(actual);
     }
 
     /**
-     * Creates an assertion for the given {@link MultipleNodeStatusProgression}.
+     * Creates an assertion for the given {@link MultipleNodePlatformStatusResults}.
      *
-     * @param actual the {@link MultipleNodeStatusProgression} to assert
-     * @return an assertion for the given {@link MultipleNodeStatusProgression}
+     * @param actual the {@link MultipleNodePlatformStatusResults} to assert
+     * @return an assertion for the given {@link MultipleNodePlatformStatusResults}
      */
     @NonNull
-    public static MultipleNodeStatusProgressionAssert assertThat(@Nullable final MultipleNodeStatusProgression actual) {
-        return MultipleNodeStatusProgressionAssert.assertThat(actual);
+    public static MultipleNodePlatformStatusResultsAssert assertThat(
+            @Nullable final MultipleNodePlatformStatusResults actual) {
+        return MultipleNodePlatformStatusResultsAssert.assertThat(actual);
     }
 
     /**

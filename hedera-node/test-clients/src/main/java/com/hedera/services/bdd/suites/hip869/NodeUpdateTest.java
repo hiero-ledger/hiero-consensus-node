@@ -160,10 +160,9 @@ public class NodeUpdateTest {
                         .hasKnownStatus(INVALID_IPV4_ADDRESS));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> validateGrpcProxyEndpoint() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")
@@ -194,9 +193,7 @@ public class NodeUpdateTest {
                         .hasKnownStatus(GRPC_WEB_PROXY_NOT_SUPPORTED));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.webProxyEndpointsEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> updateMultipleFieldsWork() throws CertificateEncodingException {
         final var proxyWebEndpoint = toPbj(endpointFor("grpc.web.proxy.com", 123));
         final var updateOp = nodeUpdate("testNode")
@@ -212,7 +209,6 @@ public class NodeUpdateTest {
                 .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                 .grpcCertificateHash("grpcCert".getBytes());
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 newKeyNamed("adminKey2"),
                 nodeCreate("testNode")
@@ -250,8 +246,9 @@ public class NodeUpdateTest {
                 }));
     }
 
-    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> updateAccountIdWork() throws CertificateEncodingException {
         final var updateOp = nodeUpdate("testNode")
                 .adminKey("adminKey2")
@@ -301,8 +298,7 @@ public class NodeUpdateTest {
                             "Node grpcCertificateHash should be updated");
                     assertEquals(toPbj(updateOp.getAdminKey()), node.adminKey(), "Node adminKey should be updated");
                     assertEquals(toPbj(asAccount(spec, 100)), node.accountId(), "Node accountId should be updated");
-                }))),
-                overriding("nodes.updateAccountIdAllowed", "false"));
+                }))));
     }
 
     @HapiTest
@@ -359,12 +355,9 @@ public class NodeUpdateTest {
                         .hasKnownStatus(GOSSIP_ENDPOINTS_EXCEEDED_LIMIT));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.webProxyEndpointsEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> sentinelUnsetsGrpcWebProxyEndpoint() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")
@@ -379,12 +372,9 @@ public class NodeUpdateTest {
                 viewNode("testNode", node -> assertNull(node.grpcProxyEndpoint())));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.webProxyEndpointsEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> unsetGrpcProxyFieldDoesntEraseExistingGrpcProxy() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")
@@ -453,10 +443,9 @@ public class NodeUpdateTest {
                 getTxnRecord("successUpdate").logged());
     }
 
-    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> webProxyAsIpAddressIsRejected() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")

@@ -115,3 +115,6 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Dry-Run: SDK TCK Regression"
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}

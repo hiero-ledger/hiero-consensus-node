@@ -41,7 +41,7 @@ public interface SingleNodeLogResult {
      * @return a new {@code SingleNodeLogResult} instance with the specified log marker's entries removed
      */
     @NonNull
-    SingleNodeLogResult ignoring(@NonNull LogMarker marker);
+    SingleNodeLogResult suppressingLogMarker(@NonNull LogMarker marker);
 
     /**
      * Returns the set of unique markers present in the log entries for this node.

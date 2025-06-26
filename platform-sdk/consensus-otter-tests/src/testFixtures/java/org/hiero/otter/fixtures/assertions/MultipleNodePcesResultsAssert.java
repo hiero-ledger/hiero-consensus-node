@@ -42,7 +42,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasAllBirthRoundsEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveAllBirthRoundsEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -60,7 +60,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -78,7 +78,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundLessThan(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundLessThan(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -97,7 +97,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundLessThanOrEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundLessThanOrEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -115,7 +115,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundGreaterThan(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundGreaterThan(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -133,7 +133,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundGreaterThanOrEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundGreaterThanOrEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 

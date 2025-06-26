@@ -104,6 +104,7 @@ public class HederaEVM extends EVM {
         long usedOpsDuration = 0;
         final long currentOpsDuration = getHederaOpsDuration(frame);
         final long hederaOpsDurationShift = this.hederaOpsDuration.durationCheckShift();
+        final long[] opsDurationArray = this.hederaOpsDuration.getOpsDuration();
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -216,11 +217,9 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                usedOpsDuration += hederaOpsDuration
-                        .getOpsDuration()
-                        .getOrDefault(
-                                opcode,
-                                result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR);
+                usedOpsDuration += opsDurationArray[opcode] == 0
+                        ? result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR
+                        : opsDurationArray[opcode];
 
                 // Check the duration of the operations every durationCheckShift opcodes.
                 // This is to avoid checking the duration too frequently and slowing down execution.

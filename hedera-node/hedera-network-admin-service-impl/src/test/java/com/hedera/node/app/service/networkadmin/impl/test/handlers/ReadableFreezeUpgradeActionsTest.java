@@ -209,10 +209,12 @@ class ReadableFreezeUpgradeActionsTest {
         final Bytes invalidArchive = Bytes.wrap("Not a valid zip archive".getBytes(StandardCharsets.UTF_8));
         subject.extractSoftwareUpgrade(invalidArchive).join();
 
-        assertThat(logCaptor.errorLogs())
-                .anyMatch(l -> l.startsWith("Failed to unzip archive for NMT consumption java.io.IOException:" + " "));
-        assertThat(logCaptor.errorLogs())
-                .anyMatch(l -> l.equals("Manual remediation may be necessary to avoid node ISS"));
+        final var errors = logCaptor.errorLogs();
+
+        assertThat(errors)
+                .hasSize(2)
+                .anyMatch(l -> l.startsWith("Failed to unzip archive for NMT consumption"))
+                .anyMatch(l -> l.startsWith("Manual remediation may be necessary to avoid node ISS"));
 
         assertThat(new File(zipOutputDir, EXEC_IMMEDIATE_MARKER)).doesNotExist();
     }

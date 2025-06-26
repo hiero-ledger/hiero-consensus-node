@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.traceability;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -133,7 +132,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 @Tag(SMART_CONTRACT)
-@Tag(ADHOC)
 public class TraceabilitySuite {
 
     private static final Logger log = LogManager.getLogger(TraceabilitySuite.class);

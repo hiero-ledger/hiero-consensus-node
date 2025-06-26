@@ -4,7 +4,7 @@ package com.swirlds.platform.gui.internal;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.gui.GuiUtils.wrap;
 
-import com.swirlds.common.metrics.PlatformMetric;
+import com.swirlds.common.metrics.platform.AbstractDistributionMetric;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
@@ -184,19 +184,16 @@ class WinTab2Stats extends PrePaintableJPanel implements ChartLabelModel {
                 c.gridwidth = GridBagConstraints.REMAINDER; // end of row
                 boxesPanel.add(spacer2, c);
             }
-            if (metric instanceof PlatformMetric platformMetric
-                    && (platformMetric.getStatsBuffered() == null
-                            || platformMetric.getStatsBuffered().getAllHistory() == null)) {
-                // if no history, then box is gray, and not clickable
-                statBoxes[i].setBackground(LIGHT_GRAY);
-                statBoxes[i].setOpaque(true);
-            } else { // else history exists, so white and can draw chart
+            if (metric instanceof AbstractDistributionMetric statMetric
+                    && statMetric.getStatsBuffered().getAllHistory() != null) {
                 statBoxes[i].setBackground(Color.WHITE);
                 statBoxes[i].setOpaque(true);
                 charts[j] = new JPanel();
                 charts[j].setBackground(Color.WHITE);
-                charts[j].add(new Chart(this, CHART_WIDTH, CHART_HEIGHT, false, metric));
-                charts[j].add(new Chart(this, CHART_WIDTH, CHART_HEIGHT, true, metric));
+                charts[j].add(new Chart(
+                        this, CHART_WIDTH, CHART_HEIGHT, false, statMetric.getStatsBuffered(), metric.getName()));
+                charts[j].add(new Chart(
+                        this, CHART_WIDTH, CHART_HEIGHT, true, statMetric.getStatsBuffered(), metric.getName()));
                 charts[j].setVisible(false); // use "visible" as a flag to indicate it's in the container
                 final int jj = j; // effectively final so the listener can use it
                 statBoxes[i].addMouseListener(new MouseAdapter() {
@@ -208,7 +205,12 @@ class WinTab2Stats extends PrePaintableJPanel implements ChartLabelModel {
                         }
                     }
                 });
+            } else {
+                // if no history, then box is gray, and not clickable
+                statBoxes[i].setBackground(LIGHT_GRAY);
+                statBoxes[i].setOpaque(true);
             }
+
             if ("trans_per_sec".equals(metric.getName())) {
                 showChart(j);
             }
