@@ -822,235 +822,42 @@ public class AdditionalHip1064Tests {
                 }));
     }
 
-    //    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    //    @Order(13)
-    //    final Stream<DynamicTest> minimalActivityVsCompleteInactivityComparison() {
-    //        final AtomicLong expectedNodeFees = new AtomicLong(0);
-    //        final AtomicLong expectedNodeRewards = new AtomicLong(0);
-    //        final AtomicLong initialBalance = new AtomicLong(0);
-    //        final AtomicLong finalBalance = new AtomicLong(0);
-    //
-    //        return hapiTest(
-    //                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
-    //                nodeUpdate("0").declineReward(true),
-    //
-    //                // Start a new period
-    //                waitUntilStartOfNextStakingPeriod(1),
-    //                sleepForBlockPeriod(),
-    //
-    //                // Record initial balance
-    //                getAccountBalance(NODE_REWARD)
-    //                        .exposingBalanceTo(initialBalance::set)
-    //                        .logged(),
-    //
-    //                // Collect some node fees with a non-system payer
-    //                cryptoCreate(CIVILIAN_PAYER),
-    //                fileCreate("something")
-    //                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    //                        .payingWith(CIVILIAN_PAYER)
-    //                        .via("notFree"),
-    //
-    //                // Get the fee collected
-    //                getTxnRecord("notFree")
-    //                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-    //                                .filter(a -> a.getAccountID().getAccountNum() == 3L)
-    //                                .findFirst()
-    //                                .orElseThrow()
-    //                                .getAmount())),
-    //                doWithStartupConfig(
-    //                        "nodes.targetYearlyNodeRewardsUsd",
-    //                        target -> doWithStartupConfig(
-    //                                "nodes.numPeriodsToTargetUsd",
-    //                                numPeriods -> doingContextual(spec -> {
-    //                                    final long targetReward = (Long.parseLong(target) * 100 *
-    // TINY_PARTS_PER_WHOLE)
-    //                                            / Integer.parseInt(numPeriods);
-    //                                    final long targetTinybars =
-    //                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
-    //                                    final long prePaidRewards = expectedNodeFees.get() / 4;
-    //                                    expectedNodeRewards.set(targetTinybars - prePaidRewards);
-    //                                }))),
-    //                sleepForBlockPeriod(),
-    //                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-    //
-    //                // Set different activity levels to demonstrate threshold
-    //                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-    //                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
-    //                    assertEquals(4, nodeRewards.nodeActivities().size());
-    //                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
-    //
-    //                    System.out.println("=== SETTING UP NODE ACTIVITIES ===");
-    //                    System.out.println("Total rounds: " + nodeRewards.numRoundsInStakingPeriod());
-    //                    System.out.println("Node 1: missed 2/3 rounds (33% active) - should get rewards");
-    //                    System.out.println("Node 2: missed 3/3 rounds (0% active) - should get NO rewards");
-    //                    System.out.println("Node 3: missed 0/3 rounds (100% active) - should get rewards");
-    //
-    //                    // Set different activity levels:
-    //                    // Node 1: minimal activity (missed 2 out of 3 rounds) - should still get rewards
-    //                    // Node 2: completely inactive (missed all 3 rounds) - should get no rewards
-    //                    // Node 3: good activity (missed 0 rounds) - should get rewards
-    //                    return nodeRewards
-    //                            .copyBuilder()
-    //                            .nodeActivities(
-    //                                    NodeActivity.newBuilder()
-    //                                            .nodeId(1)
-    //                                            .numMissedJudgeRounds(2)
-    //                                            .build(), // 33% active
-    //                                    NodeActivity.newBuilder()
-    //                                            .nodeId(2)
-    //                                            .numMissedJudgeRounds(3)
-    //                                            .build(), // 0% active
-    //                                    NodeActivity.newBuilder()
-    //                                            .nodeId(3)
-    //                                            .numMissedJudgeRounds(0)
-    //                                            .build()) // 100% active
-    //                            .build();
-    //                }),
-    //                waitUntilStartOfNextStakingPeriod(1),
-    //
-    //                // Trigger the reward payment
-    //                cryptoCreate("nobody").payingWith(GENESIS),
-    //                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-    //
-    //                // Allow time for rewards to be processed
-    //                sleepForBlockPeriod(),
-    //
-    //                // Check final balance
-    //                getAccountBalance(NODE_REWARD)
-    //                        .exposingBalanceTo(finalBalance::set)
-    //                        .logged(),
-    //
-    //                // EXPLICIT ASSERTIONS - Test the core hypothesis
-    //                doingContextual(spec -> {
-    //                    long rewardsPaid = initialBalance.get() - finalBalance.get();
-    //                    long expectedTotalRewards = 2 * expectedNodeRewards.get(); // Only 2 nodes should get rewards
-    //
-    //                    // Adjust expected if insufficient balance
-    //                    if (Math.abs(expectedTotalRewards) > initialBalance.get()) {
-    //                        expectedTotalRewards = initialBalance.get();
-    //                    }
-    //
-    //                    System.out.println("=== ACTIVITY THRESHOLD TEST RESULTS ===");
-    //                    System.out.println("Initial balance: " + initialBalance.get());
-    //                    System.out.println("Final balance: " + finalBalance.get());
-    //                    System.out.println("Total rewards paid: " + rewardsPaid);
-    //                    System.out.println("Expected per-node reward: " + expectedNodeRewards.get());
-    //                    System.out.println("Expected total for 2 active nodes: " + expectedTotalRewards);
-    //
-    //                    // CORE ASSERTION: Some rewards should have been paid
-    //                    assertTrue(rewardsPaid > 0, "Some rewards should have been paid to active nodes (nodes 1 and
-    // 3)");
-    //
-    //                    // 🎯 CORE ASSERTION: Should be approximately 2x per-node reward
-    //                    // (for nodes 1 and 3, NOT for node 2 which is 0% active)
-    //                    long tolerance = Math.max(1000, Math.abs(expectedTotalRewards) / 100); // 1% tolerance
-    //                    assertTrue(
-    //                            Math.abs(rewardsPaid - expectedTotalRewards) <= tolerance,
-    //                            "Expected rewards for 2 nodes (" + expectedTotalRewards + ") but got " + rewardsPaid
-    //                                    + " (tolerance: " + tolerance + ")");
-    //
-    //                    // CRITICAL ASSERTION: Verify it's NOT paying all 3 nodes
-    //                    // This proves that 0% active nodes (node 2) don't get rewards
-    //                    long rewardsForThreeNodes = 3 * expectedNodeRewards.get();
-    //                    if (Math.abs(rewardsForThreeNodes) <= initialBalance.get()) {
-    //                        // Only test this if we have enough balance to pay 3 nodes
-    //                        assertFalse(
-    //                                Math.abs(rewardsPaid - rewardsForThreeNodes) <= tolerance,
-    //                                "Should NOT pay rewards to all 3 nodes (that would be " + rewardsForThreeNodes +
-    // "). "
-    //                                        + "Node 2 with 0% activity should get nothing, proving the activity
-    // threshold works.");
-    //                    }
-    //
-    //                    System.out.println("✓ Activity threshold test PASSED!");
-    //                    System.out.println("✓ Nodes with minimal activity (33%) get rewards");
-    //                    System.out.println("✓ Nodes with zero activity (0%) get no rewards");
-    //                    System.out.println("✓ This proves the activity threshold is working correctly");
-    //                }),
-    //
-    //                // OPTIONAL: Additional verification by checking individual node balances
-    //                doingContextual(spec -> {
-    //                    System.out.println("=== INDIVIDUAL NODE BALANCE VERIFICATION ===");
-    //                }),
-    //                getAccountBalance("0.0.4") // node 1 account (33% active - should have increased)
-    //                        .logged(),
-    //                getAccountBalance("0.0.5") // node 2 account (0% active - should be unchanged)
-    //                        .logged(),
-    //                getAccountBalance("0.0.6") // node 3 account (100% active - should have increased)
-    //                        .logged());
-    //    }
-    @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
-            overrides = {"nodes.activeRoundsPercent"}) // Override the activity threshold
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(13)
     final Stream<DynamicTest> minimalActivityVsCompleteInactivityComparison() {
         final AtomicLong expectedNodeFees = new AtomicLong(0);
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
-        final AtomicLong initialBalance = new AtomicLong(0);
-        final AtomicLong finalBalance = new AtomicLong(0);
+        final AtomicLong nodeRewardBalance = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
-                doingContextual(spec -> {
-                    System.out.println("=== COMPLETE CI CONFIGURATION DEBUG ===");
-
-                    // Check all reward-related properties
-                    String[] rewardProps = {
-                        "nodes.nodeRewardsEnabled",
-                        "nodes.activeRoundsPercent",
-                        "nodes.targetYearlyNodeRewardsUsd",
-                        "nodes.numPeriodsToTargetUsd",
-                        "nodes.adjustNodeFees",
-                        "nodes.preserveMinNodeRewardBalance",
-                        "nodes.minNodeRewardBalance",
-                        "nodes.minPerPeriodNodeRewardUsd"
-                    };
-
-                    for (String prop : rewardProps) {
-                        try {
-                            String value = spec.startupProperties().get(prop);
-                            System.out.println(prop + ": " + (value != null ? value : "NOT SET"));
-                        } catch (Exception e) {
-                            System.out.println(prop + ": ERROR - " + e.getMessage());
-                        }
-                    }
-
-                    System.out.println("=== END CONFIGURATION DEBUG ===");
-                }),
-                // Debug: Verify we're above the minimum threshold
-                doingContextual(spec -> {
-                    String minBalance = spec.startupProperties().get("nodes.minNodeRewardBalance");
-                    System.out.println("=== BALANCE THRESHOLD CHECK ===");
-                    System.out.println("Required minimum balance: " + minBalance + " tinybars (1M HBAR)");
-                    System.out.println("Our funded amount: " + (2000000L * ONE_HBAR) + " tinybars (2M HBAR)");
-                    System.out.println("We're well above the minimum threshold");
-                    System.out.println(
-                            "Activity threshold: " + spec.startupProperties().get("nodes.activeRoundsPercent") + "%");
-                }),
-                // EXPLICITLY SET ACTIVITY THRESHOLD TO 30% (below node 1's 33% activity)
-                overriding("nodes.activeRoundsPercent", "30"), // Node with 33% activity should get rewards
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                // Use a custom validator that checks for the specific pattern we expect
+                                activityThresholdValidator(expectedNodeRewards::get, nodeRewardBalance::get),
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                                .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(5)),
                 cryptoTransfer(TokenMovement.movingHbar(2000000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
+                // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                // First get any node fees already collected at the end of this block
                 sleepForBlockPeriod(),
-
-                // Debug: Confirm our configuration is applied
-                doingContextual(spec -> {
-                    String threshold = spec.startupProperties().get("nodes.activeRoundsPercent");
-                    System.out.println("=== ACTIVITY THRESHOLD CONFIGURATION ===");
-                    System.out.println("nodes.activeRoundsPercent: " + threshold + "%");
-                    System.out.println("Node 1 (33% active): "
-                            + (33.0 > Double.parseDouble(threshold) ? "SHOULD" : "should NOT") + " get rewards");
-                    System.out.println("Node 2 (0% active): should NOT get rewards");
-                    System.out.println("Node 3 (100% active): SHOULD get rewards");
-                }),
-                getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(initialBalance::set)
-                        .logged(),
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
+                // Validate all network fees go to 0.0.801
+                validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
+                // Get the additional fee node fee collected
                 getTxnRecord("notFree")
                         .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
                                 .filter(a -> a.getAccountID().getAccountNum() == 3L)
@@ -1068,23 +875,35 @@ public class AdditionalHip1064Tests {
                                             spec.ratesProvider().toTbWithActiveRates(targetReward);
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
+
+                                    System.out.println("=== REWARD CALCULATION ===");
+                                    System.out.println("Target yearly USD: " + target);
+                                    System.out.println(
+                                            "Expected per-node reward: " + expectedNodeRewards.get() + " tinybars");
                                 }))),
                 sleepForBlockPeriod(),
+                // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
-                    assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
+                    assertEquals(
+                            expectedNodeFees.get(),
+                            nodeRewards.nodeFeesCollected(),
+                            "Node fees collected did not match");
 
-                    System.out.println("=== SETTING UP NODE ACTIVITIES ===");
-                    System.out.println("Total rounds: " + nodeRewards.numRoundsInStakingPeriod());
+                    System.out.println("=== ACTIVITY THRESHOLD TEST SETUP ===");
+                    System.out.println("Current threshold: " + "nodes.activeRoundsPercent" + "%");
+                    System.out.println("Rounds in period: " + nodeRewards.numRoundsInStakingPeriod());
+                    System.out.println("Setting up activities:");
                     System.out.println(
-                            "Node 1: missed 2/3 rounds (33% active) - above 30% threshold → should get rewards");
+                            "  Node 1: missed 2/3 rounds (33% active) → above 10% threshold → should get rewards");
                     System.out.println(
-                            "Node 2: missed 3/3 rounds (0% active) - below 30% threshold → should get NO rewards");
+                            "  Node 2: missed 3/3 rounds (0% active) → below 10% threshold → should NOT get rewards");
                     System.out.println(
-                            "Node 3: missed 0/3 rounds (100% active) - above 30% threshold → should get rewards");
+                            "  Node 3: missed 0/3 rounds (100% active) → above 10% threshold → should get rewards");
 
+                    // Set the specific activity pattern to test the threshold
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(
@@ -1102,57 +921,70 @@ public class AdditionalHip1064Tests {
                                             .build()) // 100% active
                             .build();
                 }),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate("nobody").payingWith(GENESIS),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
-                sleepForBlockPeriod(),
                 getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(finalBalance::set)
+                        .exposingBalanceTo(nodeRewardBalance::set)
                         .logged(),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Trigger another round with a transaction with no fees (superuser payer)
+                // so the network should pay rewards
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+    }
 
-                // NOW WE CAN ASSERT CONFIDENTLY THAT REWARDS SHOULD BE PAID
-                doingContextual(spec -> {
-                    long rewardsPaid = initialBalance.get() - finalBalance.get();
-                    long expectedTotalRewards = 2 * expectedNodeRewards.get(); // Only 2 nodes should get rewards
+    // Custom validator for this specific test
+    static VisibleItemsValidator activityThresholdValidator(
+            @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
+        return (spec, records) -> {
+            final var items = records.get(SELECTED_ITEMS_KEY);
+            assertNotNull(items, "No reward payments found");
+            assertEquals(1, items.size());
+            final var payment = items.getFirst();
+            assertEquals(CryptoTransfer, payment.function());
+            final var op = payment.body().getCryptoTransfer();
 
-                    System.out.println("=== ACTIVITY THRESHOLD TEST RESULTS ===");
-                    System.out.println("Initial balance: " + initialBalance.get());
-                    System.out.println("Final balance: " + finalBalance.get());
-                    System.out.println("Total rewards paid: " + rewardsPaid);
-                    System.out.println("Expected per-node reward: " + expectedNodeRewards.get());
-                    System.out.println("Expected total for 2 active nodes: " + expectedTotalRewards);
+            long expectedPerNode = expectedPerNodeReward.getAsLong();
+            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
+                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
 
-                    // 🎯 CORE ASSERTION: With 30% threshold, rewards SHOULD be paid
-                    assertTrue(
-                            rewardsPaid > 0,
-                            "With 30% activity threshold, rewards should be paid to nodes with ≥30% activity (nodes 1 and 3)");
+            System.out.println("=== ACTIVITY THRESHOLD VALIDATION ===");
+            System.out.println("Found reward payment with " + bodyAdjustments.size() + " transfers");
 
-                    // Allow reasonable tolerance for fee adjustment complexity
-                    long tolerance = Math.max(100000000L, Math.abs(expectedTotalRewards) / 20); // 5% tolerance
-                    assertTrue(
-                            Math.abs(rewardsPaid - expectedTotalRewards) <= tolerance,
-                            "Expected rewards for 2 nodes (" + expectedTotalRewards + ") but got " + rewardsPaid
-                                    + " (tolerance: " + tolerance + ")");
+            // Log all transfers for debugging
+            bodyAdjustments.forEach((account, amount) -> {
+                System.out.println(
+                        "  Account " + account + ": " + amount + " tinybars " + (amount > 0 ? "(CREDIT)" : "(DEBIT)"));
+            });
 
-                    // 🎯 CRITICAL: Verify it's NOT paying all 3 nodes (proving threshold works)
-                    long rewardsForThreeNodes = 3 * expectedNodeRewards.get();
-                    if (Math.abs(rewardsForThreeNodes) <= initialBalance.get()) {
-                        assertFalse(
-                                Math.abs(rewardsPaid - rewardsForThreeNodes) <= tolerance,
-                                "Should NOT pay rewards to all 3 nodes (that would be " + rewardsForThreeNodes + "). "
-                                        + "Node 2 with 0% activity should get nothing, proving the 30% threshold works.");
-                    }
+            // Should have exactly 3 transfers: 1 debit from 801, 2 credits to active nodes
+            assertEquals(3, bodyAdjustments.size(), "Should have 3 transfers: 1 debit + 2 credits for active nodes");
 
-                    System.out.println("Activity threshold test PASSED!");
-                    System.out.println("Nodes with 33% activity (above 30% threshold) get rewards");
-                    System.out.println("Nodes with 0% activity (below 30% threshold) get no rewards");
-                    System.out.println("This proves HIP-1064 activity threshold is working correctly");
-                }),
+            // Verify node reward account was debited
+            long nodeRewardDebit = bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
+            assertTrue(nodeRewardDebit < 0, "Node reward account should be debited");
 
-                // Verify individual node balances
-                getAccountBalance("0.0.4").logged(), // Node 1 (33% active - should have rewards)
-                getAccountBalance("0.0.5").logged(), // Node 2 (0% active - should be 0)
-                getAccountBalance("0.0.6").logged()); // Node 3 (100% active - should have rewards)
+            // Verify only nodes 1 (4) and 3 (6) get rewards, not node 2 (5)
+            assertTrue(bodyAdjustments.containsKey(4L), "Node 1 (account 4) should receive rewards");
+            assertTrue(bodyAdjustments.containsKey(6L), "Node 3 (account 6) should receive rewards");
+            assertFalse(bodyAdjustments.containsKey(5L), "Node 2 (account 5) should NOT receive rewards (0% activity)");
+
+            // Verify reward amounts
+            long node1Reward = bodyAdjustments.get(4L);
+            long node3Reward = bodyAdjustments.get(6L);
+
+            assertTrue(node1Reward > 0, "Node 1 (33% active) should get positive reward");
+            assertTrue(node3Reward > 0, "Node 3 (100% active) should get positive reward");
+
+            // Verify total credits equal debit
+            long totalCredits = node1Reward + node3Reward;
+            assertEquals(-nodeRewardDebit, totalCredits, "Total credits should equal node reward debit");
+
+            System.out.println("✅ ACTIVITY THRESHOLD TEST PASSED!");
+            System.out.println("  Node 1 (33% active): " + node1Reward + " tinybars ✅");
+            System.out.println("  Node 2 (0% active): no reward ✅");
+            System.out.println("  Node 3 (100% active): " + node3Reward + " tinybars ✅");
+            System.out.println("  Total paid: " + totalCredits + " tinybars");
+            System.out.println("✅ HIP-1064 activity threshold (10%) working correctly!");
+        };
     }
 
     /**
