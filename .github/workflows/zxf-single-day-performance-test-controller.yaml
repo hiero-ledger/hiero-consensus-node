@@ -38,20 +38,15 @@ on:
           - 1000000000
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "1m"
+        default: "3"
         description: "Test execution time"
         type: choice
         options:
-          - 1m
-          - 7m
-          - 20m
-          - 2h
-          - 330m
-          - 6h
-          - 12h
-          - 16h
-          - 32h
-          - 167h
+          - '3'
+          - '9'
+          - '21'
+          - '180'
+          - '330'
       add-app-props:
         required: false
         default: ""
