@@ -72,7 +72,7 @@ public class BirthRoundFreezeTest {
         assertThat(network.getConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)
                 .roundsInCommonAreEqual()
-                .hasMaxDifferenceInLastRoundNum(withPercentage(5));
+                .haveMaxDifferenceInLastRoundNum(withPercentage(5));
 
         assertBirthRoundsBeforeAndAfterFreeze(
                 network.getNodes().getFirst().getConsensusResult().consensusRounds(),

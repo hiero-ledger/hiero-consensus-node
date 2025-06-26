@@ -112,6 +112,6 @@ public class SandboxTest {
 
         assertThat(network.getConsensusResults())
                 .roundsInCommonAreEqual()
-                .hasMaxDifferenceInLastRoundNum(Percentage.withPercentage(1));
+                .haveMaxDifferenceInLastRoundNum(Percentage.withPercentage(1));
     }
 }
