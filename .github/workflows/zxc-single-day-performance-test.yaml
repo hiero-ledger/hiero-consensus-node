@@ -629,11 +629,11 @@ jobs:
     runs-on: hiero-network-node-linux-large
     needs: performance-tests-start
     env:
-      run_namespace: ${{ github.event_name == 'schedule' && 'Latitude3'                      || inputs.test-asset }}
-      RUN_HCN_VERSION: ${{ github.event_name == 'schedule' && 'main'                           || inputs.ref }}
-      run_soloversion: ${{ github.event_name == 'schedule' && 'latest_tested_solo-charts0.59'  || inputs.solo-version }}
-      run_NLG_Accounts: ${{ github.event_name == 'schedule' && '100000000'                      || inputs.nlg-accounts }}
-      run_NLG_Time: ${{ github.event_name == 'schedule' && '330'                            || inputs.nlg-time }}
+      run_namespace:    ${{ inputs.test-asset }}
+      RUN_HCN_VERSION:  ${{ inputs.ref }}
+      run_soloversion:  ${{ inputs.solo-version }}
+      run_NLG_Accounts: ${{ inputs.nlg-accounts }}
+      run_NLG_Time:     ${{ inputs.nlg-time }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -817,12 +817,12 @@ jobs:
     runs-on: hiero-network-node-linux-large
     needs: performance-NftTransferLoadTest-watch1
     env:
-      run_namespace: ${{ github.event_name == 'schedule' && 'Latitude3'                      || inputs.test-asset }}
-      RUN_HCN_VERSION: ${{ github.event_name == 'schedule' && 'main'                           || inputs.ref }}
-      run_soloversion: ${{ github.event_name == 'schedule' && 'latest_tested_solo-charts0.59'  || inputs.solo-version }}
-      run_NLG_Accounts: ${{ github.event_name == 'schedule' && '100000000'                      || inputs.nlg-accounts }}
-      run_NLG_Time: ${{ github.event_name == 'schedule' && '330'                            || inputs.nlg-time }}
-      run_NLG_Test: NftTransferLoadTest
+      run_namespace:    ${{ inputs.test-asset }}
+      RUN_HCN_VERSION:  ${{ inputs.ref }}
+      run_soloversion:  ${{ inputs.solo-version }}
+      run_NLG_Accounts: ${{ inputs.nlg-accounts }}
+      run_NLG_Time:     ${{ inputs.nlg-time }}
+      run_NLG_Test:     NftTransferLoadTest
 
     outputs:
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
