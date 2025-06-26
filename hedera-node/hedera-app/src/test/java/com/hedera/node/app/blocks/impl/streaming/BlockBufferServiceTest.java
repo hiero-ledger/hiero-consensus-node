@@ -81,7 +81,6 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
     private static final long TEST_BLOCK_NUMBER = 1L;
     private static final long TEST_BLOCK_NUMBER2 = 2L;
-    private static final long TEST_BLOCK_NUMBER3 = 3L;
 
     @Mock
     private ConfigProvider configProvider;
@@ -472,7 +471,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(buffer).isEmpty();
 
         // indicates that there are no blocks available in the buffer
-        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(Long.MIN_VALUE);
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(-1L);
 
         // now add another block without acking and ensure the buffer is partially saturated
         blockBufferService.openBlock(7L);

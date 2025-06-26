@@ -553,19 +553,19 @@ public class BlockBufferService {
     /**
      * Retrieves the lowest unacked block number in the buffer.
      * This is the lowest block number that has not been acknowledged.
-     * @return the lowest unacked block number
+     * @return the lowest unacked block number or -1 if the buffer is empty
      */
     public long getLowestUnackedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? 0 : highestAckedBlockNumber.get() + 1;
+        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? -1 : highestAckedBlockNumber.get() + 1;
     }
 
     /**
      * Retrieves the highest acked block number in the buffer.
      * This is the highest block number that has been acknowledged.
-     * @return the highest acked block number
+     * @return the highest acked block number or -1 if the buffer is empty
      */
     public long getHighestAckedBlockNumber() {
-        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? 0 : highestAckedBlockNumber.get();
+        return highestAckedBlockNumber.get() == Long.MIN_VALUE ? -1 : highestAckedBlockNumber.get();
     }
 
     /**
@@ -574,6 +574,6 @@ public class BlockBufferService {
      * @return the earliest available block number or -1 if the buffer is empty
      */
     public long getEarliestAvailableBlockNumber() {
-        return earliestBlockNumber.get();
+        return earliestBlockNumber.get() == Long.MIN_VALUE ? -1 : earliestBlockNumber.get();
     }
 }
