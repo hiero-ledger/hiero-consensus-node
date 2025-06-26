@@ -58,9 +58,9 @@ on:
         required: true
       cdn-bucket-name:
         required: true
-      svcs-ossrh-username:
+      central-pulishing-username:
         required: true
-      svcs-ossrh-password:
+      central-publishing-password:
         required: true
       svcs-gpg-key-contents:
         required: true
@@ -793,12 +793,16 @@ jobs:
             gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
           echo "::endgroup::"
 
-      - name: Gradle Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        env:
-          NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
-          NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
+      - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
+        if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+
+      - name: Gradle Publish to Maven Central
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.central-pulishing-username }}
+          NEXUS_PASSWORD: ${{ secrets.central-pulishing-password }}
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
