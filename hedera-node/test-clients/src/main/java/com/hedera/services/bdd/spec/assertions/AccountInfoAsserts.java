@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.assertions;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.CryptoGetInfoResponse.AccountInfo;
@@ -86,7 +87,19 @@ public class AccountInfoAsserts extends BaseErroringAssertsProvider<AccountInfo>
         return this;
     }
 
-    public AccountInfoAsserts stakedAccountId(String idLiteral) {
+    public AccountInfoAsserts stakedAccountId(String acctNum) {
+        return stakedAccountId(Long.parseLong(acctNum));
+    }
+
+    public AccountInfoAsserts stakedAccountId(long acctNum) {
+        registerProvider((spec, o) -> assertEquals(
+                asAccount(spec.shard(), spec.realm(), acctNum),
+                ((AccountInfo) o).getStakingInfo().getStakedAccountId(),
+                "Bad stakedAccountId id!"));
+        return this;
+    }
+
+    public AccountInfoAsserts stakedAccountIdWithLiteral(String idLiteral) {
         registerProvider((spec, o) -> assertEquals(
                 HapiPropertySource.asAccount(idLiteral),
                 ((AccountInfo) o).getStakingInfo().getStakedAccountId(),
