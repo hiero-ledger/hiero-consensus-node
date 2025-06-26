@@ -35,7 +35,7 @@ public class HappyPathTest {
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
 
         assertThat(network.getConsensusResults())
-                .roundsInCommonAreEqual()
+                .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(1));
 
         assertThat(network.getPlatformStatusResults())
