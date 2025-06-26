@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures;
 /**
  * Interface for performing asynchronous node actions with a specified timeout.
  */
-@SuppressWarnings("unused")
 public interface AsyncNodeActions {
 
     /**
@@ -20,8 +19,6 @@ public interface AsyncNodeActions {
      * Start the node with the configured timeout.
      *
      * @see Node#start()
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start();
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
@@ -18,7 +19,7 @@ import org.hiero.otter.fixtures.TimeManager;
 public class HappyPathTest {
 
     @OtterTest
-    void testHappyPath(TestEnvironment env) throws InterruptedException {
+    void testHappyPath(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -32,6 +33,10 @@ public class HappyPathTest {
 
         // Validations
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+
+        assertThat(network.getConsensusResults())
+                .haveEqualCommonRounds()
+                .haveMaxDifferenceInLastRoundNum(withPercentage(1));
 
         assertThat(network.getPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));

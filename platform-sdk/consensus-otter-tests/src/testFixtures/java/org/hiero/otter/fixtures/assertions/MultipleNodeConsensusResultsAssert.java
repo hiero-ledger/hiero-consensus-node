@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.assertions;
 
 import static java.util.Comparator.comparingInt;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -11,7 +12,6 @@ import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -44,8 +44,8 @@ public class MultipleNodeConsensusResultsAssert
     }
 
     /**
-     * Verifies that all nodes reached consensus on the same, provided round.
-     * Naturally, this check only makes sense while the nodes are halted.
+     * Verifies that all nodes reached consensus on the same, provided round. Naturally, this check only makes sense
+     * while the nodes are halted.
      *
      * @param expected the expected last round
      * @return this assertion object for method chaining
@@ -79,33 +79,80 @@ public class MultipleNodeConsensusResultsAssert
     }
 
     /**
-     * Verifies that all nodes have produced the same rounds acknowledging that nodes may have progressed
-     * differently (up to a given maximum).
+     * Identifies the rounds which have reached consensus on all nodes and verifies that they are equal. If a node has
+     * not produced any rounds, this assertion will always pass.
      *
-     * @param expectedDifference the maximum percentage of rounds that some nodes may have progressed farther than others
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert haveEqualRoundsIgnoringLast(
+    public MultipleNodeConsensusResultsAssert haveEqualCommonRounds() {
+        isNotNull();
+
+        // create list of actual rounds
+        final List<NodeRoundsResult> actualNodeRoundsResult = actual.results().stream()
+                .map(nodeResult -> new NodeRoundsResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
+                .toList();
+
+        // find list
+        final Optional<NodeRoundsResult> optionalLongestNodeRoundsResult =
+                actualNodeRoundsResult.stream().max(comparingInt(NodeRoundsResult::size));
+        if (optionalLongestNodeRoundsResult.isEmpty()) {
+            // no consensus rounds collected
+            return this;
+        }
+        final NodeRoundsResult longestNodeRoundsResult = optionalLongestNodeRoundsResult.get();
+
+        for (final NodeRoundsResult roundsFromNodeToAssert : actualNodeRoundsResult) {
+            if (roundsFromNodeToAssert.nodeId().equals(longestNodeRoundsResult.nodeId())) {
+                continue;
+            }
+
+            // Get the same rounds from this node as create by the node with the most rounds and compare them
+            final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
+            final List<ConsensusRound> expectedRounds =
+                    longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
+            Assertions.assertThat(roundsToAssert)
+                    .withFailMessage(
+                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
+                            longestNodeRoundsResult.nodeId(),
+                            roundsFromNodeToAssert.nodeId(),
+                            roundsToAssert,
+                            longestNodeRoundsResult.rounds())
+                    .containsExactlyElementsOf(expectedRounds);
+        }
+
+        return this;
+    }
+
+    /**
+     * Verifies that the difference in the number of rounds produced by the fastest and the slowest node is less than or
+     * equal to the given percentage.
+     *
+     * @param expectedDifference the percentage of difference in number of consensus rounds that is allowed between the
+     *                           fastest and the slowest node
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveMaxDifferenceInLastRoundNum(
             @NonNull final Percentage expectedDifference) {
         isNotNull();
 
         // create list of current rounds
-        final List<RoundListResult> currentRoundResults = actual.results().stream()
-                .map(nodeResult -> new RoundListResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
+        final List<NodeRoundsResult> currentRoundResults = actual.results().stream()
+                .map(nodeResult -> new NodeRoundsResult(nodeResult.nodeId(), nodeResult.consensusRounds()))
                 .toList();
 
         // find longest and shortest list
-        final Optional<RoundListResult> optionalLongestResult =
-                currentRoundResults.stream().max(comparingInt(RoundListResult::size));
+        final Optional<NodeRoundsResult> optionalLongestResult =
+                currentRoundResults.stream().max(comparingInt(NodeRoundsResult::size));
         if (optionalLongestResult.isEmpty()) {
             // no consensus rounds collected
             return this;
         }
-        final RoundListResult longestResult = optionalLongestResult.get();
+        final NodeRoundsResult longestResult = optionalLongestResult.get();
         final int longestSize = longestResult.size();
         final int shortestSize = currentRoundResults.stream()
-                .min(comparingInt(RoundListResult::size))
+                .min(comparingInt(NodeRoundsResult::size))
                 .orElseThrow()
                 .size();
 
@@ -117,27 +164,10 @@ public class MultipleNodeConsensusResultsAssert
                     expectedDifference, actualDifference);
         }
 
-        // Check that all nodes produced the same consensus rounds as are in the longest list
-        for (final RoundListResult currentNodeResult : currentRoundResults) {
-            if (currentNodeResult.nodeId().equals(longestResult.nodeId())) {
-                continue;
-            }
-            final int size = currentNodeResult.size();
-            final List<ConsensusRound> expectedSublist = longestResult.rounds().subList(0, size);
-            Assertions.assertThat(currentNodeResult.rounds())
-                    .withFailMessage(
-                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            currentNodeResult.nodeId(),
-                            longestResult.nodeId(),
-                            currentNodeResult.rounds(),
-                            expectedSublist)
-                    .containsExactlyElementsOf(expectedSublist);
-        }
-
         return this;
     }
 
-    private record RoundListResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
+    private record NodeRoundsResult(@NonNull NodeId nodeId, @NonNull List<ConsensusRound> rounds) {
         private int size() {
             return rounds.size();
         }
