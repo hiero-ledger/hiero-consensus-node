@@ -8,15 +8,10 @@ import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
-import java.util.List;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.LogEntry;
-import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
-import org.hiero.otter.fixtures.container.proto.ProtoConsensusRound;
-import org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.logging.StructuredLog;
@@ -103,40 +98,17 @@ public final class DockerInit {
                         KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
                         request.getOverriddenPropertiesMap());
 
-                // Forward platform status changes to the caller
-                app.registerPlatformStatusChangeListener(notification -> {
-                    final PlatformStatusChange platformStatusChangeMsg =
-                            org.hiero.otter.fixtures.container.proto.PlatformStatusChange.newBuilder()
-                                    .setNewStatus(notification.getNewStatus().name())
-                                    .build();
-
-                    final EventMessage eventMessage = EventMessage.newBuilder()
-                            .setPlatformStatusChange(platformStatusChangeMsg)
-                            .build();
-
-                    responseObserver.onNext(eventMessage);
-                });
+                // Forward platform status changes
+                app.registerPlatformStatusChangeListener(notification ->
+                        responseObserver.onNext(EventMessageFactory.fromPlatformStatusChange(notification)));
 
                 // Forward consensus rounds
-                app.registerConsensusRoundListener(rounds -> {
-                    final List<ProtoConsensusRound> protoRounds =
-                            rounds.stream().map(ProtobufConverter::toGoogle).toList();
-
-                    final EventMessage eventMessage = EventMessage.newBuilder()
-                            .setConsensusRounds(ProtoConsensusRounds.newBuilder()
-                                    .addAllRounds(protoRounds)
-                                    .build())
-                            .build();
-                    responseObserver.onNext(eventMessage);
-                });
+                app.registerConsensusRoundListener(
+                        rounds -> responseObserver.onNext(EventMessageFactory.fromConsensusRounds(rounds)));
 
                 // Forward StructuredLog entries via gRPC using InMemoryAppender listener
-                InMemoryAppender.addListener((StructuredLog log) -> {
-                    final LogEntry logEntry = ProtobufConverter.toGoogle(log);
-                    final EventMessage eventMsg =
-                            EventMessage.newBuilder().setLogEntry(logEntry).build();
-                    responseObserver.onNext(eventMsg);
-                });
+                InMemoryAppender.addListener(
+                        (StructuredLog log) -> responseObserver.onNext(EventMessageFactory.fromStructuredLog(log)));
 
                 app.start();
             } catch (final Exception e) {
