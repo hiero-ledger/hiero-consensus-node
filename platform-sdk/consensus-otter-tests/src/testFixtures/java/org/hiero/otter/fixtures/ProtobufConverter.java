@@ -15,79 +15,79 @@ public class ProtobufConverter {
     /**
      * Converts a Google NodeId to a PBJ NodeId.
      *
-     * @param googleNodeId the Google NodeId to convert
+     * @param sourceNodeId the Google NodeId to convert
      * @return the converted PBJ NodeId
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.NodeId fromGoogle(
-            @NonNull final com.hedera.hapi.platform.state.legacy.NodeId googleNodeId) {
+    public static com.hedera.hapi.platform.state.NodeId toPbj(
+            @NonNull final com.hedera.hapi.platform.state.legacy.NodeId sourceNodeId) {
         return com.hedera.hapi.platform.state.NodeId.newBuilder()
-                .id(googleNodeId.getId())
+                .id(sourceNodeId.getId())
                 .build();
     }
 
     /**
      * Converts a PBJ NodeId to a Google NodeId.
      *
-     * @param pbjNodeId the PBJ NodeId to convert
+     * @param sourceNodeId the PBJ NodeId to convert
      * @return the converted Google NodeId
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.legacy.NodeId toGoogle(
-            @NonNull final com.hedera.hapi.platform.state.NodeId pbjNodeId) {
+    public static com.hedera.hapi.platform.state.legacy.NodeId fromPbj(
+            @NonNull final com.hedera.hapi.platform.state.NodeId sourceNodeId) {
         return com.hedera.hapi.platform.state.legacy.NodeId.newBuilder()
-                .setId(pbjNodeId.id())
+                .setId(sourceNodeId.id())
                 .build();
     }
 
     /**
      * Converts a Google SemanticVersion to a PBJ SemanticVersion.
      *
-     * @param googleVersion the Google SemanticVersion to convert
+     * @param sourceVersion the Google SemanticVersion to convert
      * @return the converted PBJ SemanticVersion
      */
     @NonNull
-    public static com.hedera.hapi.node.base.SemanticVersion fromGoogle(
-            @NonNull final com.hederahashgraph.api.proto.java.SemanticVersion googleVersion) {
+    public static com.hedera.hapi.node.base.SemanticVersion toPbj(
+            @NonNull final com.hederahashgraph.api.proto.java.SemanticVersion sourceVersion) {
         return com.hedera.hapi.node.base.SemanticVersion.newBuilder()
-                .major(googleVersion.getMajor())
-                .minor(googleVersion.getMinor())
-                .pre(googleVersion.getPre())
-                .patch(googleVersion.getPatch())
-                .build(googleVersion.getBuild())
+                .major(sourceVersion.getMajor())
+                .minor(sourceVersion.getMinor())
+                .pre(sourceVersion.getPre())
+                .patch(sourceVersion.getPatch())
+                .build(sourceVersion.getBuild())
                 .build();
     }
 
     /**
      * Converts a PBJ SemanticVersion to a Google SemanticVersion.
      *
-     * @param pbjVersion the PBJ SemanticVersion to convert
+     * @param sourceVersion the PBJ SemanticVersion to convert
      * @return the converted Google SemanticVersion
      */
     @NonNull
-    public static com.hederahashgraph.api.proto.java.SemanticVersion toGoogle(
-            @NonNull final com.hedera.hapi.node.base.SemanticVersion pbjVersion) {
+    public static com.hederahashgraph.api.proto.java.SemanticVersion fromPbj(
+            @NonNull final com.hedera.hapi.node.base.SemanticVersion sourceVersion) {
         return com.hederahashgraph.api.proto.java.SemanticVersion.newBuilder()
-                .setMajor(pbjVersion.major())
-                .setMinor(pbjVersion.minor())
-                .setPre(pbjVersion.pre())
-                .setPatch(pbjVersion.patch())
-                .setBuild(pbjVersion.build())
+                .setMajor(sourceVersion.major())
+                .setMinor(sourceVersion.minor())
+                .setPre(sourceVersion.pre())
+                .setPatch(sourceVersion.patch())
+                .setBuild(sourceVersion.build())
                 .build();
     }
 
     /**
      * Converts a Google Roster to a PBJ Roster.
      *
-     * @param googleRoster the Google Roster to convert
+     * @param sourceRoster the Google Roster to convert
      * @return the converted PBJ Roster
      */
     @NonNull
-    public static com.hedera.hapi.node.state.roster.Roster fromGoogle(
-            @NonNull final com.hederahashgraph.api.proto.java.Roster googleRoster) {
+    public static com.hedera.hapi.node.state.roster.Roster toPbj(
+            @NonNull final com.hederahashgraph.api.proto.java.Roster sourceRoster) {
         return com.hedera.hapi.node.state.roster.Roster.newBuilder()
-                .rosterEntries(googleRoster.getRosterEntriesList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .rosterEntries(sourceRoster.getRosterEntriesList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
                 .build();
     }
@@ -95,15 +95,15 @@ public class ProtobufConverter {
     /**
      * Converts a PBJ Roster to a Google Roster.
      *
-     * @param pbjRoster the PBJ Roster to convert
+     * @param sourceRoster the PBJ Roster to convert
      * @return the converted Google Roster
      */
     @NonNull
-    public static com.hederahashgraph.api.proto.java.Roster toGoogle(
-            @NonNull final com.hedera.hapi.node.state.roster.Roster pbjRoster) {
+    public static com.hederahashgraph.api.proto.java.Roster fromPbj(
+            @NonNull final com.hedera.hapi.node.state.roster.Roster sourceRoster) {
         return com.hederahashgraph.api.proto.java.Roster.newBuilder()
-                .addAllRosterEntries(pbjRoster.rosterEntries().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .addAllRosterEntries(sourceRoster.rosterEntries().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
                 .build();
     }
@@ -111,18 +111,18 @@ public class ProtobufConverter {
     /**
      * Converts a Google RosterEntry to a PBJ RosterEntry.
      *
-     * @param googleEntry the Google RosterEntry to convert
+     * @param sourceEntry the Google RosterEntry to convert
      * @return the converted PBJ RosterEntry
      */
     @NonNull
-    public static com.hedera.hapi.node.state.roster.RosterEntry fromGoogle(
-            @NonNull final com.hederahashgraph.api.proto.java.RosterEntry googleEntry) {
+    public static com.hedera.hapi.node.state.roster.RosterEntry toPbj(
+            @NonNull final com.hederahashgraph.api.proto.java.RosterEntry sourceEntry) {
         return com.hedera.hapi.node.state.roster.RosterEntry.newBuilder()
-                .nodeId(googleEntry.getNodeId())
-                .weight(googleEntry.getWeight())
-                .gossipCaCertificate(fromGoogle(googleEntry.getGossipCaCertificate()))
-                .gossipEndpoint(googleEntry.getGossipEndpointList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .nodeId(sourceEntry.getNodeId())
+                .weight(sourceEntry.getWeight())
+                .gossipCaCertificate(toPbj(sourceEntry.getGossipCaCertificate()))
+                .gossipEndpoint(sourceEntry.getGossipEndpointList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
                 .build();
     }
@@ -130,18 +130,18 @@ public class ProtobufConverter {
     /**
      * Converts a PBJ RosterEntry to a Google RosterEntry.
      *
-     * @param pbjEntry the PBJ RosterEntry to convert
+     * @param sourceEntry the PBJ RosterEntry to convert
      * @return the converted Google RosterEntry
      */
     @NonNull
-    public static com.hederahashgraph.api.proto.java.RosterEntry toGoogle(
-            @NonNull final com.hedera.hapi.node.state.roster.RosterEntry pbjEntry) {
+    public static com.hederahashgraph.api.proto.java.RosterEntry fromPbj(
+            @NonNull final com.hedera.hapi.node.state.roster.RosterEntry sourceEntry) {
         return com.hederahashgraph.api.proto.java.RosterEntry.newBuilder()
-                .setNodeId(pbjEntry.nodeId())
-                .setWeight(pbjEntry.weight())
-                .setGossipCaCertificate(toGoogle(pbjEntry.gossipCaCertificate()))
-                .addAllGossipEndpoint(pbjEntry.gossipEndpoint().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .setNodeId(sourceEntry.nodeId())
+                .setWeight(sourceEntry.weight())
+                .setGossipCaCertificate(fromPbj(sourceEntry.gossipCaCertificate()))
+                .addAllGossipEndpoint(sourceEntry.gossipEndpoint().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
                 .build();
     }
@@ -149,86 +149,86 @@ public class ProtobufConverter {
     /**
      * Converts a Google ServiceEndpoint to a PBJ ServiceEndpoint.
      *
-     * @param googleEntry the Google ServiceEndpoint to convert
+     * @param sourceEntry the Google ServiceEndpoint to convert
      * @return the converted PBJ ServiceEndpoint
      */
     @NonNull
-    public static com.hedera.hapi.node.base.ServiceEndpoint fromGoogle(
-            @NonNull final com.hederahashgraph.api.proto.java.ServiceEndpoint googleEntry) {
+    public static com.hedera.hapi.node.base.ServiceEndpoint toPbj(
+            @NonNull final com.hederahashgraph.api.proto.java.ServiceEndpoint sourceEntry) {
         return com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
-                .ipAddressV4(fromGoogle(googleEntry.getIpAddressV4()))
-                .port(googleEntry.getPort())
-                .domainName(googleEntry.getDomainName())
+                .ipAddressV4(toPbj(sourceEntry.getIpAddressV4()))
+                .port(sourceEntry.getPort())
+                .domainName(sourceEntry.getDomainName())
                 .build();
     }
 
     /**
      * Converts a PBJ ServiceEndpoint to a Google ServiceEndpoint.
      *
-     * @param pbjEntry the PBJ ServiceEndpoint to convert
+     * @param sourceEntry the PBJ ServiceEndpoint to convert
      * @return the converted Google ServiceEndpoint
      */
     @NonNull
-    public static com.hederahashgraph.api.proto.java.ServiceEndpoint toGoogle(
-            @NonNull final com.hedera.hapi.node.base.ServiceEndpoint pbjEntry) {
+    public static com.hederahashgraph.api.proto.java.ServiceEndpoint fromPbj(
+            @NonNull final com.hedera.hapi.node.base.ServiceEndpoint sourceEntry) {
         return com.hederahashgraph.api.proto.java.ServiceEndpoint.newBuilder()
-                .setIpAddressV4(toGoogle(pbjEntry.ipAddressV4()))
-                .setPort(pbjEntry.port())
-                .setDomainName(pbjEntry.domainName())
+                .setIpAddressV4(fromPbj(sourceEntry.ipAddressV4()))
+                .setPort(sourceEntry.port())
+                .setDomainName(sourceEntry.domainName())
                 .build();
     }
 
     /**
      * Converts a Google EventDescriptor to a PBJ EventDescriptor.
      *
-     * @param googleEventDescriptor the Google EventDescriptor to convert
+     * @param sourceEventDescriptor the Google EventDescriptor to convert
      * @return the converted PBJ EventDescriptor
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.EventDescriptor fromGoogle(
-            @NonNull final com.hedera.hapi.platform.event.legacy.EventDescriptor googleEventDescriptor) {
+    public static com.hedera.hapi.platform.event.EventDescriptor toPbj(
+            @NonNull final com.hedera.hapi.platform.event.legacy.EventDescriptor sourceEventDescriptor) {
         return com.hedera.hapi.platform.event.EventDescriptor.newBuilder()
-                .hash(fromGoogle(googleEventDescriptor.getHash()))
-                .creatorNodeId(googleEventDescriptor.getCreatorNodeId())
-                .birthRound(googleEventDescriptor.getBirthRound())
-                .generation(googleEventDescriptor.getGeneration())
+                .hash(toPbj(sourceEventDescriptor.getHash()))
+                .creatorNodeId(sourceEventDescriptor.getCreatorNodeId())
+                .birthRound(sourceEventDescriptor.getBirthRound())
+                .generation(sourceEventDescriptor.getGeneration())
                 .build();
     }
 
     /**
      * Converts a PBJ EventDescriptor to a Google EventDescriptor.
      *
-     * @param pbjEventDescriptor the PBJ EventDescriptor to convert
+     * @param sourceEventDescriptor the PBJ EventDescriptor to convert
      * @return the converted Google EventDescriptor
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.legacy.EventDescriptor toGoogle(
-            @NonNull final com.hedera.hapi.platform.event.EventDescriptor pbjEventDescriptor) {
+    public static com.hedera.hapi.platform.event.legacy.EventDescriptor fromPbj(
+            @NonNull final com.hedera.hapi.platform.event.EventDescriptor sourceEventDescriptor) {
         return com.hedera.hapi.platform.event.legacy.EventDescriptor.newBuilder()
-                .setHash(toGoogle(pbjEventDescriptor.hash()))
-                .setCreatorNodeId(pbjEventDescriptor.creatorNodeId())
-                .setBirthRound(pbjEventDescriptor.birthRound())
-                .setGeneration(pbjEventDescriptor.generation())
+                .setHash(fromPbj(sourceEventDescriptor.hash()))
+                .setCreatorNodeId(sourceEventDescriptor.creatorNodeId())
+                .setBirthRound(sourceEventDescriptor.birthRound())
+                .setGeneration(sourceEventDescriptor.generation())
                 .build();
     }
 
     /**
      * Converts a Google GossipEvent to a PBJ GossipEvent.
      *
-     * @param googleGossipEvent the Google GossipEvent to convert
+     * @param sourceGossipEvent the Google GossipEvent to convert
      * @return the converted PBJ GossipEvent
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.GossipEvent fromGoogle(
-            @NonNull final com.hedera.hapi.platform.event.legacy.GossipEvent googleGossipEvent) {
+    public static com.hedera.hapi.platform.event.GossipEvent toPbj(
+            @NonNull final com.hedera.hapi.platform.event.legacy.GossipEvent sourceGossipEvent) {
         return com.hedera.hapi.platform.event.GossipEvent.newBuilder()
-                .eventCore(fromGoogle(googleGossipEvent.getEventCore()))
-                .signature(fromGoogle(googleGossipEvent.getSignature()))
-                .transactions(googleGossipEvent.getTransactionsList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .eventCore(toPbj(sourceGossipEvent.getEventCore()))
+                .signature(toPbj(sourceGossipEvent.getSignature()))
+                .transactions(sourceGossipEvent.getTransactionsList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
-                .parents(googleGossipEvent.getParentsList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .parents(sourceGossipEvent.getParentsList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
                 .build();
     }
@@ -236,20 +236,20 @@ public class ProtobufConverter {
     /**
      * Converts a PBJ GossipEvent to a Google GossipEvent.
      *
-     * @param pbjGossipEvent the PBJ GossipEvent to convert
+     * @param sourceGossipEvent the PBJ GossipEvent to convert
      * @return the converted Google GossipEvent
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.legacy.GossipEvent toGoogle(
-            @NonNull final com.hedera.hapi.platform.event.GossipEvent pbjGossipEvent) {
+    public static com.hedera.hapi.platform.event.legacy.GossipEvent fromPbj(
+            @NonNull final com.hedera.hapi.platform.event.GossipEvent sourceGossipEvent) {
         return com.hedera.hapi.platform.event.legacy.GossipEvent.newBuilder()
-                .setEventCore(pbjGossipEvent.eventCore() != null ? toGoogle(pbjGossipEvent.eventCore()) : null)
-                .setSignature(toGoogle(pbjGossipEvent.signature()))
-                .addAllTransactions(pbjGossipEvent.transactions().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .setEventCore(sourceGossipEvent.eventCore() != null ? fromPbj(sourceGossipEvent.eventCore()) : null)
+                .setSignature(fromPbj(sourceGossipEvent.signature()))
+                .addAllTransactions(sourceGossipEvent.transactions().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
-                .addAllParents(pbjGossipEvent.parents().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .addAllParents(sourceGossipEvent.parents().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
                 .build();
     }
@@ -257,141 +257,141 @@ public class ProtobufConverter {
     /**
      * Converts a Google EventCore to a PBJ EventCore.
      *
-     * @param googleEventCore the Google EventCore to convert
+     * @param sourceEventCore the Google EventCore to convert
      * @return the converted PBJ EventCore
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.EventCore fromGoogle(
-            @NonNull final com.hedera.hapi.platform.event.legacy.EventCore googleEventCore) {
+    public static com.hedera.hapi.platform.event.EventCore toPbj(
+            @NonNull final com.hedera.hapi.platform.event.legacy.EventCore sourceEventCore) {
         return com.hedera.hapi.platform.event.EventCore.newBuilder()
-                .creatorNodeId(googleEventCore.getCreatorNodeId())
-                .birthRound(googleEventCore.getBirthRound())
-                .timeCreated(fromGoogle(googleEventCore.getTimeCreated()))
+                .creatorNodeId(sourceEventCore.getCreatorNodeId())
+                .birthRound(sourceEventCore.getBirthRound())
+                .timeCreated(toPbj(sourceEventCore.getTimeCreated()))
                 .build();
     }
 
     /**
      * Converts a PBJ EventCore to a Google EventCore.
      *
-     * @param pbjEventCore the PBJ EventCore to convert
+     * @param sourceEventCore the PBJ EventCore to convert
      * @return the converted Google EventCore
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.legacy.EventCore toGoogle(
-            @NonNull final com.hedera.hapi.platform.event.EventCore pbjEventCore) {
+    public static com.hedera.hapi.platform.event.legacy.EventCore fromPbj(
+            @NonNull final com.hedera.hapi.platform.event.EventCore sourceEventCore) {
         return com.hedera.hapi.platform.event.legacy.EventCore.newBuilder()
-                .setCreatorNodeId(pbjEventCore.creatorNodeId())
-                .setBirthRound(pbjEventCore.birthRound())
-                .setTimeCreated(pbjEventCore.timeCreated() != null ? toGoogle(pbjEventCore.timeCreated()) : null)
+                .setCreatorNodeId(sourceEventCore.creatorNodeId())
+                .setBirthRound(sourceEventCore.birthRound())
+                .setTimeCreated(sourceEventCore.timeCreated() != null ? fromPbj(sourceEventCore.timeCreated()) : null)
                 .build();
     }
 
     /**
      * Converts a Google Timestamp to a PBJ Timestamp.
      *
-     * @param googleTimestamp the Google Timestamp to convert
+     * @param sourceTimestamp the Google Timestamp to convert
      * @return the converted PBJ Timestamp
      */
     @NonNull
-    public static com.hedera.hapi.node.base.Timestamp fromGoogle(
-            final com.hederahashgraph.api.proto.java.Timestamp googleTimestamp) {
+    public static com.hedera.hapi.node.base.Timestamp toPbj(
+            final com.hederahashgraph.api.proto.java.Timestamp sourceTimestamp) {
         return com.hedera.hapi.node.base.Timestamp.newBuilder()
-                .seconds(googleTimestamp.getSeconds())
-                .nanos(googleTimestamp.getNanos())
+                .seconds(sourceTimestamp.getSeconds())
+                .nanos(sourceTimestamp.getNanos())
                 .build();
     }
 
     /**
      * Converts a PBJ Timestamp to a Google Timestamp.
      *
-     * @param pbjTimestamp the PBJ Timestamp to convert
+     * @param sourceTimestamp the PBJ Timestamp to convert
      * @return the converted Google Timestamp
      */
     @NonNull
-    public static com.hederahashgraph.api.proto.java.Timestamp toGoogle(
-            final com.hedera.hapi.node.base.Timestamp pbjTimestamp) {
+    public static com.hederahashgraph.api.proto.java.Timestamp fromPbj(
+            final com.hedera.hapi.node.base.Timestamp sourceTimestamp) {
         return com.hederahashgraph.api.proto.java.Timestamp.newBuilder()
-                .setSeconds(pbjTimestamp.seconds())
-                .setNanos(pbjTimestamp.nanos())
+                .setSeconds(sourceTimestamp.seconds())
+                .setNanos(sourceTimestamp.nanos())
                 .build();
     }
 
     /**
      * Converts a Google ByteString to a PBJ Bytes.
      *
-     * @param googleBytes the Google ByteString to convert
+     * @param sourceBytes the Google ByteString to convert
      * @return the converted PBJ Bytes
      */
     @NonNull
-    public static com.hedera.pbj.runtime.io.buffer.Bytes fromGoogle(final com.google.protobuf.ByteString googleBytes) {
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(googleBytes.toByteArray());
+    public static com.hedera.pbj.runtime.io.buffer.Bytes toPbj(final com.google.protobuf.ByteString sourceBytes) {
+        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(sourceBytes.toByteArray());
     }
 
     /**
      * Converts a PBJ Bytes to a Google ByteString.
      *
-     * @param pbjBytes the PBJ Bytes to convert
+     * @param sourceBytes the PBJ Bytes to convert
      * @return the converted Google ByteString
      */
     @NonNull
-    public static com.google.protobuf.ByteString toGoogle(final com.hedera.pbj.runtime.io.buffer.Bytes pbjBytes) {
-        return com.google.protobuf.ByteString.copyFrom(pbjBytes.toByteArray());
+    public static com.google.protobuf.ByteString fromPbj(final com.hedera.pbj.runtime.io.buffer.Bytes sourceBytes) {
+        return com.google.protobuf.ByteString.copyFrom(sourceBytes.toByteArray());
     }
 
     /**
      * Converts a Google EventConsensusData to a PBJ EventConsensusData.
      *
-     * @param googleEventConsensusData the Google EventConsensusData to convert
+     * @param sourceEventConsensusData the Google EventConsensusData to convert
      * @return the converted PBJ EventConsensusData
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.EventConsensusData fromGoogle(
-            @NonNull final com.hedera.hapi.platform.event.legacy.EventConsensusData googleEventConsensusData) {
+    public static com.hedera.hapi.platform.event.EventConsensusData toPbj(
+            @NonNull final com.hedera.hapi.platform.event.legacy.EventConsensusData sourceEventConsensusData) {
         return com.hedera.hapi.platform.event.EventConsensusData.newBuilder()
-                .consensusTimestamp(fromGoogle(googleEventConsensusData.getConsensusTimestamp()))
-                .consensusOrder(googleEventConsensusData.getConsensusOrder())
+                .consensusTimestamp(toPbj(sourceEventConsensusData.getConsensusTimestamp()))
+                .consensusOrder(sourceEventConsensusData.getConsensusOrder())
                 .build();
     }
 
     /**
      * Converts a PBJ EventConsensusData to a Google EventConsensusData.
      *
-     * @param pbjEventConsensusData the PBJ EventConsensusData to convert
+     * @param sourceEventConsensusData the PBJ EventConsensusData to convert
      * @return the converted Google EventConsensusData
      */
     @NonNull
-    public static com.hedera.hapi.platform.event.legacy.EventConsensusData toGoogle(
-            @NonNull final com.hedera.hapi.platform.event.EventConsensusData pbjEventConsensusData) {
+    public static com.hedera.hapi.platform.event.legacy.EventConsensusData fromPbj(
+            @NonNull final com.hedera.hapi.platform.event.EventConsensusData sourceEventConsensusData) {
         return com.hedera.hapi.platform.event.legacy.EventConsensusData.newBuilder()
                 .setConsensusTimestamp(
-                        pbjEventConsensusData.consensusTimestamp() != null
-                                ? toGoogle(pbjEventConsensusData.consensusTimestamp())
+                        sourceEventConsensusData.consensusTimestamp() != null
+                                ? fromPbj(sourceEventConsensusData.consensusTimestamp())
                                 : null)
-                .setConsensusOrder(pbjEventConsensusData.consensusOrder())
+                .setConsensusOrder(sourceEventConsensusData.consensusOrder())
                 .build();
     }
 
     /**
      * Converts a Google ConsensusSnapshot to a PBJ ConsensusSnapshot.
      *
-     * @param googleConsensusSnapshot the Google ConsensusSnapshot to convert
+     * @param sourceConsensusSnapshot the Google ConsensusSnapshot to convert
      * @return the converted PBJ ConsensusSnapshot
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.ConsensusSnapshot fromGoogle(
-            @NonNull final com.hedera.hapi.platform.state.legacy.ConsensusSnapshot googleConsensusSnapshot) {
+    public static com.hedera.hapi.platform.state.ConsensusSnapshot toPbj(
+            @NonNull final com.hedera.hapi.platform.state.legacy.ConsensusSnapshot sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.ConsensusSnapshot.newBuilder()
-                .round(googleConsensusSnapshot.getRound())
-                .judgeHashes(googleConsensusSnapshot.getJudgeHashesList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .round(sourceConsensusSnapshot.getRound())
+                .judgeHashes(sourceConsensusSnapshot.getJudgeHashesList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
-                .minimumJudgeInfoList(googleConsensusSnapshot.getMinimumJudgeInfoListList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .minimumJudgeInfoList(sourceConsensusSnapshot.getMinimumJudgeInfoListList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
-                .nextConsensusNumber(googleConsensusSnapshot.getNextConsensusNumber())
-                .consensusTimestamp(fromGoogle(googleConsensusSnapshot.getConsensusTimestamp()))
-                .judgeIds(googleConsensusSnapshot.getJudgeIdsList().stream()
-                        .map(ProtobufConverter::fromGoogle)
+                .nextConsensusNumber(sourceConsensusSnapshot.getNextConsensusNumber())
+                .consensusTimestamp(toPbj(sourceConsensusSnapshot.getConsensusTimestamp()))
+                .judgeIds(sourceConsensusSnapshot.getJudgeIdsList().stream()
+                        .map(ProtobufConverter::toPbj)
                         .toList())
                 .build();
     }
@@ -399,27 +399,27 @@ public class ProtobufConverter {
     /**
      * Converts a PBJ ConsensusSnapshot to a Google ConsensusSnapshot.
      *
-     * @param pbjConsensusSnapshot the PBJ ConsensusSnapshot to convert
+     * @param sourceConsensusSnapshot the PBJ ConsensusSnapshot to convert
      * @return the converted Google ConsensusSnapshot
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.legacy.ConsensusSnapshot toGoogle(
-            @NonNull final com.hedera.hapi.platform.state.ConsensusSnapshot pbjConsensusSnapshot) {
+    public static com.hedera.hapi.platform.state.legacy.ConsensusSnapshot fromPbj(
+            @NonNull final com.hedera.hapi.platform.state.ConsensusSnapshot sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.legacy.ConsensusSnapshot.newBuilder()
-                .setRound(pbjConsensusSnapshot.round())
-                .addAllJudgeHashes(pbjConsensusSnapshot.judgeHashes().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .setRound(sourceConsensusSnapshot.round())
+                .addAllJudgeHashes(sourceConsensusSnapshot.judgeHashes().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
-                .addAllMinimumJudgeInfoList(pbjConsensusSnapshot.minimumJudgeInfoList().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .addAllMinimumJudgeInfoList(sourceConsensusSnapshot.minimumJudgeInfoList().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
-                .setNextConsensusNumber(pbjConsensusSnapshot.nextConsensusNumber())
+                .setNextConsensusNumber(sourceConsensusSnapshot.nextConsensusNumber())
                 .setConsensusTimestamp(
-                        pbjConsensusSnapshot.consensusTimestamp() != null
-                                ? toGoogle(pbjConsensusSnapshot.consensusTimestamp())
+                        sourceConsensusSnapshot.consensusTimestamp() != null
+                                ? fromPbj(sourceConsensusSnapshot.consensusTimestamp())
                                 : null)
-                .addAllJudgeIds(pbjConsensusSnapshot.judgeIds().stream()
-                        .map(ProtobufConverter::toGoogle)
+                .addAllJudgeIds(sourceConsensusSnapshot.judgeIds().stream()
+                        .map(ProtobufConverter::fromPbj)
                         .toList())
                 .build();
     }
@@ -427,88 +427,88 @@ public class ProtobufConverter {
     /**
      * Converts a Google MinimumJudgeInfo to a PBJ MinimumJudgeInfo.
      *
-     * @param googleConsensusSnapshot the Google MinimumJudgeInfo to convert
+     * @param sourceConsensusSnapshot the Google MinimumJudgeInfo to convert
      * @return the converted PBJ MinimumJudgeInfo
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.MinimumJudgeInfo fromGoogle(
-            @NonNull final com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo googleConsensusSnapshot) {
+    public static com.hedera.hapi.platform.state.MinimumJudgeInfo toPbj(
+            @NonNull final com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.MinimumJudgeInfo.newBuilder()
-                .round(googleConsensusSnapshot.getRound())
-                .minimumJudgeAncientThreshold(googleConsensusSnapshot.getMinimumJudgeAncientThreshold())
+                .round(sourceConsensusSnapshot.getRound())
+                .minimumJudgeAncientThreshold(sourceConsensusSnapshot.getMinimumJudgeAncientThreshold())
                 .build();
     }
 
     /**
      * Converts a PBJ MinimumJudgeInfo to a Google MinimumJudgeInfo.
      *
-     * @param pbjConsensusSnapshot the PBJ MinimumJudgeInfo to convert
+     * @param sourceConsensusSnapshot the PBJ MinimumJudgeInfo to convert
      * @return the converted Google MinimumJudgeInfo
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo toGoogle(
-            @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo pbjConsensusSnapshot) {
+    public static com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo fromPbj(
+            @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo.newBuilder()
-                .setRound(pbjConsensusSnapshot.round())
-                .setMinimumJudgeAncientThreshold(pbjConsensusSnapshot.minimumJudgeAncientThreshold())
+                .setRound(sourceConsensusSnapshot.round())
+                .setMinimumJudgeAncientThreshold(sourceConsensusSnapshot.minimumJudgeAncientThreshold())
                 .build();
     }
 
     /**
      * Converts a Google JudgeId to a PBJ JudgeId.
      *
-     * @param googleJudgeId the Google JudgeId to convert
+     * @param sourceJudgeId the Google JudgeId to convert
      * @return the converted PBJ JudgeId
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.JudgeId fromGoogle(
-            @NonNull final com.hedera.hapi.platform.state.legacy.JudgeId googleJudgeId) {
+    public static com.hedera.hapi.platform.state.JudgeId toPbj(
+            @NonNull final com.hedera.hapi.platform.state.legacy.JudgeId sourceJudgeId) {
         return com.hedera.hapi.platform.state.JudgeId.newBuilder()
-                .creatorId(googleJudgeId.getCreatorId())
-                .judgeHash(fromGoogle(googleJudgeId.getJudgeHash()))
+                .creatorId(sourceJudgeId.getCreatorId())
+                .judgeHash(toPbj(sourceJudgeId.getJudgeHash()))
                 .build();
     }
 
     /**
      * Converts a PBJ JudgeId to a Google JudgeId.
      *
-     * @param googleJudgeId the PBJ JudgeId to convert
+     * @param sourceJudgeId the PBJ JudgeId to convert
      * @return the converted Google JudgeId
      */
     @NonNull
-    public static com.hedera.hapi.platform.state.legacy.JudgeId toGoogle(
-            @NonNull final com.hedera.hapi.platform.state.JudgeId googleJudgeId) {
+    public static com.hedera.hapi.platform.state.legacy.JudgeId fromPbj(
+            @NonNull final com.hedera.hapi.platform.state.JudgeId sourceJudgeId) {
         return com.hedera.hapi.platform.state.legacy.JudgeId.newBuilder()
-                .setCreatorId(googleJudgeId.creatorId())
-                .setJudgeHash(toGoogle(googleJudgeId.judgeHash()))
+                .setCreatorId(sourceJudgeId.creatorId())
+                .setJudgeHash(fromPbj(sourceJudgeId.judgeHash()))
                 .build();
     }
 
     /**
      * Converts a ProtoConsensusRounds to List<ConsensusRound>
      *
-     * @param googleRounds the ProtoConsensusRounds to convert
+     * @param sourceRounds the ProtoConsensusRounds to convert
      * @return the converted ConsensusRound
      */
     @NonNull
-    public static List<org.hiero.consensus.model.hashgraph.ConsensusRound> fromGoogle(
-            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds googleRounds) {
-        return googleRounds.getRoundsList().stream()
-                .map(ProtobufConverter::fromGoogle)
+    public static List<org.hiero.consensus.model.hashgraph.ConsensusRound> toPbj(
+            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds sourceRounds) {
+        return sourceRounds.getRoundsList().stream()
+                .map(ProtobufConverter::toPbj)
                 .collect(Collectors.toList());
     }
 
     /**
      * Converts a List<ConsensusRound> to ProtoConsensusRounds
      *
-     * @param platformRounds the ConsensusRounds to convert
+     * @param sourceRounds the ConsensusRounds to convert
      * @return the converted ConsensusRound
      */
     @NonNull
-    public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds toGoogle(
-            @NonNull final List<org.hiero.consensus.model.hashgraph.ConsensusRound> platformRounds) {
+    public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds fromPlatform(
+            @NonNull final List<org.hiero.consensus.model.hashgraph.ConsensusRound> sourceRounds) {
         final List<ProtoConsensusRound> googleRounds =
-                platformRounds.stream().map(ProtobufConverter::toGoogle).toList();
+                sourceRounds.stream().map(ProtobufConverter::fromPlatform).toList();
         return org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds.newBuilder()
                 .addAllRounds(googleRounds)
                 .build();
@@ -517,47 +517,47 @@ public class ProtobufConverter {
     /**
      * Converts a ProtoConsensusRound to ConsensusRound.
      *
-     * @param googleRound the ProtoConsensusRound to convert
+     * @param sourceRound the ProtoConsensusRound to convert
      * @return the converted ConsensusRound
      */
     @NonNull
-    public static org.hiero.consensus.model.hashgraph.ConsensusRound fromGoogle(
-            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRound googleRound) {
-        final com.hedera.hapi.node.state.roster.Roster consensusRoster = fromGoogle(googleRound.getConsensusRoster());
+    public static org.hiero.consensus.model.hashgraph.ConsensusRound toPbj(
+            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRound sourceRound) {
+        final com.hedera.hapi.node.state.roster.Roster consensusRoster = toPbj(sourceRound.getConsensusRoster());
         final List<org.hiero.consensus.model.event.PlatformEvent> consensusEvents =
-                googleRound.getConsensusEventsList().stream()
-                        .map(ProtobufConverter::toSelfSerializable)
+                sourceRound.getConsensusEventsList().stream()
+                        .map(ProtobufConverter::toPlatform)
                         .toList();
-        final org.hiero.consensus.model.hashgraph.EventWindow eventWindow = fromGoogle(googleRound.getEventWindow());
-        final com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = fromGoogle(googleRound.getSnapshot());
-        final Instant reachedConsTimestamp = Instant.ofEpochSecond(googleRound.getReachedConsTimestamp());
+        final org.hiero.consensus.model.hashgraph.EventWindow eventWindow = toPlatform(sourceRound.getEventWindow());
+        final com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = toPbj(sourceRound.getSnapshot());
+        final Instant reachedConsTimestamp = Instant.ofEpochSecond(sourceRound.getReachedConsTimestamp());
 
         return new org.hiero.consensus.model.hashgraph.ConsensusRound(
                 consensusRoster,
                 consensusEvents,
                 eventWindow,
                 snapshot,
-                googleRound.getPcesRound(),
+                sourceRound.getPcesRound(),
                 reachedConsTimestamp);
     }
 
     /**
      * Converts a ConsensusRound to a ProtoConsensusRound.
      *
-     * @param platformRound the ConsensusRound to convert
+     * @param sourceRound the ConsensusRound to convert
      * @return the converted ProtoConsensusRound
      */
     @NonNull
-    public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRound toGoogle(
-            @NonNull final org.hiero.consensus.model.hashgraph.ConsensusRound platformRound) {
+    public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRound fromPlatform(
+            @NonNull final org.hiero.consensus.model.hashgraph.ConsensusRound sourceRound) {
         final List<com.hedera.hapi.platform.event.legacy.GossipEvent> gossipEvents =
-                platformRound.getConsensusEvents().stream()
+                sourceRound.getConsensusEvents().stream()
                         .map(org.hiero.consensus.model.event.PlatformEvent::getGossipEvent)
-                        .map(ProtobufConverter::toGoogle)
+                        .map(ProtobufConverter::fromPbj)
                         .toList();
         final List<org.hiero.otter.fixtures.container.proto.CesEvent> streamedEvents =
-                platformRound.getStreamedEvents().stream()
-                        .map(ProtobufConverter::toGoogle)
+                sourceRound.getStreamedEvents().stream()
+                        .map(ProtobufConverter::fromPlatform)
                         .toList();
 
         return org.hiero.otter.fixtures.container.proto.ProtoConsensusRound.newBuilder()
@@ -569,106 +569,106 @@ public class ProtobufConverter {
     /**
      * Converts a CesEvent to a Proto CesEvent.
      *
-     * @param cesEvent the CesEvent to convert
+     * @param sourceEvent the CesEvent to convert
      * @return the converted Proto CesEvent
      */
     @NonNull
-    public static org.hiero.otter.fixtures.container.proto.CesEvent toGoogle(
-            @NonNull final org.hiero.consensus.model.event.CesEvent cesEvent) {
-        final com.google.protobuf.ByteString runningHash =
-                cesEvent.getRunningHash() != null && cesEvent.getRunningHash().getHash() != null
-                        ? com.google.protobuf.ByteString.copyFrom(
-                                cesEvent.getRunningHash().getHash().copyToByteArray())
-                        : null;
+    public static org.hiero.otter.fixtures.container.proto.CesEvent fromPlatform(
+            @NonNull final org.hiero.consensus.model.event.CesEvent sourceEvent) {
+        final com.google.protobuf.ByteString runningHash = sourceEvent.getRunningHash() != null
+                        && sourceEvent.getRunningHash().getHash() != null
+                ? com.google.protobuf.ByteString.copyFrom(
+                        sourceEvent.getRunningHash().getHash().copyToByteArray())
+                : null;
         return org.hiero.otter.fixtures.container.proto.CesEvent.newBuilder()
-                .setPlatformEvent(toGoogle(cesEvent.getPlatformEvent().getGossipEvent()))
+                .setPlatformEvent(fromPbj(sourceEvent.getPlatformEvent().getGossipEvent()))
                 .setRunningHash(runningHash)
-                .setRoundReceived(cesEvent.getRoundReceived())
-                .setLastInRoundReceived(cesEvent.isLastInRoundReceived())
+                .setRoundReceived(sourceEvent.getRoundReceived())
+                .setLastInRoundReceived(sourceEvent.isLastInRoundReceived())
                 .build();
     }
 
     /**
      * Converts a legacy GossipEvent to a PlatformEvent.
      *
-     * @param protoEvent the legacy GossipEvent to convert
+     * @param sourceEvent the legacy GossipEvent to convert
      * @return the converted PlatformEvent
      */
     @NonNull
-    public static org.hiero.consensus.model.event.PlatformEvent toSelfSerializable(
-            @NonNull final com.hedera.hapi.platform.event.legacy.GossipEvent protoEvent) {
-        return new org.hiero.consensus.model.event.PlatformEvent(fromGoogle(protoEvent));
+    public static org.hiero.consensus.model.event.PlatformEvent toPlatform(
+            @NonNull final com.hedera.hapi.platform.event.legacy.GossipEvent sourceEvent) {
+        return new org.hiero.consensus.model.event.PlatformEvent(toPbj(sourceEvent));
     }
 
     /**
      * Converts a Google EventWindow to a Platform EventWindow.
      *
-     * @param googleEventWindow the Google EventWindow to convert
+     * @param sourceEventWindow the Google EventWindow to convert
      * @return the converted Platform EventWindow
      */
     @NonNull
-    public static org.hiero.consensus.model.hashgraph.EventWindow fromGoogle(
-            @NonNull final org.hiero.otter.fixtures.container.proto.EventWindow googleEventWindow) {
+    public static org.hiero.consensus.model.hashgraph.EventWindow toPlatform(
+            @NonNull final org.hiero.otter.fixtures.container.proto.EventWindow sourceEventWindow) {
         return new org.hiero.consensus.model.hashgraph.EventWindow(
-                googleEventWindow.getLatestConsensusRound(),
-                googleEventWindow.getNewEventBirthRound(),
-                googleEventWindow.getAncientThreshold(),
-                googleEventWindow.getExpiredThreshold());
+                sourceEventWindow.getLatestConsensusRound(),
+                sourceEventWindow.getNewEventBirthRound(),
+                sourceEventWindow.getAncientThreshold(),
+                sourceEventWindow.getExpiredThreshold());
     }
 
     /**
      * Converts a Platform EventWindow to a Google EventWindow.
      *
-     * @param platformEventWindow the Platform EventWindow to convert
+     * @param sourceEventWindow the Platform EventWindow to convert
      * @return the converted Google EventWindow
      */
     @NonNull
-    public static org.hiero.otter.fixtures.container.proto.EventWindow toGoogle(
-            @NonNull final org.hiero.consensus.model.hashgraph.EventWindow platformEventWindow) {
+    public static org.hiero.otter.fixtures.container.proto.EventWindow fromPlatform(
+            @NonNull final org.hiero.consensus.model.hashgraph.EventWindow sourceEventWindow) {
         return org.hiero.otter.fixtures.container.proto.EventWindow.newBuilder()
-                .setLatestConsensusRound(platformEventWindow.latestConsensusRound())
-                .setNewEventBirthRound(platformEventWindow.newEventBirthRound())
-                .setAncientThreshold(platformEventWindow.ancientThreshold())
-                .setExpiredThreshold(platformEventWindow.expiredThreshold())
+                .setLatestConsensusRound(sourceEventWindow.latestConsensusRound())
+                .setNewEventBirthRound(sourceEventWindow.newEventBirthRound())
+                .setAncientThreshold(sourceEventWindow.ancientThreshold())
+                .setExpiredThreshold(sourceEventWindow.expiredThreshold())
                 .build();
     }
 
     /**
      * Converts a Google LogEntry to a StructuredLog.
      *
-     * @param log the Google LogEntry to convert
+     * @param sourceLog the Google LogEntry to convert
      * @return the converted StructuredLog
      */
     @NonNull
-    public static org.hiero.otter.fixtures.logging.StructuredLog fromGoogle(
-            @NonNull final org.hiero.otter.fixtures.container.proto.LogEntry log) {
+    public static org.hiero.otter.fixtures.logging.StructuredLog toPbj(
+            @NonNull final org.hiero.otter.fixtures.container.proto.LogEntry sourceLog) {
         return new org.hiero.otter.fixtures.logging.StructuredLog(
-                log.getTimestamp(),
-                Level.toLevel(log.getLevel()),
-                log.getMessage(),
-                log.getLoggerName(),
-                log.getThread(),
-                MarkerManager.getMarker(log.getMarker()),
-                log.getNodeId());
+                sourceLog.getTimestamp(),
+                Level.toLevel(sourceLog.getLevel()),
+                sourceLog.getMessage(),
+                sourceLog.getLoggerName(),
+                sourceLog.getThread(),
+                MarkerManager.getMarker(sourceLog.getMarker()),
+                sourceLog.getNodeId());
     }
 
     /**
      * Converts a StructuredLog to a Google LogEntry.
      *
-     * @param log the StructuredLog to convert
+     * @param sourceLog the StructuredLog to convert
      * @return the converted Google LogEntry
      */
     @NonNull
-    public static org.hiero.otter.fixtures.container.proto.LogEntry toGoogle(
-            @NonNull final org.hiero.otter.fixtures.logging.StructuredLog log) {
+    public static org.hiero.otter.fixtures.container.proto.LogEntry fromPlatform(
+            @NonNull final org.hiero.otter.fixtures.logging.StructuredLog sourceLog) {
         return org.hiero.otter.fixtures.container.proto.LogEntry.newBuilder()
-                .setTimestamp(log.timestamp())
-                .setLevel(log.level().toString())
-                .setLoggerName(log.loggerName())
-                .setThread(log.threadName())
-                .setMessage(log.message())
-                .setMarker((log.marker() != null ? log.marker().toString() : null))
-                .setNodeId(log.nodeId())
+                .setTimestamp(sourceLog.timestamp())
+                .setLevel(sourceLog.level().toString())
+                .setLoggerName(sourceLog.loggerName())
+                .setThread(sourceLog.threadName())
+                .setMessage(sourceLog.message())
+                .setMarker((sourceLog.marker() != null ? sourceLog.marker().toString() : null))
+                .setNodeId(sourceLog.nodeId())
                 .build();
     }
 }

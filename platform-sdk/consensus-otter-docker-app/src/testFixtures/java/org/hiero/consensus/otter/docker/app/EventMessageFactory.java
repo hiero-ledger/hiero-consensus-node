@@ -49,7 +49,7 @@ public final class EventMessageFactory {
     @NonNull
     public static EventMessage fromConsensusRounds(@NonNull final List<ConsensusRound> rounds) {
         final List<ProtoConsensusRound> protoRounds =
-                rounds.stream().map(ProtobufConverter::toGoogle).toList();
+                rounds.stream().map(ProtobufConverter::fromPlatform).toList();
 
         final ProtoConsensusRounds protoConsensusRounds =
                 ProtoConsensusRounds.newBuilder().addAllRounds(protoRounds).build();
@@ -67,7 +67,7 @@ public final class EventMessageFactory {
      */
     @NonNull
     public static EventMessage fromStructuredLog(@NonNull final StructuredLog log) {
-        final LogEntry logEntry = ProtobufConverter.toGoogle(log);
+        final LogEntry logEntry = ProtobufConverter.fromPlatform(log);
         return EventMessage.newBuilder().setLogEntry(logEntry).build();
     }
 }

@@ -35,7 +35,7 @@ public class NodeResultsCollector {
      * @param nodeId the node ID of the node
      */
     public NodeResultsCollector(@NonNull final NodeId nodeId) {
-        this.nodeId = Objects.requireNonNull(nodeId,  "nodeId should not be null");
+        this.nodeId = Objects.requireNonNull(nodeId, "nodeId should not be null");
     }
 
     /**

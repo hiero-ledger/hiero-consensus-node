@@ -92,9 +92,9 @@ public final class DockerInit {
 
             try {
                 app = new DockerApp(
-                        ProtobufConverter.fromGoogle(selfId),
-                        ProtobufConverter.fromGoogle(request.getVersion()),
-                        ProtobufConverter.fromGoogle(request.getRoster()),
+                        ProtobufConverter.toPbj(selfId),
+                        ProtobufConverter.toPbj(request.getVersion()),
+                        ProtobufConverter.toPbj(request.getRoster()),
                         KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
                         request.getOverriddenPropertiesMap());
 

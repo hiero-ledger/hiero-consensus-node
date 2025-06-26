@@ -228,10 +228,10 @@ public class ContainerNode extends AbstractNode implements Node {
             log.info("Starting node {}...", selfId);
 
             final StartRequest startRequest = StartRequest.newBuilder()
-                    .setSelfId(ProtobufConverter.toGoogle(selfId))
-                    .setRoster(ProtobufConverter.toGoogle(roster))
+                    .setSelfId(ProtobufConverter.fromPbj(selfId))
+                    .setRoster(ProtobufConverter.fromPbj(roster))
                     .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
-                    .setVersion(ProtobufConverter.toGoogle(version))
+                    .setVersion(ProtobufConverter.fromPbj(version))
                     .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
                     .build();
 
@@ -241,10 +241,9 @@ public class ContainerNode extends AbstractNode implements Node {
                 public void onNext(final EventMessage value) {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
-                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.fromGoogle(value.getLogEntry()));
+                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPbj(value.getLogEntry()));
                         case CONSENSUS_ROUNDS ->
-                            resultsCollector.addConsensusRounds(
-                                    ProtobufConverter.fromGoogle(value.getConsensusRounds()));
+                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
                         default -> {
                             final String message = String.format(
                                     "Received unknown message type from node %s: %s", selfId, value.getEventCase());
