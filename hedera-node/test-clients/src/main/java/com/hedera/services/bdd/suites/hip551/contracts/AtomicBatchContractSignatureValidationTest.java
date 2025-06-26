@@ -24,14 +24,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PROPS;
@@ -106,16 +103,14 @@ public class AtomicBatchContractSignatureValidationTest {
         return hapiTest(
                 uploadInitCode(INTERNAL_CALLER_CONTRACT),
                 contractCreate(INTERNAL_CALLER_CONTRACT).balance(ONE_HBAR),
-                withOpContext((spec, op) -> allRunFor(
-                        spec,
-                        balanceSnapshot("initialBalance", INTERNAL_CALLER_CONTRACT),
-                        atomicBatchDefaultOperator(contractCall(
-                                                INTERNAL_CALLER_CONTRACT,
-                                                CALL_WITH_VALUE_TO_FUNCTION,
-                                                mirrorAddrWith(receiverId.get()))
-                                        .via("callWithValueTxn")
-                                        .gas(GAS_LIMIT_FOR_CALL * 4))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                balanceSnapshot("initialBalance", INTERNAL_CALLER_CONTRACT),
+                atomicBatchDefaultOperator(contractCall(
+                                        INTERNAL_CALLER_CONTRACT,
+                                        CALL_WITH_VALUE_TO_FUNCTION,
+                                        mirrorAddrWith(receiverId.get()))
+                                .via("callWithValueTxn")
+                                .gas(GAS_LIMIT_FOR_CALL * 4))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("callWithValueTxn").hasPriority(recordWith().status(INVALID_SIGNATURE)),
                 getAccountBalance(INTERNAL_CALLER_CONTRACT).hasTinyBars(changeFromSnapshot("initialBalance", 0)));
     }
@@ -128,29 +123,23 @@ public class AtomicBatchContractSignatureValidationTest {
                 getAccountInfo(RECEIVER_SIG_REQUIRED).savingSnapshot("accInfo"),
                 uploadInitCode(TRANSFERRING_CONTRACT),
                 contractCreate(TRANSFERRING_CONTRACT).balance(ONE_HUNDRED_HBARS),
-                withOpContext((spec, log) -> {
-                    // First we will try to call the contract without a signature from the receiver
-                    final var withoutReceiverSignature = atomicBatchDefaultOperator(contractCall(
-                                            TRANSFERRING_CONTRACT,
-                                            TRANSFER_TO_ADDRESS,
-                                            mirrorAddrWith(receiverId.get()),
-                                            BigInteger.valueOf(ONE_HUNDRED_HBARS / 2))
-                                    .via("invalidSignatureTxn"))
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED);
-                    // The inner transaction should fail with INVALID_SIGNATURE
-                    final var invalidSignatureRecord = getTxnRecord("invalidSignatureTxn")
-                            .hasPriority(recordWith().status(INVALID_SIGNATURE));
-                    allRunFor(spec, withoutReceiverSignature, invalidSignatureRecord);
-
-                    // Now we will try the same call with a valid signature from the receiver
-                    final var withSignature = atomicBatchDefaultOperator(contractCall(
-                                    TRANSFERRING_CONTRACT,
-                                    TRANSFER_TO_ADDRESS,
-                                    mirrorAddrWith(receiverId.get()),
-                                    BigInteger.valueOf(ONE_HUNDRED_HBARS / 2))
-                            .payingWith(RECEIVER_SIG_REQUIRED));
-                    allRunFor(spec, withSignature);
-                }));
+                // First we will try to call the contract without a signature from the receiver
+                atomicBatchDefaultOperator(contractCall(
+                                        TRANSFERRING_CONTRACT,
+                                        TRANSFER_TO_ADDRESS,
+                                        mirrorAddrWith(receiverId.get()),
+                                        BigInteger.valueOf(ONE_HUNDRED_HBARS / 2))
+                                .via("invalidSignatureTxn"))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                // The inner transaction should fail with INVALID_SIGNATURE
+                getTxnRecord("invalidSignatureTxn").hasPriority(recordWith().status(INVALID_SIGNATURE)),
+                // Now we will try the same call with a valid signature from the receiver
+                atomicBatchDefaultOperator(contractCall(
+                                TRANSFERRING_CONTRACT,
+                                TRANSFER_TO_ADDRESS,
+                                mirrorAddrWith(receiverId.get()),
+                                BigInteger.valueOf(ONE_HUNDRED_HBARS / 2))
+                        .payingWith(RECEIVER_SIG_REQUIRED)));
     }
 
     @HapiTest
@@ -337,12 +326,12 @@ public class AtomicBatchContractSignatureValidationTest {
         return hapiTest(
                 uploadInitCode(SELF_DESTRUCT_CALLABLE_CONTRACT),
                 contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT).balance(ONE_HBAR),
-                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                atomicBatchDefaultOperator(contractCall(
                                         SELF_DESTRUCT_CALLABLE_CONTRACT,
                                         DESTROY_EXPLICIT_BENEFICIARY,
                                         mirrorAddrWith(receiverId.get()))
                                 .via("selfDestructTxn"))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getTxnRecord("selfDestructTxn").hasPriority(recordWith().status(INVALID_SIGNATURE)),
                 getContractInfo(SELF_DESTRUCT_CALLABLE_CONTRACT)
                         .has(contractWith().balance(ONE_HBAR)));
