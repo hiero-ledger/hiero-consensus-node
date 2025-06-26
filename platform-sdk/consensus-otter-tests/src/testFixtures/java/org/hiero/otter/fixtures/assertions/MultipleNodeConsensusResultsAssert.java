@@ -108,7 +108,7 @@ public class MultipleNodeConsensusResultsAssert
                 continue;
             }
 
-            // Get the same rounds from this node as create by the node with the most rounds and compare them
+            // Get the same rounds from this node as created by the node with the most rounds and compare them
             final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
             final List<ConsensusRound> expectedRounds =
                     longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
