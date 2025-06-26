@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXF: [CITR] Single Day Performance Test Controller"
 on:
-  INTENTIONALLY BREAK PR
   workflow_dispatch:
     inputs:
       test-asset:
