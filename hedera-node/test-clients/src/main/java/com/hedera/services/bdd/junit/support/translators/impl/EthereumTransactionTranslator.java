@@ -78,8 +78,12 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     baseTranslator.addChangedContractNonces(
                                                             derivedBuilder, remainingStateChanges);
                                                 }
-                                                baseTranslator.addSignerNonce(
-                                                        txCallResult.senderId(), derivedBuilder, remainingStateChanges);
+                                                if (txCallResult.gasUsed() > 0) {
+                                                    baseTranslator.addSignerNonce(
+                                                            txCallResult.senderId(),
+                                                            derivedBuilder,
+                                                            remainingStateChanges);
+                                                }
                                                 final var fnResult = derivedBuilder.build();
                                                 recordBuilder.contractCallResult(fnResult);
                                                 yield fnResult;
@@ -126,10 +130,12 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     baseTranslator.addCreatedEvmAddressTo(
                                                             derivedBuilder, createdId, remainingStateChanges);
                                                 }
-                                                baseTranslator.addSignerNonce(
-                                                        txCreateResult.senderId(),
-                                                        derivedBuilder,
-                                                        remainingStateChanges);
+                                                if (txCreateResult.gasUsed() > 0) {
+                                                    baseTranslator.addSignerNonce(
+                                                            txCreateResult.senderId(),
+                                                            derivedBuilder,
+                                                            remainingStateChanges);
+                                                }
                                                 final var fnResult = derivedBuilder.build();
                                                 recordBuilder.contractCreateResult(fnResult);
                                                 yield fnResult;

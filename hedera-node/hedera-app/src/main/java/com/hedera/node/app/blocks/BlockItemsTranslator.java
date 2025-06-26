@@ -8,6 +8,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.node.app.service.token.api.ContractChangeSummary.CONTRACT_ID_NUM_COMPARATOR;
+import static com.hedera.node.app.service.token.api.ContractChangeSummary.NONCE_INFO_CONTRACT_ID_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.MapChangeKey;
@@ -236,14 +238,17 @@ public class BlockItemsTranslator {
                     .map(StateChange::mapUpdateOrThrow)
                     .map(MapUpdateChange::keyOrThrow)
                     .map(MapChangeKey::contractIdKeyOrThrow)
+                    .sorted(CONTRACT_ID_NUM_COMPARATOR)
                     .toList();
             builder.createdContractIDs(createdIds);
             if (contractContext.evmAddress() != null) {
                 builder.evmAddress(contractContext.evmAddress());
             }
-            final var changedNonceIds = contractContext.changedNonceInfos();
-            if (changedNonceIds != null && !changedNonceIds.isEmpty()) {
-                builder.contractNonces(changedNonceIds);
+            final var changedNonceInfos = contractContext.changedNonceInfos();
+            if (changedNonceInfos != null && !changedNonceInfos.isEmpty()) {
+                final var infos = new ArrayList<>(changedNonceInfos);
+                infos.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
+                builder.contractNonces(infos);
             }
             attachLogsTo(builder, logs);
         }
