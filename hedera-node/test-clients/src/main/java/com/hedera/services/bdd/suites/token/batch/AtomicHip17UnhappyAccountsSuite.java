@@ -60,11 +60,11 @@ public class AtomicHip17UnhappyAccountsSuite {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(
                 Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
-    private HapiSpecOperation[] setup() {
+    private HapiSpecOperation[] testsBaseSetup() {
         return new HapiSpecOperation[] {
+            cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
             newKeyNamed(SUPPLY_KEY),
             newKeyNamed(FREEZE_KEY),
             newKeyNamed(KYC_KEY),
@@ -86,7 +86,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> uniqueTokenOperationsFailForDeletedAccount() {
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(
                                 mintToken(
                                                 UNIQUE_TOKEN_A,
@@ -109,7 +109,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> test1() { // taking out the mint
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 mintToken(UNIQUE_TOKEN_A, List.of(ByteString.copyFromUtf8(MEMO_1), ByteString.copyFromUtf8(MEMO_2))),
                 atomicBatch(
                                 tokenAssociate(CLIENT_1, UNIQUE_TOKEN_A).batchKey(BATCH_OPERATOR),
@@ -127,7 +127,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> test2() { // only remove txn after the batch
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(
                                 mintToken(
                                                 UNIQUE_TOKEN_A,
@@ -143,7 +143,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> test3() { // only mint inside the batch
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(mintToken(
                                         UNIQUE_TOKEN_A,
                                         List.of(ByteString.copyFromUtf8(MEMO_1), ByteString.copyFromUtf8(MEMO_2)))
@@ -163,7 +163,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> test4() { // random txn in the batch
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(cryptoCreate("test").batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR)));
     }
 
@@ -213,7 +213,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> uniqueTokenOperationsFailForKycRevokedAccount() {
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(
                                 mintToken(
                                                 UNIQUE_TOKEN_A,
@@ -239,7 +239,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> uniqueTokenOperationsFailForFrozenAccount() {
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(
                                 mintToken(
                                                 UNIQUE_TOKEN_A,
@@ -264,7 +264,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> uniqueTokenOperationsFailForDissociatedAccount() {
         return hapiTest(flattened(
-                setup(),
+                testsBaseSetup(),
                 atomicBatch(mintToken(UNIQUE_TOKEN_A, List.of(ByteString.copyFromUtf8("memo")))
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
