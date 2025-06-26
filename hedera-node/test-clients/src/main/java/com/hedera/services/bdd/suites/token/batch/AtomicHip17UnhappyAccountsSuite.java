@@ -170,6 +170,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> test5() { // same test but the setup is copied
         return hapiTest(flattened(
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(FREEZE_KEY),
                 newKeyNamed(KYC_KEY),
@@ -207,6 +208,7 @@ public class AtomicHip17UnhappyAccountsSuite {
     @HapiTest
     final Stream<DynamicTest> test6() { // random txn in the batch with no setup
         return hapiTest(flattened(
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 atomicBatch(cryptoCreate("test").batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR)));
     }
 
