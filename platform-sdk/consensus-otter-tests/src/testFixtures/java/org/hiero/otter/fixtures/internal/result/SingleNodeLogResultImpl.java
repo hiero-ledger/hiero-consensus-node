@@ -25,6 +25,8 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
 
     private final NodeId nodeId;
     private final Set<Marker> suppressedLogMarkers;
+
+    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile int startIndex = 0;
 
     /**

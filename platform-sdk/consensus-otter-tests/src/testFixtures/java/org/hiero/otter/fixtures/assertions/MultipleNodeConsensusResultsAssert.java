@@ -3,12 +3,12 @@ package org.hiero.otter.fixtures.assertions;
 
 import static java.util.Comparator.comparingInt;
 
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.AbstractAssert;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -53,11 +53,9 @@ public class MultipleNodeConsensusResultsAssert
     @NonNull
     public MultipleNodeConsensusResultsAssert haveLastRoundNum(final long expected) {
         isNotNull();
-
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasLastRoundNum(expected);
         }
-
         return this;
     }
 
@@ -70,11 +68,9 @@ public class MultipleNodeConsensusResultsAssert
     @NonNull
     public MultipleNodeConsensusResultsAssert haveAdvancedSinceRound(final long expected) {
         isNotNull();
-
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasAdvancedSinceRound(expected);
         }
-
         return this;
     }
 
@@ -124,16 +120,25 @@ public class MultipleNodeConsensusResultsAssert
             }
             final int size = currentNodeResult.size();
             final List<ConsensusRound> expectedSublist = longestResult.rounds().subList(0, size);
-            Assertions.assertThat(currentNodeResult.rounds())
-                    .withFailMessage(
-                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            currentNodeResult.nodeId(),
-                            longestResult.nodeId(),
-                            currentNodeResult.rounds(),
-                            expectedSublist)
-                    .containsExactlyElementsOf(expectedSublist);
+            ConsensusRoundValidator.validate(currentNodeResult.rounds(), expectedSublist);
         }
 
+        return this;
+    }
+
+    /**
+     * Verifies that the created consensus rounds are consistent.
+     *
+     * <p>This includes checking if the ancient thresholds are increasing and the timestamps of
+     * events are strictly increasing.
+     *
+     * @return this assertion object for method chaining
+     */
+    public MultipleNodeConsensusResultsAssert haveConsistentRounds() {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasConsistentRounds();
+        }
         return this;
     }
 
