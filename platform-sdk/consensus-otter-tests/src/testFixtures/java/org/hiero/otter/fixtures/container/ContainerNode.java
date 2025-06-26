@@ -231,6 +231,7 @@ public class ContainerNode extends AbstractNode implements Node {
                     .setSelfId(ProtobufConverter.toGoogle(selfId))
                     .setRoster(ProtobufConverter.toGoogle(roster))
                     .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
+                    .setVersion(ProtobufConverter.toGoogle(version))
                     .putAllOverriddenProperties(nodeConfiguration.overriddenProperties())
                     .build();
 
