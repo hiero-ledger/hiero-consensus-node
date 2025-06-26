@@ -9,8 +9,6 @@ import org.hiero.otter.fixtures.Node;
 
 /**
  * Interface that provides access to the consensus results of a group of nodes that were created during a test.
- *
- * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
 @SuppressWarnings("unused")
 public interface MultipleNodeConsensusResults extends OtterResult {

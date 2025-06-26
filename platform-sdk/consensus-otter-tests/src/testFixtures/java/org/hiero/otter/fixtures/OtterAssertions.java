@@ -10,6 +10,7 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
@@ -38,6 +39,18 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static SingleNodeConsensusResultAssert assertThat(@Nullable final SingleNodeConsensusResult actual) {
         return SingleNodeConsensusResultAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link SingleNodeConsensusResult}.
+     *
+     * @param actual the {@link SingleNodeConsensusResult} to assert
+     * @return a continuous assertion for the given {@link SingleNodeConsensusResult}
+     */
+    @NonNull
+    public static SingleNodeConsensusResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeConsensusResult actual) {
+        return SingleNodeConsensusResultContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
