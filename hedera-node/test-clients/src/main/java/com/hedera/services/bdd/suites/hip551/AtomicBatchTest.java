@@ -996,7 +996,7 @@ public class AtomicBatchTest {
                 // Accumulate some staking rewards
                 waitUntilStartOfNextStakingPeriod(1),
                 atomicBatch(
-                                // Trigger staking rewards for the "stakingTo" account
+                                // Trigger staking rewards for the "receivesRewardsAcct" account
                                 cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
                                         .payingWith(operatorAcct)
                                         .batchKey(operatorKey)
