@@ -980,7 +980,7 @@ public class AtomicBatchTest {
         final var stakingStartThreshold = 10 * ONE_HBAR;
         final var operatorAcct = "operatorAcct";
         final var operatorKey = "operatorKey";
-        final var stakingTo = "willReceiveRewards";
+        final var receivesRewardsAcct = "receivesRewardsAcct";
 
         return hapiTest(
                 overridingThree(
@@ -992,18 +992,18 @@ public class AtomicBatchTest {
                 newKeyNamed(operatorKey),
                 cryptoCreate(operatorAcct).key(operatorKey).balance(ONE_HUNDRED_HBARS),
                 // Create an account that will receive staking rewards
-                cryptoCreate(stakingTo).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
+                cryptoCreate(receivesRewardsAcct).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
                 // Accumulate some staking rewards
                 waitUntilStartOfNextStakingPeriod(1),
                 atomicBatch(
                                 // Trigger staking rewards for the "stakingTo" account
-                                cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, stakingTo))
+                                cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
                                         .payingWith(operatorAcct)
                                         .batchKey(operatorKey)
                                         .via("stakingTriggered"),
                                 // Intentionally fail the inner transaction to roll back the batch
-                                cryptoTransfer(TokenMovement.movingHbar(1).between(stakingTo, DEFAULT_PAYER))
-                                        .payingWith(stakingTo)
+                                cryptoTransfer(TokenMovement.movingHbar(1).between(receivesRewardsAcct, DEFAULT_PAYER))
+                                        .payingWith(receivesRewardsAcct)
                                         .signedBy(operatorKey)
                                         .batchKey(operatorKey)
                                         .hasKnownStatus(INVALID_PAYER_SIGNATURE))
@@ -1012,10 +1012,10 @@ public class AtomicBatchTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // Verify that no staking rewards were paid
                 getTxnRecord("stakingTriggered").hasPaidStakingRewardsCount(0),
-                getAccountBalance(stakingTo).hasTinyBars(ONE_HUNDRED_HBARS),
+                getAccountBalance(receivesRewardsAcct).hasTinyBars(ONE_HUNDRED_HBARS),
                 // Trigger staking again, but allow it to succeed
                 waitUntilStartOfNextStakingPeriod(1),
-                atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, stakingTo))
+                atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
                                 .payingWith(operatorAcct)
                                 .batchKey(operatorKey))
                         .via("batchSuccess")
@@ -1023,7 +1023,7 @@ public class AtomicBatchTest {
                         .signedBy(operatorKey),
                 // Verify staking rewards were paid
                 getTxnRecord("batchSuccess").hasPaidStakingRewardsCount(1),
-                getAccountBalance(stakingTo).exposingBalanceTo(balance -> {
+                getAccountBalance(receivesRewardsAcct).exposingBalanceTo(balance -> {
                     // Initial balance (100 hbars) + 1 hbar from transfer + <positive nonzero> rewards
                     Assertions.assertThat(balance).isGreaterThan(ONE_HUNDRED_HBARS + 1);
                 }));
