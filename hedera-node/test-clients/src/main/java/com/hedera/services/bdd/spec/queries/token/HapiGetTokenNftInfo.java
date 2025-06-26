@@ -41,7 +41,6 @@ public class HapiGetTokenNftInfo extends HapiQueryOp<HapiGetTokenNftInfo> {
     Optional<String> expectedTokenID = Optional.empty();
     Optional<String> expectedAccountID = Optional.empty();
     Optional<Boolean> expectedCreationTime = Optional.empty();
-    Optional<Boolean> createdFromBatch = Optional.empty();
     Optional<String> expectedSpenderID = Optional.empty();
 
     public HapiGetTokenNftInfo hasAccountID(String name) {
@@ -79,11 +78,6 @@ public class HapiGetTokenNftInfo extends HapiQueryOp<HapiGetTokenNftInfo> {
         return this;
     }
 
-    public HapiGetTokenNftInfo createdFromBatch() {
-        createdFromBatch = Optional.of(true);
-        return this;
-    }
-
     @Override
     public HederaFunctionality type() {
         return HederaFunctionality.TokenGetNftInfo;
@@ -118,16 +112,8 @@ public class HapiGetTokenNftInfo extends HapiQueryOp<HapiGetTokenNftInfo> {
 
         expectedMetadata.ifPresent(bytes -> assertEquals(bytes, actualInfo.getMetadata(), "Wrong metadata!"));
 
-        // If the NFT is created inside a batch then we increase the nanoseconds by 1 since the exact creation time
-        // is taken from the batch itself.
-        var creationTime = createdFromBatch.isPresent() && Boolean.TRUE.equals(createdFromBatch.get())
-                ? actualInfo.getCreationTime().toBuilder()
-                        .setNanos(actualInfo.getCreationTime().getNanos() + 1)
-                        .build()
-                : actualInfo.getCreationTime();
-
         assertFor(
-                creationTime,
+                actualInfo.getCreationTime(),
                 expectedCreationTime,
                 (n, r) -> r.getCreationTime(token),
                 "Wrong creation time (seconds)!",

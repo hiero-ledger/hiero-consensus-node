@@ -553,15 +553,13 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .hasMetadata(metadata("memo"))
                                 .hasTokenID(NFT)
                                 .hasAccountID(TOKEN_TREASURY)
-                                .hasValidCreationTime()
-                                .createdFromBatch(),
+                                .hasValidCreationTime(),
                         getTokenNftInfo(NFT, 2)
                                 .hasSerialNum(2)
                                 .hasMetadata(metadata(MEMO_1))
                                 .hasTokenID(NFT)
                                 .hasAccountID(TOKEN_TREASURY)
-                                .hasValidCreationTime()
-                                .createdFromBatch(),
+                                .hasValidCreationTime(),
                         getTokenNftInfo(NFT, 3).hasCostAnswerPrecheck(INVALID_NFT_ID),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2),
                         getTokenInfo(NFT).hasTreasury(TOKEN_TREASURY).hasTotalSupply(2),
@@ -593,8 +591,7 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .hasTokenID(NFT)
                                 .hasAccountID(TOKEN_TREASURY)
                                 .hasMetadata(metadata("memo"))
-                                .hasValidCreationTime()
-                                .createdFromBatch(),
+                                .hasValidCreationTime(),
                         getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1));
     }
 
@@ -664,8 +661,7 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .hasAccountID(TOKEN_TREASURY)
                                 .hasMetadata(metadata("memo"))
                                 .hasSerialNum(1)
-                                .hasValidCreationTime()
-                                .createdFromBatch());
+                                .hasValidCreationTime());
     }
 
     @HapiTest
@@ -690,15 +686,13 @@ public class AtomicUniqueTokenManagementSpecs {
                                 .hasMetadata(metadata("memo"))
                                 .hasAccountID(TOKEN_TREASURY)
                                 .hasTokenID(NFT)
-                                .hasValidCreationTime()
-                                .createdFromBatch(),
+                                .hasValidCreationTime(),
                         getTokenNftInfo(NFT, 2)
                                 .hasSerialNum(2)
                                 .hasMetadata(metadata("memo"))
                                 .hasAccountID(TOKEN_TREASURY)
                                 .hasTokenID(NFT)
-                                .hasValidCreationTime()
-                                .createdFromBatch(),
+                                .hasValidCreationTime(),
                         getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(2));
     }
 
