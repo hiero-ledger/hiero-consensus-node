@@ -154,8 +154,8 @@ jobs:
 
       - name: Tag SDPT Passing
         run: |
-          git tag --annotate "sdpt-pass-${{ jobs.verify-tag.outputs.build-number }}" --message "Single Day Performance Test passed for build-${{ jobs.verify-tag.outputs.build-number }}"
-          git push origin "sdpt-pass-${{ jobs.verify-tag.outputs.build-number }}" --force
+          git tag --annotate "sdpt-pass-${{ needs.verify-tag.outputs.build-number }}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          git push origin "sdpt-pass-${{ needs.verify-tag.outputs.build-number }}" --force
 
   get-commit-info:
     name: Get Commit Information
