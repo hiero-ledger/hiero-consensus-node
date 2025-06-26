@@ -94,31 +94,31 @@ public class MultipleNodeConsensusResultsAssert
                 .toList();
 
         // find list
-        final Optional<NodeRoundsResult> optionalFewestNodeRoundsResult =
-                actualNodeRoundsResult.stream().min(comparingInt(NodeRoundsResult::size));
-        if (optionalFewestNodeRoundsResult.isEmpty()) {
+        final Optional<NodeRoundsResult> optionalLongestNodeRoundsResult =
+                actualNodeRoundsResult.stream().max(comparingInt(NodeRoundsResult::size));
+        if (optionalLongestNodeRoundsResult.isEmpty()) {
             // no consensus rounds collected
             return this;
         }
-        final NodeRoundsResult fewestNodeRoundsResult = optionalFewestNodeRoundsResult.get();
-        final int shortestSize = fewestNodeRoundsResult.size();
+        final NodeRoundsResult longestNodeRoundsResult = optionalLongestNodeRoundsResult.get();
 
         for (final NodeRoundsResult roundsFromNodeToAssert : actualNodeRoundsResult) {
-            if (roundsFromNodeToAssert.nodeId().equals(fewestNodeRoundsResult.nodeId())) {
+            if (roundsFromNodeToAssert.nodeId().equals(longestNodeRoundsResult.nodeId())) {
                 continue;
             }
 
-            // Get the same rounds from this node as create by the node with the fewest rounds and compare them
-            final List<ConsensusRound> commonNodeRounds =
-                    roundsFromNodeToAssert.rounds().subList(0, shortestSize);
-            Assertions.assertThat(commonNodeRounds)
+            // Get the same rounds from this node as create by the node with the most rounds and compare them
+            final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
+            final List<ConsensusRound> expectedRounds =
+                    longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
+            Assertions.assertThat(roundsToAssert)
                     .withFailMessage(
                             "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            fewestNodeRoundsResult.nodeId(),
+                            longestNodeRoundsResult.nodeId(),
                             roundsFromNodeToAssert.nodeId(),
-                            commonNodeRounds,
-                            fewestNodeRoundsResult.rounds())
-                    .containsExactlyElementsOf(fewestNodeRoundsResult.rounds());
+                            roundsToAssert,
+                            longestNodeRoundsResult.rounds())
+                    .containsExactlyElementsOf(expectedRounds);
         }
 
         return this;
