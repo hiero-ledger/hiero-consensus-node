@@ -205,6 +205,12 @@ public class AtomicHip17UnhappyAccountsSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> test6() { // random txn in the batch with no setup
+        return hapiTest(flattened(
+                atomicBatch(cryptoCreate("test").batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR)));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> uniqueTokenOperationsFailForKycRevokedAccount() {
         return hapiTest(flattened(
                 setup(),
