@@ -106,6 +106,7 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -250,6 +251,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Mock
     private DeduplicationCache deduplicationCache;
+
+    @Mock
+    private PreHandleWorkflow preHandleWorkflow;
 
     private ServiceApiFactory apiFactory;
     private ReadableStoreFactory readableStoreFactory;
@@ -419,14 +423,15 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             EMPTY_METADATA,
             transactionChecker,
             List.of(result),
+            preHandleWorkflow,
             USER
         };
 
         final var constructor = DispatchHandleContext.class.getConstructors()[0];
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
-            // Skip signatureMapSize, payerKey, and preHandleResults
-            if (index == 2 || index == 4 || index == 24) {
+            // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
+            if (index == 2 || index == 4 || index == 24 || index == 25) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -822,6 +827,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 EMPTY_METADATA,
                 transactionChecker,
                 results,
+                preHandleWorkflow,
                 category);
     }
 
