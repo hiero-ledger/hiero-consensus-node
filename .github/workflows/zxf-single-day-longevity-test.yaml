@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Node: Performance Tests"
+name: "ZXF: [CITR] Single Day Longevity Tests"
 on:
-  schedule:
-    - cron: "0 0 * * *"
   workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        default: "main"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
+        type: string
 
 defaults:
   run:
@@ -52,7 +56,7 @@ jobs:
       - name: Verify Workflow Parameters
         id: parameters
         run: |
-          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          BRANCH_NAME="${{ input.ref }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BRANCH_NAME_SAFE="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
