@@ -103,7 +103,6 @@ public class AdditionalHip1064Tests {
     /**
      * Test node activity at boundary conditions.
      * This tests nodes with very low activity but not completely inactive.
-     * Based on analysis, nodes need to miss ALL rounds to be considered inactive.
      */
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(1)
@@ -298,46 +297,6 @@ public class AdditionalHip1064Tests {
     /**
      * Test behavior when node reward account has exactly zero balance.
      */
-    //    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    //    @Order(4)
-    //    final Stream<DynamicTest> noRewardsWhenNodeRewardAccountIsEmpty() {
-    //        return hapiTest(
-    //                nodeUpdate("0").declineReward(true),
-    //                waitUntilStartOfNextStakingPeriod(1),
-    //                cryptoCreate(CIVILIAN_PAYER),
-    //                fileCreate("something")
-    //                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    //                        .payingWith(CIVILIAN_PAYER)
-    //                        .via("notFree"),
-    //                sleepForBlockPeriod(),
-    //                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-    //
-    //                // Set up active nodes
-    //                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-    //                    return nodeRewards
-    //                            .copyBuilder()
-    //                            .nodeActivities(NodeActivity.newBuilder()
-    //                                    .nodeId(1)
-    //                                    .numMissedJudgeRounds(0) // Active node
-    //                                    .build())
-    //                            .build();
-    //                }),
-    //
-    //                // Set zero balance to node reward account AFTER fees have accumulated
-    //                EmbeddedVerbs.mutateAccount(NODE_REWARD, account -> account.tinybarBalance(0)),
-    //                getAccountBalance(NODE_REWARD).hasTinyBars(0L).logged(),
-    //                waitUntilStartOfNextStakingPeriod(1),
-    //
-    //                // Expect no rewards due to zero balance
-    //                recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
-    //                        (spec, records) -> Assertions.fail("Should not have any records with 801 being debited!"),
-    //                        1,
-    //                        (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-    //                                .anyMatch(aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() <
-    // 0L))),
-    //                cryptoCreate("nobody").payingWith(GENESIS));
-    //    }
-
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(4)
     final Stream<DynamicTest> noRewardsWhenAccountHasInsufficientBalance() {
@@ -408,6 +367,7 @@ public class AdditionalHip1064Tests {
                     }
                 }));
     }
+
     /**
      * Test that when minNodeRewardBalance is set to 0, the fee redirection behavior.
      * Using the correct property name that exists in the system.
@@ -959,7 +919,7 @@ public class AdditionalHip1064Tests {
                         .exposingBalanceTo(finalBalance::set)
                         .logged(),
 
-                // 🎯 EXPLICIT ASSERTIONS - Test the core hypothesis
+                // EXPLICIT ASSERTIONS - Test the core hypothesis
                 doingContextual(spec -> {
                     long rewardsPaid = initialBalance.get() - finalBalance.get();
                     long expectedTotalRewards = 2 * expectedNodeRewards.get(); // Only 2 nodes should get rewards
@@ -976,7 +936,7 @@ public class AdditionalHip1064Tests {
                     System.out.println("Expected per-node reward: " + expectedNodeRewards.get());
                     System.out.println("Expected total for 2 active nodes: " + expectedTotalRewards);
 
-                    // 🎯 CORE ASSERTION: Some rewards should have been paid
+                    // CORE ASSERTION: Some rewards should have been paid
                     assertTrue(rewardsPaid > 0, "Some rewards should have been paid to active nodes (nodes 1 and 3)");
 
                     // 🎯 CORE ASSERTION: Should be approximately 2x per-node reward
@@ -987,7 +947,7 @@ public class AdditionalHip1064Tests {
                             "Expected rewards for 2 nodes (" + expectedTotalRewards + ") but got " + rewardsPaid
                                     + " (tolerance: " + tolerance + ")");
 
-                    // 🎯 CRITICAL ASSERTION: Verify it's NOT paying all 3 nodes
+                    // CRITICAL ASSERTION: Verify it's NOT paying all 3 nodes
                     // This proves that 0% active nodes (node 2) don't get rewards
                     long rewardsForThreeNodes = 3 * expectedNodeRewards.get();
                     if (Math.abs(rewardsForThreeNodes) <= initialBalance.get()) {
@@ -1004,7 +964,7 @@ public class AdditionalHip1064Tests {
                     System.out.println("✓ This proves the activity threshold is working correctly");
                 }),
 
-                // 🎯 OPTIONAL: Additional verification by checking individual node balances
+                // OPTIONAL: Additional verification by checking individual node balances
                 doingContextual(spec -> {
                     System.out.println("=== INDIVIDUAL NODE BALANCE VERIFICATION ===");
                 }),
