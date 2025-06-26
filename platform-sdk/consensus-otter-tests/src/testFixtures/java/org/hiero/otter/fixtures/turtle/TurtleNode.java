@@ -40,7 +40,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
+import java.util.Collections;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -53,8 +53,6 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
-import org.hiero.otter.fixtures.logging.StructuredLog;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
@@ -288,8 +286,7 @@ public class TurtleNode implements Node, TurtleTimeManager.TimeTickReceiver {
     @NonNull
     @Override
     public SingleNodeLogResult getLogResult() {
-        final List<StructuredLog> logs = InMemoryAppender.getLogs(selfId.id());
-        return new SingleNodeLogResultImpl(selfId, logs);
+        return new SingleNodeLogResultImpl(selfId, Collections.emptySet());
     }
 
     /**
