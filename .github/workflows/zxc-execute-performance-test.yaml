@@ -247,6 +247,7 @@ jobs:
             CryptoTransferLoadTest) run_NLG_Time=${run_NLG_Time3};;
             HCSLoadTest)            run_NLG_Time=${run_NLG_Time3};;
             TokenTransferLoadTest)  run_NLG_Time=${run_NLG_Time3};;
+            SmartContractLoadTest)  run_NLG_Time=${run_NLG_Time3};;
           esac
 
           echo \
