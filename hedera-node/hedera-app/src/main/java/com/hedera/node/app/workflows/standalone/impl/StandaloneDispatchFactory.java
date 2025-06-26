@@ -159,6 +159,7 @@ public class StandaloneDispatchFactory {
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
         final var blockRecordInfo = BlockRecordInfoImpl.from(state);
+
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -185,6 +186,7 @@ public class StandaloneDispatchFactory {
                 EMPTY_METADATA,
                 transactionChecker,
                 preHandleResult.innerResults(),
+                preHandleWorkflow,
                 HandleContext.TransactionCategory.USER);
         final var fees = transactionDispatcher.dispatchComputeFees(dispatchHandleContext);
         return new RecordDispatch(
