@@ -42,7 +42,7 @@ testModuleInfo {
 tasks.register<Test>("testTurtle") {
     useJUnitPlatform()
     testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = configurations.testRuntimeClasspath.get()
+    classpath = sourceSets.test.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -64,7 +64,7 @@ tasks.register<Test>("testContainer") {
 
     useJUnitPlatform()
     testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = configurations.testRuntimeClasspath.get()
+    classpath = sourceSets.test.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
