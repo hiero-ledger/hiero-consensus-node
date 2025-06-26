@@ -35,7 +35,6 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -45,7 +44,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
-import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.roster.RosterService;
@@ -57,6 +55,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.ids.ReadableEntityIdStore;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -486,17 +485,17 @@ public class SystemTransactions {
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
-        if (rosterStore.isTransplantInProgress()) {
+        final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
+        log.info(
+                "Attempting to dispatch transplant updates for round {}, isTransplantInProgress{}, network{}",
+                currentRoundNum - 1,
+                rosterStore.isTransplantInProgress(),
+                network);
+        if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates");
-
-            final var network = startupNetworks.overrideNetworkFor(currentRoundNum, configProvider.getConfiguration());
-            if (network.isEmpty()) {
-                log.warn("No override network found for round {}, not dispatching node updates", currentRoundNum);
-                return false;
-            }
             final var overrideNodes = network.get().nodeMetadata().stream()
-                    .map(NodeMetadata::nodeOrThrow)
-                    .map(Node::nodeId)
+                    .map(NodeMetadata::rosterEntry)
+                    .map(RosterEntry::nodeId)
                     .toList();
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
@@ -533,9 +532,8 @@ public class SystemTransactions {
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
-            final var numNodes = readableStoreFactory
-                    .getStore(ReadableEntityIdStoreImpl.class)
-                    .numNodes();
+            final var numNodes =
+                    readableStoreFactory.getStore(ReadableEntityIdStore.class).numNodes();
             for (var i = 0; i < numNodes; i++) {
                 final long nodeId = i;
                 if (nodeStore.get(i) != null && !overrideNodes.contains(nodeId)) {
