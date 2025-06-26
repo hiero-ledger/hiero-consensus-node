@@ -508,6 +508,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             logger.debug("[{}] Connection successfully closed", this);
         } catch (final RuntimeException e) {
             logger.warn("[{}] Error occurred while attempting to close connection", this);
+        } finally {
+            blockSendTimestamps.clear();
         }
     }
 
