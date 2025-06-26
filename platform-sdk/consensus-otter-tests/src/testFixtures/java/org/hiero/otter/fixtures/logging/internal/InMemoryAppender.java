@@ -98,7 +98,7 @@ public class InMemoryAppender extends AbstractAppender {
             return null;
         }
         try {
-            return NodeId.of(Long.parseLong(value));
+            return NodeId.newBuilder().id(Long.parseLong(value)).build();
         } catch (final NumberFormatException e) {
             return null;
         }

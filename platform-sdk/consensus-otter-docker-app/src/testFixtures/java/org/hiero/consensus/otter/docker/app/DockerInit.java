@@ -14,8 +14,8 @@ import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
-import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Boots a {@link DockerApp} inside a minimal gRPC wrapper.
@@ -107,8 +107,10 @@ public final class DockerInit {
                         rounds -> responseObserver.onNext(EventMessageFactory.fromConsensusRounds(rounds)));
 
                 // Forward StructuredLog entries via gRPC using InMemoryAppender listener
-                InMemoryAppender.addListener(
-                        (StructuredLog log) -> responseObserver.onNext(EventMessageFactory.fromStructuredLog(log)));
+                InMemoryAppender.subscribe(log -> {
+                    responseObserver.onNext(EventMessageFactory.fromStructuredLog(log));
+                    return SubscriberAction.CONTINUE;
+                });
 
                 app.start();
             } catch (final Exception e) {

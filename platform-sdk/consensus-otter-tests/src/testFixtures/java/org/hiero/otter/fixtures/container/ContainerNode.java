@@ -16,6 +16,7 @@ import io.grpc.stub.StreamObserver;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.Level;
@@ -164,7 +165,7 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     @NonNull
     public SingleNodeLogResult getLogResult() {
-        return new SingleNodeLogResultImpl(selfId, List.copyOf(receivedLogs));
+        return new SingleNodeLogResultImpl(selfId, Set.of());
     }
 
     /**

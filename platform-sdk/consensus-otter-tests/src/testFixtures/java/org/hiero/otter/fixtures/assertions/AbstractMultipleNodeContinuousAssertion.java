@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.assertj.core.api.AbstractAssert;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -15,7 +15,7 @@ import org.hiero.otter.fixtures.Node;
  * @param <SELF>   the type of the concrete assertion class
  * @param <ACTUAL> the type of the actual object being asserted
  */
-@SuppressWarnings("java:S119") // java:S119 enforces one letter type names
+@SuppressWarnings({"unused", "java:S119"}) // java:S119 enforces one letter type names
 public abstract class AbstractMultipleNodeContinuousAssertion<SELF extends AbstractAssert<SELF, ACTUAL>, ACTUAL>
         extends AbstractContinuousAssertion<SELF, ACTUAL> {
 
@@ -53,7 +53,7 @@ public abstract class AbstractMultipleNodeContinuousAssertion<SELF extends Abstr
      */
     @NonNull
     public SELF startSuppressingNode(@NonNull final Node node) {
-        return startSuppressingNode(node.getSelfId());
+        return startSuppressingNode(node.selfId());
     }
 
     /**
@@ -77,6 +77,6 @@ public abstract class AbstractMultipleNodeContinuousAssertion<SELF extends Abstr
      */
     @NonNull
     public SELF stopSuppressingNode(@NonNull final Node node) {
-        return stopSuppressingNode(node.getSelfId());
+        return stopSuppressingNode(node.selfId());
     }
 }

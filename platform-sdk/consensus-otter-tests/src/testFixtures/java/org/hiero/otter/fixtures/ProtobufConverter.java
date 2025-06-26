@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -649,7 +650,7 @@ public class ProtobufConverter {
                 sourceLog.getLoggerName(),
                 sourceLog.getThread(),
                 MarkerManager.getMarker(sourceLog.getMarker()),
-                sourceLog.getNodeId());
+                NodeId.newBuilder().id(sourceLog.getNodeId()).build());
     }
 
     /**
@@ -668,7 +669,7 @@ public class ProtobufConverter {
                 .setThread(sourceLog.threadName())
                 .setMessage(sourceLog.message())
                 .setMarker((sourceLog.marker() != null ? sourceLog.marker().toString() : null))
-                .setNodeId(sourceLog.nodeId())
+                .setNodeId(sourceLog.nodeId().id())
                 .build();
     }
 }
