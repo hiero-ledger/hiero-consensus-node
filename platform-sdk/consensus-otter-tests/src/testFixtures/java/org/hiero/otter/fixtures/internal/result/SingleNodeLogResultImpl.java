@@ -57,7 +57,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     public List<StructuredLog> logs() {
         return InMemoryAppender.getLogs(nodeId).stream()
                 .skip(startIndex)
-                .filter(logEntry -> !suppressedLogMarkers.contains(logEntry.marker()))
+                .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))
                 .toList();
     }
 
