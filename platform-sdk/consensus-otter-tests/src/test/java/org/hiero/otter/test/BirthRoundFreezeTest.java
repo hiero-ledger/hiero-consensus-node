@@ -4,7 +4,6 @@ package org.hiero.otter.test;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
-import static org.hiero.otter.test.BirthRoundFreezeTestUtils.assertBirthRoundsBeforeAndAfterFreeze;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -72,11 +71,9 @@ public class BirthRoundFreezeTest {
         assertThat(network.getConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)
                 .roundsInCommonAreEqual()
-                .hasMaxDifferenceInLastRoundNum(withPercentage(5));
+                .hasMaxDifferenceInLastRoundNum(withPercentage(5))
+                .haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
 
-        assertBirthRoundsBeforeAndAfterFreeze(
-                network.getNodes().getFirst().getConsensusResult().consensusRounds(),
-                postFreezeShutdownTime,
-                freezeRound);
+        assertThat(network.getPcesResults()).haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
     }
 }
