@@ -242,7 +242,7 @@ public class ContainerNode extends AbstractNode implements Node {
                 public void onNext(final EventMessage value) {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
-                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPbj(value.getLogEntry()));
+                        case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
                         case CONSENSUS_ROUNDS ->
                             resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
                         default -> {

@@ -641,7 +641,7 @@ public class ProtobufConverter {
      * @return the converted StructuredLog
      */
     @NonNull
-    public static org.hiero.otter.fixtures.logging.StructuredLog toPbj(
+    public static org.hiero.otter.fixtures.logging.StructuredLog toPlatform(
             @NonNull final org.hiero.otter.fixtures.container.proto.LogEntry sourceLog) {
         return new org.hiero.otter.fixtures.logging.StructuredLog(
                 sourceLog.getTimestamp(),

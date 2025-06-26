@@ -14,11 +14,9 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.junit.jupiter.api.Disabled;
 
 public class HappyPathTest {
 
-    @Disabled
     @OtterTest
     void testHappyPath(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
