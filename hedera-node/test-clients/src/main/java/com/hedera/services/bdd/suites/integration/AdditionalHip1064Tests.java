@@ -1016,9 +1016,19 @@ public class AdditionalHip1064Tests {
 
                     System.out.println("=== END CONFIGURATION DEBUG ===");
                 }),
+                // Debug: Verify we're above the minimum threshold
+                doingContextual(spec -> {
+                    String minBalance = spec.startupProperties().get("nodes.minNodeRewardBalance");
+                    System.out.println("=== BALANCE THRESHOLD CHECK ===");
+                    System.out.println("Required minimum balance: " + minBalance + " tinybars (1M HBAR)");
+                    System.out.println("Our funded amount: " + (2000000L * ONE_HBAR) + " tinybars (2M HBAR)");
+                    System.out.println("We're well above the minimum threshold");
+                    System.out.println(
+                            "Activity threshold: " + spec.startupProperties().get("nodes.activeRoundsPercent") + "%");
+                }),
                 // EXPLICITLY SET ACTIVITY THRESHOLD TO 30% (below node 1's 33% activity)
                 overriding("nodes.activeRoundsPercent", "30"), // Node with 33% activity should get rewards
-                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                cryptoTransfer(TokenMovement.movingHbar(2000000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 waitUntilStartOfNextStakingPeriod(1),
                 sleepForBlockPeriod(),
