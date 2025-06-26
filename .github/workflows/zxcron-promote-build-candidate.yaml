@@ -175,6 +175,17 @@ jobs:
             "disable-notifications": "false"
             }'
 
+      - name: "Trigger ZXF: [CITR] Single Day Longevity Test"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/flow-node-performance-tests.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            }'
+
   report-promotion:
     name: Report Build Promotion
     runs-on: hiero-network-node-linux-medium
