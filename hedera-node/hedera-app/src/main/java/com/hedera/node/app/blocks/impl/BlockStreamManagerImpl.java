@@ -37,6 +37,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -51,6 +52,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
@@ -122,9 +124,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long blockNumber;
     private int eventIndex = 0;
     private final Map<Hash, Integer> eventIndexInBlock = new HashMap<>();
-
-    // Set to the round number of the last round handled before entering a freeze period
-    private long freezeRoundNumber = -1;
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private long lastRoundOfPrevBlock;
     private Bytes lastBlockHash;
@@ -271,11 +270,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
 
-        if (platformStateFacade.isFreezeRound(state, round)) {
-            // Track freeze round numbers because they always end a block
-            freezeRoundNumber = round.getRoundNum();
-        }
-
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
@@ -393,7 +387,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
-        final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
+        final var storeFactory = new ReadableStoreFactory(state);
+        final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
+        final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
+        final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
@@ -474,11 +471,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
+
             // Special case when signing with hinTS and this is the freeze round; we have to wait
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
-                // In case the id of the next hinTS construction changed since a block ended
+                // In case the id of the next hinTS construction changed since a block endede
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
                 final var schemeId = blockHashSigner.schemeId();
@@ -635,7 +633,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return requireNonNull(blockStreamInfoState.get());
     }
 
-    private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
+    private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {
         if (fatalShutdownFuture != null) {
             return true;
         }

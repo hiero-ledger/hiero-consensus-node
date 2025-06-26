@@ -295,8 +295,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                         QueuePushChange.ValueOneOfType.TRANSACTION_RECEIPT_ENTRIES_ELEMENT,
                         transactionReceiptEntriesElement);
             }
-            default -> throw new IllegalArgumentException(
-                    "Unknown value type " + value.getClass().getName());
+            default ->
+                throw new IllegalArgumentException(
+                        "Unknown value type " + value.getClass().getName());
         }
     }
 
@@ -362,8 +363,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
             }
-            default -> throw new IllegalArgumentException(
-                    "Unknown value type " + value.getClass().getName());
+            default ->
+                throw new IllegalArgumentException(
+                        "Unknown value type " + value.getClass().getName());
         }
     }
 }

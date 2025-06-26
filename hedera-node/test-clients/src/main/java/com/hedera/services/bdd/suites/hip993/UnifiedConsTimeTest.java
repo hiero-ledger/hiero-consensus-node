@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingVersion;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -68,7 +67,7 @@ public class UnifiedConsTimeTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
                         .memo("From a better time")
                         .setNode(4)
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PAST))
+                        .withSubmissionStrategy(usingEventBirthRound(0))
                         .via("preUpgrade")
                         .hasAnyStatusAtAll(),
                 getTxnRecord("preUpgrade")
