@@ -395,7 +395,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCallUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
+                .contractCall(new CallContractOutput(EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(
                 MEMO,
@@ -440,7 +440,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCallUsesResultOutputAndTraceLogsIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
+                .contractCall(new CallContractOutput(EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(
                 MEMO,
@@ -486,7 +486,7 @@ class BlockItemsTranslatorTest {
     @Test
     void contractCreateUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCreate(new CreateContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
+                .contractCreate(new CreateContractOutput(EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new ContractOpContext(
                 MEMO,
@@ -533,7 +533,6 @@ class BlockItemsTranslatorTest {
         final var output = TransactionOutput.newBuilder()
                 .ethereumCall(EthereumOutput.newBuilder()
                         .ethereumHash(ETH_HASH)
-                        .ethereumCallResult(FUNCTION_RESULT)
                         .evmCallTransactionResult(EVM_TRANSACTION_RESULT)
                         .build())
                 .build();
@@ -583,7 +582,6 @@ class BlockItemsTranslatorTest {
         final var output = TransactionOutput.newBuilder()
                 .ethereumCall(EthereumOutput.newBuilder()
                         .ethereumHash(ETH_HASH)
-                        .ethereumCreateResult(FUNCTION_RESULT)
                         .evmCreateTransactionResult(EVM_TRANSACTION_RESULT)
                         .build())
                 .build();
@@ -631,7 +629,7 @@ class BlockItemsTranslatorTest {
     @Test
     void cryptoTransferUsesSynthResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
-                .contractCall(new CallContractOutput(FUNCTION_RESULT, EVM_TRANSACTION_RESULT))
+                .contractCall(new CallContractOutput(EVM_TRANSACTION_RESULT))
                 .build();
         final var context = new BaseOpContext(MEMO, RATES, TXN_ID, Transaction.DEFAULT, CRYPTO_TRANSFER);
 

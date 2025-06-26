@@ -13,6 +13,7 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 
 /**
@@ -24,6 +25,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
+            @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,

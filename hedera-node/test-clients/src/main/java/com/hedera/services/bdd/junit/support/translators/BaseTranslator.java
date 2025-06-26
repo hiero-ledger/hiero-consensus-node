@@ -22,6 +22,7 @@ import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitAddressOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.scheduledTxnIdFrom;
 import static com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator.EXCHANGE_RATES_FILE_NUM;
 import static java.util.Collections.emptyList;
@@ -88,6 +89,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.log.Log;
 
 /**
@@ -96,6 +98,9 @@ import org.hyperledger.besu.evm.log.Log;
  */
 public class BaseTranslator {
     private static final Logger log = LogManager.getLogger(BaseTranslator.class);
+
+    private static final org.apache.tuweni.bytes.Bytes EIP_1014_PREFIX =
+            org.apache.tuweni.bytes.Bytes.fromHexString("0xFF");
 
     private static final Comparator<ContractID> CONTRACT_ID_NUM_COMPARATOR =
             Comparator.comparingLong(ContractID::contractNumOrThrow);
@@ -113,8 +118,11 @@ public class BaseTranslator {
     private long highestKnownNodeId =
             -1L; // Default to negative value so that we allow for nodeId with 0 value to be created
 
+    private boolean externalizeNonces = true;
+
     private ExchangeRateSet activeRates;
     private final Map<Long, Long> nonces = new HashMap<>();
+    private final Map<Long, Address> evmAddresses = new HashMap<>();
     private final Map<TokenID, Long> totalSupplies = new HashMap<>();
     private final Map<TokenID, TokenType> tokenTypes = new HashMap<>();
     private final Map<TransactionID, ScheduleID> scheduleRefs = new HashMap<>();
@@ -375,6 +383,7 @@ public class BaseTranslator {
 
     /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
+     *
      * @param resultBuilder the builder to populate with created IDs
      * @param stateChanges the state changes to process
      */
@@ -385,8 +394,10 @@ public class BaseTranslator {
         requireNonNull(resultBuilder);
         requireNonNull(stateChanges);
         requireNonNull(contractId);
-        resultBuilder.evmAddress(
-                Bytes.wrap(ConversionUtils.explicitAddressOf(findContractOrThrow(contractId, stateChanges))));
+        final var createdContract = findContractOrThrow(contractId, stateChanges);
+        System.out.println(createdContract);
+        final var evmAddress = Bytes.wrap(explicitAddressOf(createdContract));
+        resultBuilder.evmAddress(evmAddress);
     }
 
     public void addSignerNonce(
@@ -397,8 +408,12 @@ public class BaseTranslator {
             findAccount(senderId, remainingStateChanges)
                     .ifPresentOrElse(
                             senderAccount -> derivedBuilder.signerNonce(senderAccount.ethereumNonce()),
-                            () -> derivedBuilder.signerNonce(nonces.get(senderId.accountNumOrThrow())));
+                            () -> derivedBuilder.signerNonce(nonces.get(senderId.accountNumOrElse(Long.MIN_VALUE))));
         }
+    }
+
+    public void toggleNoncesExternalization(final boolean externalizeNonces) {
+        this.externalizeNonces = externalizeNonces;
     }
 
     /**
@@ -411,6 +426,9 @@ public class BaseTranslator {
             @NonNull final List<StateChange> stateChanges) {
         requireNonNull(resultBuilder);
         requireNonNull(stateChanges);
+        if (!externalizeNonces) {
+            return;
+        }
         final List<ContractNonceInfo> changedNonces = new ArrayList<>();
         stateChanges.stream()
                 .filter(StateChange::hasMapUpdate)
@@ -420,7 +438,8 @@ public class BaseTranslator {
                 .filter(Account::smartContract)
                 .forEach(contract -> {
                     final var contractId = contract.accountIdOrThrow();
-                    if (contract.ethereumNonce() != nonces.getOrDefault(contractId.accountNumOrThrow(), 0L)) {
+                    if (!contract.deleted()
+                            && contract.ethereumNonce() != nonces.getOrDefault(contractId.accountNumOrThrow(), 0L)) {
                         changedNonces.add(new ContractNonceInfo(
                                 ContractID.newBuilder()
                                         .shardNum(contractId.shardNum())
@@ -747,7 +766,6 @@ public class BaseTranslator {
                 change.mapUpdateOrThrow().valueOrThrow().fileValueOrThrow().contents();
         try {
             activeRates = ExchangeRateSet.PROTOBUF.parse(contents);
-            log.info("Updated active exchange rates to {}", activeRates);
         } catch (ParseException e) {
             throw new IllegalStateException("Rates file updated with unparseable contents", e);
         }
@@ -835,6 +853,8 @@ public class BaseTranslator {
                         nextCreatedNums
                                 .computeIfAbsent(ACCOUNT, ignore -> new LinkedList<>())
                                 .add(num);
+                        final var account = mapUpdate.valueOrThrow().accountValueOrThrow();
+                        evmAddresses.put(num, ConversionUtils.priorityAddressOf(account));
                     }
                 } else if (key.hasEntityNumberKey()) {
                     final var value = mapUpdate.valueOrThrow();

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -17,11 +16,9 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
-import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.TranslationContext;
@@ -228,7 +225,7 @@ public class BlockItemsTranslator {
                 ? result.internalCallContextOrThrow()
                 : context instanceof ContractOpContext contractOpContext ? contractOpContext.ethCallContext() : null;
         if (callContext != null) {
-            builder.gasUsed(callContext.gas()).amount(callContext.value()).functionParameters(callContext.callData());
+            builder.gas(callContext.gas()).amount(callContext.value()).functionParameters(callContext.callData());
         }
         if (context instanceof ContractOpContext contractContext) {
             builder.signerNonce(contractContext.senderNonce());
@@ -251,25 +248,6 @@ public class BlockItemsTranslator {
             attachLogsTo(builder, logs);
         }
         return builder.build();
-    }
-
-    private Account findContractOrThrow(
-            @NonNull final ContractID contractId, @NonNull final List<StateChange> stateChanges) {
-        return stateChanges.stream()
-                .filter(change -> change.stateId() == STATE_ID_ACCOUNTS.protoOrdinal())
-                .filter(StateChange::hasMapUpdate)
-                .map(StateChange::mapUpdateOrThrow)
-                .filter(change -> change.keyOrThrow().hasAccountIdKey())
-                .filter(change -> change.valueOrThrow().accountValueOrThrow().smartContract())
-                .map(change -> change.valueOrThrow().accountValueOrThrow())
-                .filter(contract -> {
-                    final var accountId = contract.accountIdOrThrow();
-                    return contractId.shardNum() == accountId.shardNum()
-                            && contractId.realmNum() == accountId.realmNum()
-                            && contractId.contractNumOrThrow().longValue() == accountId.accountNumOrThrow();
-                })
-                .findFirst()
-                .orElseThrow();
     }
 
     private void attachLogsTo(
