@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -43,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -674,6 +676,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testHandleAcknowledgement_withConsecutiveHighLatency() {
         openConnectionAndResetMocks();
+        connection.updateConnectionState(ConnectionState.ACTIVE);
 
         final ConcurrentMap<Long, Instant> blockSendTimestamps =
                 (ConcurrentMap<Long, Instant>) BLOCK_SEND_TIMESTAMPS_HANDLE.get(connection);
@@ -692,6 +695,12 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(connectionManager)
                 .rescheduleAndSelectNewNode(eq(connection), eq(BlockNodeConnection.LONGER_RETRY_DELAY));
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+        verify(requestObserver).onNext(requestCaptor.capture());
+        assertEquals(
+                PublishStreamRequest.EndStream.Code.TIMEOUT,
+                requestCaptor.getValue().endStream().endCode());
+
         verify(requestObserver).onCompleted();
 
         assertThat(blockSendTimestamps).isEmpty();

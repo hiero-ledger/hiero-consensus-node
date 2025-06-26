@@ -254,6 +254,17 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             latencyMs);
 
                     consecutiveHighLatencyEvents.set(0);
+
+                    final PublishStreamRequest endStreamTimeout = PublishStreamRequest.newBuilder()
+                            .endStream(PublishStreamRequest.EndStream.newBuilder()
+                                    .endCode(PublishStreamRequest.EndStream.Code.TIMEOUT)
+                                    .earliestBlockNumber(blockBufferService.getEarliestAvailableBlockNumber())
+                                    .latestBlockNumber(blockBufferService.getHighestAckedBlockNumber())
+                                    .build())
+                            .build();
+
+                    sendRequest(endStreamTimeout);
+
                     close();
                     blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
                 }
