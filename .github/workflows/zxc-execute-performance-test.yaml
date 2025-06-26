@@ -35,7 +35,7 @@ on:
         type: string
       nlg-time:
         required: true
-        default: "1m"
+        default: "1"
         description: "Test execution time"
         type: string
       workspace:
@@ -252,11 +252,11 @@ jobs:
           echo \
           kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
-          ${NLGargs} -tt ${run_NLG_Time} > client.log 2>&1 &"
+          ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
           kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ inputs.nlg-test }} \
-          ${NLGargs} -tt ${run_NLG_Time} > client.log 2>&1 &"
+          ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
 
       - name: Wait for test completion
         run: |
