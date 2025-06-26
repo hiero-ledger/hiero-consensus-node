@@ -243,9 +243,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
 
             if (latencyMs > highLatencyThresholdMs) {
                 blockStreamMetrics.recordHighLatencyEvent(nodeAddress);
-                int highLatencyCount = consecutiveHighLatencyEvents.incrementAndGet();
-
-                if (highLatencyCount >= highLatencyEventsBeforeSwitching) {
+                final int highLatencyCount = consecutiveHighLatencyEvents.incrementAndGet();
+                if (highLatencyCount >= highLatencyEventsBeforeSwitching
+                        && !blockNodeConnectionManager.isOnlyKnownConnection(this)) {
                     logger.info(
                             "[{}] Block node has exceeded high latency threshold {} times consecutively. "
                                     + "Latest latency: {}ms. Switching to a different node.",

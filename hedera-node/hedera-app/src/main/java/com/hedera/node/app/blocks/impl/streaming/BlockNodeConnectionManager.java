@@ -299,6 +299,17 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Checks if the given connection is the only known block node connection.
+     *
+     * @param connection the connection to check
+     * @return true if the connection is the only known block node connection, else false
+     */
+    public boolean isOnlyKnownConnection(@NonNull final BlockNodeConnection connection) {
+        requireNonNull(connection);
+        return connections.size() == 1 && connections.containsKey(connection.getNodeConfig());
+    }
+
+    /**
      * Schedules a connection attempt (or retry) for the given Block Node connection
      * after the specified delay. Handles adding/removing the connection from the retry map.
      *
