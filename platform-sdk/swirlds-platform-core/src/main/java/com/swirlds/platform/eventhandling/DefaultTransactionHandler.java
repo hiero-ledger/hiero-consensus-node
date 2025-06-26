@@ -105,6 +105,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private long accumulatedHashComplexity = 0;
 
+    private long freezeRound = 0;
+
     /**
      * Constructor
      *
@@ -181,6 +183,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         if (swirldStateManager.isInFreezePeriod(consensusRound.getConsensusTimestamp())) {
             statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
+            freezeRound = consensusRound.getRoundNum();
         }
 
         handlerMetrics.recordEventsPerRound(consensusRound.getNumEvents());
@@ -253,6 +256,16 @@ public class DefaultTransactionHandler implements TransactionHandler {
                         .getRunningHash()
                         .getFutureHash()
                         .getAndRethrow();
+
+                if (freezeRound == round.getRoundNum()) {
+                    logger.info(
+                            "Last event in the freezeRound:{} is:{}",
+                            freezeRound,
+                            round.getStreamedEvents()
+                                    .getLast()
+                                    .getPlatformEvent()
+                                    .getDescriptor());
+                }
             }
 
             platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
