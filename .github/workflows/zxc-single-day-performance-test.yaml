@@ -1088,7 +1088,7 @@ jobs:
 
   performance-HCSLoadTest:
     needs: performance-NftTransferLoadTest-report
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: hiero-ledger/hiero-consensus-node/.github/workflows/zxc-execute-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -1102,7 +1102,7 @@ jobs:
 
   performance-CryptoTransferLoadTest:
     needs: performance-HCSLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: hiero-ledger/hiero-consensus-node/.github/workflows/zxc-execute-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -1116,7 +1116,7 @@ jobs:
 
   performance-HeliSwapLoadTest:
     needs: performance-CryptoTransferLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: hiero-ledger/hiero-consensus-node/.github/workflows/zxc-execute-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -1130,7 +1130,7 @@ jobs:
 
   performance-SmartContractLoadTest:
     needs: performance-HeliSwapLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    uses: hiero-ledger/hiero-consensus-node/.github/workflows/zxc-execute-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
