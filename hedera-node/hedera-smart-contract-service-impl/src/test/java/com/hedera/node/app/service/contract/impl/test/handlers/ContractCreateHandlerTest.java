@@ -119,12 +119,11 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         given(component.hederaOperations()).willReturn(hederaOperations);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        System.out.println(expectedResult);
         final var expectedOutcome =
-                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, null);
+                new CallOutcome(expectedResult, SUCCESS_RESULT.finalStatus(), null, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
+        given(recordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
 
@@ -140,10 +139,11 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(baseProxyWorldUpdater);
-        final var expectedOutcome = new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null, null);
+        final var expectedOutcome =
+                new CallOutcome(expectedResult, HALT_RESULT.finalStatus(), null, null, null, null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
-        given(recordBuilder.contractID(null)).willReturn(recordBuilder);
+        given(recordBuilder.createdContractID(null)).willReturn(recordBuilder);
         given(recordBuilder.contractCreateResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));

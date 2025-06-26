@@ -48,7 +48,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -63,6 +62,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class FrameRunnerTest {
+
+    private static final long EXPECTED_GAS_USED_NO_REFUNDS = 400000;
+
     @Mock
     private MessageFrame frame;
 
@@ -108,6 +110,13 @@ class FrameRunnerTest {
                 .build();
         given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
 
+        // Gas refund setup
+        final var nominalRefund = 500_000L;
+        final var nominalGasUsed = 500_000L;
+        final var expectedGasUsedPostRefunds = nominalGasUsed - nominalRefund / BESU_MAX_REFUND_QUOTIENT;
+        given(frame.getRemainingGas()).willReturn(GAS_LIMIT - nominalGasUsed);
+        given(frame.getGasRefund()).willReturn(nominalRefund);
+
         final var result = subject.runToCompletion(
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
 
@@ -117,12 +126,12 @@ class FrameRunnerTest {
         inOrder.verify(tracer).sanitizeTracedActions(frame);
 
         assertTrue(result.isSuccess());
-        assertEquals(expectedGasUsed(frame), result.gasUsed());
+        assertEquals(expectedGasUsedPostRefunds, result.gasUsed());
         assertEquals(List.of(BESU_LOG), result.logs());
         assertEquals(CALLED_CONTRACT_ID, result.recipientId());
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS, result.recipientEvmAddress());
 
-        assertSuccessExpectationsWith(CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, frame, result);
+        assertSuccessExpectationsWith(CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, result);
     }
 
     @Test
@@ -140,12 +149,13 @@ class FrameRunnerTest {
                 GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
 
         inOrder.verify(tracer).traceOriginAction(frame);
+        assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
         inOrder.verify(messageCallProcessor).process(childFrame, tracer);
         inOrder.verify(tracer).sanitizeTracedActions(frame);
 
         assertSuccessExpectationsWith(
-                NON_SYSTEM_CONTRACT_ID, asEvmContractId(entityIdFactory, NON_SYSTEM_LONG_ZERO_ADDRESS), frame, result);
+                NON_SYSTEM_CONTRACT_ID, asEvmContractId(entityIdFactory, NON_SYSTEM_LONG_ZERO_ADDRESS), result);
     }
 
     @Test
@@ -254,10 +264,8 @@ class FrameRunnerTest {
     private void assertSuccessExpectationsWith(
             @NonNull final ContractID expectedReceiverId,
             @NonNull final ContractID expectedReceiverAddress,
-            @NonNull final MessageFrame frame,
             @NonNull final HederaEvmTransactionResult result) {
         assertTrue(result.isSuccess());
-        assertEquals(expectedGasUsed(frame), result.gasUsed());
         assertEquals(List.of(BESU_LOG), result.logs());
         assertEquals(expectedReceiverId, result.recipientId());
         assertEquals(expectedReceiverAddress, result.recipientEvmAddress());
@@ -267,7 +275,7 @@ class FrameRunnerTest {
     private void assertFailureExpectationsWith(
             @NonNull final MessageFrame frame, @NonNull final HederaEvmTransactionResult result) {
         assertFalse(result.isSuccess());
-        assertEquals(expectedGasUsed(frame), result.gasUsed());
+        assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
         assertEquals(Bytes.EMPTY, result.output());
     }
 
@@ -305,10 +313,8 @@ class FrameRunnerTest {
                 })
                 .when(messageCallProcessor)
                 .process(childFrame, tracer);
-        given(gasCalculator.getSelfDestructRefundAmount()).willReturn(GAS_LIMIT / 32);
         given(gasCalculator.getMaxRefundQuotient()).willReturn(BESU_MAX_REFUND_QUOTIENT);
         given(frame.getRemainingGas()).willReturn(GAS_LIMIT / 2);
-        given(frame.getSelfDestructs()).willReturn(Set.of(EIP_1014_ADDRESS, NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(frame.getGasRefund()).willReturn(GAS_LIMIT / 8);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("contracts.maxRefundPercentOfGasLimit", HEDERA_MAX_REFUND_PERCENTAGE)
@@ -331,13 +337,5 @@ class FrameRunnerTest {
                 .evmAddress(Bytes.wrap(receiver.toArray()))
                 .build();
         given(childFrame.getMessageFrameStack()).willReturn(messageFrameStack);
-    }
-
-    private long expectedGasUsed(@NonNull final MessageFrame frame) {
-        var nominalUsage = GAS_LIMIT - frame.getRemainingGas();
-        final var selfDestructRefund = gasCalculator.getSelfDestructRefundAmount()
-                * Math.min(frame.getSelfDestructs().size(), nominalUsage / gasCalculator.getMaxRefundQuotient());
-        nominalUsage -= (selfDestructRefund + frame.getGasRefund());
-        return Math.max(nominalUsage, GAS_LIMIT - GAS_LIMIT * HEDERA_MAX_REFUND_PERCENTAGE / 100);
     }
 }

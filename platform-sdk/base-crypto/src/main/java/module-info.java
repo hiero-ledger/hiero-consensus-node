@@ -22,7 +22,7 @@ module org.hiero.base.crypto {
     requires transitive com.swirlds.logging;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
-    requires transitive lazysodium.java;
+    requires transitive com.goterl.lazysodium;
     requires com.swirlds.base;
     requires com.sun.jna;
     requires org.apache.logging.log4j;

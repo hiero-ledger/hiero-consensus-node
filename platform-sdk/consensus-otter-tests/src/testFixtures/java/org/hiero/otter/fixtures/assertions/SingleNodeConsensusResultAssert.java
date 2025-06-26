@@ -12,7 +12,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 /**
  * Assertions for {@link SingleNodeConsensusResult}.
  */
-@SuppressWarnings("UnusedReturnValue")
+@SuppressWarnings({"UnusedReturnValue", "unused"})
 public class SingleNodeConsensusResultAssert
         extends AbstractAssert<SingleNodeConsensusResultAssert, SingleNodeConsensusResult> {
 
