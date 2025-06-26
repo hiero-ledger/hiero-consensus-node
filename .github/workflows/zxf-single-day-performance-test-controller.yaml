@@ -149,6 +149,9 @@ jobs:
   #      add-settings:  "${{ inputs.add-settings }}"
   #      crypto-bench-merkle-db-java-args:    "${{ inputs.crypto-bench-merkle-db-java-args }}"
   #      crypto-bench-merkle-db-test-params:  "${{ inputs.crypto-bench-merkle-db-test-params }}"
+  #    secrets:
+  #      slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}"
+  #      nlg-access-token: ${{ secrets.CITR_NLG_ACCESS_TOKEN }}
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
