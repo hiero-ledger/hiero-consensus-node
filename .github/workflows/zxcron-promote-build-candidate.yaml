@@ -10,6 +10,7 @@ permissions:
   actions: write
   contents: write
   statuses: write
+  id-token: write
 
 defaults:
   run:
