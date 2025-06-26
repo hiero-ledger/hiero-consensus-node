@@ -990,6 +990,32 @@ public class AdditionalHip1064Tests {
         final AtomicLong finalBalance = new AtomicLong(0);
 
         return hapiTest(
+                doingContextual(spec -> {
+                    System.out.println("=== COMPLETE CI CONFIGURATION DEBUG ===");
+
+                    // Check all reward-related properties
+                    String[] rewardProps = {
+                        "nodes.nodeRewardsEnabled",
+                        "nodes.activeRoundsPercent",
+                        "nodes.targetYearlyNodeRewardsUsd",
+                        "nodes.numPeriodsToTargetUsd",
+                        "nodes.adjustNodeFees",
+                        "nodes.preserveMinNodeRewardBalance",
+                        "nodes.minNodeRewardBalance",
+                        "nodes.minPerPeriodNodeRewardUsd"
+                    };
+
+                    for (String prop : rewardProps) {
+                        try {
+                            String value = spec.startupProperties().get(prop);
+                            System.out.println(prop + ": " + (value != null ? value : "NOT SET"));
+                        } catch (Exception e) {
+                            System.out.println(prop + ": ERROR - " + e.getMessage());
+                        }
+                    }
+
+                    System.out.println("=== END CONFIGURATION DEBUG ===");
+                }),
                 // EXPLICITLY SET ACTIVITY THRESHOLD TO 30% (below node 1's 33% activity)
                 overriding("nodes.activeRoundsPercent", "30"), // Node with 33% activity should get rewards
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
