@@ -81,7 +81,7 @@ public final class FeeManager {
     /** The expiration time of the "current" fee schedule, in consensus seconds since the epoch, cached for speed. */
     private long currentScheduleExpirationSeconds;
     /** The exchange rate manager to use for the current rate */
-    private final ExchangeRateManager exchangeRateManager;
+    public final ExchangeRateManager exchangeRateManager;
 
     private final CongestionMultipliers congestionMultipliers;
 

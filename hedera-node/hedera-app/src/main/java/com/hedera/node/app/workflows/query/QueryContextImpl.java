@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.query;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
@@ -18,11 +19,13 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
+import java.time.Instant;
+
 /**
  * Simple implementation of {@link QueryContext}.
  */
 public class QueryContextImpl implements QueryContext {
-
+    private final Instant consensusTime;
     private final ReadableStoreFactory storeFactory;
     private final Query query;
     private final Configuration configuration;
@@ -48,6 +51,7 @@ public class QueryContextImpl implements QueryContext {
      * @throws NullPointerException if {@code query} is {@code null}
      */
     public QueryContextImpl(
+            @NonNull final Instant consensusTime,
             @NonNull final State state,
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final Query query,
@@ -56,6 +60,7 @@ public class QueryContextImpl implements QueryContext {
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final FeeCalculator feeCalculator,
             @Nullable final AccountID payer) {
+        this.consensusTime = consensusTime;
         this.state = requireNonNull(state, "state must not be null");
         this.storeFactory = requireNonNull(storeFactory, "storeFactory must not be null");
         this.query = requireNonNull(query, "query must not be null");
@@ -117,5 +122,10 @@ public class QueryContextImpl implements QueryContext {
     @Override
     public FeeCalculator feeCalculator() {
         return feeCalculator;
+    }
+
+    @Override
+    public ExchangeRate activeRate() {
+        return exchangeRateManager.activeRate(consensusTime);
     }
 }
