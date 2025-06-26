@@ -16,7 +16,8 @@ import org.hiero.otter.fixtures.logging.StructuredLog;
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  * It allows retrieval of all log entries, the node ID, and the set of unique markers.
  */
-public interface SingleNodeLogResult {
+@SuppressWarnings("unused")
+public interface SingleNodeLogResult extends OtterResult {
 
     /**
      * Returns the ID of the node associated with this log result.
@@ -52,4 +53,13 @@ public interface SingleNodeLogResult {
     default Set<Marker> markers() {
         return logs().stream().map(StructuredLog::marker).collect(Collectors.toSet());
     }
+
+    /**
+     * Subscribes to {@link StructuredLog} entries logged by the node.
+     *
+     * <p>The subscriber will be notified every time a new log entry is created by the node.
+     *
+     * @param subscriber the subscriber that will receive the log entries
+     */
+    void subscribe(@NonNull LogSubscriber subscriber);
 }

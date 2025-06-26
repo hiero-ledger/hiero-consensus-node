@@ -10,13 +10,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
-import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.OtterResult;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
- * Default implementation of {@link org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert}
+ * Default implementation of {@link MultipleNodeConsensusResults}
  */
 public class MultipleNodeConsensusResultsImpl implements MultipleNodeConsensusResults {
 

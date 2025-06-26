@@ -38,6 +38,13 @@ testModuleInfo {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
+// This should probably not be necessary (Log4j issue?)
+// https://github.com/apache/logging-log4j2/pull/3053
+tasks.compileTestFixturesJava {
+    options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
+    options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
+}
+
 // Runs tests against the Turtle environment
 tasks.register<Test>("testTurtle") {
     useJUnitPlatform()
