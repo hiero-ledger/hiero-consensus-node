@@ -553,12 +553,14 @@ public class AtomicBatchTest {
                                     oneHbarToDefaultPayerFrom(opAcct).batchKey(opKey),
                                     oneHbarToDefaultPayerFrom(opAcct).batchKey(anotherKey))
                             .payingWith(opAcct)
+                            // Isn't signed by anotherKey, so should fail
                             .signedBy(opKey)
                             .hasPrecheck(INVALID_SIGNATURE),
                     atomicBatch(
                                     oneHbarToDefaultPayerFrom(opAcct).batchKey(opKey),
                                     oneHbarToDefaultPayerFrom(opAcct).batchKey(anotherKey))
                             .payingWith(opAcct)
+                            // Isn't signed by opKey, so should fail
                             .signedBy(anotherKey)
                             .hasPrecheck(INVALID_SIGNATURE),
                     atomicBatch(
@@ -1022,8 +1024,7 @@ public class AtomicBatchTest {
                 // Verify staking rewards were paid
                 getTxnRecord("batchSuccess").hasPaidStakingRewardsCount(1),
                 getAccountBalance(stakingTo).exposingBalanceTo(balance -> {
-                    // Initial account balance (100 hbars) + 1 hbar from crypto transfer + <positive nonzero> staking
-                    // rewards
+                    // Initial balance (100 hbars) + 1 hbar from transfer + <positive nonzero> rewards
                     Assertions.assertThat(balance).isGreaterThan(ONE_HUNDRED_HBARS + 1);
                 }));
     }
