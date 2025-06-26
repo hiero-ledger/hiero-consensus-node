@@ -13,9 +13,9 @@ public class ProtobufConverter {
     private ProtobufConverter() {}
 
     /**
-     * Converts a Google NodeId to a PBJ NodeId.
+     * Converts a Legacy NodeId to a PBJ NodeId.
      *
-     * @param sourceNodeId the Google NodeId to convert
+     * @param sourceNodeId the Legacy NodeId to convert
      * @return the converted PBJ NodeId
      */
     @NonNull
@@ -27,10 +27,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ NodeId to a Google NodeId.
+     * Converts a PBJ NodeId to a Legacy NodeId.
      *
      * @param sourceNodeId the PBJ NodeId to convert
-     * @return the converted Google NodeId
+     * @return the converted Legacy NodeId
      */
     @NonNull
     public static com.hedera.hapi.platform.state.legacy.NodeId fromPbj(
@@ -41,9 +41,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google SemanticVersion to a PBJ SemanticVersion.
+     * Converts a Legacy SemanticVersion to a PBJ SemanticVersion.
      *
-     * @param sourceVersion the Google SemanticVersion to convert
+     * @param sourceVersion the Legacy SemanticVersion to convert
      * @return the converted PBJ SemanticVersion
      */
     @NonNull
@@ -59,10 +59,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ SemanticVersion to a Google SemanticVersion.
+     * Converts a PBJ SemanticVersion to a Legacy SemanticVersion.
      *
      * @param sourceVersion the PBJ SemanticVersion to convert
-     * @return the converted Google SemanticVersion
+     * @return the converted Legacy SemanticVersion
      */
     @NonNull
     public static com.hederahashgraph.api.proto.java.SemanticVersion fromPbj(
@@ -77,9 +77,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google Roster to a PBJ Roster.
+     * Converts a Legacy Roster to a PBJ Roster.
      *
-     * @param sourceRoster the Google Roster to convert
+     * @param sourceRoster the Legacy Roster to convert
      * @return the converted PBJ Roster
      */
     @NonNull
@@ -93,10 +93,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ Roster to a Google Roster.
+     * Converts a PBJ Roster to a Legacy Roster.
      *
      * @param sourceRoster the PBJ Roster to convert
-     * @return the converted Google Roster
+     * @return the converted Legacy Roster
      */
     @NonNull
     public static com.hederahashgraph.api.proto.java.Roster fromPbj(
@@ -109,9 +109,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google RosterEntry to a PBJ RosterEntry.
+     * Converts a Legacy RosterEntry to a PBJ RosterEntry.
      *
-     * @param sourceEntry the Google RosterEntry to convert
+     * @param sourceEntry the Legacy RosterEntry to convert
      * @return the converted PBJ RosterEntry
      */
     @NonNull
@@ -128,10 +128,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ RosterEntry to a Google RosterEntry.
+     * Converts a PBJ RosterEntry to a Legacy RosterEntry.
      *
      * @param sourceEntry the PBJ RosterEntry to convert
-     * @return the converted Google RosterEntry
+     * @return the converted Legacy RosterEntry
      */
     @NonNull
     public static com.hederahashgraph.api.proto.java.RosterEntry fromPbj(
@@ -147,9 +147,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google ServiceEndpoint to a PBJ ServiceEndpoint.
+     * Converts a Legacy ServiceEndpoint to a PBJ ServiceEndpoint.
      *
-     * @param sourceEntry the Google ServiceEndpoint to convert
+     * @param sourceEntry the Legacy ServiceEndpoint to convert
      * @return the converted PBJ ServiceEndpoint
      */
     @NonNull
@@ -163,10 +163,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ ServiceEndpoint to a Google ServiceEndpoint.
+     * Converts a PBJ ServiceEndpoint to a Legacy ServiceEndpoint.
      *
      * @param sourceEntry the PBJ ServiceEndpoint to convert
-     * @return the converted Google ServiceEndpoint
+     * @return the converted Legacy ServiceEndpoint
      */
     @NonNull
     public static com.hederahashgraph.api.proto.java.ServiceEndpoint fromPbj(
@@ -179,9 +179,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google EventDescriptor to a PBJ EventDescriptor.
+     * Converts a Legacy EventDescriptor to a PBJ EventDescriptor.
      *
-     * @param sourceEventDescriptor the Google EventDescriptor to convert
+     * @param sourceEventDescriptor the Legacy EventDescriptor to convert
      * @return the converted PBJ EventDescriptor
      */
     @NonNull
@@ -196,10 +196,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ EventDescriptor to a Google EventDescriptor.
+     * Converts a PBJ EventDescriptor to a Legacy EventDescriptor.
      *
      * @param sourceEventDescriptor the PBJ EventDescriptor to convert
-     * @return the converted Google EventDescriptor
+     * @return the converted Legacy EventDescriptor
      */
     @NonNull
     public static com.hedera.hapi.platform.event.legacy.EventDescriptor fromPbj(
@@ -213,9 +213,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google GossipEvent to a PBJ GossipEvent.
+     * Converts a Legacy GossipEvent to a PBJ GossipEvent.
      *
-     * @param sourceGossipEvent the Google GossipEvent to convert
+     * @param sourceGossipEvent the Legacy GossipEvent to convert
      * @return the converted PBJ GossipEvent
      */
     @NonNull
@@ -234,10 +234,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ GossipEvent to a Google GossipEvent.
+     * Converts a PBJ GossipEvent to a Legacy GossipEvent.
      *
      * @param sourceGossipEvent the PBJ GossipEvent to convert
-     * @return the converted Google GossipEvent
+     * @return the converted Legacy GossipEvent
      */
     @NonNull
     public static com.hedera.hapi.platform.event.legacy.GossipEvent fromPbj(
@@ -255,9 +255,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google EventCore to a PBJ EventCore.
+     * Converts a Legacy EventCore to a PBJ EventCore.
      *
-     * @param sourceEventCore the Google EventCore to convert
+     * @param sourceEventCore the Legacy EventCore to convert
      * @return the converted PBJ EventCore
      */
     @NonNull
@@ -271,10 +271,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ EventCore to a Google EventCore.
+     * Converts a PBJ EventCore to a Legacy EventCore.
      *
      * @param sourceEventCore the PBJ EventCore to convert
-     * @return the converted Google EventCore
+     * @return the converted Legacy EventCore
      */
     @NonNull
     public static com.hedera.hapi.platform.event.legacy.EventCore fromPbj(
@@ -287,9 +287,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google Timestamp to a PBJ Timestamp.
+     * Converts a Legacy Timestamp to a PBJ Timestamp.
      *
-     * @param sourceTimestamp the Google Timestamp to convert
+     * @param sourceTimestamp the Legacy Timestamp to convert
      * @return the converted PBJ Timestamp
      */
     @NonNull
@@ -302,10 +302,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ Timestamp to a Google Timestamp.
+     * Converts a PBJ Timestamp to a Legacy Timestamp.
      *
      * @param sourceTimestamp the PBJ Timestamp to convert
-     * @return the converted Google Timestamp
+     * @return the converted Legacy Timestamp
      */
     @NonNull
     public static com.hederahashgraph.api.proto.java.Timestamp fromPbj(
@@ -317,9 +317,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google ByteString to a PBJ Bytes.
+     * Converts a Legacy ByteString to a PBJ Bytes.
      *
-     * @param sourceBytes the Google ByteString to convert
+     * @param sourceBytes the Legacy ByteString to convert
      * @return the converted PBJ Bytes
      */
     @NonNull
@@ -328,10 +328,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ Bytes to a Google ByteString.
+     * Converts a PBJ Bytes to a Legacy ByteString.
      *
      * @param sourceBytes the PBJ Bytes to convert
-     * @return the converted Google ByteString
+     * @return the converted Legacy ByteString
      */
     @NonNull
     public static com.google.protobuf.ByteString fromPbj(final com.hedera.pbj.runtime.io.buffer.Bytes sourceBytes) {
@@ -339,9 +339,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google EventConsensusData to a PBJ EventConsensusData.
+     * Converts a Legacy EventConsensusData to a PBJ EventConsensusData.
      *
-     * @param sourceEventConsensusData the Google EventConsensusData to convert
+     * @param sourceEventConsensusData the Legacy EventConsensusData to convert
      * @return the converted PBJ EventConsensusData
      */
     @NonNull
@@ -354,10 +354,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ EventConsensusData to a Google EventConsensusData.
+     * Converts a PBJ EventConsensusData to a Legacy EventConsensusData.
      *
      * @param sourceEventConsensusData the PBJ EventConsensusData to convert
-     * @return the converted Google EventConsensusData
+     * @return the converted Legacy EventConsensusData
      */
     @NonNull
     public static com.hedera.hapi.platform.event.legacy.EventConsensusData fromPbj(
@@ -372,9 +372,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google ConsensusSnapshot to a PBJ ConsensusSnapshot.
+     * Converts a Legacy ConsensusSnapshot to a PBJ ConsensusSnapshot.
      *
-     * @param sourceConsensusSnapshot the Google ConsensusSnapshot to convert
+     * @param sourceConsensusSnapshot the Legacy ConsensusSnapshot to convert
      * @return the converted PBJ ConsensusSnapshot
      */
     @NonNull
@@ -397,10 +397,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ ConsensusSnapshot to a Google ConsensusSnapshot.
+     * Converts a PBJ ConsensusSnapshot to a Legacy ConsensusSnapshot.
      *
      * @param sourceConsensusSnapshot the PBJ ConsensusSnapshot to convert
-     * @return the converted Google ConsensusSnapshot
+     * @return the converted Legacy ConsensusSnapshot
      */
     @NonNull
     public static com.hedera.hapi.platform.state.legacy.ConsensusSnapshot fromPbj(
@@ -425,9 +425,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google MinimumJudgeInfo to a PBJ MinimumJudgeInfo.
+     * Converts a Legacy MinimumJudgeInfo to a PBJ MinimumJudgeInfo.
      *
-     * @param sourceConsensusSnapshot the Google MinimumJudgeInfo to convert
+     * @param sourceConsensusSnapshot the Legacy MinimumJudgeInfo to convert
      * @return the converted PBJ MinimumJudgeInfo
      */
     @NonNull
@@ -440,10 +440,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ MinimumJudgeInfo to a Google MinimumJudgeInfo.
+     * Converts a PBJ MinimumJudgeInfo to a Legacy MinimumJudgeInfo.
      *
      * @param sourceConsensusSnapshot the PBJ MinimumJudgeInfo to convert
-     * @return the converted Google MinimumJudgeInfo
+     * @return the converted Legacy MinimumJudgeInfo
      */
     @NonNull
     public static com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo fromPbj(
@@ -455,9 +455,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google JudgeId to a PBJ JudgeId.
+     * Converts a Legacy JudgeId to a PBJ JudgeId.
      *
-     * @param sourceJudgeId the Google JudgeId to convert
+     * @param sourceJudgeId the Legacy JudgeId to convert
      * @return the converted PBJ JudgeId
      */
     @NonNull
@@ -470,10 +470,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a PBJ JudgeId to a Google JudgeId.
+     * Converts a PBJ JudgeId to a Legacy JudgeId.
      *
      * @param sourceJudgeId the PBJ JudgeId to convert
-     * @return the converted Google JudgeId
+     * @return the converted Legacy JudgeId
      */
     @NonNull
     public static com.hedera.hapi.platform.state.legacy.JudgeId fromPbj(
@@ -507,10 +507,10 @@ public class ProtobufConverter {
     @NonNull
     public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds fromPlatform(
             @NonNull final List<org.hiero.consensus.model.hashgraph.ConsensusRound> sourceRounds) {
-        final List<ProtoConsensusRound> googleRounds =
+        final List<ProtoConsensusRound> legacyRounds =
                 sourceRounds.stream().map(ProtobufConverter::fromPlatform).toList();
         return org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds.newBuilder()
-                .addAllRounds(googleRounds)
+                .addAllRounds(legacyRounds)
                 .build();
     }
 
@@ -601,9 +601,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google EventWindow to a Platform EventWindow.
+     * Converts a Legacy EventWindow to a Platform EventWindow.
      *
-     * @param sourceEventWindow the Google EventWindow to convert
+     * @param sourceEventWindow the Legacy EventWindow to convert
      * @return the converted Platform EventWindow
      */
     @NonNull
@@ -617,10 +617,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Platform EventWindow to a Google EventWindow.
+     * Converts a Platform EventWindow to a Legacy EventWindow.
      *
      * @param sourceEventWindow the Platform EventWindow to convert
-     * @return the converted Google EventWindow
+     * @return the converted Legacy EventWindow
      */
     @NonNull
     public static org.hiero.otter.fixtures.container.proto.EventWindow fromPlatform(
@@ -634,9 +634,9 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a Google LogEntry to a StructuredLog.
+     * Converts a Legacy LogEntry to a StructuredLog.
      *
-     * @param sourceLog the Google LogEntry to convert
+     * @param sourceLog the Legacy LogEntry to convert
      * @return the converted StructuredLog
      */
     @NonNull
@@ -653,10 +653,10 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a StructuredLog to a Google LogEntry.
+     * Converts a StructuredLog to a Legacy LogEntry.
      *
      * @param sourceLog the StructuredLog to convert
-     * @return the converted Google LogEntry
+     * @return the converted Legacy LogEntry
      */
     @NonNull
     public static org.hiero.otter.fixtures.container.proto.LogEntry fromPlatform(
