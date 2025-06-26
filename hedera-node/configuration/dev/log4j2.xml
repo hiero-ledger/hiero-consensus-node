@@ -230,7 +230,7 @@
       <AppenderRef ref="StateLogs"/>
     </Logger>
 
-    <Logger name="com.hedera" level="info" additivity="false">
+    <Logger name="com.hedera" level="debug" additivity="false">
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
