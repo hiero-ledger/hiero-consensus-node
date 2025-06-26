@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -380,6 +381,23 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     // If we don't have the block state, we schedule retry for this connection and establish new one
                     // with different block node
                     logger.warn("[{}] Block node is behind and block state is not available.", this);
+
+                    final var earliestBlockNumber = blockBufferService.getEarliestAvailableBlockNumber();
+                    final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+
+                    // Indicate that the block node should recover and catch up from another trustworthy block node
+                    final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
+                            .endStream(EndStream.newBuilder()
+                                    .endCode(EndStream.Code.TOO_FAR_BEHIND)
+                                    .earliestBlockNumber(earliestBlockNumber)
+                                    .latestBlockNumber(highestAckedBlockNumber))
+                            .build();
+
+                    createRequestObserver();
+                    updateConnectionState(ConnectionState.ACTIVE);
+                    sendRequest(endStream);
+
+                    close();
 
                     blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
                 }
