@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -126,7 +127,7 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
 
         final List<TurtleNode> nodeList = roster.rosterEntries().stream()
                 .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
-                .sorted()
+                .sorted(Comparator.comparing(NodeId::id))
                 .map(nodeId -> createTurtleNode(nodeId, roster, rosterBuilder.getPrivateKeys(nodeId)))
                 .toList();
         nodes.addAll(nodeList);
