@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.token;
+package com.hedera.services.bdd.suites.token.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
-import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
@@ -11,6 +10,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -23,7 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccoun
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.batchOfSize;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
@@ -31,8 +31,8 @@ import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadataOfLength
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DOES_NOT_OWN_WIPED_NFT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_STILL_OWNS_NFTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
@@ -47,6 +47,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
@@ -54,20 +56,26 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+// This test cases are direct copies of UniqueTokenManagementSpecs. The difference here is that
+// we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@HapiTestLifecycle
 @Tag(TOKEN)
-public class UniqueTokenManagementSpecs {
+public class AtomicUniqueTokenManagementSpecs {
 
-    private static final org.apache.logging.log4j.Logger log = LogManager.getLogger(UniqueTokenManagementSpecs.class);
+    private static final Logger log = LogManager.getLogger(AtomicUniqueTokenManagementSpecs.class);
     private static final String A_TOKEN = "TokenA";
     private static final String NFT = "nft";
     private static final String FUNGIBLE_TOKEN = "fungible";
@@ -85,6 +93,14 @@ public class UniqueTokenManagementSpecs {
     private static final String ACCOUNT = "account";
     private static final String CUSTOM_PAYER = "customPayer";
     private static final String WIPE_KEY = "wipeKey";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(
+                Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest // here
     final Stream<DynamicTest> populatingMetadataForFungibleDoesNotWork() {
@@ -98,14 +114,16 @@ public class UniqueTokenManagementSpecs {
                                 .supplyType(TokenSupplyType.INFINITE)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(
-                                FUNGIBLE_TOKEN,
-                                List.of(
-                                        metadata("some-data"),
-                                        metadata("some-data2"),
-                                        metadata("some-data3"),
-                                        metadata("some-data4")))
-                        .via(SHOULD_NOT_WORK))
+                .when(atomicBatch(mintToken(
+                                        FUNGIBLE_TOKEN,
+                                        List.of(
+                                                metadata("some-data"),
+                                                metadata("some-data2"),
+                                                metadata("some-data3"),
+                                                metadata("some-data4")))
+                                .via(SHOULD_NOT_WORK)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0),
                         getTxnRecord(SHOULD_NOT_WORK).showsNoTransfers(),
@@ -129,9 +147,12 @@ public class UniqueTokenManagementSpecs {
                                 .supplyType(TokenSupplyType.INFINITE)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(NFT, 300)
-                        .hasKnownStatus(INVALID_TOKEN_MINT_METADATA)
-                        .via(SHOULD_NOT_WORK))
+                .when(atomicBatch(mintToken(NFT, 300)
+                                .hasKnownStatus(INVALID_TOKEN_MINT_METADATA)
+                                .via(SHOULD_NOT_WORK)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED))
                 .then(
                         getTxnRecord(SHOULD_NOT_WORK).showsNoTransfers(),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 0),
@@ -157,15 +178,18 @@ public class UniqueTokenManagementSpecs {
                                 .supplyType(TokenSupplyType.FINITE)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(
-                                NFT,
-                                List.of(
-                                        metadata("some-data"),
-                                        metadata("some-data2"),
-                                        metadata("some-data3"),
-                                        metadata("some-data4")))
-                        .hasKnownStatus(TOKEN_MAX_SUPPLY_REACHED)
-                        .via(SHOULD_NOT_APPEAR))
+                .when(atomicBatch(mintToken(
+                                        NFT,
+                                        List.of(
+                                                metadata("some-data"),
+                                                metadata("some-data2"),
+                                                metadata("some-data3"),
+                                                metadata("some-data4")))
+                                .hasKnownStatus(TOKEN_MAX_SUPPLY_REACHED)
+                                .via(SHOULD_NOT_APPEAR)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED))
                 .then(
                         getTxnRecord(SHOULD_NOT_APPEAR).showsNoTransfers(),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 0),
@@ -190,11 +214,14 @@ public class UniqueTokenManagementSpecs {
                                 .supplyType(TokenSupplyType.INFINITE)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(FUNGIBLE_TOKEN, 300))
+                .when(atomicBatch(mintToken(FUNGIBLE_TOKEN, 300).batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
-                        burnToken(FUNGIBLE_TOKEN, List.of(1L, 2L, 3L))
-                                .via(BURN_FAILURE)
-                                .logged(),
+                        atomicBatch(burnToken(FUNGIBLE_TOKEN, List.of(1L, 2L, 3L))
+                                        .via(BURN_FAILURE)
+                                        .logged()
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 300),
                         getTxnRecord(BURN_FAILURE).showsNoTransfers().logged(),
                         UtilVerbs.withOpContext((spec, opLog) -> {
@@ -218,11 +245,17 @@ public class UniqueTokenManagementSpecs {
                                 .supplyType(TokenSupplyType.INFINITE)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(NFT, List.of(metadata("some-random-data"), metadata("some-other-random-data"))))
+                .when(atomicBatch(mintToken(
+                                        NFT, List.of(metadata("some-random-data"), metadata("some-other-random-data")))
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
-                        burnToken(NFT, 300)
-                                .hasKnownStatus(INVALID_TOKEN_BURN_METADATA)
-                                .via(BURN_FAILURE),
+                        atomicBatch(burnToken(NFT, 300)
+                                        .hasKnownStatus(INVALID_TOKEN_BURN_METADATA)
+                                        .via(BURN_FAILURE)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
                         getTxnRecord(BURN_FAILURE).showsNoTransfers(),
                         getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2),
                         UtilVerbs.withOpContext((spec, opLog) -> {
@@ -246,7 +279,11 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY),
                         mintToken(NFT, List.of(metadata("memo"))))
-                .when(burnToken(NFT, List.of(1L)).via(BURN_TXN).logged())
+                .when(atomicBatch(burnToken(NFT, List.of(1L))
+                                .via(BURN_TXN)
+                                .logged()
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getTxnRecord(BURN_TXN).hasCostAnswerPrecheck(OK),
                         getTokenNftInfo(NFT, 1).hasCostAnswerPrecheck(INVALID_NFT_ID),
@@ -268,7 +305,12 @@ public class UniqueTokenManagementSpecs {
                         mintToken(NFT, List.of(metadata("memo"))))
                 .when()
                 .then(
-                        burnToken(NFT, List.of(0L, 1L, 2L)).via(BURN_TXN).hasPrecheck(INVALID_NFT_ID),
+                        atomicBatch(burnToken(NFT, List.of(0L, 1L, 2L))
+                                        .via(BURN_TXN)
+                                        .hasPrecheck(INVALID_NFT_ID)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasPrecheck(INVALID_NFT_ID),
                         getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1));
     }
 
@@ -287,9 +329,13 @@ public class UniqueTokenManagementSpecs {
                         mintToken(NFT, List.of(metadata("memo"))))
                 .when()
                 // This ID range needs to be exclusively positive (i.e. not zero)
-                .then(burnToken(NFT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
-                        .via(BURN_TXN)
-                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED));
+                .then(atomicBatch(
+                                burnToken(NFT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
+                                        .via(BURN_TXN)
+                                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -305,7 +351,8 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY),
                         mintToken(NFT, List.of(metadata("memo"))))
-                .when(burnToken(NFT, List.of(1L)).via(BURN_TXN))
+                .when(atomicBatch(burnToken(NFT, List.of(1L)).via(BURN_TXN).batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenNftInfo(NFT, 1).hasCostAnswerPrecheck(INVALID_NFT_ID),
                         getTokenInfo(NFT).hasTotalSupply(0),
@@ -313,47 +360,6 @@ public class UniqueTokenManagementSpecs {
                         getAccountInfo(TOKEN_TREASURY)
                                 .hasToken(relationshipWith(NFT))
                                 .hasOwnedNfts(0));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> mintFailsOnInvalidSupplyKey() {
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                // create valid NFT
-                tokenCreate(NFT)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(0)
-                        .supplyKey(SUPPLY_KEY)
-                        .treasury(TOKEN_TREASURY),
-                // mint with the wrong supply key
-                mintToken(NFT, List.of(metadata("1"), metadata("2")))
-                        .signedBy(GENESIS, GENESIS)
-                        .hasKnownStatus(INVALID_SIGNATURE),
-                // mint with the right supply key
-                mintToken(NFT, List.of(metadata("1"), metadata("2")))
-                        .signedBy(GENESIS, SUPPLY_KEY)
-                        .hasKnownStatus(SUCCESS));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> burnFailsOnInvalidSupplyKey() {
-        return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(TOKEN_TREASURY),
-                // create valid NFT
-                tokenCreate(NFT)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .supplyType(TokenSupplyType.INFINITE)
-                        .initialSupply(0)
-                        .supplyKey(SUPPLY_KEY)
-                        .treasury(TOKEN_TREASURY),
-                mintToken(NFT, List.of(metadata("1"), metadata("2"))),
-                // burn with the wrong supply key
-                burnToken(NFT, List.of(1L, 2L)).signedBy(GENESIS, GENESIS).hasKnownStatus(INVALID_SIGNATURE),
-                // burn with the right supply key
-                burnToken(NFT, List.of(1L, 2L)).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
@@ -374,7 +380,12 @@ public class UniqueTokenManagementSpecs {
                         mintToken(NFT, List.of(metadata("1"), metadata("2"))),
                         tokenAssociate(nonTreasury, NFT),
                         cryptoTransfer(movingUnique(NFT, 2L).between(TOKEN_TREASURY, nonTreasury)))
-                .when(burnToken(NFT, List.of(1L, 2L)).via(BURN_TXN).hasKnownStatus(TREASURY_MUST_OWN_BURNED_NFT))
+                .when(atomicBatch(burnToken(NFT, List.of(1L, 2L))
+                                .via(BURN_TXN)
+                                .hasKnownStatus(TREASURY_MUST_OWN_BURNED_NFT)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED))
                 .then(
                         getTokenNftInfo(NFT, 1).hasSerialNum(1),
                         getTokenNftInfo(NFT, 2).hasSerialNum(2),
@@ -400,9 +411,11 @@ public class UniqueTokenManagementSpecs {
                         mintToken(
                                 NFT,
                                 List.of(metadata("1"), metadata("2"), metadata("3"), metadata("4"), metadata("5"))))
-                .when(burnToken(NFT, List.of(3L, 4L, 5L))
-                        .payingWith(TOKEN_TREASURY)
-                        .via(BURN_TXN))
+                .when(atomicBatch(burnToken(NFT, List.of(3L, 4L, 5L))
+                                .payingWith(TOKEN_TREASURY)
+                                .via(BURN_TXN)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenNftInfo(NFT, 1).hasSerialNum(1).hasCostAnswerPrecheck(OK),
                         getTokenNftInfo(NFT, 2).hasSerialNum(2).hasCostAnswerPrecheck(OK),
@@ -434,15 +447,18 @@ public class UniqueTokenManagementSpecs {
                                 .maxSupply(1100)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(
-                        mintToken(NFT, List.of(metadata("memo")))
-                                .payingWith(CUSTOM_PAYER)
-                                .signedBy(CUSTOM_PAYER, SUPPLY_KEY)
-                                .via("mintNFT"),
-                        mintToken(FUNGIBLE_TOKEN, 100L)
-                                .payingWith(CUSTOM_PAYER)
-                                .signedBy(CUSTOM_PAYER, SUPPLY_KEY)
-                                .via("mintFungible"))
+                .when(atomicBatch(
+                                mintToken(NFT, List.of(metadata("memo")))
+                                        .payingWith(CUSTOM_PAYER)
+                                        .signedBy(CUSTOM_PAYER, SUPPLY_KEY)
+                                        .via("mintNFT")
+                                        .batchKey(BATCH_OPERATOR),
+                                mintToken(FUNGIBLE_TOKEN, 100L)
+                                        .payingWith(CUSTOM_PAYER)
+                                        .signedBy(CUSTOM_PAYER, SUPPLY_KEY)
+                                        .via("mintFungible")
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(UtilVerbs.withOpContext((spec, opLog) -> {
                     var mintNFT = getTxnRecord("mintNFT");
                     var mintFungible = getTxnRecord("mintFungible");
@@ -466,7 +482,11 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
                 .when()
-                .then(mintToken(NFT, List.of(metadataOfLength(101))).hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG));
+                .then(atomicBatch(mintToken(NFT, List.of(metadataOfLength(101)))
+                                .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -482,8 +502,11 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
                 .when()
-                .then(mintToken(NFT, List.of(metadataOfLength(101), metadataOfLength(1)))
-                        .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG));
+                .then(atomicBatch(mintToken(NFT, List.of(metadataOfLength(101), metadataOfLength(1)))
+                                .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -499,7 +522,11 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
                 .when()
-                .then(mintToken(NFT, batchOfSize(BIGGER_THAN_LIMIT)).hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED));
+                .then(atomicBatch(mintToken(NFT, batchOfSize(BIGGER_THAN_LIMIT))
+                                .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -515,8 +542,10 @@ public class UniqueTokenManagementSpecs {
                                 .initialSupply(0)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(NFT, List.of(metadata("memo"), metadata(MEMO_1)))
-                        .via(MINT_TXN))
+                .when(atomicBatch(mintToken(NFT, List.of(metadata("memo"), metadata(MEMO_1)))
+                                .via(MINT_TXN)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getReceipt(MINT_TXN).logged(),
                         getTokenNftInfo(NFT, 1)
@@ -553,7 +582,10 @@ public class UniqueTokenManagementSpecs {
                                 .freezeDefault(true)
                                 .initialSupply(0)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(NFT, List.of(metadata("memo"))).via(MINT_TXN))
+                .when(atomicBatch(mintToken(NFT, List.of(metadata("memo")))
+                                .via(MINT_TXN)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenNftInfo(NFT, 1)
                                 .hasTokenID(NFT)
@@ -574,9 +606,14 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .adminKey("adminKey")
                                 .treasury(TOKEN_TREASURY))
-                .when(tokenDelete(NFT))
+                .when(atomicBatch(tokenDelete(NFT).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR))
                 .then(
-                        mintToken(NFT, List.of(metadata("memo"))).via(MINT_TXN).hasKnownStatus(TOKEN_WAS_DELETED),
+                        atomicBatch(mintToken(NFT, List.of(metadata("memo")))
+                                        .via(MINT_TXN)
+                                        .hasKnownStatus(TOKEN_WAS_DELETED)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
                         getTokenNftInfo(NFT, 1).hasCostAnswerPrecheck(INVALID_NFT_ID),
                         getTokenInfo(NFT).isDeleted());
     }
@@ -592,7 +629,10 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .initialSupply(0)
                                 .treasury(TOKEN_TREASURY),
-                        mintToken(NFT, List.of(metadata("memo"))).via(MINT_TXN))
+                        atomicBatch(mintToken(NFT, List.of(metadata("memo")))
+                                        .via(MINT_TXN)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenNftInfo(NFT, 0).hasCostAnswerPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                         getTokenNftInfo(NFT, -1).hasCostAnswerPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
@@ -610,7 +650,8 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .initialSupply(0)
                                 .treasury(TOKEN_TREASURY),
-                        mintToken(NFT, List.of(metadata("memo"))))
+                        atomicBatch(mintToken(NFT, List.of(metadata("memo"))).batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenNftInfo(NFT, 0).hasCostAnswerPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                         getTokenNftInfo(NFT, -1).hasCostAnswerPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
@@ -635,8 +676,10 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .initialSupply(0)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(NFT, List.of(metadata("memo"), metadata("memo")))
-                        .via(MINT_TXN))
+                .when(atomicBatch(mintToken(NFT, List.of(metadata("memo"), metadata("memo")))
+                                .via(MINT_TXN)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenNftInfo(NFT, 1)
                                 .hasSerialNum(1)
@@ -675,14 +718,21 @@ public class UniqueTokenManagementSpecs {
                         mintToken(NFT, List.of(ByteString.copyFromUtf8("memo"), ByteString.copyFromUtf8(MEMO_2))),
                         getTokenInfo(NFT).logged(),
                         cryptoTransfer(movingUnique(NFT, 2L).between(TOKEN_TREASURY, ACCOUNT)))
-                .when(wipeTokenAccount(NFT, ACCOUNT, List.of(2L)).via(WIPE_TXN))
+                .when(atomicBatch(wipeTokenAccount(NFT, ACCOUNT, List.of(2L))
+                                .via(WIPE_TXN)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getAccountInfo(ACCOUNT).hasOwnedNfts(0),
                         getAccountInfo(TOKEN_TREASURY).hasOwnedNfts(1),
                         getTokenInfo(NFT).hasTotalSupply(1).logged(),
                         getTokenNftInfo(NFT, 2).hasCostAnswerPrecheck(INVALID_NFT_ID),
                         getTokenNftInfo(NFT, 1).hasSerialNum(1),
-                        wipeTokenAccount(NFT, ACCOUNT, List.of(1L)).hasKnownStatus(ACCOUNT_DOES_NOT_OWN_WIPED_NFT));
+                        atomicBatch(wipeTokenAccount(NFT, ACCOUNT, List.of(1L))
+                                        .hasKnownStatus(ACCOUNT_DOES_NOT_OWN_WIPED_NFT)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -705,10 +755,15 @@ public class UniqueTokenManagementSpecs {
                                 .via(MINT_TXN),
                         cryptoTransfer(movingUnique(NFT, 1, 2).between(TOKEN_TREASURY, ACCOUNT)))
                 .when()
-                .then(wipeTokenAccount(
-                                // This ID range needs to be exclusively positive (i.e. not zero)
-                                NFT, ACCOUNT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
-                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED));
+                .then(atomicBatch(wipeTokenAccount(
+                                        // This ID range needs to be exclusively positive (i.e. not zero)
+                                        NFT,
+                                        ACCOUNT,
+                                        LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
+                                .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest // here
@@ -731,9 +786,12 @@ public class UniqueTokenManagementSpecs {
                         cryptoTransfer(movingUnique(NFT, 1).between(TOKEN_TREASURY, ACCOUNT)))
                 .when()
                 .then(
-                        wipeTokenAccount(NFT, ACCOUNT, 1L)
-                                .hasKnownStatus(INVALID_WIPING_AMOUNT)
-                                .via(WIPE_TXN),
+                        atomicBatch(wipeTokenAccount(NFT, ACCOUNT, 1L)
+                                        .hasKnownStatus(INVALID_WIPING_AMOUNT)
+                                        .via(WIPE_TXN)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
                         // no new totalSupply
                         getTokenInfo(NFT).hasTotalSupply(1),
                         // no tx record
@@ -757,11 +815,15 @@ public class UniqueTokenManagementSpecs {
                                 .wipeKey(WIPE_KEY),
                         tokenAssociate(ACCOUNT, A_TOKEN),
                         cryptoTransfer(TokenMovement.moving(5, A_TOKEN).between(TOKEN_TREASURY, ACCOUNT)))
-                .when(
-                        wipeTokenAccount(A_TOKEN, ACCOUNT, List.of(1L, 2L)).via("wipeTx"),
-                        wipeTokenAccount(A_TOKEN, ACCOUNT, List.of())
-                                .hasKnownStatus(SUCCESS)
-                                .via("wipeEmptySerialTx"))
+                .when(atomicBatch(
+                                wipeTokenAccount(A_TOKEN, ACCOUNT, List.of(1L, 2L))
+                                        .via("wipeTx")
+                                        .batchKey(BATCH_OPERATOR),
+                                wipeTokenAccount(A_TOKEN, ACCOUNT, List.of())
+                                        .hasKnownStatus(SUCCESS)
+                                        .via("wipeEmptySerialTx")
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         getTokenInfo(A_TOKEN).hasTotalSupply(10),
                         getTxnRecord("wipeTx").showsNoTransfers(),
@@ -787,7 +849,11 @@ public class UniqueTokenManagementSpecs {
                         mintToken(NFT, List.of(metadata("memo"), metadata("memo")))
                                 .via(MINT_TXN))
                 .when()
-                .then(wipeTokenAccount(NFT, ACCOUNT, List.of(-5L, -6L)).hasPrecheck(INVALID_NFT_ID));
+                .then(atomicBatch(wipeTokenAccount(NFT, ACCOUNT, List.of(-5L, -6L))
+                                .hasPrecheck(INVALID_NFT_ID)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasPrecheck(INVALID_NFT_ID));
     }
 
     @HapiTest
@@ -803,7 +869,10 @@ public class UniqueTokenManagementSpecs {
                                 .initialSupply(0)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(mintToken(A_TOKEN, List.of(metadata("memo"))).via(mintTransferTxn))
+                .when(atomicBatch(mintToken(A_TOKEN, List.of(metadata("memo")))
+                                .via(mintTransferTxn)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         UtilVerbs.withOpContext((spec, opLog) -> {
                             var mintNft = getTxnRecord(mintTransferTxn);
@@ -831,25 +900,6 @@ public class UniqueTokenManagementSpecs {
     }
 
     @HapiTest
-    final Stream<DynamicTest> tokenDissociateHappyPath() {
-        return defaultHapiSpec("tokenDissociateHappyPath")
-                .given(
-                        newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(TOKEN_TREASURY),
-                        cryptoCreate("acc"),
-                        tokenCreate(NFT)
-                                .initialSupply(0)
-                                .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                                .supplyType(TokenSupplyType.INFINITE)
-                                .supplyKey(SUPPLY_KEY)
-                                .treasury(TOKEN_TREASURY))
-                .when(tokenAssociate("acc", NFT))
-                .then(
-                        tokenDissociate("acc", NFT).hasKnownStatus(SUCCESS),
-                        getAccountInfo("acc").hasNoTokenRelationship(NFT));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> tokenDissociateFailsIfAccountOwnsUniqueTokens() {
         return defaultHapiSpec("tokenDissociateFailsIfAccountOwnsUniqueTokens")
                 .given(
@@ -862,10 +912,18 @@ public class UniqueTokenManagementSpecs {
                                 .supplyType(TokenSupplyType.INFINITE)
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
-                .when(tokenAssociate("acc", NFT), mintToken(NFT, List.of(metadata(MEMO_1), metadata(MEMO_2))))
+                .when(atomicBatch(
+                                tokenAssociate("acc", NFT).batchKey(BATCH_OPERATOR),
+                                mintToken(NFT, List.of(metadata(MEMO_1), metadata(MEMO_2)))
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR))
                 .then(
                         cryptoTransfer(TokenMovement.movingUnique(NFT, 1, 2).between(TOKEN_TREASURY, "acc")),
-                        tokenDissociate("acc", NFT).hasKnownStatus(ACCOUNT_STILL_OWNS_NFTS));
+                        atomicBatch(tokenDissociate("acc", NFT)
+                                        .hasKnownStatus(ACCOUNT_STILL_OWNS_NFTS)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     protected Logger getResultsLogger() {
