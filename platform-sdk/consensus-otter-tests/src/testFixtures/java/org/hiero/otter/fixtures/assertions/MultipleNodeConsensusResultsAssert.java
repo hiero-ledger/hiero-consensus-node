@@ -86,7 +86,7 @@ public class MultipleNodeConsensusResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodeConsensusResultsAssert roundsInCommonAreEqual() {
+    public MultipleNodeConsensusResultsAssert haveEqualCommonRounds() {
         isNotNull();
 
         // create list of actual rounds
