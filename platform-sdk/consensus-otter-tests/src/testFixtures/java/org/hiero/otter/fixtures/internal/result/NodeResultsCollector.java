@@ -7,7 +7,6 @@ import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -39,7 +38,7 @@ public class NodeResultsCollector {
      * @param nodeId the node ID of the node
      */
     public NodeResultsCollector(@NonNull final NodeId nodeId) {
-        this.nodeId = Objects.requireNonNull(nodeId, "nodeId should not be null");
+        this.nodeId = requireNonNull(nodeId, "nodeId should not be null");
     }
 
     /**

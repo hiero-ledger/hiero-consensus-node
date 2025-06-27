@@ -41,8 +41,7 @@
     <Root level="all">
       <AppenderRef ref="ConsoleMarker"/>
       <AppenderRef ref="FileLogger"/>
-      <AppenderRef ref="FileLogger-nodeId-0"/>
-      <AppenderRef ref="HashStreamLogger-nodeId-0"/>
+      <AppenderRef ref="HashStreamLogger"/>
       <AppenderRef ref="InMemory"/>
     </Root>
   </Loggers>

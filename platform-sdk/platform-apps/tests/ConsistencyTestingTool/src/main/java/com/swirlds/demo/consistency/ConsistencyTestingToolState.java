@@ -241,7 +241,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
             final var stateSignatureTransaction =
                     StateSignatureTransaction.PROTOBUF.parse(transaction.getApplicationTransaction());
             stateSignatureTransactionCallback.accept(new ScopedSystemTransaction<>(
-                    event.getCreatorId(), event.getSoftwareVersion(), stateSignatureTransaction));
+                    event.getCreatorId(), event.getBirthRound(), stateSignatureTransaction));
         } catch (final ParseException e) {
             logger.error("Failed to parse StateSignatureTransaction", e);
         }

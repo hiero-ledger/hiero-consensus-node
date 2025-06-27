@@ -73,7 +73,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      *
      * @param platformContext        the platform context
      * @param signatureVerifier      a verifier for checking event signatures
-     * @param rosterHistory    the complete roster history
+     * @param rosterHistory          the complete roster history
      * @param intakeEventCounter     keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultEventSignatureValidator(

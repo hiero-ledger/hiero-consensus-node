@@ -72,7 +72,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     @NonNull
     @Override
     public MultipleNodeLogResults suppressingNode(@NonNull final NodeId nodeId) {
-        Objects.requireNonNull(nodeId, "nodeId cannot be null");
+        requireNonNull(nodeId, "nodeId cannot be null");
         final List<SingleNodeLogResult> filteredResults = results.stream()
                 .filter(res -> Objects.equals(res.nodeId(), nodeId))
                 .toList();
@@ -86,7 +86,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
     @NonNull
     @Override
     public MultipleNodeLogResults suppressingLogMarker(@NonNull final LogMarker marker) {
-        Objects.requireNonNull(marker, "marker cannot be null");
+        requireNonNull(marker, "marker cannot be null");
         final List<SingleNodeLogResult> filteredResults =
                 results.stream().map(res -> res.suppressingLogMarker(marker)).toList();
 

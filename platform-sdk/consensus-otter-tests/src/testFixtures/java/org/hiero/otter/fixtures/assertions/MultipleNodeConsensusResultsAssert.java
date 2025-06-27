@@ -7,6 +7,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.AbstractAssert;
@@ -53,9 +54,11 @@ public class MultipleNodeConsensusResultsAssert
     @NonNull
     public MultipleNodeConsensusResultsAssert haveLastRoundNum(final long expected) {
         isNotNull();
+
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasLastRoundNum(expected);
         }
+
         return this;
     }
 
@@ -68,9 +71,11 @@ public class MultipleNodeConsensusResultsAssert
     @NonNull
     public MultipleNodeConsensusResultsAssert haveAdvancedSinceRound(final long expected) {
         isNotNull();
+
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasAdvancedSinceRound(expected);
         }
+
         return this;
     }
 
@@ -107,7 +112,6 @@ public class MultipleNodeConsensusResultsAssert
             final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
             final List<ConsensusRound> expectedRounds =
                     longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
-
             ConsensusRoundValidator.validate(roundsToAssert, expectedRounds);
         }
 
@@ -150,10 +154,30 @@ public class MultipleNodeConsensusResultsAssert
         final double actualDifference = 100.0 * (longestSize - shortestSize) / longestSize;
         if (actualDifference > expectedDifference.value) {
             failWithMessage(
-                    "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %.2f%%",
+                    "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %.2f %%",
                     expectedDifference, actualDifference);
         }
 
+        return this;
+    }
+
+    /**
+     * Verifies that events with a creation time prior to and including the given {@code splitTime} have a birth round
+     * equal to or less than the {@code splitRound}, and all events with a creation time after the {@code splitTime}
+     * have a birth ground greater than {@code splitRound}.
+     *
+     * @param splitTime  all events with a creation time before and including this time should have a birth round equal
+     *                   to or less that the {@code splitRound}
+     * @param splitRound the maximum birth round for events created before and up to the {@code splitTime}
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsAssert haveBirthRoundSplit(
+            @NonNull final Instant splitTime, final long splitRound) {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasBirthRoundSplit(splitTime, splitRound);
+        }
         return this;
     }
 
