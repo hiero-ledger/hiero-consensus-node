@@ -222,6 +222,7 @@ public interface BinaryState {
 
     /**
      * Get a copy of the object. The returned object type must be the same type as the original.
+     * The original object becomes immutable after this call.
      *
      * @return a copy of the object
      */
