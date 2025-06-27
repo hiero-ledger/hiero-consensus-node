@@ -25,7 +25,7 @@ on:
         default: ""
       nlg-accounts:
         required: true
-        default: 100000
+        default: "100000"
         description: "Number of Accounts and NFT tokens"
         type: string
       nlg-test:
