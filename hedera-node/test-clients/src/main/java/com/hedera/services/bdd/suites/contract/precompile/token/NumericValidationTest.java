@@ -48,9 +48,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class NumericValidationTest {
 
-    public static final long EXPIRY_RENEW = 3_000_000L;
-    public static final long EXPIRY_SECOND = 10L;
-
     @Contract(contract = "NumericContract", creationGas = 8_000_000L)
     static SpecContract numericContract;
 
@@ -685,26 +682,24 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToUseCreateFungibleToken() {
             return Stream.of(
                             // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, BigInteger.TEN, BigInteger.TWO),
-                            // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, BigInteger.TEN, BigInteger.TWO),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10000L, BigInteger.TEN, BigInteger.TWO),
+                            // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10000L, BigInteger.TEN, BigInteger.TWO),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, BigInteger.TEN, BigInteger.TWO),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L, BigInteger.TEN, BigInteger.TWO),
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, MAX_LONG_PLUS_1_BIG_INT,
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 10000L, MAX_LONG_PLUS_1_BIG_INT,
                                     BigInteger.TWO),
                             // INVALID_TOKEN_DECIMALS // TODO Glib: see CreateDecoder.decodeCreateFungibleTokenV1 comment
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, BigInteger.TEN,
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 10000L, BigInteger.TEN,
                                     NEGATIVE_ONE_BIG_INT),
-                            new TestCase(SUCCESS, 10L, 3_000_000L, 10000L, BigInteger.TEN,
-                                    BigInteger.TWO))
+                            new TestCase(SUCCESS, 3_000_000L, 10000L, BigInteger.TEN, BigInteger.TWO))
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call("createFungibleToken",
                                     testCase.values()[0],
                                     testCase.values()[1],
                                     testCase.values()[2],
-                                    testCase.values()[3],
-                                    testCase.values()[4])
+                                    testCase.values()[3])
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
                             .andAssert(txn -> txn.logged().hasKnownStatus(testCase.status()))));
@@ -715,90 +710,115 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToUseCreateFungibleTokenV2() {
             return Stream.of(
                             // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, BigInteger.TEN, 2L),
-                            // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, BigInteger.TEN, 2L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10000L, BigInteger.TEN, 2L),
+                            // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10000L, BigInteger.TEN, 2L),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, BigInteger.TEN, 2L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L, BigInteger.TEN, 2L),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, -1L, BigInteger.TEN, 2L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, -1L, BigInteger.TEN, 2L),
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, NEGATIVE_ONE_BIG_INT, 2L),
-                            new TestCase(SUCCESS, 10L, 3_000_000L, 10000L, BigInteger.TEN, 2L))
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 10000L, NEGATIVE_ONE_BIG_INT, 2L),
+                            new TestCase(SUCCESS, 3_000_000L, 10000L, BigInteger.TEN, 2L))
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call("createFungibleTokenV2",
                                     testCase.values()[0],
                                     testCase.values()[1],
                                     testCase.values()[2],
-                                    testCase.values()[3],
-                                    testCase.values()[4]
+                                    testCase.values()[3]
                             )
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
-        //TODO Glib
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT 0x167 createFungibleToken V3")
         public Stream<DynamicTest> failToUseCreateFungibleTokenV3() {
             return Stream.of(
                             // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, 10L, 2),
-                            // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 10000L, 10L, 2),
-                            // INVALID_RENEWAL_PERIOD
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, 10L, 2),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10000L, 10L, 2),
+                            // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10000L, 10L, 2),
                             // INVALID_RENEWAL_PERIOD //TODO Glib: _expiryRenew=0 is passing this check, but -1 not
-                            new TestCase(INVALID_RENEWAL_PERIOD, 1L, -1L, 10000L, 10L, 2),
+                            new TestCase(INVALID_RENEWAL_PERIOD, -1L, 10000L, 10L, 2),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, 10L, 2),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L, 10L, 2),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, -1L, 10L, 2),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, -1L, 10L, 2),
                             // INVALID_TOKEN_INITIAL_SUPPLY initialSupply < maxSupply
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 5L, 10L, 2),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 5L, 10L, 2),
                             // INVALID_TOKEN_INITIAL_SUPPLY
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, -1L, 2),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 10000L, -1L, 2),
                             // INVALID_TOKEN_DECIMALS
-                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, 10L, -1),
-                            new TestCase(SUCCESS, 10L, 3_000_000L, 10000L, 10L, 2)
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 10000L, 10L, -1),
+                            new TestCase(SUCCESS, 3_000_000L, 10000L, 10L, 2)
                     )
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call("createFungibleTokenV3",
                                     testCase.values()[0],
                                     testCase.values()[1],
                                     testCase.values()[2],
-                                    testCase.values()[3],
-                                    testCase.values()[4])
+                                    testCase.values()[3])
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
-        @HapiTest
-        @DisplayName("when using createNonFungibleTokenV2 with negative maxSupply")
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("NFT 0x167 createNonFungibleToken V2")
         public Stream<DynamicTest> failToUseCreateNonFungibleTokenV2() {
-            return hapiTest(numericContractComplex
-                    .call("createNonFungibleTokenV2", alice.getED25519KeyBytes(), EXPIRY_SECOND, EXPIRY_RENEW, -1L)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .payingWith(alice)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createNonFungibleTokenV3 with negative expiry")
-        public Stream<DynamicTest> failToUseCreateNonFungibleTokenV3WithNegativeExpiry() {
-            return hapiTest(numericContractComplex
-                    .call("createNonFungibleTokenV3", alice.getED25519KeyBytes(), EXPIRY_RENEW, -EXPIRY_RENEW, 10L)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .payingWith(alice)
-                    .andAssert(txn -> txn.hasKnownStatus(INVALID_RENEWAL_PERIOD)));
+            return Stream.of(
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10L),
+                            // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, -1L),
+                            new TestCase(SUCCESS, 3_000_000L, 10L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createNonFungibleTokenV2",
+                                    alice.getED25519KeyBytes(),
+                                    testCase.values()[0],
+                                    testCase.values()[1])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .payingWith(alice)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("when using updateTokenInfoV2 for fungible token with new maxSupply")
+        @DisplayName("NFT 0x167 createNonFungibleToken V3")
+        public Stream<DynamicTest> failToUseCreateNonFungibleTokenV3WithNegativeExpiry() {
+            return Stream.of(
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10L),
+                            // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10L),
+                            // INVALID_RENEWAL_PERIOD //TODO Glib: _expiryRenew=0 is passing this check, but -1 not
+                            new TestCase(INVALID_RENEWAL_PERIOD, -1L, 10L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, -1L),
+                            new TestCase(SUCCESS, 3_000_000L, 10L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createNonFungibleTokenV3",
+                                    alice.getED25519KeyBytes(),
+                                    testCase.values()[0],
+                                    testCase.values()[1])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .payingWith(alice)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+        }
+
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("FT 0x167 updateTokenInfo V2")
         public Stream<DynamicTest> failToUpdateTokenInfoV2FungibleMaxSupply() {
             // maxSupply cannot be updated using updateTokenInfo.
             // Status is success, because the operation ignores it, so we need verify the maxSupply
@@ -810,13 +830,59 @@ public class NumericValidationTest {
                             fungibleToken.getInfo().andAssert(info -> info.hasMaxSupply(1200))));
         }
 
+        //TODO Glib test _expirySecond
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("when using updateTokenInfoV3 for both fungible and nonFungible token")
-        public Stream<DynamicTest> failToUpdateTokenInfoV3FungibleAndNft() {
-            return Stream.of(fungibleToken, nftToken)
-                    .flatMap(testCaseToken -> hapiTest(numericContractComplex
-                            .call("updateTokenInfoV3", testCaseToken, -1L, -1L, 5000L)
-                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
+        @DisplayName("FT 0x167 updateTokenInfo V3")
+        public Stream<DynamicTest> failToUpdateTokenInfoV3Fungible() {
+            return Stream.of(
+                            // AUTORENEW_DURATION_NOT_IN_RANGE
+//                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 3_000_000L, 10L),
+                            // INVALID_EXPIRATION_TIME
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 3_000_000L, 10L),
+                            // INVALID_EXPIRATION_TIME
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 0L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 2_000_000L, 10L),
+                            // INVALID_EXPIRATION_TIME
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, -1L, 10L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, -1L),
+                            new TestCase(SUCCESS, 10L, 3_000_000L, 10L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("updateTokenInfoV3",
+                                    fungibleToken,
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2])
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+        }
+
+        //TODO Glib
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("NFT 0x167 updateTokenInfo V3")
+        public Stream<DynamicTest> failToUpdateTokenInfoV3Nft() {
+            return Stream.of(
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 10L),
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 10L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, -1L),
+                            new TestCase(SUCCESS, 10L, 3_000_000L, 10L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("updateTokenInfoV3",
+                                    nftToken,
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2])
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
