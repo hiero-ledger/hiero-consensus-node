@@ -255,24 +255,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         return parseQueryResponse(responseBuffer);
     }
 
-    @Override
-    public TransactionResponse submit(
-            @NonNull final Transaction transaction,
-            @NonNull final AccountID nodeAccountId,
-            @NonNull final SyntheticVersion syntheticVersion) {
-        if (defaultNodeAccountId.equals(nodeAccountId)) {
-            assertCurrent(syntheticVersion);
-        }
-        return submit(
-                transaction,
-                nodeAccountId,
-                switch (syntheticVersion) {
-                    case PAST -> EARLIER_SEMVER;
-                    case PRESENT -> version;
-                    case FUTURE -> LATER_SEMVER;
-                });
-    }
-
     /**
      * If block stream is enabled, notifies the block stream manager of the state hash at the end of the round
      * given by {@code roundNumber}. (The block stream manager must have this information to construct the
@@ -312,17 +294,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
      * @return the fake platform
      */
     protected abstract AbstractFakePlatform fakePlatform();
-
-    /**
-     * Fails fast if somehow a user tries to manipulate the version when submitting to the default node account.
-     *
-     * @param syntheticVersion the synthetic version
-     */
-    private void assertCurrent(@NonNull final SyntheticVersion syntheticVersion) {
-        if (syntheticVersion != SyntheticVersion.PRESENT) {
-            throw new UnsupportedOperationException("Event version used at ingest by default node is always PRESENT");
-        }
-    }
 
     /**
      * Gives a pretend state signature transaction.

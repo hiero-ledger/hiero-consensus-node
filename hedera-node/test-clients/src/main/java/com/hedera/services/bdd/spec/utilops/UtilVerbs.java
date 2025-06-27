@@ -95,7 +95,6 @@ import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -570,17 +569,16 @@ public class UtilVerbs {
 
     /**
      * Returns a submission strategy that requires an embedded network and given one submits a transaction with
-     * the given synthetic version.
-     *
-     * @param syntheticVersion the synthetic version to use
+     * the given event birth round.
+     * @param eventBirthRound the event birth round to use for the submission
      * @return the submission strategy
      */
-    public static HapiTxnOp.SubmissionStrategy usingVersion(@NonNull final SyntheticVersion syntheticVersion) {
+    public static HapiTxnOp.SubmissionStrategy usingEventBirthRound(long eventBirthRound) {
         return (network, transaction, functionality, target, nodeAccountId) -> {
             if (!(network instanceof EmbeddedNetwork embeddedNetwork)) {
                 throw new IllegalArgumentException("Expected an EmbeddedNetwork");
             }
-            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, syntheticVersion);
+            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, eventBirthRound);
         };
     }
 

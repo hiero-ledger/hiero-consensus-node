@@ -3,15 +3,12 @@ package com.swirlds.platform.gui.components;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.metrics.PlatformMetric;
+import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.common.metrics.statistics.internal.StatsBuffer;
-import com.swirlds.metrics.api.Metric;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics;
+import java.awt.*;
 import java.util.Objects;
-import javax.swing.JPanel;
+import javax.swing.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -28,10 +25,13 @@ public class Chart extends JPanel {
 
     private final ChartLabelModel model;
 
-    /** {@link Metric} of this chart */
-    private final transient Metric metric;
+    private final String metricName;
+
+    private final transient StatsBuffered statsBuffered;
+
     /** is this all of history (as opposed to only recent)? */
-    private boolean allHistory;
+    private final boolean allHistory;
+
     /** the number of labels to generate */
     private long numSteps;
 
@@ -49,16 +49,24 @@ public class Chart extends JPanel {
     /**
      * A chart that displays the history of a statistic from a StatsBuffer
      *
-     * @param width       width of the panel in pixels
-     * @param height      height of the panel in pixels
-     * @param allHistory  is this all of history (as opposed to only recent)?
-     * @param metric      {@link Metric} of this chart
+     * @param width         width of the panel in pixels
+     * @param height        height of the panel in pixels
+     * @param allHistory    is this all of history (as opposed to only recent)?
+     * @param statsBuffered {@link StatsBuffered} of this chart
+     * @param metricName    metric name to display in the chart title
      */
-    public Chart(@NonNull ChartLabelModel model, int width, int height, boolean allHistory, final Metric metric) {
+    public Chart(
+            @NonNull ChartLabelModel model,
+            int width,
+            int height,
+            boolean allHistory,
+            StatsBuffered statsBuffered,
+            String metricName) {
         this.model = Objects.requireNonNull(model, "model must not be null");
         this.setPreferredSize(new Dimension(width, height));
         this.allHistory = allHistory;
-        this.metric = metric;
+        this.metricName = metricName;
+        this.statsBuffered = statsBuffered;
         this.setBackground(Color.WHITE);
     }
 
@@ -204,14 +212,10 @@ public class Chart extends JPanel {
         super.paintComponent(g);
         try {
             StatsBuffer buffer;
-            if (metric instanceof PlatformMetric platformMetric) {
-                if (allHistory) {
-                    buffer = platformMetric.getStatsBuffered().getAllHistory();
-                } else {
-                    buffer = platformMetric.getStatsBuffered().getRecentHistory();
-                }
+            if (allHistory) {
+                buffer = statsBuffered.getAllHistory();
             } else {
-                buffer = new StatsBuffer(0, 0, 0);
+                buffer = statsBuffered.getRecentHistory();
             }
 
             minXs = 120;
@@ -245,7 +249,7 @@ public class Chart extends JPanel {
             stringHeight = g.getFontMetrics().getHeight();
             stringHeightNoDesc =
                     g.getFontMetrics().getHeight() - g.getFontMetrics().getDescent();
-            String title = metric.getName() + " vs. time for " + (allHistory ? "all" : "recent") + " history";
+            String title = metricName + " vs. time for " + (allHistory ? "all" : "recent") + " history";
 
             if (buffer.numBins() == 0) {
                 final String s = "Skipping the first 60 seconds ...";

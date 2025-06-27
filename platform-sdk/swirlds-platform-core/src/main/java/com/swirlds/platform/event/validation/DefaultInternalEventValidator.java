@@ -127,8 +127,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "eventCore";
         } else if (eventCore.timeCreated() == null) {
             nullField = "timeCreated";
-        } else if (eventCore.version() == null) {
-            nullField = "version";
         } else if (gossipEvent.parents().stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
         } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {

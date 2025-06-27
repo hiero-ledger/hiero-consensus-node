@@ -72,6 +72,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     private boolean freezeTimeUpdated;
 
+    private long latestFreezeRound;
+
+    private boolean latestFreezeRoundUpdated;
+
     /**
      * the last time when a freeze was performed
      */
@@ -283,6 +287,11 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         return lastFrozenTime;
     }
 
+    @Override
+    public long getLatestFreezeRound() {
+        return latestFreezeRound;
+    }
+
     /**
      * Sets the last freezeTime based on which the nodes were frozen.
      *
@@ -292,6 +301,12 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     public void setLastFrozenTime(@Nullable final Instant lastFrozenTime) {
         this.lastFrozenTime = lastFrozenTime;
         lastFrozenTimeUpdated = true;
+    }
+
+    @Override
+    public void setLatestFreezeRound(final long latestFreezeRound) {
+        this.latestFreezeRound = latestFreezeRound;
+        latestFreezeRoundUpdated = true;
     }
 
     /**
@@ -391,6 +406,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     public boolean isLastFrozenTimeUpdated() {
         return lastFrozenTimeUpdated;
+    }
+
+    public boolean isLatestFreezeRoundUpdated() {
+        return latestFreezeRoundUpdated;
     }
 
     public boolean isFirstVersionInBirthRoundModeUpdated() {
