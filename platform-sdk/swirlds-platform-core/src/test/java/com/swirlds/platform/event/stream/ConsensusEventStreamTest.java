@@ -31,13 +31,13 @@ class ConsensusEventStreamTest {
             Time.getCurrent(), multiStreamMock, ConsensusEventStreamTest::isFreezeEvent);
     private static final Random RANDOM = RandomUtils.getRandomPrintSeed();
 
-    private static final CesEvent freezeEvent = createRndEvent();
+    private static final CesEvent freezeEvent = createRandomEvent();
 
     @Test
     void addEventTest() {
         final int nonFreezeEventsNum = 10;
         for (int i = 0; i < nonFreezeEventsNum; i++) {
-            final CesEvent event = createRndEvent();
+            final CesEvent event = createRandomEvent();
             CONSENSUS_EVENT_STREAM.addEvents(List.of(event));
 
             verify(multiStreamMock).addObject(event);
@@ -60,7 +60,7 @@ class ConsensusEventStreamTest {
         // for freeze event, multiStream should be closed after adding it
         verify(multiStreamMock).close();
 
-        final CesEvent eventAddAfterFrozen = createRndEvent();
+        final CesEvent eventAddAfterFrozen = createRandomEvent();
         CONSENSUS_EVENT_STREAM.addEvents(List.of(eventAddAfterFrozen));
         // after frozen, when adding event to the EventStreamManager, multiStream.add(event) should not be called
         verify(multiStreamMock, never()).addObject(eventAddAfterFrozen);
@@ -101,7 +101,7 @@ class ConsensusEventStreamTest {
      * Creates a random CesEvent
      * @return a random CesEvent
      */
-    private static CesEvent createRndEvent() {
+    private static CesEvent createRandomEvent() {
         return RecoveryTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
     }
 }

@@ -38,6 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -249,21 +250,20 @@ public class DefaultTransactionHandler implements TransactionHandler {
         final State consensusState = swirldStateManager.getConsensusState();
 
         if (writeLegacyRunningEventHash) {
+            final CesEvent last = round.getStreamedEvents().getLast();
+            if (freezeRoundReceived) {
+                logger.info(
+                        "Last event in the freezeRound:{} is:{} and has consensus time:{}",
+                        round.getRoundNum(),
+                        last.getPlatformEvent().getConsensusTimestamp(),
+                        last.getPlatformEvent().getDescriptor());
+            }
             // Update the running hash object. If there are no events, the running hash does not change.
             // Future work: this is a redundant check, since empty rounds are currently ignored entirely. The check is
             // here anyway, for when that changes in the future.
-            if (freezeRoundReceived) {
-                logger.info(
-                        "Last event in the freezeRound:{} is:{}",
-                        round.getRoundNum(),
-                        round.getStreamedEvents().getLast().getPlatformEvent().getDescriptor());
-            }
             if (!round.isEmpty()) {
-                previousRoundLegacyRunningEventHash = round.getStreamedEvents()
-                        .getLast()
-                        .getRunningHash()
-                        .getFutureHash()
-                        .getAndRethrow();
+                previousRoundLegacyRunningEventHash =
+                        last.getRunningHash().getFutureHash().getAndRethrow();
             }
 
             platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
