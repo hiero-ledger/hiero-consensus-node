@@ -15,6 +15,8 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult {
 
     private final NodeResultsCollector collector;
+
+    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile int startIndex = 0;
 
     /**

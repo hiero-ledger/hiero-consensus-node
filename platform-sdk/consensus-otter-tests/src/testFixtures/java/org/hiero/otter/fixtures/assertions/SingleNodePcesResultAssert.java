@@ -12,7 +12,9 @@ import com.swirlds.common.io.IOIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.time.Instant;
 import org.assertj.core.api.AbstractAssert;
+import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.otter.fixtures.internal.helpers.LongPredicates.LongBiPredicate;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
@@ -94,7 +96,8 @@ public class SingleNodePcesResultAssert extends AbstractAssert<SingleNodePcesRes
     }
 
     /**
-     * Asserts that the maximum birth round of all events stored in the PCES files is less than or equal to the given value.
+     * Asserts that the maximum birth round of all events stored in the PCES files is less than or equal to the given
+     * value.
      *
      * @param expected the expected maximum birth round
      * @return this assertion object for method chaining
@@ -116,7 +119,8 @@ public class SingleNodePcesResultAssert extends AbstractAssert<SingleNodePcesRes
     }
 
     /**
-     * Asserts that the maximum birth round of all events stored in the PCES files is greater than or equal to the given value.
+     * Asserts that the maximum birth round of all events stored in the PCES files is greater than or equal to the given
+     * value.
      *
      * @param expected the expected maximum birth round
      * @return this assertion object for method chaining
@@ -152,5 +156,45 @@ public class SingleNodePcesResultAssert extends AbstractAssert<SingleNodePcesRes
             fail("Unexpected IOException while evaluating PcesFiles", e);
         }
         return maxBirthRound;
+    }
+
+    /**
+     * Verifies that events with a creation time prior to and including the given {@code splitTime} have a birth round
+     * equal to or less than the {@code splitRound}, and all events with a creation time after the {@code splitTime}
+     * have a birth ground greater than {@code splitRound}.
+     *
+     * @param splitTime  all events with a creation time before and including this time should have a birth round equal
+     *                   to or less that the {@code splitRound}
+     * @param splitRound the maximum birth round for events created before and up to the {@code splitTime}
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodePcesResultAssert hasBirthRoundSplit(@NonNull final Instant splitTime, final long splitRound) {
+        isNotNull();
+        try (final IOIterator<PlatformEvent> it = actual.pcesEvents()) {
+            while (it.hasNext()) {
+                final PlatformEvent event = it.next();
+                if (event.getTimeCreated().isAfter(splitTime)) {
+                    Assertions.assertThat(event.getBirthRound())
+                            .withFailMessage(
+                                    "Expected events with creation time less than or equal to %s to "
+                                            + "have a birth round less than or equal to <%s>, but creation time "
+                                            + "was %s and birth round was <%s>",
+                                    splitTime, splitRound, event.getTimeCreated(), event.getBirthRound())
+                            .isGreaterThan(splitRound);
+                } else {
+                    Assertions.assertThat(event.getBirthRound())
+                            .withFailMessage(
+                                    "Expected events with creation time greater than %s to "
+                                            + "have a birth round greater than <%s>, but creation time "
+                                            + "was %s and birth round was <%s>",
+                                    splitTime, splitRound, event.getTimeCreated(), event.getBirthRound())
+                            .isLessThanOrEqualTo(splitRound);
+                }
+            }
+        } catch (final IOException e) {
+            fail("Unexpected IOException while evaluating PcesFiles", e);
+        }
+        return this;
     }
 }

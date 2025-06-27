@@ -33,7 +33,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         this.results = unmodifiableList(requireNonNull(results));
 
         // The subscription mechanism is a bit tricky, because we have two levels of subscriptions.
-        // A subscriber A can subscribe to this class. It will be notified if any of the nodes has new rounds.
+        // A subscriber A can subscribe to this class. It will be notified if any of the nodes has new log entries.
         // To implement this, we define a meta-subscriber that will be subscribed to the results of all nodes.
         // This meta-subscriber will notify all child-subscribers to this class (among them A).
         // If a child-subscriber wants to be unsubscribed, it will return SubscriberAction.UNSUBSCRIBE.

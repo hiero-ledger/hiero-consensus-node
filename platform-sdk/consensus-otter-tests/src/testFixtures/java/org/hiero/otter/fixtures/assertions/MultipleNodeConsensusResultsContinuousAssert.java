@@ -5,12 +5,14 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.hiero.consensus.model.event.PlatformEvent;
+import java.util.stream.Stream;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -46,6 +48,48 @@ public class MultipleNodeConsensusResultsContinuousAssert
     }
 
     /**
+     * Verifies that the created consensus rounds are consistent.
+     *
+     * <p>This includes checking if the ancient thresholds are increasing and the timestamps of
+     * events are strictly increasing.
+     *
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeConsensusResultsContinuousAssert haveConsistentRounds() {
+        isNotNull();
+
+        final ConsensusRoundSubscriber subscriber = new ConsensusRoundSubscriber() {
+
+            // For some validations to function properly, we have to prepend the last round
+            private ConsensusRound lastRound = null;
+
+            @Override
+            public SubscriberAction onConsensusRounds(
+                    @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
+                return switch (state) {
+                    case ACTIVE -> {
+                        if (!suppressedNodeIds.contains(nodeId)) {
+                            final List<ConsensusRound> includingLast = Stream.concat(
+                                            Stream.ofNullable(lastRound), rounds.stream())
+                                    .toList();
+                            ConsensusRoundValidator.validate(includingLast);
+                            lastRound = rounds.getLast();
+                        }
+                        yield CONTINUE;
+                    }
+                    case PAUSED -> CONTINUE;
+                    case DESTROYED -> UNSUBSCRIBE;
+                };
+            }
+        };
+
+        actual.subscribe(subscriber);
+
+        return this;
+    }
+
+    /**
      * Verifies that all nodes produce equal rounds as they are produces. This check only compares the rounds produced by the nodes, i.e.,
      * if a node produces no rounds or is significantly behind the others, this check will NOT fail.
      *
@@ -64,19 +108,12 @@ public class MultipleNodeConsensusResultsContinuousAssert
                     @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
-                        final NodeId protoNodeId =
-                                NodeId.newBuilder().id(nodeId.id()).build();
-                        if (!suppressedNodeIds.contains(protoNodeId)) {
+                        if (!suppressedNodeIds.contains(nodeId)) {
                             for (final ConsensusRound round : rounds) {
                                 final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                                        round.getRoundNum(), key -> new RoundFromNode(protoNodeId, round));
-                                if (!protoNodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
-                                    failWithMessage(summarizeDifferences(
-                                            reference.nodeId,
-                                            protoNodeId,
-                                            round.getRoundNum(),
-                                            reference.round(),
-                                            round));
+                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
+                                if (!nodeId.equals(reference.nodeId)) {
+                                    RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
                                 }
                             }
                         }
@@ -91,33 +128,6 @@ public class MultipleNodeConsensusResultsContinuousAssert
         actual.subscribe(subscriber);
 
         return this;
-    }
-
-    private static String summarizeDifferences(
-            @NonNull final NodeId node1,
-            @NonNull final NodeId node2,
-            final long roundNum,
-            @NonNull final ConsensusRound round1,
-            @NonNull final ConsensusRound round2) {
-        if (round1.getEventCount() != round2.getEventCount()) {
-            return "Expected rounds to be equal, but round %d of node %s has %d events, while the same round of node %s has %d events."
-                    .formatted(roundNum, node1, round1.getEventCount(), node2, round2.getEventCount());
-        }
-
-        final StringBuilder sb = new StringBuilder();
-        sb.append("Expected rounds to be equal, but round ")
-                .append(roundNum)
-                .append(" has the following differences:\n");
-        for (int i = 0; i < round1.getEventCount(); i++) {
-            final PlatformEvent event1 = round1.getConsensusEvents().get(i);
-            final PlatformEvent event2 = round2.getConsensusEvents().get(i);
-            if (!event1.equals(event2)) {
-                sb.append("Event ").append(i).append(" differs:\n");
-                sb.append("Node ").append(node1.id()).append(" produced\n").append(event1);
-                sb.append("Node ").append(node2.id()).append(" produced\n").append(event2);
-            }
-        }
-        return sb.toString();
     }
 
     private record RoundFromNode(@NonNull NodeId nodeId, @NonNull ConsensusRound round) {}

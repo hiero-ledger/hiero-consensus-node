@@ -27,6 +27,8 @@ public class NodeResultsCollector {
     private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
+
+    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
 
     /**
