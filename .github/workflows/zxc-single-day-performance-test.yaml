@@ -231,13 +231,6 @@ jobs:
           echo "inputs.nlg-test=${{ env.run_NLG_Test }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
-      - name: Remove previous solo folders
-        run: |
-          if [ -d solo ]
-          then
-            rm -rf solo
-          fi
-
       - name: Set hederahash sha value
         run: |
           hederahash=`git rev-parse HEAD`
