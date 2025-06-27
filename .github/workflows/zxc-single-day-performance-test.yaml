@@ -209,10 +209,6 @@ jobs:
           n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^Latitude(\d+)$/'`
           echo "namespace=${LATITUDE_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
-      - name: Init workspace
-        run: |
-          rm -rf "${{ github.workspace }}"/*
-
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -239,6 +235,7 @@ jobs:
 
       - name: Compile
         run: ./gradlew assemble
+        working-directory: ${{ github.workspace }}
 
       - name: Build Solo
         run: |
