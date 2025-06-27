@@ -215,9 +215,9 @@ contract NumericContractComplex is KeyHelper {
         require(responseCode == SUCCESS_CODE);
     }
 
-    function createFungibleTokenV2(int64 _maxSupply, uint64 initialTotalSupply, uint32 decimals) public payable {
+    function createFungibleTokenV2(uint32 _expirySecond, uint32 _expiryRenew, int64 _maxSupply, uint64 initialTotalSupply, uint32 decimals) public payable {
         Structs.HederaTokenV2 memory token = buildTokenV2({
-            expirySecond: 10, expiryRenew: 3_000_000, maxSupply: _maxSupply});
+            expirySecond: _expirySecond, expiryRenew: _expiryRenew, maxSupply: _maxSupply});
 
         (bool success, bytes memory result) = address(0x167).call{value: msg.value}(
             abi.encodeWithSelector(NumericHelperV2.createFungibleToken.selector, token, initialTotalSupply, decimals)

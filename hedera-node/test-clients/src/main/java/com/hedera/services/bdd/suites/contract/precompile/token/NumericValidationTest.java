@@ -84,20 +84,20 @@ public class NumericValidationTest {
     public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
             new BigInteger(1, Bytes.fromHex("010000000000000000").toByteArray());
 
-    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {
+    public record UintTestCase(BigInteger amount, ResponseCodeEnum status) {
     }
 
     public record Int64TestCase(Long amount, ResponseCodeEnum status) {
     }
 
-    public record ObjectArrayTestCase(ResponseCodeEnum status, Object... values) {
+    public record TestCase(ResponseCodeEnum status, Object... values) {
     }
 
     // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
-    public static final List<BigIntegerTestCase> allFail = List.of(
-            new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
-            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
-            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));
+    public static final List<UintTestCase> allFail = List.of(
+            new UintTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));
 
     @BeforeAll
     public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
@@ -140,9 +140,9 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToApproveViaProxyFungibleToken() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // See CryptoApproveAllowanceHandler.pureChecks
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("approveRedirect", fungibleToken, numericContractComplex, testCase.amount())
                             .gas(1_000_000L)
@@ -155,10 +155,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToApproveViaProxyNft() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER (See AllowanceValidator.validateSerialNums)
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(NFT_SERIAL_FOR_APPROVE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(NFT_SERIAL_FOR_APPROVE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("approveRedirect", nftToken, numericContractComplex, testCase.amount())
                             .gas(1_000_000L)
@@ -170,9 +170,9 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToApproveFungibleToken() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // See CryptoApproveAllowanceHandler.pureChecks
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("approve", fungibleToken, numericContractComplex, testCase.amount)
                             .gas(1_000_000L)
@@ -184,10 +184,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToApproveNft() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER (See AllowanceValidator.validateSerialNums)
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(NFT_SERIAL_FOR_APPROVE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(NFT_SERIAL_FOR_APPROVE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("approveNFT", nftToken, numericContractComplex, testCase.amount)
                             .gas(1_000_000L)
@@ -204,8 +204,8 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToBurnFtV1() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("burnTokenV1", fungibleToken, testCase.amount(), new long[0])
                             .gas(1_000_000L)
@@ -217,8 +217,8 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToBurnNftV1() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.valueOf(NFT_SERIAL_TRACKER.getAndIncrement()), SUCCESS))
+                            new UintTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.valueOf(NFT_SERIAL_TRACKER.getAndIncrement()), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("burnTokenV1", nftToken, testCase.amount(), new long[]{
                                     testCase.amount().longValue()
@@ -269,8 +269,8 @@ public class NumericValidationTest {
             // to send number greater than Long.MAX_VALUE
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("mintTokenV1", fungibleToken, testCase.amount(), new byte[0][0])
                             .gas(1_000_000L)
@@ -284,10 +284,10 @@ public class NumericValidationTest {
             // to send number greater than Long.MAX_VALUE
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(
+                            new UintTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(
                                     BigInteger.ONE, CONTRACT_REVERT_EXECUTED), // INVALID_TRANSACTION_BODY
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("mintTokenV1", nftToken, testCase.amount(), new byte[][]{{(byte) 0x1}})
                             .gas(1_000_000L)
@@ -379,10 +379,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failTokenURI() {
             return Stream.of(
                             // ERC721Metadata: URI query for nonexistent token
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // ERC721Metadata: URI query for nonexistent token
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("tokenURI", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -393,10 +393,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToGetTokenKeyNft() {
             return Stream.of(
                             // KEY_NOT_PROVIDED
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // KEY_NOT_PROVIDED
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("getTokenKey", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -407,10 +407,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToGetTokenKeyFt() {
             return Stream.of(
                             // KEY_NOT_PROVIDED
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // KEY_NOT_PROVIDED
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("getTokenKey", fungibleToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -435,10 +435,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToGetApproved() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("getApproved", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -449,10 +449,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToGetApprovedERC() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("getApprovedERC", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -463,10 +463,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToOwnerOf() {
             return Stream.of(
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // INVALID_TOKEN_NFT_SERIAL_NUMBER
-                            new BigIntegerTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("ownerOf", nftToken, testCase.amount)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
@@ -496,10 +496,10 @@ public class NumericValidationTest {
             // see also HbarAllowanceApprovalTest.hrc632ApproveFromEOA test
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
                             // NEGATIVE_ALLOWANCE_AMOUNT
-                            new BigIntegerTestCase(BigInteger.valueOf(-1), SUCCESS),
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(BigInteger.valueOf(-1), SUCCESS),
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("hbarApproveProxy", owner, spender, testCase.amount())
                             .gas(1_000_000L)
@@ -512,10 +512,10 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToHbarApprove() {
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // NEGATIVE_ALLOWANCE_AMOUNT
-                            new BigIntegerTestCase(BigInteger.valueOf(-1), CONTRACT_REVERT_EXECUTED),
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(BigInteger.valueOf(-1), CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("hbarApprove", owner, spender, testCase.amount())
                             .gas(1_000_000L)
@@ -532,9 +532,9 @@ public class NumericValidationTest {
         public Stream<DynamicTest> convertTinycentsToTinybars() {
             // function working with uint256->BigInteger, so all examples as SUCCESS
             return Stream.of(
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
+                            new UintTestCase(BigInteger.ZERO, SUCCESS),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("convertTinycentsToTinybars", testCase.amount())
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -545,9 +545,9 @@ public class NumericValidationTest {
         public Stream<DynamicTest> convertTinybarsToTinycents() {
             // function working with uint256->BigInteger, so all examples as SUCCESS
             return Stream.of(
-                            new BigIntegerTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
-                            new BigIntegerTestCase(BigInteger.ZERO, SUCCESS),
-                            new BigIntegerTestCase(BigInteger.ONE, SUCCESS))
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
+                            new UintTestCase(BigInteger.ZERO, SUCCESS),
+                            new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("convertTinybarsToTinycents", testCase.amount())
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -584,12 +584,12 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV1FractionalFee() {
             return Stream.of(
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 100L, 10000L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 100L, 10000L),
                             // FRACTION_DIVIDES_BY_ZERO
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 100L, 10000L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 100L, 10000L),
                             // FRACTIONAL_FEE_MAX_AMOUNT_LESS_THAN_MIN_AMOUNT
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, 10L),
-                            new ObjectArrayTestCase(SUCCESS, 1L, 1L, 100L, 10000L)
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, 10L),
+                            new TestCase(SUCCESS, 1L, 1L, 100L, 10000L)
                     )
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call(
@@ -624,18 +624,18 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3FractionalFee() {
             return Stream.of(
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 100L, 10000L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 100L, 10000L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 100L, 10000L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 100L, 10000L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 100L, 10000L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 100L, 10000L),
                             // FRACTION_DIVIDES_BY_ZERO
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 100L, 10000L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 100L, 10000L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, -1L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, -1L),
                             // FRACTIONAL_FEE_MAX_AMOUNT_LESS_THAN_MIN_AMOUNT
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, 10L),
-                            new ObjectArrayTestCase(SUCCESS, 1L, 1L, 100L, 10000L)
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, 10L),
+                            new TestCase(SUCCESS, 1L, 1L, 100L, 10000L)
                     )
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call(
@@ -654,18 +654,18 @@ public class NumericValidationTest {
         public Stream<DynamicTest> failToUseCreateNonFungibleTokenWithCustomFeesV3RoyaltyFees() {
             return Stream.of(
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 10L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 10L),
                             // FRACTION_DIVIDES_BY_ZERO
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, -1L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, -1L),
                             // CUSTOM_FEE_MUST_BE_POSITIVE
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 0L),
-                            new ObjectArrayTestCase(SUCCESS, 1L, 1L, 100L, 10000L)
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 0L),
+                            new TestCase(SUCCESS, 1L, 1L, 100L, 10000L)
                     )
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call(
@@ -681,23 +681,22 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("FT 0x167 createFungibleToken")
+        @DisplayName("FT 0x167 createFungibleToken V1")
         public Stream<DynamicTest> failToUseCreateFungibleToken() {
             return Stream.of(
                             // INVALID_RENEWAL_PERIOD
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, BigInteger.TEN, BigInteger.TWO),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, BigInteger.TEN, BigInteger.TWO),
                             // INVALID_RENEWAL_PERIOD
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, BigInteger.TEN, BigInteger.TWO),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, BigInteger.TEN, BigInteger.TWO),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, BigInteger.TEN,
-                                    BigInteger.TWO),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, BigInteger.TEN, BigInteger.TWO),
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, MAX_LONG_PLUS_1_BIG_INT,
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, MAX_LONG_PLUS_1_BIG_INT,
                                     BigInteger.TWO),
-                            // INVALID_TOKEN_DECIMALS
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, BigInteger.TEN,
+                            // INVALID_TOKEN_DECIMALS // TODO Glib: see CreateDecoder.decodeCreateFungibleTokenV1 comment
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, BigInteger.TEN,
                                     NEGATIVE_ONE_BIG_INT),
-                            new ObjectArrayTestCase(SUCCESS, 10L, 3_000_000L, 10000L, BigInteger.TEN,
+                            new TestCase(SUCCESS, 10L, 3_000_000L, 10000L, BigInteger.TEN,
                                     BigInteger.TWO))
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call("createFungibleToken",
@@ -712,56 +711,68 @@ public class NumericValidationTest {
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("when using createFungibleTokenV2 with negative initial supply")
+        @DisplayName("FT 0x167 createFungibleToken V2")
         public Stream<DynamicTest> failToUseCreateFungibleTokenV2() {
             return Stream.of(
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, BigInteger.TEN, 2L),
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, BigInteger.TEN, 2L),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, BigInteger.TEN, 2L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, BigInteger.TEN, 2L),
                             // INVALID_TOKEN_MAX_SUPPLY
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, -1L, BigInteger.TEN, 2L),
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, -1L, BigInteger.TEN, 2L),
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10000L, NEGATIVE_ONE_BIG_INT, 2L),
-                            // INVALID_TOKEN_DECIMALS
-                            new ObjectArrayTestCase(SUCCESS, 10000L, BigInteger.TEN, 2L))
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, NEGATIVE_ONE_BIG_INT, 2L),
+                            new TestCase(SUCCESS, 10L, 3_000_000L, 10000L, BigInteger.TEN, 2L))
                     .flatMap(testCase -> hapiTest(numericContractComplex
                             .call("createFungibleTokenV2",
                                     testCase.values()[0],
                                     testCase.values()[1],
-                                    testCase.values()[2])
+                                    testCase.values()[2],
+                                    testCase.values()[3],
+                                    testCase.values()[4]
+                            )
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         //TODO Glib
-        @HapiTest
-        @DisplayName("when using createFungibleTokenV3 with negative decimals")
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("FT 0x167 createFungibleToken V3")
         public Stream<DynamicTest> failToUseCreateFungibleTokenV3() {
-            return hapiTest(numericContractComplex
-                    .call("createFungibleTokenV3", EXPIRY_SECOND, EXPIRY_RENEW, 10L, 0L, -1)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createFungibleTokenV3 with maxSupply < initialSupply")
-        public Stream<DynamicTest> failToUseCreateFungibleTokenV3WhenMaxAndInitialSupplyMismatch() {
-            return hapiTest(numericContractComplex
-                    .call("createFungibleTokenV3", EXPIRY_SECOND, EXPIRY_RENEW, 5L, 10L, 2)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createFungibleTokenV3 with negative expiry")
-        public Stream<DynamicTest> failToUseCreateFungibleTokenV3WithNegativeExpiry() {
-            return hapiTest(numericContractComplex
-                    .call("createFungibleTokenV3", EXPIRY_SECOND, -1L, 100L, 10L, 2)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(INVALID_RENEWAL_PERIOD)));
+            return Stream.of(
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, 10L, 2),
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 10000L, 10L, 2),
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, 10L, 2),
+                            // INVALID_RENEWAL_PERIOD //TODO Glib: _expiryRenew=0 is passing this check, but -1 not
+                            new TestCase(INVALID_RENEWAL_PERIOD, 1L, -1L, 10000L, 10L, 2),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, 10L, 2),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, -1L, 10L, 2),
+                            // INVALID_TOKEN_INITIAL_SUPPLY initialSupply < maxSupply
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 5L, 10L, 2),
+                            // INVALID_TOKEN_INITIAL_SUPPLY
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, -1L, 2),
+                            // INVALID_TOKEN_DECIMALS
+                            new TestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, 10L, -1),
+                            new TestCase(SUCCESS, 10L, 3_000_000L, 10000L, 10L, 2)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createFungibleTokenV3",
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2],
+                                    testCase.values()[3],
+                                    testCase.values()[4])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @HapiTest
