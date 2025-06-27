@@ -47,7 +47,7 @@ public class NodesCommand implements Callable<Integer> {
 
     /**
      * Given a location and a {@link Yahcli}, validates that a key file exists at the location or throws
-     * a {@link CommandLine.ParameterException} with context on the command line that failed.
+     * a {@link picocli.CommandLine.ParameterException} with context on the command line that failed.
      *
      * @param loc the location to check for a key file
      * @param yahcli the {@link Yahcli} to use for context
@@ -68,7 +68,7 @@ public class NodesCommand implements Callable<Integer> {
 
     /**
      * Given a location and a {@link Yahcli}, validates that a X.509 certificate exists at the location and
-     * returns its encoded bytes, or throws a {@link CommandLine.ParameterException} with context on the
+     * returns its encoded bytes, or throws a {@link picocli.CommandLine.ParameterException} with context on the
      * command line that failed.
      *
      * @param certLoc if non-null, the location to check for a X.509 certificate

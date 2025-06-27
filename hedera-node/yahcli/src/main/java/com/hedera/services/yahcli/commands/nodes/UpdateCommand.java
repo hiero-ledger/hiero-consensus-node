@@ -27,7 +27,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "update",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "update an existing node")
 public class UpdateCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

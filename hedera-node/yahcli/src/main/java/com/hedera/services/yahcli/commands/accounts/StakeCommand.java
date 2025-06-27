@@ -15,7 +15,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "stake",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "Changes the staking election for an account")
 public class StakeCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

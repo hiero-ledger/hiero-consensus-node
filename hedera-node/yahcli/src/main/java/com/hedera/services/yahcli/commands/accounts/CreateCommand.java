@@ -16,7 +16,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "create",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "Creates a new account with a simple Ed25519 key")
 public class CreateCommand implements Callable<Integer> {
     private static final int DEFAULT_NUM_RETRIES = 5;

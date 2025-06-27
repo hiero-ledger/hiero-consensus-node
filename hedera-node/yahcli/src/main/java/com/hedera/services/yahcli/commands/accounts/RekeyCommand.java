@@ -21,7 +21,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "rekey",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "Replaces the key on an account")
 public class RekeyCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

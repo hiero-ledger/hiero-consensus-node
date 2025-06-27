@@ -28,7 +28,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "create",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "Creates a new node")
 public class CreateCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

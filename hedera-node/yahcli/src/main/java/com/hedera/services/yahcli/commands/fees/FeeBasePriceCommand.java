@@ -8,7 +8,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "list-base-prices",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "List base prices for all operations")
 public class FeeBasePriceCommand implements Callable<Integer> {
     @CommandLine.ParentCommand
