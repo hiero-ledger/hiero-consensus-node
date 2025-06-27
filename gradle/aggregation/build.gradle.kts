@@ -5,10 +5,11 @@ plugins {
     id("org.hiero.gradle.report.code-coverage")
     id("org.hiero.gradle.check.spotless")
     id("org.hiero.gradle.check.spotless-kotlin")
+    id("org.hiero.gradle.feature.publish-maven-central-aggregation")
 }
 
 dependencies {
-    implementation(project(":app"))
+    published(project(":app"))
     // examples that also contain tests we would like to run
     implementation(project(":swirlds-platform-base-example"))
     implementation(project(":ConsistencyTestingTool"))
@@ -19,6 +20,8 @@ dependencies {
     implementation(project(":StressTestingTool"))
     // projects that only contains tests (and no production code)
     implementation(project(":test-clients"))
+    implementation(project(":consensus-otter-docker-app"))
+    implementation(project(":consensus-otter-tests"))
 }
 
 tasks.testCodeCoverageReport {

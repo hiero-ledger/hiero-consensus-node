@@ -110,6 +110,8 @@ public class SandboxTest {
 
         assertThat(network.getPcesResults()).haveAllBirthRoundsEqualTo(1);
 
-        assertThat(network.getConsensusResults()).haveEqualRoundsIgnoringLast(Percentage.withPercentage(1));
+        assertThat(network.getConsensusResults())
+                .haveEqualCommonRounds()
+                .haveMaxDifferenceInLastRoundNum(Percentage.withPercentage(1));
     }
 }

@@ -35,11 +35,21 @@ testModuleInfo {
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.utility")
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+// This should probably not be necessary (Log4j issue?)
+// https://github.com/apache/logging-log4j2/pull/3053
+tasks.compileTestFixturesJava {
+    options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
+    options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
 }
 
 // Runs tests against the Turtle environment
 tasks.register<Test>("testTurtle") {
-    useJUnitPlatform {}
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -55,9 +65,13 @@ tasks.register<Test>("testTurtle") {
     jvmArgs("-XX:ActiveProcessorCount=6")
 }
 
-// Runs tests against the Solo environment
-tasks.register<Test>("testSolo") {
-    useJUnitPlatform {}
+// Runs tests against the Container environment
+tasks.register<Test>("testContainer") {
+    dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
+
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
 
     // Disable all parallelism
     systemProperty("junit.jupiter.execution.parallel.enabled", false)
@@ -66,7 +80,7 @@ tasks.register<Test>("testSolo") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
     // Tell our launcher to target a repeatable embedded network
-    systemProperty("otter.env", "solo")
+    systemProperty("otter.env", "container")
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
