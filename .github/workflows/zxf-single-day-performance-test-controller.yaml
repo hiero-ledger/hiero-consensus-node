@@ -68,11 +68,11 @@ on:
         default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
         description: "Test params"
         type: string
-      dry-run-enabled:
+      disable-notifications:
         required: false
         default: false
         type: boolean
-        description: "Enable dry run mode. If true, the test will be executed, but not tag will be applied."
+        description: "If true, the test will be executed, but not tag will be applied and slack notifications won't be sent."
 
 defaults:
   run:
@@ -86,7 +86,6 @@ jobs:
   verify-tag:
     name: Verify Tag
     runs-on: hiero-network-node-linux-medium
-    if: ${{ inputs.dry-run-enabled != true }}
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
@@ -114,7 +113,7 @@ jobs:
             BUILD_NUMBER="${BASH_REMATCH[1]}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
           else
-            echo "::warning title=Invalid Tag::The provided tag (${inputs.ref}) is not a valid build tag."
+            echo "::warning title=Invalid Build Tag::The provided tag (${inputs.ref}) is not a valid build tag."
           fi
 
   run-single-day-performance-test:
@@ -142,7 +141,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     needs:
       - run-single-day-performance-test
-    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.dry-run-enabled != true }}
+    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -162,7 +161,7 @@ jobs:
   get-commit-info:
     name: Get Commit Information
     runs-on: hiero-network-node-linux-medium
-    if: ${{ inputs.dry-run-enabled != true }}
+    if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
     outputs:
@@ -219,7 +218,7 @@ jobs:
       needs.tag-sdpt-passing.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      inputs.dry-run-enabled != true && !cancelled() }}
+      inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -342,7 +341,7 @@ jobs:
       needs.tag-sdpt-passing.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      inputs.dry-run-enabled != true && !cancelled() && always() }}
+      inputs.disable-notifications != true && !cancelled() && always() }}
 
     steps:
       - name: Harden Runner
