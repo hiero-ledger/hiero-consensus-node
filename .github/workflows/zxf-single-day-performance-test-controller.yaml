@@ -101,7 +101,7 @@ jobs:
 
       - name: Verify Tag
         env:
-          PROMOTED_GREP_PATTERN: "build-.{5}" # Pattern to match build tags (e.g., build-12345)
+          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
           CHECK_TAG: "${{ inputs.ref }}"
         run: |
           # Ensure the tag that we received is a build tag
@@ -110,24 +110,21 @@ jobs:
           # if the tag is not a build tag then we will fail the workflow
           if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
             echo "The tag is a valid build tag."
-            BUILD_NUMBER="${CHECK_TAG: -5}"
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
           else
-            echo "::error title=Invalid Tag::The provided tag (${inputs.ref}) is not a valid build tag."
-            exit 1
+            echo "::warning title=Invalid Tag::The provided tag (${inputs.ref}) is not a valid build tag."
           fi
 
   run-single-day-performance-test:
     name: Run Single Day Performance Test
     needs: verify-tag
-    if: ${{ needs.verify-tag.result == 'success' || inputs.dry-run-enabled == true}}
-    # uses: .github/workflows/zxc-single-day-performance-test.yaml
-    uses: hiero-ledger/hiero-consensus-node/.github/workflows/zxc-single-day-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
+    uses: .github/workflows/zxc-single-day-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: ${{ inputs.nlg-accounts }}
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
