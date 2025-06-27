@@ -5,26 +5,25 @@ import static com.hedera.pbj.runtime.ProtoParserTools.readNextFieldNumber;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.VirtualMapKey;
-import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
+public class OnDiskIterator<K> implements Iterator<K> {
 
     private final int stateId;
     private final MerkleIterator<MerkleNode> itr;
     private K next = null;
 
-    public OnDiskIterator(@NonNull final VirtualMap virtualMap, @NonNull final Codec<K> keyCodec, final int stateId) {
-        super(virtualMap, keyCodec);
+    public OnDiskIterator(@NonNull final VirtualMapBinaryState binaryState, final int stateId) {
         this.stateId = stateId;
-        itr = requireNonNull(virtualMap).treeIterator();
+        itr = requireNonNull(binaryState).treeIterator();
     }
 
     @Override
@@ -37,7 +36,7 @@ public class OnDiskIterator<K, V> extends BackedOnDiskIterator<K, V> {
             if (merkleNode instanceof VirtualLeafNode leaf) {
                 final Bytes k = leaf.getKey();
                 // Here we rely on the fact that `VirtualMapKey` has a single `OneOf` field.
-                // So, tge next field number is the key type
+                // So, the next field number is the key type
                 int nextNextStateId = readNextFieldNumber(k.toReadableSequentialData());
                 if (stateId == nextNextStateId) {
                     try {
