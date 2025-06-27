@@ -160,8 +160,7 @@ jobs:
         with:
           workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          # ref: main
-          ref: 16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
+          ref: main
           # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
