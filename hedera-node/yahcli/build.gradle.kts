@@ -52,7 +52,7 @@ tasks.register<Copy>("copyYahCli") {
     rename { "yahcli.jar" }
 
     dependsOn(yahCliJar)
-    mustRunAfter(tasks.jar, yahCliJar, tasks.named("startShadowScripts"), tasks.javadoc)
+    mustRunAfter(tasks.jar, yahCliJar, tasks.javadoc)
 }
 
 tasks.named("compileTestJava") { mustRunAfter(tasks.named("copyYahCli")) }
