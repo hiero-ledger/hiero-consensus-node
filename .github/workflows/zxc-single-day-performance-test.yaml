@@ -220,13 +220,8 @@ jobs:
           echo "inputs.nlg-test=${{ env.run_NLG_Test }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "JOB_URL=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
-      - name: Remove previous hiero-consensus-node and solo folders
+      - name: Remove previous solo folders
         run: |
-          if [ -d hiero-consensus-node ]
-          then
-            rm -rf hiero-consensus-node
-          fi
-
           if [ -d solo ]
           then
             rm -rf solo
@@ -234,16 +229,12 @@ jobs:
 
       - name: Set hederahash sha value
         run: |
-          cd hiero-consensus-node
           hederahash=`git rev-parse HEAD`
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          cd ..
 
       - name: Build hiero-consensus-node
         run: |
-          cd hiero-consensus-node
           ./gradlew --no-daemon clean assemble
-          cd ..
 
       - name: Build Solo
         run: |
@@ -288,7 +279,7 @@ jobs:
           cp Taskfile8.yml Taskfile.yml
 
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ env.namespace }}@g" \
-          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/hiero-consensus-node@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values8.yaml
@@ -398,7 +389,7 @@ jobs:
           set +x
           set +e
           export TERM=vt100
-          cd "${{ github.workspace }}"/hiero-consensus-node/platform-sdk/swirlds-benchmarks
+          cd "${{ github.workspace }}"/platform-sdk/swirlds-benchmarks
           ulimit -n 16000
           ../../gradlew --no-daemon --rerun-tasks -Dorg.gradle.caching=false --no-configuration-cache jmhJar
 
