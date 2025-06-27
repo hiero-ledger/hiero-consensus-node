@@ -395,7 +395,6 @@ public class BaseTranslator {
         requireNonNull(stateChanges);
         requireNonNull(contractId);
         final var createdContract = findContractOrThrow(contractId, stateChanges);
-        System.out.println(createdContract);
         final var evmAddress = Bytes.wrap(explicitAddressOf(createdContract));
         resultBuilder.evmAddress(evmAddress);
     }

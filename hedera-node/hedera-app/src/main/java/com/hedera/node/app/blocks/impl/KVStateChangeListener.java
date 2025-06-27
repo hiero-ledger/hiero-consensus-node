@@ -49,7 +49,6 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
@@ -229,10 +228,6 @@ public class KVStateChangeListener implements StateChangeListener {
                         .build();
             case TssVoteTransactionBody tssVoteTransactionBody ->
                 MapChangeValue.newBuilder().tssVoteValue(tssVoteTransactionBody).build();
-            case TssEncryptionKeys tssEncryptionKeys ->
-                MapChangeValue.newBuilder()
-                        .tssEncryptionKeysValue(tssEncryptionKeys)
-                        .build();
             case HintsKeySet hintsKeySet ->
                 MapChangeValue.newBuilder().hintsKeySetValue(hintsKeySet).build();
             case PreprocessingVote preprocessingVote ->

@@ -25,6 +25,8 @@ import java.util.List;
  * Translates a ethereum transaction into a {@link SingleTransactionRecord}.
  */
 public class EthereumTransactionTranslator implements BlockTransactionPartsTranslator {
+    private static final String PRE_NONCE_ERROR_MESSAGE = "0x5452414e53414354494f4e5f4f56455253495a45";
+
     @Override
     public SingleTransactionRecord translate(
             @NonNull final BlockTransactionParts parts,
@@ -38,13 +40,13 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {
+                    final var ethTxData = EthTxData.populateEthTxData(parts.body()
+                            .ethereumTransactionOrThrow()
+                            .ethereumData()
+                            .toByteArray());
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.ETHEREUM_CALL)
                             .map(TransactionOutput::ethereumCallOrThrow)
                             .ifPresent(ethTxOutput -> {
-                                final var ethTxData = EthTxData.populateEthTxData(parts.body()
-                                        .ethereumTransactionOrThrow()
-                                        .ethereumData()
-                                        .toByteArray());
                                 if (ethTxOutput.ethereumHash().length() > 0) {
                                     recordBuilder.ethereumHash(ethTxOutput.ethereumHash());
                                 } else {
@@ -78,7 +80,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     baseTranslator.addChangedContractNonces(
                                                             derivedBuilder, remainingStateChanges);
                                                 }
-                                                if (txCallResult.gasUsed() > 0) {
+                                                if (!PRE_NONCE_ERROR_MESSAGE.equals(txCallResult.errorMessage())) {
                                                     baseTranslator.addSignerNonce(
                                                             txCallResult.senderId(),
                                                             derivedBuilder,
@@ -130,7 +132,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     baseTranslator.addCreatedEvmAddressTo(
                                                             derivedBuilder, createdId, remainingStateChanges);
                                                 }
-                                                if (txCreateResult.gasUsed() > 0) {
+                                                if (!PRE_NONCE_ERROR_MESSAGE.equals(txCreateResult.errorMessage())) {
                                                     baseTranslator.addSignerNonce(
                                                             txCreateResult.senderId(),
                                                             derivedBuilder,
@@ -145,6 +147,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                     receiptBuilder.contractID(result.contractID());
                                 }
                             });
+                    if (ethTxData != null) {}
                 },
                 remainingStateChanges,
                 followingUnitTraces);
