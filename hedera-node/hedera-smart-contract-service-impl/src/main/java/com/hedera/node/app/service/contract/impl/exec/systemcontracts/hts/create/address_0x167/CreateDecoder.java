@@ -49,6 +49,7 @@ public class CreateDecoder extends CreateCommonDecoder {
         final var call = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1.decodeCall(encoded);
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
         final var initSupply = ((BigInteger) call.get(INIT_SUPPLY)).longValueExact();
+        // TODO Glib: use intValueExact? w/o this decimals are cycling in BigInteger
         final var decimals = ((BigInteger) call.get(DECIMALS)).intValue();
         final var tokenCreateWrapper = getTokenCreateWrapper(
                 hederaToken, true, initSupply, decimals, senderId, nativeOperations, addressIdConverter);

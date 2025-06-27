@@ -118,16 +118,6 @@
     "inputs": [
       {
         "internalType": "uint32",
-        "name": "second",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
-        "name": "renew",
-        "type": "uint32"
-      },
-      {
-        "internalType": "uint32",
         "name": "numerator",
         "type": "uint32"
       },
@@ -135,9 +125,32 @@
         "internalType": "uint32",
         "name": "denominator",
         "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "minimumAmount",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint32",
+        "name": "maximumAmount",
+        "type": "uint32"
       }
     ],
     "name": "createFungibleTokenWithCustomFeesFractionalFee",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "int64",
+        "name": "fixedFee",
+        "type": "int64"
+      }
+    ],
+    "name": "createFungibleTokenWithCustomFeesV3FixedFee",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"
@@ -166,13 +179,6 @@
       }
     ],
     "name": "createFungibleTokenWithCustomFeesV3FractionalFee",
-    "outputs": [],
-    "stateMutability": "payable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "createFungibleTokenWithCustomFeesV3WithNegativeFixedFee",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"
@@ -256,7 +262,7 @@
         "type": "int64"
       }
     ],
-    "name": "createNonFungibleTokenWithCustomRoyaltyFeesV3",
+    "name": "createNonFungibleTokenWithCustomFeesV3RoyaltyFees",
     "outputs": [],
     "stateMutability": "payable",
     "type": "function"

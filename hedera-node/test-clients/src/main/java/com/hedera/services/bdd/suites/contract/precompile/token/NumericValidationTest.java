@@ -84,9 +84,14 @@ public class NumericValidationTest {
     public static final BigInteger MAX_LONG_PLUS_1_BIG_INT =
             new BigInteger(1, Bytes.fromHex("010000000000000000").toByteArray());
 
-    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {}
+    public record BigIntegerTestCase(BigInteger amount, ResponseCodeEnum status) {
+    }
 
-    public record Int64TestCase(Long amount, ResponseCodeEnum status) {}
+    public record Int64TestCase(Long amount, ResponseCodeEnum status) {
+    }
+
+    public record ObjectArrayTestCase(ResponseCodeEnum status, Object... values) {
+    }
 
     // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
     public static final List<BigIntegerTestCase> allFail = List.of(
@@ -215,8 +220,8 @@ public class NumericValidationTest {
                             new BigIntegerTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             new BigIntegerTestCase(BigInteger.valueOf(NFT_SERIAL_TRACKER.getAndIncrement()), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("burnTokenV1", nftToken, testCase.amount(), new long[] {
-                                testCase.amount().longValue()
+                            .call("burnTokenV1", nftToken, testCase.amount(), new long[]{
+                                    testCase.amount().longValue()
                             })
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -247,7 +252,7 @@ public class NumericValidationTest {
                             // using '2' here because '1' was already burned by 'failToBurnNftV1'
                             new Int64TestCase(NFT_SERIAL_TRACKER.getAndIncrement(), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("burnTokenV2", nftToken, testCase.amount(), new long[] {testCase.amount()})
+                            .call("burnTokenV2", nftToken, testCase.amount(), new long[]{testCase.amount()})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -284,7 +289,7 @@ public class NumericValidationTest {
                                     BigInteger.ONE, CONTRACT_REVERT_EXECUTED), // INVALID_TRANSACTION_BODY
                             new BigIntegerTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("mintTokenV1", nftToken, testCase.amount(), new byte[][] {{(byte) 0x1}})
+                            .call("mintTokenV1", nftToken, testCase.amount(), new byte[][]{{(byte) 0x1}})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -312,7 +317,7 @@ public class NumericValidationTest {
                             new Int64TestCase(-1L, CONTRACT_REVERT_EXECUTED), // INVALID_TOKEN_MINT_AMOUNT
                             new Int64TestCase(0L, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("mintTokenV2", nftToken, testCase.amount(), new byte[][] {{(byte) 0x1}})
+                            .call("mintTokenV2", nftToken, testCase.amount(), new byte[][]{{(byte) 0x1}})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -359,7 +364,7 @@ public class NumericValidationTest {
                             new Int64TestCase(0L, CONTRACT_REVERT_EXECUTED),
                             new Int64TestCase(NFT_SERIAL_FOR_WIPE.longValue(), SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("wipeNFT", nftToken, numericContract, new long[] {testCase.amount()})
+                            .call("wipeNFT", nftToken, numericContract, new long[]{testCase.amount()})
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
@@ -550,7 +555,7 @@ public class NumericValidationTest {
     }
 
     @Nested
-    @DisplayName("calls fail to non-static create/update token functions with invalid values")
+    @DisplayName("HTS complex non-static functions")
     class CreateAndUpdateTokenTests {
 
         @BeforeAll
@@ -560,123 +565,175 @@ public class NumericValidationTest {
                     numericContractComplex.getBalance().andAssert(balance -> balance.hasTinyBars(ONE_HUNDRED_HBARS)));
         }
 
-        @HapiTest
-        @DisplayName("when using createFungibleTokenWithCustomFees with FixedFee")
-        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFees() {
-            // CUSTOM_FEE_MUST_BE_POSITIVE
-            return hapiTest(numericContractComplex
-                    .call("createFungibleTokenWithCustomFeesFixedFee", 0L)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createFungibleTokenWithCustomFeesV3 with Negative FixedFee")
-        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3NegativeFixedFee() {
-            // CUSTOM_FEE_MUST_BE_POSITIVE
-            return hapiTest(numericContractComplex
-                    .call("createFungibleTokenWithCustomFeesV3WithNegativeFixedFee")
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createFungibleTokenWithCustomFeesV3 with fractionalFee where maxAmount < minAmount")
-        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3FractionalFee() {
-            final long nominator = 1;
-            final long denominator = 1;
-            final long maxAmount = Long.MAX_VALUE - 1;
-            final long minAmount = Long.MAX_VALUE;
-            return hapiTest(numericContractComplex
-                    .call(
-                            "createFungibleTokenWithCustomFeesV3FractionalFee",
-                            nominator,
-                            denominator,
-                            minAmount,
-                            maxAmount)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("when using createFungibleTokenWithCustomFeesV3 with fractionalFee where denominator is < 0")
-        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3FractionalFeeNegativeDenominator() {
-            final long nominator = 1;
-            return Stream.of(-1L, 0L)
-                    .flatMap(denominator -> hapiTest(numericContractComplex
-                            .call("createFungibleTokenWithCustomFeesV3FractionalFee", nominator, denominator, 10L, 100L)
+        @DisplayName("FT 0x167 createFungibleTokenWithCustomFees HEDERA_TOKEN_V1")
+        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFees() {
+            return Stream.of(
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new Int64TestCase(0L, CONTRACT_REVERT_EXECUTED),
+                            new Int64TestCase(1L, SUCCESS))
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createFungibleTokenWithCustomFeesFixedFee", testCase.amount())
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
-                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-        @DisplayName("when using createNonFungibleTokenWithCustomFeesV3 with fractionalFee where denominator is bad")
-        public Stream<DynamicTest> failToUseCreateNonFungibleTokenWithCustomRoyaltyFeesV3WithBadDenominator() {
-            return Stream.of(-1L, 0L)
-                    .flatMap(denominator -> hapiTest(numericContractComplex
+        @DisplayName("FT 0x167 createFungibleTokenWithCustomFees HEDERA_TOKEN_V1 FractionalFee")
+        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV1FractionalFee() {
+            return Stream.of(
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 100L, 10000L),
+                            // FRACTION_DIVIDES_BY_ZERO
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 100L, 10000L),
+                            // FRACTIONAL_FEE_MAX_AMOUNT_LESS_THAN_MIN_AMOUNT
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, 10L),
+                            new ObjectArrayTestCase(SUCCESS, 1L, 1L, 100L, 10000L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
                             .call(
-                                    "createNonFungibleTokenWithCustomRoyaltyFeesV3",
+                                    "createFungibleTokenWithCustomFeesFractionalFee",
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2],
+                                    testCase.values()[3])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+        }
+
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("FT 0x167 createFungibleTokenWithCustomFees HEDERA_TOKEN_V3")
+        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3FixedFee() {
+            return Stream.of(
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new Int64TestCase(0L, CONTRACT_REVERT_EXECUTED),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new Int64TestCase(-1L, CONTRACT_REVERT_EXECUTED),
+                            new Int64TestCase(1L, SUCCESS))
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createFungibleTokenWithCustomFeesV3FixedFee", testCase.amount())
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+        }
+
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("FT 0x167 createFungibleTokenWithCustomFees HEDERA_TOKEN_V3 FractionalFee")
+        public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFeesV3FractionalFee() {
+            return Stream.of(
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 100L, 10000L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 100L, 10000L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 100L, 10000L),
+                            // FRACTION_DIVIDES_BY_ZERO
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 100L, 10000L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, -1L),
+                            // FRACTIONAL_FEE_MAX_AMOUNT_LESS_THAN_MIN_AMOUNT
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 100L, 10L),
+                            new ObjectArrayTestCase(SUCCESS, 1L, 1L, 100L, 10000L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call(
+                                    "createFungibleTokenWithCustomFeesV3FractionalFee",
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2],
+                                    testCase.values()[3])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+        }
+
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("FT 0x167 createNonFungibleTokenWithCustomFees HEDERA_TOKEN_V3 RoyaltyFee")
+        public Stream<DynamicTest> failToUseCreateNonFungibleTokenWithCustomFeesV3RoyaltyFees() {
+            return Stream.of(
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, -1L, 1L, 10L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, -1L, 10L),
+                            // FRACTION_DIVIDES_BY_ZERO
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, -1L),
+                            // CUSTOM_FEE_MUST_BE_POSITIVE
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 1L, 0L),
+                            new ObjectArrayTestCase(SUCCESS, 1L, 1L, 100L, 10000L)
+                    )
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call(
+                                    "createNonFungibleTokenWithCustomFeesV3RoyaltyFees",
                                     alice.getED25519KeyBytes(),
-                                    1L,
-                                    denominator,
-                                    10L)
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2])
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
                             .payingWith(alice)
-                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED))));
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
-        @HapiTest
-        @DisplayName("when using createNonFungibleTokenWithCustomFeesV3 with fractionalFee where amount is negative")
-        public Stream<DynamicTest> failToUseCreateNonFungibleTokenWithCustomRoyaltyFeesV3WithNegativeAmount() {
-            return hapiTest(numericContractComplex
-                    .call("createNonFungibleTokenWithCustomRoyaltyFeesV3", alice.getED25519KeyBytes(), 1L, 1L, -1L)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .payingWith(alice)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createFungibleToken with bad expiry")
-        public Stream<DynamicTest> failToUseCreateFungibleWithBadExpiry() {
-            return hapiTest(numericContractComplex
-                    .call("createFungibleToken", 0L, 0L, 10000L, BigInteger.TEN, BigInteger.TWO)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.logged().hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-        }
-
-        @HapiTest
-        @DisplayName("when using createFungibleToken with negative decimals")
-        public Stream<DynamicTest> failToUseCreateFungible() {
-            return hapiTest(numericContractComplex
-                    .call(
-                            "createFungibleToken",
-                            EXPIRY_SECOND,
-                            EXPIRY_RENEW,
-                            10000L,
-                            BigInteger.TEN,
-                            NEGATIVE_ONE_BIG_INT)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.logged().hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("FT 0x167 createFungibleToken")
+        public Stream<DynamicTest> failToUseCreateFungibleToken() {
+            return Stream.of(
+                            // INVALID_RENEWAL_PERIOD
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, 1L, 10000L, BigInteger.TEN, BigInteger.TWO),
+                            // INVALID_RENEWAL_PERIOD
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 1L, 0L, 10000L, BigInteger.TEN, BigInteger.TWO),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 0L, BigInteger.TEN,
+                                    BigInteger.TWO),
+                            // java.lang.ArithmeticException: BigInteger out of long range
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, MAX_LONG_PLUS_1_BIG_INT,
+                                    BigInteger.TWO),
+                            // INVALID_TOKEN_DECIMALS
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10L, 3_000_000L, 10000L, BigInteger.TEN,
+                                    NEGATIVE_ONE_BIG_INT),
+                            new ObjectArrayTestCase(SUCCESS, 10L, 3_000_000L, 10000L, BigInteger.TEN,
+                                    BigInteger.TWO))
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createFungibleToken",
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2],
+                                    testCase.values()[3],
+                                    testCase.values()[4])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .andAssert(txn -> txn.logged().hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using createFungibleTokenV2 with negative initial supply")
         public Stream<DynamicTest> failToUseCreateFungibleTokenV2() {
-            return hapiTest(numericContractComplex
-                    .call("createFungibleTokenV2", 15L, NEGATIVE_ONE_BIG_INT, 10L)
-                    .gas(1_000_000L)
-                    .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+            return Stream.of(
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 0L, BigInteger.TEN, 2L),
+                            // INVALID_TOKEN_MAX_SUPPLY
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, -1L, BigInteger.TEN, 2L),
+                            // java.lang.ArithmeticException: BigInteger out of long range
+                            new ObjectArrayTestCase(CONTRACT_REVERT_EXECUTED, 10000L, NEGATIVE_ONE_BIG_INT, 2L),
+                            // INVALID_TOKEN_DECIMALS
+                            new ObjectArrayTestCase(SUCCESS, 10000L, BigInteger.TEN, 2L))
+                    .flatMap(testCase -> hapiTest(numericContractComplex
+                            .call("createFungibleTokenV2",
+                                    testCase.values()[0],
+                                    testCase.values()[1],
+                                    testCase.values()[2])
+                            .gas(1_000_000L)
+                            .sending(ONE_HUNDRED_HBARS)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
+        //TODO Glib
         @HapiTest
         @DisplayName("when using createFungibleTokenV3 with negative decimals")
         public Stream<DynamicTest> failToUseCreateFungibleTokenV3() {
@@ -754,7 +811,7 @@ public class NumericValidationTest {
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with invalid serial number")
         public Stream<DynamicTest> failToUpdateNFTsMetadata() {
-            return Stream.of(new long[] {Long.MAX_VALUE}, new long[] {0}, new long[] {-1, 1}, new long[] {-1})
+            return Stream.of(new long[]{Long.MAX_VALUE}, new long[]{0}, new long[]{-1, 1}, new long[]{-1})
                     .flatMap(invalidSerialNumbers -> hapiTest(numericContract
                             .call("updateNFTsMetadata", nftToken, invalidSerialNumbers, "tiger".getBytes())
                             .gas(1_000_000L)
@@ -765,7 +822,7 @@ public class NumericValidationTest {
         @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with empty serial numbers")
         public Stream<DynamicTest> failToUpdateNFTsMetadataWithEmptySerialNumbers() {
             return hapiTest(numericContract
-                    .call("updateNFTsMetadata", nftToken, new long[] {}, "zebra".getBytes())
+                    .call("updateNFTsMetadata", nftToken, new long[]{}, "zebra".getBytes())
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -795,7 +852,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferFungibleV1")
         public Stream<DynamicTest> failToUseCryptoTransferFungibleV1() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferFungibleV1", fungibleToken, new long[] {-5, -5}, fungibleToken.treasury(), bob)
+                    .call("cryptoTransferFungibleV1", fungibleToken, new long[]{-5, -5}, fungibleToken.treasury(), bob)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -804,7 +861,7 @@ public class NumericValidationTest {
         @DisplayName("when using cryptoTransferV2 for hBar transfer")
         public Stream<DynamicTest> failToUseCryptoTransferV2() {
             return hapiTest(numericContractComplex
-                    .call("cryptoTransferV2", new long[] {-5, -5}, alice, bob)
+                    .call("cryptoTransferV2", new long[]{-5, -5}, alice, bob)
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
@@ -822,7 +879,7 @@ public class NumericValidationTest {
         @DisplayName("when using transferNFTs with invalid serial numbers")
         public Stream<DynamicTest> failToUseTransferNFTs() {
             return hapiTest(numericContractComplex
-                    .call("transferNFTs", nftToken, nftToken.treasury(), alice, new long[] {-1L})
+                    .call("transferNFTs", nftToken, nftToken.treasury(), alice, new long[]{-1L})
                     .gas(1_000_000L)
                     .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
