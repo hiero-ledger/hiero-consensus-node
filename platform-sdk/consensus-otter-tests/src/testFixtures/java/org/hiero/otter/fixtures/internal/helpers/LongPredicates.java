@@ -5,6 +5,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.BiPredicate;
 
+/**
+ * Utility class providing predicates for long values.
+ */
 public class LongPredicates {
 
     private LongPredicates() {

@@ -20,6 +20,8 @@ dependencies {
     implementation(project(":StressTestingTool"))
     // projects that only contains tests (and no production code)
     implementation(project(":test-clients"))
+    implementation(project(":consensus-otter-docker-app"))
+    implementation(project(":consensus-otter-tests"))
 }
 
 tasks.testCodeCoverageReport {
