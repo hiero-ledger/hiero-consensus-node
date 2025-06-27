@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -109,13 +108,11 @@ public class MultipleNodeConsensusResultsContinuousAssert
                     @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
-                        final NodeId protoNodeId =
-                                NodeId.newBuilder().id(nodeId.id()).build();
-                        if (!suppressedNodeIds.contains(protoNodeId)) {
+                        if (!suppressedNodeIds.contains(nodeId)) {
                             for (final ConsensusRound round : rounds) {
                                 final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                                        round.getRoundNum(), key -> new RoundFromNode(protoNodeId, round));
-                                if (!protoNodeId.equals(reference.nodeId)) {
+                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
+                                if (!nodeId.equals(reference.nodeId)) {
                                     RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
                                 }
                             }
