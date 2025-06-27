@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
@@ -26,6 +27,10 @@ public enum RoundInternalConsistencyValidation implements ConsensusRoundConsiste
                     .withFailMessage(String.format(
                             "the last threshold should be equal for the current round %d", round.getRoundNum()))
                     .isEqualTo(minimumJudgeInfo.round());
+
+            for (final PlatformEvent event : round.getConsensusEvents()) {
+                assertThat(event.getConsensusData()).isNotNull();
+            }
         }
     }
 }
