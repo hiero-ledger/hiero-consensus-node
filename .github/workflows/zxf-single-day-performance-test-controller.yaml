@@ -40,7 +40,7 @@ on:
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "3"
-        description: "Test execution time"
+        description: "Test execution time options"
         type: choice
         options:
           - "3"
@@ -126,7 +126,7 @@ jobs:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: ${{ toJSON(inputs.nlg-accounts) }}
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"

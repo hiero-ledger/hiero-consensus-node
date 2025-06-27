@@ -22,9 +22,9 @@ on:
         type: string
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: 100000
+        default: "100000"
         description: "Number of Accounts and NFT tokens (100000, 1000000, 20000000, 100000000, 500000000, 1000000000)"
-        type: number
+        type: string
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "3"
@@ -1098,7 +1098,7 @@ jobs:
 #      test-asset: "${{ inputs.test-asset }}"
 #      ref: "${{ inputs.ref }}"
 #      solo-version: "${{ inputs.solo-version }}"
-#      nlg-accounts: ${{ toJSON(inputs.nlg-accounts) }}
+#      nlg-accounts: "${{ inputs.nlg-accounts }}"
 #      nlg-test: "HCSLoadTest"
 #      nlg-time: "${{ inputs.nlg-time }}"
 #      workspace: "${{ github.workspace }}"
