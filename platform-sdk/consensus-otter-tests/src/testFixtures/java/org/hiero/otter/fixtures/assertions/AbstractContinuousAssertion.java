@@ -24,6 +24,7 @@ public abstract class AbstractContinuousAssertion<SELF extends AbstractAssert<SE
         DESTROYED
     }
 
+    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     protected volatile State state = State.ACTIVE;
 
     /**

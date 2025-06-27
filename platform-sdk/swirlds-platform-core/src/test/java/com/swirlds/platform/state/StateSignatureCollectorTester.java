@@ -77,7 +77,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction signatureTransaction) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
                 new ConcurrentLinkedQueue<>();
-        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, signatureTransaction));
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, 0, signatureTransaction));
         handlePreconsensusSignatures(systemTransactions);
     }
 
@@ -91,7 +91,7 @@ public class StateSignatureCollectorTester extends DefaultStateSignatureCollecto
             @NonNull final NodeId signerId, @NonNull final StateSignatureTransaction transaction) {
         final Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions =
                 new ConcurrentLinkedQueue<>();
-        systemTransactions.add(new ScopedSystemTransaction<>(signerId, null, transaction));
+        systemTransactions.add(new ScopedSystemTransaction<>(signerId, 0, transaction));
         handlePostconsensusSignatures(systemTransactions);
     }
 

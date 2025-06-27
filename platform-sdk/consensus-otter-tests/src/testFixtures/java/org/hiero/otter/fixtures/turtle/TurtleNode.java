@@ -44,7 +44,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
+import java.util.Set;
 import org.apache.logging.log4j.ThreadContext;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -227,7 +227,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     @Override
     public SingleNodeLogResult getLogResult() {
-        return new SingleNodeLogResultImpl(selfId, Collections.emptySet());
+        return new SingleNodeLogResultImpl(selfId, Set.of());
     }
 
     /**
