@@ -120,7 +120,7 @@ jobs:
     name: Run Single Day Performance Test
     needs: verify-tag
     #uses: .github/workflows/zxc-single-day-performance-test.yaml
-    uses: hiero-ledger/hiero-consensus-node/.github/workflows/zxc-single-day-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-result
+    uses: .github/workflows/zxc-single-day-performance-test.yaml@16411-update-workflows-to-grab-latest-passing-tagged-build-from-xts-results
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
