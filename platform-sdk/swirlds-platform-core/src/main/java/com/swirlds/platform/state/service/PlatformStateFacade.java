@@ -242,8 +242,17 @@ public class PlatformStateFacade {
      * @return the last frozen time, or null if the state is a genesis state
      */
     @Nullable
-    public Instant lastFrozenTimeOf(State state) {
+    public Instant lastFrozenTimeOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getLastFrozenTime();
+    }
+
+    /**
+     * Returns the last freeze round of the state.
+     * @param state the state to extract the last freeze round from
+     * @return the last freeze round
+     */
+    public long latestFreezeRoundOf(@NonNull final State state) {
+        return readablePlatformStateStore(state).getLatestFreezeRound();
     }
 
     /**

@@ -71,7 +71,6 @@ public class TransactionHandlers {
                 transaction.getRound(),
                 Bytes.wrap(transaction.getSignature().toByteArray()),
                 Bytes.wrap(transaction.getHash().toByteArray()));
-        callback.accept(
-                new ScopedSystemTransaction<>(event.getCreatorId(), event.getSoftwareVersion(), newTransaction));
+        callback.accept(new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), newTransaction));
     }
 }
