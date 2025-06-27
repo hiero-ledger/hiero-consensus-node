@@ -32,10 +32,8 @@ public interface Network {
      * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
      * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start();
 
     /**
      * Add an instrumented node to the network.

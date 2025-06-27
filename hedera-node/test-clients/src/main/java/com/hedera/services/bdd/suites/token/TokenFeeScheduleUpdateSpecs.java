@@ -35,9 +35,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_NOT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_SCHEDULE_ALREADY_HAS_NO_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FRACTION_DIVIDES_BY_ZERO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ROYALTY_FRACTION_CANNOT_EXCEED_ONE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 
@@ -365,5 +367,62 @@ public class TokenFeeScheduleUpdateSpecs {
                 tokenFeeScheduleUpdate("t")
                         .withCustom(fixedHtsFee(1, "denom", "feeCollector"))
                         .hasKnownStatus(INVALID_TOKEN_ID_IN_CUSTOM_FEES));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updatingToEmptyListRequiresSignature() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed("supplyKey"),
+                cryptoCreate("feeCollector"),
+                // create a new NFT with the right keys
+                tokenCreate("tok")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey("supplyKey")
+                        .feeScheduleKey("feeScheduleKey"),
+                // update the schedule to a valid royalty
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector"))
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS, "feeScheduleKey", "supplyKey")
+                        .hasKnownStatus(SUCCESS),
+                // update to an empty fee schedule without the fee schedule key
+                tokenFeeScheduleUpdate("tok").signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // update to an empty fee schedule *with* the fee schedule key
+                tokenFeeScheduleUpdate("tok")
+                        .signedBy(GENESIS, "feeScheduleKey")
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> validateCollectorReceiverSigRequired() {
+        return hapiTest(
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed("supplyKey"),
+                tokenCreate("tok")
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey("supplyKey")
+                        .feeScheduleKey("feeScheduleKey"),
+                // collector does not require a sig
+                cryptoCreate("feeCollector1").receiverSigRequired(false),
+                // collector does require a sign
+                cryptoCreate("feeCollector2").receiverSigRequired(true),
+                // update schedule with first collector not signing. should succeed
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector1"))
+                        .signedBy(GENESIS, "feeScheduleKey")
+                        .hasKnownStatus(SUCCESS),
+                // update schedule second collector not signing, should fail because second requires sig
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector2"))
+                        .signedBy(GENESIS, "feeScheduleKey")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // try again *with* the second collector signing, should pass now
+                tokenFeeScheduleUpdate("tok")
+                        .withCustom(royaltyFeeNoFallback(1, 10, "feeCollector2"))
+                        .signedBy(GENESIS, "feeScheduleKey", "feeCollector2")
+                        .hasKnownStatus(SUCCESS));
     }
 }

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -13,7 +13,7 @@ import org.hiero.otter.fixtures.Node;
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
 @SuppressWarnings("unused")
-public interface MultipleNodeLogResults {
+public interface MultipleNodeLogResults extends OtterResult {
 
     /**
      * Returns the list of {@link SingleNodeLogResult} for all nodes
@@ -24,9 +24,18 @@ public interface MultipleNodeLogResults {
     List<SingleNodeLogResult> results();
 
     /**
+     * Subscribes to log entries logged by the nodes.
+     *
+     * <p>The subscriber will be notified every time a new log entry is logged.
+     *
+     * @param subscriber the subscriber that will receive the log entries
+     */
+    void subscribe(@NonNull LogSubscriber subscriber);
+
+    /**
      * Excludes the log results of a specific node from the current results.
      *
-     * @param nodeId the {@link NodeId} of the node which log results are to be excluded
+     * @param nodeId the {@link NodeId} of the node whose log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
      */
     @NonNull
@@ -35,12 +44,12 @@ public interface MultipleNodeLogResults {
     /**
      * Excludes the log results of a specific node from the current results.
      *
-     * @param node the node which log results are to be excluded
+     * @param node the node whose log results are to be excluded
      * @return a new {@code MultipleNodeLogResults} instance with the specified node's results removed
      */
     @NonNull
     default MultipleNodeLogResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 
     /**
