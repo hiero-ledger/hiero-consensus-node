@@ -1114,6 +1114,8 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+    secrets:
+      perf-analysis-access-token: ${{ secrets.perf-analysis-access-token }}
 
   performance-CryptoTransferLoadTest:
     needs:
@@ -1129,6 +1131,8 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+    secrets:
+      perf-analysis-access-token: ${{ secrets.perf-analysis-access-token }}
 
   performance-HeliSwapLoadTest:
     needs:
@@ -1144,6 +1148,8 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+    secrets:
+      perf-analysis-access-token: ${{ secrets.perf-analysis-access-token }}
 
   performance-SmartContractLoadTest:
     needs:
@@ -1159,6 +1165,8 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+    secrets:
+      perf-analysis-access-token: ${{ secrets.perf-analysis-access-token }}
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:
