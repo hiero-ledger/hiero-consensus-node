@@ -63,7 +63,7 @@ on:
     outputs:
       result:
         description: "Result of the SDPT Run"
-        value: ${{ jobs.single-day-performance-test.outputs.result }}
+        value: ${{ jobs.single-day-performance-test-result.outputs.result }}
 
 permissions:
   contents: write
@@ -1190,15 +1190,19 @@ jobs:
           smart_contract_load_result: ${{ needs.performance-SmartContractLoadTest.result }}
         run: |
           # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
-            if [[ "${nft_transfer_load_result}" == "success" && \
-                  "${hcs_load_result}" == "success" && \
-                  "${crypto_transfer_load_result}" == "success" && \
-                  "${heli_swap_load_result}" == "success" && \
-                  "${smart_contract_load_result}" == "success" ]]; then
-                echo "result='success'" >> $GITHUB_OUTPUT
-            else
-                echo "result='failure'" >> $GITHUB_OUTPUT
-            fi
+          RESULT="failure"
+          if [[ "${nft_transfer_load_result}" == "success" && \
+                "${hcs_load_result}" == "success" && \
+                "${crypto_transfer_load_result}" == "success" && \
+                "${heli_swap_load_result}" == "success" && \
+                "${smart_contract_load_result}" == "success" ]]; then
+              RESULT="success"
+          fi
+
+          "result=${RESULT}" >> "${GITHUB_OUTPUT}"
+
+          echo "echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
+          echo "result=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-Slack:
     runs-on: hiero-network-node-linux-large

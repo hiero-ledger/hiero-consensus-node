@@ -142,7 +142,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     needs:
       - run-single-day-performance-test
-    if: ${{ needs.run-citr-performance-test.outputs.result  == 'success' && inputs.dry-run-enabled != true }}
+    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.dry-run-enabled != true }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -270,7 +270,7 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-citr-performance-test.outputs.result  }}"
+                          "text": "${{ needs.run-single-day-performance-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
