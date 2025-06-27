@@ -54,6 +54,9 @@ on:
       nlg-access-token:
         required: true
         description: "GitHub token for network-load-generator repo"
+      perf-analysis-access-token:
+        required: true
+        description: "GitHub token for performance-analysis-automation repo"
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
@@ -101,30 +104,37 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
 
       - name: Checkout pbj Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hashgraph/pbj
           path: pbj
 
       - name: Checkout solo Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/solo
           path: solo
           ref: ${{ env.run_soloversion }}
 
       - name: Checkout network-load-generator repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hashgraph/network-load-generator
           path: network-load-generator
           ref: ${{ env.NLG_BRANCH }}
           token: ${{ secrets.nlg-access-token }}
+
+      - name: Checkout performance-analysis-automation repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: swirldslabs/performance-analysis-automation
+          path: paa_scripts
+          token: ${{ secrets.perf-analysis-access-token }}
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -268,10 +278,10 @@ jobs:
           [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
           export PATH="${HOME}/:${PATH}"
           curdir=`pwd`
-          sh "${{ github.workspace }}"/node_control/kubectlt get namespaces | grep "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get namespaces | grep "${{ env.namespace }}"
           if [ ${?} -eq 0 ]
           then
-            sh "${{ github.workspace }}"/node_control/kubectlt delete namespace "${{ env.namespace }}"
+            sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt delete namespace "${{ env.namespace }}"
           fi
 
           cd solo/examples/performance-tuning/latitude
@@ -302,10 +312,10 @@ jobs:
 
           #task clean
 
-          sh "${{ github.workspace }}"/node_control/kubectlt get namespaces | grep "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get namespaces | grep "${{ env.namespace }}"
           if [ ${?} -eq 0 ]
           then
-            sh "${{ github.workspace }}"/node_control/kubectlt delete namespace "${{ env.namespace }}"
+            sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt delete namespace "${{ env.namespace }}"
           fi
 
           task build
@@ -320,12 +330,12 @@ jobs:
           fi
 
           sleep 30
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
           cd "${{ github.workspace }}"
 
           mkdir solo_deploy
           cp -r "${HOME}"/.solo/logs solo_deploy/
-          sh "${{ github.workspace }}"/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
           cp -r podlog_"${{ env.namespace }}" solo_deploy/
           gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}"/solo_deploy
           exit "${task_code}"
@@ -346,9 +356,9 @@ jobs:
           set +e
           cd ${{ github.workspace }}/solo/examples/performance-tuning/latitude
 
-          sh "${{ github.workspace }}"/node_control/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
-          sh "${{ github.workspace }}"/node_control/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
 
           #Disable auto-start
@@ -369,20 +379,20 @@ jobs:
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
           helm upgrade --install nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ env.namespace }}"
           sleep 180
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
       - name: Update NLG code with local build
         if: ${{ env.NLG_REBUILD == 'true' }}
         run: |
           cd "${{ github.workspace }}"
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
 
       - name: Build swirlds-benchmark-CryptoBenchMerkleDb.transferPrefetch
         run: |
@@ -418,24 +428,24 @@ jobs:
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
           helm install --set name=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ env.namespace }}"
           sleep 180
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods
-          merklebenchpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
+          merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
 
           # Copy run version
 
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
 
       - name: Start SwirldsMerkleDB test
         run: |
           set +x
           set +e
 
-          merklebenchpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
 
           kubectl -n "${{ env.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
           --jvmArgs '${{ env.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ env.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
@@ -445,7 +455,7 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
           NLG_c=32
@@ -496,16 +506,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -516,13 +526,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -536,9 +546,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -581,14 +591,14 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/create_accounts"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
 
       - name: Start test
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
           NLG_c=32
@@ -630,9 +640,16 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Code
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
+
+      - name: Checkout performance-analysis-automation repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: swirldslabs/performance-analysis-automation
+          path: paa_scripts
+          token: ${{ secrets.perf-analysis-access-token }}
 
       - name: Set namespace
         run: |
@@ -647,7 +664,6 @@ jobs:
       - name: Print parameters
         run: |
           echo "namespace=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -746,16 +762,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -766,13 +782,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -786,9 +802,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -826,6 +842,18 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout performance-analysis-automation repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: swirldslabs/performance-analysis-automation
+          path: paa_scripts
+          token: ${{ secrets.perf-analysis-access-token }}
+
       - name: Set namespace
         run: |
           set +x
@@ -839,13 +867,6 @@ jobs:
       - name: Print parameters
         run: |
           echo "namespace=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-
-      - name: Init workspace
-        run: |
-          rm -rf "${{ github.workspace }}"/*
-
-      - name: Checkout Performance Analysis Automation Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -939,16 +960,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -959,13 +980,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -979,9 +1000,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -1030,18 +1051,18 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
 
       - name: Records logs of CryptoBenchMerkleDb
         run: |
           set +x
           set +e
           cd "${{ github.workspace }}"
-          merklebenchpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
+          merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
           rm -rf "${{ github.workspace }}"/report/*
           cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" delete deployment merklebench-network-load-generator
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" delete deployment merklebench-network-load-generator
 
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
@@ -1077,7 +1098,7 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
 
   performance-HCSLoadTest:
     needs:

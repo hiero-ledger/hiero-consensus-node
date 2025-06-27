@@ -52,6 +52,10 @@ on:
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
+    secrets:
+      perf-analysis-access-token:
+        required: true
+        description: "GitHub token for performance-analysis-automation repo"
 
 env:
   LC_ALL: C.UTF-8
@@ -88,6 +92,18 @@ jobs:
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout performance-analysis-automation repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: swirldslabs/performance-analysis-automation
+          path: paa_scripts
+          token: ${{ secrets.perf-analysis-access-token }}
 
       - name: Validate Input Parameters
         run: |
@@ -145,18 +161,11 @@ jobs:
         run: |
           echo "namespace=${{ env.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}/version_run.txt"
 
-      - name: Init workspace
-        run: |
-          rm -rf "${{ github.workspace }}"/*
-
       - name: HeliSwap sleep
         if: ${{ inputs.nlg-test == 'HeliSwapLoadTest' }}
         run: |
           echo "Sleeping 10 mins before HeliSwap test ..."
           sleep 600
-
-      - name: Checkout Performance Analysis Automation Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
@@ -226,7 +235,7 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           n=`expr "${{ inputs.nlg-accounts }}" / 1000`
           NLG_c=32
@@ -287,16 +296,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=330 #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -307,13 +316,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -327,9 +336,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -377,4 +386,4 @@ jobs:
           echo Done: see results in "${{ steps.gs_https_url.outputs.url }}"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
