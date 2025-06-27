@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -32,6 +33,7 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
+import org.hiero.otter.fixtures.turtle.TransactionFactory;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -89,7 +91,9 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        return TransactionFactory
+                .createFreezeTransaction(freezeTime)
+                .toByteArray();
     }
 
     /**
@@ -113,7 +117,12 @@ public class ContainerNetwork extends AbstractNetwork {
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         final Map<NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
 
-        for (final NodeId selfId : keysAndCerts.keySet()) {
+        // Sort the node IDs to guarantee roster entry order                     
+        final List<NodeId> sortedNodeIds = keysAndCerts.keySet().stream()
+                .sorted(Comparator.comparingLong(NodeId::id))
+                .toList();
+
+        for (final NodeId selfId : sortedNodeIds) {
             final byte[] sigCertBytes = getSigCertBytes(selfId, keysAndCerts);
 
             rosterEntries.add(RosterEntry.newBuilder()
@@ -129,12 +138,14 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        for (final NodeId selfId : keysAndCerts.keySet()) {
+        for (final NodeId selfId : sortedNodeIds) {
             final ContainerNode node =
                     new ContainerNode(selfId, roster, keysAndCerts.get(selfId), network, dockerImage);
             newNodes.add(node);
         }
         nodes.addAll(newNodes);
+        transactionGenerator.setNodesSupplier(() -> publicNodes);
+
         return Collections.unmodifiableList(newNodes);
     }
 
@@ -188,7 +199,7 @@ public class ContainerNetwork extends AbstractNetwork {
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      */
-    void destroy() {
+    void destroy() throws InterruptedException {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final ContainerNode node : nodes) {

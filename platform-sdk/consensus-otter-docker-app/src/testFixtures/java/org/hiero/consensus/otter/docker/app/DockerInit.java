@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app;
 
+import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.legacy.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
+import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 
@@ -38,6 +46,23 @@ public final class DockerInit {
 
     /** Lazily initialised docker app; only set once. */
     private DockerApp app;
+
+    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+
+    /**
+     * Outbound queue used by the dispatcher thread to forward messages to the
+     * gRPC response stream. Needs to be accessible from {@code killImmediately}
+     * to guarantee that no further messages are delivered after a forced
+     * shutdown.
+     */
+    private BlockingQueue<EventMessage> outbound;
+
+    /**
+     * Dispatcher thread that drains {@link #outbound}. Must be interrupted on
+     * forced shutdown so that it terminates promptly even if blocked on
+     * {@code take()}.
+     */
+    private Thread dispatcher;
 
     private DockerInit() {
         grpcServer = ServerBuilder.forPort(GRPC_PORT)
@@ -97,24 +122,109 @@ public final class DockerInit {
                         ProtobufConverter.toPbj(request.getRoster()),
                         KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
                         request.getOverriddenPropertiesMap());
+                cancelled.set(false);
 
-                // Forward platform status changes
+                // Outbound queue and single-writer dispatcher thread. Both are stored
+                // in instance fields so they can be accessed from killImmediately().
+                outbound = new LinkedBlockingQueue<>();
+                dispatcher = new Thread(() -> {
+                    try {
+                        while (!cancelled.get()) {
+                            final EventMessage msg = outbound.take();
+                            try {
+                                responseObserver.onNext(msg);
+                            } catch (final RuntimeException e) {
+                                // Any exception here means the stream is no longer writable
+                                cancelled.set(true);
+                            }
+                        }
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }, "grpc-outbound-dispatcher");
+
+                if (responseObserver instanceof ServerCallStreamObserver<?> serverObserver) {
+                    serverObserver.setOnCancelHandler(() -> {
+                        cancelled.set(true);
+                        dispatcher.interrupt();
+                        outbound.clear();
+                    });
+                }
+
+                dispatcher.start();
+
+                // Helper that enqueues messages if the stream is still open
+                final Consumer<EventMessage> enqueue = msg -> {
+                    if (!cancelled.get()) {
+                        outbound.offer(msg);
+                    }
+                };
+
                 app.registerPlatformStatusChangeListener(notification ->
-                        responseObserver.onNext(EventMessageFactory.fromPlatformStatusChange(notification)));
+                        enqueue.accept(EventMessageFactory.fromPlatformStatusChange(notification)));
 
-                // Forward consensus rounds
                 app.registerConsensusRoundListener(
-                        rounds -> responseObserver.onNext(EventMessageFactory.fromConsensusRounds(rounds)));
+                        rounds -> enqueue.accept(EventMessageFactory.fromConsensusRounds(rounds)));
 
-                // Forward StructuredLog entries via gRPC using InMemoryAppender listener
                 InMemoryAppender.subscribe(log -> {
-                    responseObserver.onNext(EventMessageFactory.fromStructuredLog(log));
-                    return SubscriberAction.CONTINUE;
+                    enqueue.accept(EventMessageFactory.fromStructuredLog(log));
+                    return cancelled.get() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
                 });
 
                 app.start();
             } catch (final Exception e) {
+                System.err.println(e.getMessage());
+                e.printStackTrace(System.err);
                 responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+            }
+        }
+
+        @Override
+        public void submitTransaction(
+                @NonNull final TransactionRequest request,
+                @NonNull final StreamObserver<Empty> responseObserver) {
+
+            if (app == null) {
+                responseObserver.onError(Status.FAILED_PRECONDITION
+                        .withDescription("Application not started yet")
+                        .asRuntimeException());
+                return;
+            }
+
+            try {
+                app.submitTransaction(request.getPayload().toByteArray());
+            } catch (final Exception e) {
+                responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
+            } finally {
+                responseObserver.onNext(Empty.getDefaultInstance());
+                responseObserver.onCompleted();
+            }
+        }
+
+        @Override
+        public void killImmediately(final KillImmediatelyRequest request,
+                final StreamObserver<Empty> responseObserver) {
+            try {
+                if (app != null) {
+                    app.destroy();
+                    app = null;
+                }
+
+                // Prevent any further outbound communication
+                cancelled.set(true);
+
+                if (dispatcher != null) {
+                    dispatcher.interrupt();
+                }
+
+                if (outbound != null) {
+                    outbound.clear();
+                }
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            } finally {
+                responseObserver.onNext(Empty.getDefaultInstance());
+                responseObserver.onCompleted();
             }
         }
     }

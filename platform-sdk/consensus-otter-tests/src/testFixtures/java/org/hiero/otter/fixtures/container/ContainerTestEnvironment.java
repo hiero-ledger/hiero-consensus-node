@@ -55,7 +55,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * {@inheritDoc}
      */
     @Override
-    public void destroy() {
+    public void destroy() throws InterruptedException {
         network.destroy();
     }
 }

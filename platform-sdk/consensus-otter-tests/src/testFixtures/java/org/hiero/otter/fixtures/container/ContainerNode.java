@@ -4,22 +4,24 @@ package org.hiero.otter.fixtures.container;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Consumer;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -30,10 +32,12 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
+import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
@@ -44,8 +48,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.containers.output.OutputFrame;
-import org.testcontainers.containers.output.OutputFrame.OutputType;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
@@ -63,6 +65,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final ManagedChannel channel;
+    private final TestControlGrpc.TestControlBlockingStub blockingStub;
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
     private final ContainerNodeConfiguration nodeConfiguration = new ContainerNodeConfiguration();
     private final NodeResultsCollector resultsCollector;
@@ -91,12 +94,6 @@ public class ContainerNode extends AbstractNode implements Node {
 
         final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
 
-        final Consumer<OutputFrame> logWriter = frame -> {
-            final Level level = frame.getType() == OutputType.STDERR ? Level.ERROR : Level.INFO;
-            final String message = "%s: %s".formatted(alias, frame.getUtf8StringWithoutLineEnding());
-            log.log(level, message);
-        };
-
         //noinspection resource
         this.container = new GenericContainer<>(dockerImage)
                 .withNetwork(network)
@@ -107,6 +104,8 @@ public class ContainerNode extends AbstractNode implements Node {
                 .maxInboundMessageSize(32 * 1024 * 1024)
                 .usePlaintext()
                 .build();
+
+        blockingStub = TestControlGrpc.newBlockingStub(channel);
     }
 
     /**
@@ -137,8 +136,22 @@ public class ContainerNode extends AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     public void submitTransaction(@NonNull final byte[] transaction) {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        throwIfIn(INIT, "Node has not been started yet.");
+        throwIfIn(SHUTDOWN, "Node has been shut down.");
+        throwIfIn(DESTROYED, "Node has been destroyed.");
+
+        try {
+            final TransactionRequest request =
+                    TransactionRequest.newBuilder()
+                            .setPayload(ByteString.copyFrom(transaction))
+                            .build();
+
+            blockingStub.submitTransaction(request);
+        } catch (final Exception e) {
+            log.error("Failed to submit transaction to node {}", selfId, e);
+        }
     }
 
     /**
@@ -190,11 +203,9 @@ public class ContainerNode extends AbstractNode implements Node {
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
      */
-    void destroy() {
+    void destroy() throws InterruptedException {
         if (lifeCycle == RUNNING) {
-            if (channel != null) {
-                channel.shutdownNow();
-            }
+            channel.shutdownNow();
             container.stop();
         }
         resultsCollector.destroy();
@@ -255,8 +266,30 @@ public class ContainerNode extends AbstractNode implements Node {
 
                 @Override
                 public void onError(@NonNull final Throwable error) {
-                    final String message = String.format("gRPC error from node %s", selfId);
-                    fail(message, error);
+                    /*
+                     * After a call to killImmediately() the server forcibly closes the stream and the
+                     * client receives an INTERNAL error. This is expected and must *not* fail the test.
+                     * Only report unexpected errors that occur while the node is still running.
+                     */
+                    if (lifeCycle == RUNNING) {
+                        if (!isExpectedError(error)) {
+                            final String message = String.format("gRPC error from node %s", selfId);
+                            fail(message, error);
+                        }
+                    }
+                }
+
+                private static boolean isExpectedError(final @NonNull Throwable error) {
+                    boolean expected;
+                    if (error instanceof StatusRuntimeException sre) {
+                        final var code = sre.getStatus().getCode();
+                        expected = code == Code.UNAVAILABLE
+                                || code == Code.CANCELLED;
+                    } else {
+                        final String msg = error.getMessage();
+                        expected = msg != null && (msg.startsWith("UNAVAILABLE") || msg.startsWith("CANCELLED"));
+                    }
+                    return expected;
                 }
 
                 @Override
@@ -274,10 +307,19 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored")
         public void killImmediately() {
             log.info("Killing node {} immediately...", selfId);
-            if (channel != null) {
-                channel.shutdownNow();
+            try {
+                // Mark the node as shutting down *before* sending the request to avoid race
+                // conditions with the stream observer receiving an error.
+                lifeCycle = SHUTDOWN;
+
+                final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
+                // Unary call – will throw if server returns an error.
+                blockingStub.killImmediately(request);
+            } catch (final Exception e) {
+                log.error("Failed to kill node {} immediately", selfId, e);
             }
         }
     }

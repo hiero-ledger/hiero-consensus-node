@@ -1,9 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.turtle.TransactionFactory;
 
 /**
  * A {@link TransactionGenerator} for the container environment.
@@ -13,12 +23,49 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
 
     private static final Logger log = LogManager.getLogger();
 
+    /** Duration between two transaction submissions to a single node. */
+    private static final Duration CYCLE_DURATION = Duration.ofSeconds(1).dividedBy(TPS);
+
+    /** Secure random instance used to create pseudo-random payloads. */
+    private final SecureRandom random = new SecureRandom();
+
+    /** Supplies the current list of nodes to which transactions should be sent. */
+    private Supplier<List<Node>> nodesSupplier = List::of;
+
+    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    private volatile boolean running = false;
+
+    /**
+     * Sets the supplier that provides the up-to-date list of nodes. Must be called by the network once
+     * the nodes are available.
+     *
+     * @param supplier supplier returning the current nodes
+     */
+    public void setNodesSupplier(final Supplier<List<Node>> supplier) {
+        this.nodesSupplier = supplier;
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void start() {
-        log.warn("Starting ContainerTransactionGenerator not implemented yet.");
+        if (running) {
+            return;
+        }
+
+        /*
+         * If the generator was stopped previously, the scheduler may have been shut down. In that case
+         * create a fresh scheduler instance so the generator can be restarted safely.
+         */
+        if (scheduler.isShutdown()) {
+            scheduler = Executors.newSingleThreadScheduledExecutor();
+        }
+
+        running = true;
+
+        scheduler.scheduleAtFixedRate(this::generateAndSubmit, 0, CYCLE_DURATION.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -26,6 +73,41 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
      */
     @Override
     public void stop() {
-        log.warn("Stoping ContainerTransactionGenerator not implemented yet.");
+        running = false;
+        scheduler.shutdownNow();
+    }
+
+    /**
+     * Generates a random transaction payload and submits it to all active nodes.
+     */
+    private void generateAndSubmit() {
+        if (!running) {
+            return;
+        }
+
+        final List<Node> nodes;
+        try {
+            nodes = nodesSupplier.get();
+        } catch (final Exception e) {
+            log.warn("Unable to obtain nodes for transaction generation", e);
+            return;
+        }
+
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+
+        final byte[] transaction = TransactionFactory.createEmptyTransaction(random.nextInt())
+                .toByteArray();
+
+        for (final Node node : nodes) {
+            if (node.platformStatus() == PlatformStatus.ACTIVE) {
+                try {
+                    node.submitTransaction(transaction);
+                } catch (final Exception e) {
+                    log.debug("Unable to submit transaction to node {}", node.selfId(), e);
+                }
+            }
+        }
     }
 }

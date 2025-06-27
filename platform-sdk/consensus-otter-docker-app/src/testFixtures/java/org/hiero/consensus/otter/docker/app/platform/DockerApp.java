@@ -101,7 +101,7 @@ public class DockerApp {
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
 
-        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = new DockerStateEventHandler();
+        final ConsensusStateEventHandler<TurtleAppState> consensusStateEventHandler = new DockerStateEventHandler();
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
@@ -190,6 +190,15 @@ public class DockerApp {
 
     private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
         consensusRoundListeners.forEach(listener -> listener.onConsensusRounds(rounds));
+    }
+
+    /**
+     * Submit a raw transaction to the underlying platform.
+     *
+     * @param transaction the serialized transaction bytes
+     */
+    public void submitTransaction(@NonNull final byte[] transaction) {
+        platform.createTransaction(transaction);
     }
 
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
