@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.junit;
 
+import static java.util.Objects.requireNonNull;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -70,7 +71,7 @@ public class OtterTestExtension
     public boolean supportsParameter(
             @NonNull final ParameterContext parameterContext, @Nullable final ExtensionContext ignored)
             throws ParameterResolutionException {
-        Objects.requireNonNull(parameterContext, "parameterContext must not be null");
+        requireNonNull(parameterContext, "parameterContext must not be null");
 
         return Optional.of(parameterContext)
                 .map(ParameterContext::getParameter)
@@ -93,8 +94,8 @@ public class OtterTestExtension
     public Object resolveParameter(
             @NonNull final ParameterContext parameterContext, @NonNull final ExtensionContext extensionContext)
             throws ParameterResolutionException {
-        Objects.requireNonNull(parameterContext, "parameterContext must not be null");
-        Objects.requireNonNull(extensionContext, "extensionContext must not be null");
+        requireNonNull(parameterContext, "parameterContext must not be null");
+        requireNonNull(extensionContext, "extensionContext must not be null");
 
         return Optional.of(parameterContext)
                 .map(ParameterContext::getParameter)
@@ -128,7 +129,7 @@ public class OtterTestExtension
      */
     @Override
     public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(final ExtensionContext context) {
-        Objects.requireNonNull(context, "context must not be null");
+        requireNonNull(context, "context must not be null");
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
             public String getDisplayName(final int invocationIndex) {
@@ -150,7 +151,7 @@ public class OtterTestExtension
      */
     @Override
     public boolean supportsTestTemplate(@NonNull final ExtensionContext context) {
-        Objects.requireNonNull(context, "context must not be null");
+        requireNonNull(context, "context must not be null");
         final Method testMethod = context.getRequiredTestMethod();
         // Only act if no other test annotation is present
         return !isTestAnnotated(testMethod);
@@ -205,7 +206,7 @@ public class OtterTestExtension
      * @return {@code true} if the method has any of the JUnit test annotations; {@code false} otherwise
      */
     private boolean isTestAnnotated(@NonNull final Method method) {
-        Objects.requireNonNull(method, "method must not be null");
+        requireNonNull(method, "method must not be null");
         return method.isAnnotationPresent(Test.class)
                 || method.isAnnotationPresent(RepeatedTest.class)
                 || method.isAnnotationPresent(ParameterizedTest.class)

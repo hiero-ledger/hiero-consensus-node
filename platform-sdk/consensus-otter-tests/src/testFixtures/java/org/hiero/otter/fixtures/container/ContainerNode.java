@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -15,7 +16,6 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -84,8 +84,8 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) {
         super(selfId);
-        this.roster = Objects.requireNonNull(roster, "roster must not be null");
-        this.keysAndCerts = Objects.requireNonNull(keysAndCerts, "keysAndCerts must not be null");
+        this.roster = requireNonNull(roster, "roster must not be null");
+        this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle.gossip;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -10,7 +12,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -107,7 +108,7 @@ public class SimulatedNetwork {
             @NonNull final Duration averageDelay,
             @NonNull final Duration standardDeviationDelay) {
 
-        this.random = Objects.requireNonNull(random);
+        this.random = requireNonNull(random);
 
         for (final NodeId nodeId : nodeIds) {
             newlySubmittedEvents.put(nodeId, new ArrayList<>());
