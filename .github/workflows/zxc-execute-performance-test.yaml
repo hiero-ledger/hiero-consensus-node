@@ -10,7 +10,7 @@ on:
         type: string
         default: "Latitude4"
       ref:
-        description: "Hedera Version"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
         required: true
         type: string
         default: ""

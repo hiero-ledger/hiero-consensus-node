@@ -12,7 +12,7 @@ on:
       ref:
         required: true
         default: "main"
-        description: "Github reference: branch, tag, commit"
+        description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
       # TODO: Update solo-version when we move to CN to use solo tagged versions instead of helm charts.
       solo-version:
