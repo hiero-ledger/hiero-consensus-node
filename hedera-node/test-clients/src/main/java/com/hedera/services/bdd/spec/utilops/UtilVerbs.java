@@ -890,6 +890,10 @@ public class UtilVerbs {
         return new BalanceSnapshot(forAccount, name);
     }
 
+    public static BalanceSnapshot tokenBalanceSnapshot(String token, String name, String forAccount) {
+        return new BalanceSnapshot(forAccount, name).forToken(token);
+    }
+
     public static MutateAccountOp mutateAccount(
             @NonNull final String name, @NonNull final Consumer<Account.Builder> mutation) {
         return new MutateAccountOp(name, mutation);
