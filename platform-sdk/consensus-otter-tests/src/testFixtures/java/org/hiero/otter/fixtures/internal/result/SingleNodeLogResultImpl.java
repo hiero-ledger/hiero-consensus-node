@@ -65,7 +65,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     @NonNull
     @Override
     public SingleNodeLogResult suppressingLogMarker(@NonNull final LogMarker marker) {
-        Objects.requireNonNull(marker, "marker cannot be null");
+        requireNonNull(marker, "marker cannot be null");
 
         final Set<Marker> markers = new HashSet<>(suppressedLogMarkers);
         markers.add(marker.getMarker());
