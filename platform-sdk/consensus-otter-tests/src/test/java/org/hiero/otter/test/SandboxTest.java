@@ -87,13 +87,20 @@ public class SandboxTest {
 
     @Disabled
     @OtterTest
-    void testHappyPath(TestEnvironment env) throws InterruptedException {
+    void testApi(TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
         network.addNodes(4);
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.getLogResults())
+                .haveNoMessageWithMarkers(STARTUP)
+                .haveNoMessageWithLevelHigherThan(Level.INFO)
+                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.getNodes().getFirst().getPlatformStatusResults())
+                .doesNotEnterAnyStatusesOf(CHECKING)
+                .doesOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING);
         network.start();
 
         // Wait for two minutes

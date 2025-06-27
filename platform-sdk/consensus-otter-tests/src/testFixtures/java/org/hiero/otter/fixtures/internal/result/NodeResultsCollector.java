@@ -14,6 +14,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
+import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -27,6 +28,7 @@ public class NodeResultsCollector {
     private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
+    private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
@@ -73,6 +75,8 @@ public class NodeResultsCollector {
         requireNonNull(status);
         if (!destroyed) {
             platformStatuses.add(status);
+            platformStatusSubscribers.removeIf(
+                    subscriber -> subscriber.onPlatformStatusChange(nodeId, status) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 
@@ -103,7 +107,7 @@ public class NodeResultsCollector {
      *
      * @param subscriber the subscriber that will receive the rounds
      */
-    public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
+    public void subscribeConsensusRoundSubscriber(@NonNull final ConsensusRoundSubscriber subscriber) {
         consensusRoundSubscribers.add(subscriber);
     }
 
@@ -114,7 +118,27 @@ public class NodeResultsCollector {
      */
     @NonNull
     public SingleNodePlatformStatusResults getStatusProgression() {
-        return new SingleNodePlatformStatusResultsImpl(nodeId, new ArrayList<>(platformStatuses));
+        return new SingleNodePlatformStatusResultsImpl(this);
+    }
+
+    /**
+     * Returns all the platform statuses the node went through until the moment of invocation, starting with and including the provided index.
+     *
+     * @param startIndex the index to start from
+     * @return the list of platform statuses
+     */
+    public List<PlatformStatus> currentStatusProgression(final int startIndex) {
+        final List<PlatformStatus> copy = List.copyOf(platformStatuses);
+        return copy.subList(startIndex, copy.size());
+    }
+
+    /**
+     * Subscribes to {@link PlatformStatus} events.
+     *
+     * @param subscriber the subscriber that will receive the platform statuses
+     */
+    public void subscribePlatformStatusSubscriber(@NonNull final PlatformStatusSubscriber subscriber) {
+        platformStatusSubscribers.add(subscriber);
     }
 
     /**

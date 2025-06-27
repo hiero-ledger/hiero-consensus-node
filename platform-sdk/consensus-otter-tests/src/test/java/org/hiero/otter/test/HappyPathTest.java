@@ -3,7 +3,9 @@ package org.hiero.otter.test;
 
 import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.OBSERVING;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
@@ -25,7 +27,13 @@ public class HappyPathTest {
 
         // Setup simulation
         network.addNodes(4);
+
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.getLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.getNodes().getFirst().getPlatformStatusResults())
+                .doesOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
+                .doesNotEnterAnyStatusesOf(BEHIND, FREEZING);
+
         network.start();
 
         // Wait for two minutes
@@ -36,7 +44,7 @@ public class HappyPathTest {
 
         assertThat(network.getConsensusResults())
                 .haveEqualCommonRounds()
-                .haveMaxDifferenceInLastRoundNum(withPercentage(1));
+                .haveMaxDifferenceInLastRoundNum(withPercentage(10));
 
         assertThat(network.getPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));

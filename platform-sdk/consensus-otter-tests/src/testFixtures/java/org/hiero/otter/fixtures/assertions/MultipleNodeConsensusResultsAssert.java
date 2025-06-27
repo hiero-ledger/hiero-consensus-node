@@ -150,7 +150,7 @@ public class MultipleNodeConsensusResultsAssert
         final double actualDifference = 100.0 * (longestSize - shortestSize) / longestSize;
         if (actualDifference > expectedDifference.value) {
             failWithMessage(
-                    "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %2.f%%",
+                    "Expected the difference between the fastest and the slowest node not to be greater than %s, but was %.2f%%",
                     expectedDifference, actualDifference);
         }
 
