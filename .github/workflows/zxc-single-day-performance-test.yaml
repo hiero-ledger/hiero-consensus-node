@@ -100,6 +100,32 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Checkout Code
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Checkout pbj Repo
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          repository: hashgraph/pbj
+          path: pbj
+
+      - name: Checkout solo Repo
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          repository: hiero-ledger/solo
+          path: solo
+          ref: ${{ env.run_soloversion }}
+
+      - name: Checkout network-load-generator repository
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          repository: hashgraph/network-load-generator
+          path: network-load-generator
+          ref: ${{ env.NLG_BRANCH }}
+          token: ${{ secrets.nlg-access-token }}
+
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
@@ -182,9 +208,6 @@ jobs:
         run: |
           rm -rf "${{ github.workspace }}"/*
 
-      - name: Checkout Performance Analysis Automation Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-
       - name: Print parameters
         run: |
           echo "inputs.test-asset=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -208,26 +231,6 @@ jobs:
           then
             rm -rf solo
           fi
-
-      - name: Checkout pbj Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        with:
-          repository: hashgraph/pbj
-          path: pbj
-
-      - name: Checkout hiero consensus node Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        with:
-          repository: hiero-ledger/hiero-consensus-node
-          path: hiero-consensus-node
-          ref: ${{ env.RUN_HCN_VERSION }}
-
-      - name: Checkout solo Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        with:
-          repository: hiero-ledger/solo
-          path: solo
-          ref: ${{ env.run_soloversion }}
 
       - name: Set hederahash sha value
         run: |
@@ -338,14 +341,6 @@ jobs:
 
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
-
-      - name: Checkout network-load-generator repository
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
-        with:
-          repository: hashgraph/network-load-generator
-          path: network-load-generator
-          ref: ${{ env.NLG_BRANCH }}
-          token: ${{ secrets.nlg-access-token }}
 
       - name: Build network-load-generator
         run: |
@@ -643,6 +638,11 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Checkout Code
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+        with:
+          ref: ${{ inputs.ref }}
+
       - name: Set namespace
         run: |
           set +x
@@ -657,8 +657,6 @@ jobs:
         run: |
           echo "namespace=${{ env.run_namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
-      - name: Checkout Performance Analysis Automation Repo
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Install KubeCtl
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
