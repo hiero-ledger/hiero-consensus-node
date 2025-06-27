@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging.internal;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -67,7 +69,7 @@ public class InMemoryAppender extends AbstractAppender {
      * @param subscriber The subscriber to be added.
      */
     public static void subscribe(@NonNull final LogSubscriber subscriber) {
-        Objects.requireNonNull(subscriber);
+        requireNonNull(subscriber);
         subscribers.add(subscriber);
     }
 

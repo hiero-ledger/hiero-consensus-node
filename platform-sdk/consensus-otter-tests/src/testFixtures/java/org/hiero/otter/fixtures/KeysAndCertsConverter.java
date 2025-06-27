@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.protobuf.ByteString;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
@@ -16,7 +18,6 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.Objects;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.container.proto.ProtoKeysAndCerts;
 
@@ -36,7 +37,7 @@ public class KeysAndCertsConverter {
      * @throws RuntimeException if a certificate encoding error occurs
      */
     public static ProtoKeysAndCerts toProto(@NonNull final KeysAndCerts keysAndCerts) {
-        Objects.requireNonNull(keysAndCerts, "keysAndCerts must not be null");
+        requireNonNull(keysAndCerts, "keysAndCerts must not be null");
         try {
             return ProtoKeysAndCerts.newBuilder()
                     .setSigKeyType(keysAndCerts.sigKeyPair().getPrivate().getAlgorithm())
@@ -69,7 +70,7 @@ public class KeysAndCertsConverter {
      * @throws RuntimeException if a certificate or key decoding error occurs
      */
     public static KeysAndCerts fromProto(@NonNull final ProtoKeysAndCerts proto) {
-        Objects.requireNonNull(proto, "proto cannot be null");
+        requireNonNull(proto, "proto cannot be null");
         try {
             final KeyFactory sigKeyFactory = KeyFactory.getInstance(proto.getSigKeyType());
             final PrivateKey sigPriv = sigKeyFactory.generatePrivate(
