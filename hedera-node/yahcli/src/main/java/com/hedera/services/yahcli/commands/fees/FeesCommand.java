@@ -15,7 +15,8 @@ public class FeesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        throw new CommandLine.ParameterException(yahcli.getSpec().commandLine(), "Please specify a fee subcommand!");
+        throw new CommandLine.ParameterException(
+                yahcli.getSpec().commandLine(), "Please specify a fee subcommand!");
     }
 
     public Yahcli getYahcli() {

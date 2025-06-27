@@ -48,7 +48,7 @@ public class Yahcli implements Callable<Integer> {
     public static final String DEFAULT_LOG_LEVEL = "WARN";
 
     @Spec
-    public CommandSpec spec;
+    CommandSpec spec;
 
     @Option(
             names = {"-f", "--fixed-fee"},
