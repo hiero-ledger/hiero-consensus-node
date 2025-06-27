@@ -536,7 +536,8 @@ public class SystemTransactions {
                     readableStoreFactory.getStore(ReadableEntityIdStore.class).numNodes();
             for (var i = 0; i < numNodes; i++) {
                 final long nodeId = i;
-                if (nodeStore.get(i) != null && !overrideNodes.contains(nodeId)) {
+                final var existingNode = nodeStore.get(i);
+                if (existingNode != null && !overrideNodes.contains(nodeId) && !existingNode.deleted()) {
                     // Node is in the current state but not in the override roster, mark it as deleted
                     systemContext.dispatchAdmin(b -> b.memo("Synthetic node deletion")
                             .nodeDelete(NodeDeleteTransactionBody.newBuilder()
