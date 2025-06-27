@@ -232,9 +232,13 @@ jobs:
           hederahash=`git rev-parse HEAD`
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
-      - name: Build hiero-consensus-node
-        run: |
-          ./gradlew --no-daemon clean assemble
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
+        with:
+          gradle-version: wrapper
+
+      - name: Compile
+        run: ./gradlew assemble
 
       - name: Build Solo
         run: |
