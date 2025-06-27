@@ -86,7 +86,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
                 new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
         phase = new PhaseTimerBuilder<>(
-                        platformContext, platformContext.getTime(), "platform", EventCreationStatus.class)
+                        platformContext.getMetrics(), platformContext.getTime(), "platform", EventCreationStatus.class)
                 .enableFractionalMetrics()
                 .setInitialPhase(IDLE)
                 .setMetricsNamePrefix("eventCreation")

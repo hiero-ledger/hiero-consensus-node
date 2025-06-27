@@ -325,6 +325,7 @@ public class PlatformTestingToolConsensusStateEventHandler
         if (state.getConfig().getDelayCfg() != null) {
             final int delay = state.getConfig().getDelayCfg().getRandomDelay();
             try {
+                logger.info(LOGM_DEMO_INFO, "Will sleep for {}ms on normal delay", delay);
                 Thread.sleep(delay);
             } catch (final InterruptedException e) {
                 logger.info(LOGM_DEMO_INFO, "", e);
