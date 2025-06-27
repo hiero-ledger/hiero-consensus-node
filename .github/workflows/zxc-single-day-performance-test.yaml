@@ -1,23 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: [CITR] Single Day Performance Test"
-run-name: ${{ inputs.ref || 'Cron run of main ' }} ${{ inputs.test-asset || 'on Latitude3' }}
-
-permissions:
-  contents: write
-  id-token: write
-
-env:
-  LATITUDE_NAMESPACE_PREFIX: solo-alex-kuzmin-n
-  DEFAULT_NAMESPACE: Latitude3
-  DEFAULT_HCN_VERSION: main
-  TIMEOUT_6H_LIMIT: 330
-  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
-  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
-  #Release version from jFrog
-  NLG_VERSION: 0.3.2
-  #if needed to re-build NLG from branch:
-  NLG_REBUILD: false
-  NLG_BRANCH: main
 
 on:
   workflow_call:
@@ -79,6 +61,23 @@ on:
       result:
         description: "Result of the SDPT Run"
         value: ${{ jobs.single-day-performance-test.outputs.result }}
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  LATITUDE_NAMESPACE_PREFIX: solo-alex-kuzmin-n
+  DEFAULT_NAMESPACE: Latitude3
+  DEFAULT_HCN_VERSION: main
+  TIMEOUT_6H_LIMIT: 330
+  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
+  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
+  #Release version from jFrog
+  NLG_VERSION: 0.3.2
+  #if needed to re-build NLG from branch:
+  NLG_REBUILD: false
+  NLG_BRANCH: main
 
 jobs:
   performance-tests-start:
@@ -1099,7 +1098,7 @@ jobs:
 #      test-asset: "${{ inputs.test-asset }}"
 #      ref: "${{ inputs.ref }}"
 #      solo-version: "${{ inputs.solo-version }}"
-#      nlg-accounts: "${{ inputs.nlg-accounts }}"
+#      nlg-accounts: ${{ toJSON(inputs.nlg-accounts) }}
 #      nlg-test: "HCSLoadTest"
 #      nlg-time: "${{ inputs.nlg-time }}"
 #      workspace: "${{ github.workspace }}"

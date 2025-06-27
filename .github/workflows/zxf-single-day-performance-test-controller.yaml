@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXF: [CITR] Single Day Performance Test Controller"
+
 on:
   workflow_dispatch:
     inputs:
@@ -125,7 +126,7 @@ jobs:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
       solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-accounts: ${{ toJSON(inputs.nlg-accounts) }}
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"

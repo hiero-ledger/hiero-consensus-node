@@ -1,10 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: [CITR] Execute Performance Test"
 
-permissions:
-  contents: write
-  id-token: write
-
 on:
   workflow_call:
     inputs:
@@ -25,9 +21,9 @@ on:
         default: ""
       nlg-accounts:
         required: true
-        default: "100000"
+        default: 100000
         description: "Number of Accounts and NFT tokens"
-        type: string
+        type: number
       nlg-test:
         required: true
         default: ""
@@ -74,6 +70,10 @@ env:
 defaults:
   run:
     shell: bash
+
+permissions:
+  contents: write
+  id-token: write
 
 jobs:
   performance-test:
