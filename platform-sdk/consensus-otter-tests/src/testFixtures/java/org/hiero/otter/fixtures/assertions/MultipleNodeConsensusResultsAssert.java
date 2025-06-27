@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.assertions;
 import static java.util.Comparator.comparingInt;
 
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -112,14 +113,7 @@ public class MultipleNodeConsensusResultsAssert
             final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
             final List<ConsensusRound> expectedRounds =
                     longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
-            Assertions.assertThat(roundsToAssert)
-                    .withFailMessage(
-                            "Expected node %s to have the same consensus rounds as node %s, but the former had %s while the later had %s",
-                            longestNodeRoundsResult.nodeId(),
-                            roundsFromNodeToAssert.nodeId(),
-                            roundsToAssert,
-                            longestNodeRoundsResult.rounds())
-                    .containsExactlyElementsOf(expectedRounds);
+            ConsensusRoundValidator.validate(roundsToAssert, expectedRounds);
         }
 
         return this;
