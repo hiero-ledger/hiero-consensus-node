@@ -123,11 +123,11 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-time: "${{ inputs.nlg-time }}"
+      solo-version:  "${{ inputs.solo-version }}"
+      nlg-accounts:  "${{ inputs.nlg-accounts }}"
+      nlg-time:      "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
-      add-settings: "${{ inputs.add-settings }}"
+      add-settings:  "${{ inputs.add-settings }}"
       crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
