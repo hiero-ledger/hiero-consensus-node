@@ -105,8 +105,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private long accumulatedHashComplexity = 0;
 
-    private long freezeRound = 0;
-
     /**
      * Constructor
      *
@@ -183,6 +181,11 @@ public class DefaultTransactionHandler implements TransactionHandler {
         if (swirldStateManager.isInFreezePeriod(consensusRound.getConsensusTimestamp())) {
             statusActionSubmitter.submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Submitting freeze period entered action for consensus round: {} consensusTimeStamp: {} ",
+                    consensusRound.getRoundNum(),
+                    consensusRound.getConsensusTimestamp());
         }
 
         handlerMetrics.recordEventsPerRound(consensusRound.getNumEvents());
@@ -249,21 +252,18 @@ public class DefaultTransactionHandler implements TransactionHandler {
             // Update the running hash object. If there are no events, the running hash does not change.
             // Future work: this is a redundant check, since empty rounds are currently ignored entirely. The check is
             // here anyway, for when that changes in the future.
+            if (freezeRoundReceived) {
+                logger.info(
+                        "Last event in the freezeRound:{} is:{}",
+                        round.getRoundNum(),
+                        round.getStreamedEvents().getLast().getPlatformEvent().getDescriptor());
+            }
             if (!round.isEmpty()) {
                 previousRoundLegacyRunningEventHash = round.getStreamedEvents()
                         .getLast()
                         .getRunningHash()
                         .getFutureHash()
                         .getAndRethrow();
-                if (freezeRoundReceived) {
-                    logger.info(
-                            "Last event in the freezeRound:{} is:{}",
-                            round.getRoundNum(),
-                            round.getStreamedEvents()
-                                    .getLast()
-                                    .getPlatformEvent()
-                                    .getDescriptor());
-                }
             }
 
             platformStateFacade.setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
