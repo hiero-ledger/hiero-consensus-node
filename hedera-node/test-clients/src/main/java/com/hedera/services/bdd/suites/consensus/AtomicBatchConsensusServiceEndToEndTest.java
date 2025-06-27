@@ -1331,6 +1331,7 @@ public class AtomicBatchConsensusServiceEndToEndTest {
             return hapiTest(flattened(
                     createAccountsAndKeys(),
                     createMutableTopicWithSubmitKeyAndHBARFixedFee(adminKey, submitKey, feeScheduleKey, TOPIC_ID),
+                    createMutableTopicWithSubmitKeyAndHTSFixedFee(adminKey, submitKey, feeScheduleKey, TOPIC_ID_SECOND),
                     atomicBatch(
                                     submitMessageToFirstTopicBeforeUpdate,
                                     submitMessageToSecondTopicBeforeUpdate,
