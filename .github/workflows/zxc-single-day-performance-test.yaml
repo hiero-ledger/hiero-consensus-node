@@ -1153,6 +1153,7 @@ jobs:
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:
+    name: Calculate Result
     runs-on: hiero-network-node-linux-large
     if: ${{ always() }}
 #    needs:
