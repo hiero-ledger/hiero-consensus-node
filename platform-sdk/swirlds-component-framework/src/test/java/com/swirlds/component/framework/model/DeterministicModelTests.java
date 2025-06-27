@@ -94,8 +94,7 @@ class DeterministicModelTests {
     private record WiringMesh(
             @NonNull InputWire<Long> inputWire,
             @NonNull AtomicLong outputValue,
-            @NonNull BooleanSupplier isQuiescent) {
-    }
+            @NonNull BooleanSupplier isQuiescent) {}
 
     /**
      * Generates a wiring mesh that yields non-deterministic results when data is fed in using the standard wiring
@@ -385,8 +384,7 @@ class DeterministicModelTests {
         final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(),
-                        time)
+        final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
         try {
