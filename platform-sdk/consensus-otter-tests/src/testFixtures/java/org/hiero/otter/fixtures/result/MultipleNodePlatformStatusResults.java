@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -25,7 +25,7 @@ public interface MultipleNodePlatformStatusResults {
     /**
      * Excludes the status progression of a specific node from the current results.
      *
-     * @param nodeId the {@link NodeId} of the node which status progression is to be excluded
+     * @param nodeId the {@link NodeId} of the node whose status progression is to be excluded
      * @return a new instance of {@link MultipleNodePlatformStatusResults} with the specified node's status progression excluded
      */
     @NonNull
@@ -34,11 +34,11 @@ public interface MultipleNodePlatformStatusResults {
     /**
      * Excludes the status progression of a specific node from the current results.
      *
-     * @param node the node which status progression is to be excluded
+     * @param node the node whose status progression is to be excluded
      * @return a new instance of {@link MultipleNodePlatformStatusResults} with the specified node's status progression excluded
      */
     @NonNull
     default MultipleNodePlatformStatusResults suppressingNode(@NonNull final Node node) {
-        return suppressingNode(node.getSelfId());
+        return suppressingNode(node.selfId());
     }
 }

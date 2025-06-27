@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuc
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
@@ -94,6 +95,22 @@ public class TokenDeleteSpecs {
                                 .payingWith(PAYER))
                 .when()
                 .then(tokenDelete("tbd").payingWith(PAYER).signedBy(PAYER).hasKnownStatus(TOKEN_IS_IMMUTABLE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> deletionValidatesWrongAdminKey() {
+        return defaultHapiSpec("DeletionValidatesWrongAdminKey")
+                .given(
+                        newKeyNamed(MULTI_KEY),
+                        cryptoCreate(TOKEN_TREASURY).balance(0L),
+                        cryptoCreate(PAYER),
+                        tokenCreate("tbd")
+                                .adminKey(MULTI_KEY)
+                                .freezeDefault(false)
+                                .treasury(TOKEN_TREASURY)
+                                .payingWith(PAYER))
+                .when()
+                .then(tokenDelete("tbd").payingWith(PAYER).signedBy(PAYER).hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest

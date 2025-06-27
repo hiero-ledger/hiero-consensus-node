@@ -3,8 +3,8 @@ package org.hiero.otter.fixtures.internal.result;
 
 import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
-import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
@@ -17,8 +17,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**
@@ -37,15 +35,15 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      * @param platformContext The {@link PlatformContext} to use for file reading
      */
     public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final PlatformContext platformContext) {
-        this.nodeId = requireNonNull(nodeId);
+        this.nodeId = nodeId;
 
         final Configuration configuration = platformContext.getConfiguration();
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
-        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
 
         try {
 
-            final Path databaseDirectory = getDatabaseDirectory(platformContext, nodeId);
+            final Path databaseDirectory =
+                    getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
 
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
                     platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps());
@@ -58,7 +56,6 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
     public NodeId nodeId() {
         return nodeId;
     }
