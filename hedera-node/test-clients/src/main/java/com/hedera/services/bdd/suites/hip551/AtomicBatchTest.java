@@ -50,8 +50,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -1066,7 +1066,7 @@ public class AtomicBatchTest {
                     long oneSigDiff = feeTwoSigMint.get() - feeOneSigMint.get();
                     long approxThreeSig = feeOneSigMint.get() + 2 * oneSigDiff;
                     long allowedDeviation = approxThreeSig / 10;
-                    Assertions.assertTrue(
+                    org.junit.jupiter.api.Assertions.assertTrue(
                             Math.abs(feeInBatchMint.get() - approxThreeSig) <= allowedDeviation,
                             () -> String.format(
                                     "Expected in-batch mint fee to be <%d +/- 5%%>, was" + " <%d>!",
@@ -1074,57 +1074,57 @@ public class AtomicBatchTest {
                 }));
     }
 
-	@LeakyHapiTest
-	final Stream<DynamicTest> batchTxnPropagatesStakingRewards() {
-		final var stakingStartThreshold = 10 * ONE_HBAR;
-		final var operatorAcct = "operatorAcct";
-		final var operatorKey = "operatorKey";
-		final var receivesRewardsAcct = "receivesRewardsAcct";
+    @LeakyHapiTest
+    final Stream<DynamicTest> batchTxnPropagatesStakingRewards() {
+        final var stakingStartThreshold = 10 * ONE_HBAR;
+        final var operatorAcct = "operatorAcct";
+        final var operatorKey = "operatorKey";
+        final var receivesRewardsAcct = "receivesRewardsAcct";
 
-		return hapiTest(
-				overridingThree(
-						"staking.startThreshold", "" + stakingStartThreshold,
-						"staking.perHbarRewardRate", "1",
-						"staking.rewardBalanceThreshold", "0"),
-				// Fund the rewards account
-				cryptoTransfer(TokenMovement.movingHbar(stakingStartThreshold).between(DEFAULT_PAYER, "800")),
-				newKeyNamed(operatorKey),
-				cryptoCreate(operatorAcct).key(operatorKey).balance(ONE_HUNDRED_HBARS),
-				// Create an account that will receive staking rewards
-				cryptoCreate(receivesRewardsAcct).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
-				// Accumulate some staking rewards
-				waitUntilStartOfNextStakingPeriod(1),
-				atomicBatch(
-						// Trigger staking rewards for the "receivesRewardsAcct" account
-						cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
-								.payingWith(operatorAcct)
-								.batchKey(operatorKey)
-								.via("stakingTriggered"),
-						// Intentionally fail the inner transaction to roll back the batch
-						cryptoTransfer(TokenMovement.movingHbar(1).between(receivesRewardsAcct, DEFAULT_PAYER))
-								.payingWith(receivesRewardsAcct)
-								.signedBy(operatorKey)
-								.batchKey(operatorKey)
-								.hasKnownStatus(INVALID_PAYER_SIGNATURE))
-						.payingWith(operatorAcct)
-						.signedBy(operatorKey)
-						.hasKnownStatus(INNER_TRANSACTION_FAILED),
-				// Verify that no staking rewards were paid
-				getTxnRecord("stakingTriggered").hasPaidStakingRewardsCount(0),
-				getAccountBalance(receivesRewardsAcct).hasTinyBars(ONE_HUNDRED_HBARS),
-				// Trigger staking again, but allow it to succeed
-				waitUntilStartOfNextStakingPeriod(1),
-				atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
-						.payingWith(operatorAcct)
-						.batchKey(operatorKey))
-						.via("batchSuccess")
-						.payingWith(operatorAcct)
-						.signedBy(operatorKey),
-				// Verify staking rewards were paid
-				getTxnRecord("batchSuccess").hasPaidStakingRewardsCount(1),
-				getAccountBalance(receivesRewardsAcct).exposingBalanceTo(balance -> {
-					// Initial balance (100 hbars) + 1 hbar from transfer + <positive nonzero> rewards
-					Assertions.assertThat(balance).isGreaterThan(ONE_HUNDRED_HBARS + 1);
-				}));
-	}
+        return hapiTest(
+                overridingThree(
+                        "staking.startThreshold", "" + stakingStartThreshold,
+                        "staking.perHbarRewardRate", "1",
+                        "staking.rewardBalanceThreshold", "0"),
+                // Fund the rewards account
+                cryptoTransfer(TokenMovement.movingHbar(stakingStartThreshold).between(DEFAULT_PAYER, "800")),
+                newKeyNamed(operatorKey),
+                cryptoCreate(operatorAcct).key(operatorKey).balance(ONE_HUNDRED_HBARS),
+                // Create an account that will receive staking rewards
+                cryptoCreate(receivesRewardsAcct).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
+                // Accumulate some staking rewards
+                waitUntilStartOfNextStakingPeriod(1),
+                atomicBatch(
+                                // Trigger staking rewards for the "receivesRewardsAcct" account
+                                cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
+                                        .payingWith(operatorAcct)
+                                        .batchKey(operatorKey)
+                                        .via("stakingTriggered"),
+                                // Intentionally fail the inner transaction to roll back the batch
+                                cryptoTransfer(TokenMovement.movingHbar(1).between(receivesRewardsAcct, DEFAULT_PAYER))
+                                        .payingWith(receivesRewardsAcct)
+                                        .signedBy(operatorKey)
+                                        .batchKey(operatorKey)
+                                        .hasKnownStatus(INVALID_PAYER_SIGNATURE))
+                        .payingWith(operatorAcct)
+                        .signedBy(operatorKey)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                // Verify that no staking rewards were paid
+                getTxnRecord("stakingTriggered").hasPaidStakingRewardsCount(0),
+                getAccountBalance(receivesRewardsAcct).hasTinyBars(ONE_HUNDRED_HBARS),
+                // Trigger staking again, but allow it to succeed
+                waitUntilStartOfNextStakingPeriod(1),
+                atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
+                                .payingWith(operatorAcct)
+                                .batchKey(operatorKey))
+                        .via("batchSuccess")
+                        .payingWith(operatorAcct)
+                        .signedBy(operatorKey),
+                // Verify staking rewards were paid
+                getTxnRecord("batchSuccess").hasPaidStakingRewardsCount(1),
+                getAccountBalance(receivesRewardsAcct).exposingBalanceTo(balance -> {
+                    // Initial balance (100 hbars) + 1 hbar from transfer + <positive nonzero> rewards
+                    Assertions.assertThat(balance).isGreaterThan(ONE_HUNDRED_HBARS + 1);
+                }));
+    }
 }
