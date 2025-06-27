@@ -11,7 +11,9 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.withNature;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
@@ -26,6 +28,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
@@ -38,6 +41,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
@@ -47,6 +51,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -82,11 +87,13 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -975,57 +982,149 @@ public class AtomicBatchTest {
         }
     }
 
-    @LeakyHapiTest
-    final Stream<DynamicTest> batchTxnPropagatesStakingRewards() {
-        final var stakingStartThreshold = 10 * ONE_HBAR;
-        final var operatorAcct = "operatorAcct";
-        final var operatorKey = "operatorKey";
-        final var receivesRewardsAcct = "receivesRewardsAcct";
+    @HapiTest
+    @DisplayName("Updated required key in batch")
+    public Stream<DynamicTest> useUpdatedKeyInBatch() {
+        final var batchOperator = "batchOperator";
 
         return hapiTest(
-                overridingThree(
-                        "staking.startThreshold", "" + stakingStartThreshold,
-                        "staking.perHbarRewardRate", "1",
-                        "staking.rewardBalanceThreshold", "0"),
-                // Fund the rewards account
-                cryptoTransfer(TokenMovement.movingHbar(stakingStartThreshold).between(DEFAULT_PAYER, "800")),
-                newKeyNamed(operatorKey),
-                cryptoCreate(operatorAcct).key(operatorKey).balance(ONE_HUNDRED_HBARS),
-                // Create an account that will receive staking rewards
-                cryptoCreate(receivesRewardsAcct).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
-                // Accumulate some staking rewards
-                waitUntilStartOfNextStakingPeriod(1),
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                newKeyNamed("kycKey"),
+                newKeyNamed("newKycKey"),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                tokenCreate("testToken")
+                        .initialSupply(1000L)
+                        .treasury("treasury")
+                        .kycKey("kycKey")
+                        .supplyKey("treasury")
+                        .adminKey("adminKey"),
                 atomicBatch(
-                                // Trigger staking rewards for the "receivesRewardsAcct" account
-                                cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
-                                        .payingWith(operatorAcct)
-                                        .batchKey(operatorKey)
-                                        .via("stakingTriggered"),
-                                // Intentionally fail the inner transaction to roll back the batch
-                                cryptoTransfer(TokenMovement.movingHbar(1).between(receivesRewardsAcct, DEFAULT_PAYER))
-                                        .payingWith(receivesRewardsAcct)
-                                        .signedBy(operatorKey)
-                                        .batchKey(operatorKey)
-                                        .hasKnownStatus(INVALID_PAYER_SIGNATURE))
-                        .payingWith(operatorAcct)
-                        .signedBy(operatorKey)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // Verify that no staking rewards were paid
-                getTxnRecord("stakingTriggered").hasPaidStakingRewardsCount(0),
-                getAccountBalance(receivesRewardsAcct).hasTinyBars(ONE_HUNDRED_HBARS),
-                // Trigger staking again, but allow it to succeed
-                waitUntilStartOfNextStakingPeriod(1),
-                atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
-                                .payingWith(operatorAcct)
-                                .batchKey(operatorKey))
-                        .via("batchSuccess")
-                        .payingWith(operatorAcct)
-                        .signedBy(operatorKey),
-                // Verify staking rewards were paid
-                getTxnRecord("batchSuccess").hasPaidStakingRewardsCount(1),
-                getAccountBalance(receivesRewardsAcct).exposingBalanceTo(balance -> {
-                    // Initial balance (100 hbars) + 1 hbar from transfer + <positive nonzero> rewards
-                    Assertions.assertThat(balance).isGreaterThan(ONE_HUNDRED_HBARS + 1);
+                                // update admin key
+                                tokenUpdate("testToken")
+                                        .adminKey("newAdminKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .signedBy("adminKey", "newAdminKey", batchOperator),
+
+                                // update kyc key
+                                tokenUpdate("testToken")
+                                        .kycKey("newKycKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .via("updateKyc")
+                                        .sigMapPrefixes(uniqueWithFullPrefixesFor("newAdminKey", batchOperator))
+                                        .signedBy("newAdminKey", batchOperator))
+                        .payingWith(batchOperator)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @DisplayName("Additional verifications scale as expected")
+    public Stream<DynamicTest> additionalVerificationsScaleAsExpected() {
+        final var overlappingKeyGen = OverlappingKeyGenerator.withAtLeastOneOverlappingByte(3);
+        final var feeOneSigMint = new AtomicLong();
+        final var feeTwoSigMint = new AtomicLong();
+        final var feeInBatchMint = new AtomicLong();
+        return hapiTest(
+                newKeyNamed("aKey").generator(overlappingKeyGen),
+                newKeyNamed("bKey").generator(overlappingKeyGen),
+                newKeyNamed("cKey").generator(overlappingKeyGen),
+                newKeyListNamed("threeUnique", List.of("aKey", "bKey", "cKey", "bKey", "aKey")),
+                cryptoCreate("minter").key("aKey").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("batchOperator").balance(ONE_HUNDRED_HBARS),
+                tokenCreate("token").treasury(DEFAULT_PAYER).supplyKey("aKey").adminKey("aKey"),
+                mintToken("token", 123)
+                        .sigMapPrefixes(withNature(FULL_PREFIXES))
+                        .via("oneSigMint")
+                        .payingWith("minter"),
+                mintToken("token", 123)
+                        .via("twoSigsMint")
+                        .sigMapPrefixes(withNature(FULL_PREFIXES))
+                        .via("twoSigsMint")
+                        .payingWith("minter")
+                        .signedBy("minter", DEFAULT_PAYER),
+                getTxnRecord("oneSigMint").loggingOnlyFee().exposingTo(r -> feeOneSigMint.set(r.getTransactionFee())),
+                getTxnRecord("twoSigsMint").loggingOnlyFee().exposingTo(r -> feeTwoSigMint.set(r.getTransactionFee())),
+                atomicBatch(
+                                tokenUpdate("token")
+                                        .supplyKey("threeUnique")
+                                        .batchKey("batchOperator")
+                                        .payingWith("minter")
+                                        .signedBy("aKey", "bKey", "cKey"),
+                                mintToken("token", 456)
+                                        .batchKey("batchOperator")
+                                        .via("threeSigsMint")
+                                        .payingWith("minter")
+                                        .signedBy("aKey", "bKey", "cKey"))
+                        .payingWith("batchOperator"),
+                getTxnRecord("threeSigsMint").exposingTo(r -> feeInBatchMint.set(r.getTransactionFee())),
+                // Assert the batch fee is within 10% of what we would roughly by scaling up the one-sig
+                // mint fee by the twice increase in fee for the two-sig mint
+                verify(() -> {
+                    long oneSigDiff = feeTwoSigMint.get() - feeOneSigMint.get();
+                    long approxThreeSig = feeOneSigMint.get() + 2 * oneSigDiff;
+                    long allowedDeviation = approxThreeSig / 10;
+                    Assertions.assertTrue(
+                            Math.abs(feeInBatchMint.get() - approxThreeSig) <= allowedDeviation,
+                            () -> String.format(
+                                    "Expected in-batch mint fee to be <%d +/- 5%%>, was" + " <%d>!",
+                                    approxThreeSig, feeInBatchMint.get()));
                 }));
     }
+
+	@LeakyHapiTest
+	final Stream<DynamicTest> batchTxnPropagatesStakingRewards() {
+		final var stakingStartThreshold = 10 * ONE_HBAR;
+		final var operatorAcct = "operatorAcct";
+		final var operatorKey = "operatorKey";
+		final var receivesRewardsAcct = "receivesRewardsAcct";
+
+		return hapiTest(
+				overridingThree(
+						"staking.startThreshold", "" + stakingStartThreshold,
+						"staking.perHbarRewardRate", "1",
+						"staking.rewardBalanceThreshold", "0"),
+				// Fund the rewards account
+				cryptoTransfer(TokenMovement.movingHbar(stakingStartThreshold).between(DEFAULT_PAYER, "800")),
+				newKeyNamed(operatorKey),
+				cryptoCreate(operatorAcct).key(operatorKey).balance(ONE_HUNDRED_HBARS),
+				// Create an account that will receive staking rewards
+				cryptoCreate(receivesRewardsAcct).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
+				// Accumulate some staking rewards
+				waitUntilStartOfNextStakingPeriod(1),
+				atomicBatch(
+						// Trigger staking rewards for the "receivesRewardsAcct" account
+						cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
+								.payingWith(operatorAcct)
+								.batchKey(operatorKey)
+								.via("stakingTriggered"),
+						// Intentionally fail the inner transaction to roll back the batch
+						cryptoTransfer(TokenMovement.movingHbar(1).between(receivesRewardsAcct, DEFAULT_PAYER))
+								.payingWith(receivesRewardsAcct)
+								.signedBy(operatorKey)
+								.batchKey(operatorKey)
+								.hasKnownStatus(INVALID_PAYER_SIGNATURE))
+						.payingWith(operatorAcct)
+						.signedBy(operatorKey)
+						.hasKnownStatus(INNER_TRANSACTION_FAILED),
+				// Verify that no staking rewards were paid
+				getTxnRecord("stakingTriggered").hasPaidStakingRewardsCount(0),
+				getAccountBalance(receivesRewardsAcct).hasTinyBars(ONE_HUNDRED_HBARS),
+				// Trigger staking again, but allow it to succeed
+				waitUntilStartOfNextStakingPeriod(1),
+				atomicBatch(cryptoTransfer(TokenMovement.movingHbar(1).between(operatorAcct, receivesRewardsAcct))
+						.payingWith(operatorAcct)
+						.batchKey(operatorKey))
+						.via("batchSuccess")
+						.payingWith(operatorAcct)
+						.signedBy(operatorKey),
+				// Verify staking rewards were paid
+				getTxnRecord("batchSuccess").hasPaidStakingRewardsCount(1),
+				getAccountBalance(receivesRewardsAcct).exposingBalanceTo(balance -> {
+					// Initial balance (100 hbars) + 1 hbar from transfer + <positive nonzero> rewards
+					Assertions.assertThat(balance).isGreaterThan(ONE_HUNDRED_HBARS + 1);
+				}));
+	}
 }
