@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
-import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Continuous assertions for {@link SingleNodePlatformStatusResults}.
@@ -66,7 +65,7 @@ public class SingleNodePlatformStatusResultContinuousAssert
     }
 
     /**
-     * Verifies that no log messages with a level higher than the specified level exist.
+     * Verifies that only the provided statuses are entered.
      *
      * @param first the first status to check
      * @param rest additional statuses to check
@@ -86,17 +85,13 @@ public class SingleNodePlatformStatusResultContinuousAssert
     private SingleNodePlatformStatusResultContinuousAssert checkContinuously(final Consumer<PlatformStatus> check) {
         isNotNull();
 
-        final PlatformStatusSubscriber subscriber = (nodeId, status) -> {
-            final SubscriberAction action =
-                    switch (state) {
-                        case ACTIVE -> {
-                            check.accept(status);
-                            yield CONTINUE;
-                        }
-                        case PAUSED -> CONTINUE;
-                        case DESTROYED -> UNSUBSCRIBE;
-                    };
-            return action;
+        final PlatformStatusSubscriber subscriber = (nodeId, status) -> switch (state) {
+            case ACTIVE -> {
+                check.accept(status);
+                yield CONTINUE;
+            }
+            case PAUSED -> CONTINUE;
+            case DESTROYED -> UNSUBSCRIBE;
         };
 
         actual.subscribe(subscriber);

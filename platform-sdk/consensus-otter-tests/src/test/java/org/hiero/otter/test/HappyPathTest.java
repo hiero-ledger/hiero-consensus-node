@@ -30,9 +30,9 @@ public class HappyPathTest {
 
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
         assertContinuouslyThat(network.getLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.getNodes().getFirst().getPlatformStatusResults())
-                .doesOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
-                .doesNotEnterAnyStatusesOf(BEHIND, FREEZING);
+        assertContinuouslyThat(network.getPlatformStatusResults())
+                .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
+                .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
 
         network.start();
 

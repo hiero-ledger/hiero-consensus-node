@@ -98,9 +98,9 @@ public class SandboxTest {
                 .haveNoMessageWithMarkers(STARTUP)
                 .haveNoMessageWithLevelHigherThan(Level.INFO)
                 .haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.getNodes().getFirst().getPlatformStatusResults())
-                .doesNotEnterAnyStatusesOf(CHECKING)
-                .doesOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING);
+        assertContinuouslyThat(network.getPlatformStatusResults())
+                .doNotEnterAnyStatusesOf(CHECKING)
+                .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING);
         network.start();
 
         // Wait for two minutes
