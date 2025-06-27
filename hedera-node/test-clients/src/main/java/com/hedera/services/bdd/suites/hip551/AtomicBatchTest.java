@@ -11,7 +11,9 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.withNature;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
@@ -26,6 +28,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
@@ -38,6 +41,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -45,7 +49,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verify;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
@@ -77,14 +83,17 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -929,5 +938,97 @@ public class AtomicBatchTest {
                                     .status(SUCCESS)
                                     .contractCallResult(resultWith().gasUsed(gasUsed.get())))));
         }
+    }
+
+    @HapiTest
+    @DisplayName("Updated required key in batch")
+    public Stream<DynamicTest> useUpdatedKeyInBatch() {
+        final var batchOperator = "batchOperator";
+
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                newKeyNamed("kycKey"),
+                newKeyNamed("newKycKey"),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                tokenCreate("testToken")
+                        .initialSupply(1000L)
+                        .treasury("treasury")
+                        .kycKey("kycKey")
+                        .supplyKey("treasury")
+                        .adminKey("adminKey"),
+                atomicBatch(
+                                // update admin key
+                                tokenUpdate("testToken")
+                                        .adminKey("newAdminKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .signedBy("adminKey", "newAdminKey", batchOperator),
+
+                                // update kyc key
+                                tokenUpdate("testToken")
+                                        .kycKey("newKycKey")
+                                        .batchKey(batchOperator)
+                                        .payingWith(batchOperator)
+                                        .via("updateKyc")
+                                        .sigMapPrefixes(uniqueWithFullPrefixesFor("newAdminKey", batchOperator))
+                                        .signedBy("newAdminKey", batchOperator))
+                        .payingWith(batchOperator)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @DisplayName("Additional verifications scale as expected")
+    public Stream<DynamicTest> additionalVerificationsScaleAsExpected() {
+        final var overlappingKeyGen = OverlappingKeyGenerator.withAtLeastOneOverlappingByte(3);
+        final var feeOneSigMint = new AtomicLong();
+        final var feeTwoSigMint = new AtomicLong();
+        final var feeInBatchMint = new AtomicLong();
+        return hapiTest(
+                newKeyNamed("aKey").generator(overlappingKeyGen),
+                newKeyNamed("bKey").generator(overlappingKeyGen),
+                newKeyNamed("cKey").generator(overlappingKeyGen),
+                newKeyListNamed("threeUnique", List.of("aKey", "bKey", "cKey", "bKey", "aKey")),
+                cryptoCreate("minter").key("aKey").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("batchOperator").balance(ONE_HUNDRED_HBARS),
+                tokenCreate("token").treasury(DEFAULT_PAYER).supplyKey("aKey").adminKey("aKey"),
+                mintToken("token", 123)
+                        .sigMapPrefixes(withNature(FULL_PREFIXES))
+                        .via("oneSigMint")
+                        .payingWith("minter"),
+                mintToken("token", 123)
+                        .via("twoSigsMint")
+                        .sigMapPrefixes(withNature(FULL_PREFIXES))
+                        .via("twoSigsMint")
+                        .payingWith("minter")
+                        .signedBy("minter", DEFAULT_PAYER),
+                getTxnRecord("oneSigMint").loggingOnlyFee().exposingTo(r -> feeOneSigMint.set(r.getTransactionFee())),
+                getTxnRecord("twoSigsMint").loggingOnlyFee().exposingTo(r -> feeTwoSigMint.set(r.getTransactionFee())),
+                atomicBatch(
+                                tokenUpdate("token")
+                                        .supplyKey("threeUnique")
+                                        .batchKey("batchOperator")
+                                        .payingWith("minter")
+                                        .signedBy("aKey", "bKey", "cKey"),
+                                mintToken("token", 456)
+                                        .batchKey("batchOperator")
+                                        .via("threeSigsMint")
+                                        .payingWith("minter")
+                                        .signedBy("aKey", "bKey", "cKey"))
+                        .payingWith("batchOperator"),
+                getTxnRecord("threeSigsMint").exposingTo(r -> feeInBatchMint.set(r.getTransactionFee())),
+                // Assert the batch fee is within 10% of what we would roughly by scaling up the one-sig
+                // mint fee by the twice increase in fee for the two-sig mint
+                verify(() -> {
+                    long oneSigDiff = feeTwoSigMint.get() - feeOneSigMint.get();
+                    long approxThreeSig = feeOneSigMint.get() + 2 * oneSigDiff;
+                    long allowedDeviation = approxThreeSig / 10;
+                    Assertions.assertTrue(
+                            Math.abs(feeInBatchMint.get() - approxThreeSig) <= allowedDeviation,
+                            () -> String.format(
+                                    "Expected in-batch mint fee to be <%d +/- 5%%>, was" + " <%d>!",
+                                    approxThreeSig, feeInBatchMint.get()));
+                }));
     }
 }

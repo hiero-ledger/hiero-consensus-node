@@ -2,15 +2,15 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 
 /**
  * Interface representing a node in the network.
@@ -43,10 +43,8 @@ public interface Node {
      *
      * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
      * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start();
 
     /**
      * Allows to override the default timeout for node operations.
@@ -70,7 +68,7 @@ public interface Node {
      * @return the configuration of the node
      */
     @NonNull
-    NodeConfiguration getConfiguration();
+    NodeConfiguration<?> configuration();
 
     /**
      * Gets the self id of the node. This value can be used to identify a node.
@@ -78,7 +76,7 @@ public interface Node {
      * @return the self id
      */
     @NonNull
-    NodeId getSelfId();
+    NodeId selfId();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -103,23 +101,19 @@ public interface Node {
      * @return the software version of the node
      */
     @NonNull
-    SemanticVersion getVersion();
+    SemanticVersion version();
 
     /**
      * Sets the software version of the node.
      *
-     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used.
-     *
-     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is not running.
      *
      * @param version the software version to set for the node
      */
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * This method updates the version to trigger a "config only upgrade" on the next restart.
-     *
-     * <p>Please note that the new version will become effective only after the node is (re-)started.
+     * This method updates the version to trigger a "config only upgrade" on the next restart. This method can only be called while the node is not running.
      */
     void bumpConfigVersion();
 
@@ -140,12 +134,12 @@ public interface Node {
     SingleNodeLogResult getLogResult();
 
     /**
-     * Gets the status progression of the node.
+     * Gets the status progression result of the node.
      *
-     * @return the status progression of the node
+     * @return the status progression result of the node
      */
     @NonNull
-    SingleNodeStatusProgression getStatusProgression();
+    SingleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
      * Gets the results related to PCES files.

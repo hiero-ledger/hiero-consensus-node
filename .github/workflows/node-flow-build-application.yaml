@@ -19,7 +19,7 @@ on:
         required: false
         default: true
       enable-otter-tests:
-        description: "Otter Testing Enabled"
+        description: "Otter Tests Enabled"
         type: boolean
         required: false
         default: true
@@ -38,11 +38,6 @@ on:
         type: boolean
         required: false
         default: true
-      enable-ci-trigger:
-        description: "Trigger CI Flows Enabled"
-        type: boolean
-        required: false
-        default: false
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -133,9 +128,9 @@ jobs:
       enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-nd-reconnect: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
       enable-spotless-check: ${{ github.event_name == 'push' || github.event.inputs.enable-spotless-check == 'true' }}
       enable-snyk-scan: ${{ github.event_name == 'push' || github.event.inputs.enable-snyk-scan == 'true' }}
-      enable-otter-tests: ${{ github.event_name == 'push' || github.event.inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
@@ -182,8 +177,7 @@ jobs:
       - mats-unit-tests
       - mats-gradle-determinism
       - mats-docker-determinism
-    if:
-      ${{ (github.event_name == 'push' || github.event.inputs.enable-ci-trigger == 'true') &&
+    if: ${{ (github.event_name == 'push') &&
       needs.mats-unit-tests.result == 'success' &&
       needs.mats-gradle-determinism.result == 'success' &&
       needs.mats-docker-determinism.result == 'success' }}

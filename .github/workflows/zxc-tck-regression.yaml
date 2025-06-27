@@ -11,6 +11,13 @@ on:
         description: "The custom job name to use for the job:"
         required: false
         type: string
+    secrets:
+      access-token:
+        description: "GitHub Access Token with write permissions to the repository."
+        required: true
+      slack-report-webhook:
+        description: "Slack Webhook URL for TCK Monitoring."
+        required: true
 
 defaults:
   run:
@@ -19,6 +26,9 @@ defaults:
 permissions:
   checks: write
   contents: read
+  actions: write
+  statuses: write
+  id-token: write
 
 env:
   SOLO_CLUSTER_NAME: "solo-tck-e2e"
@@ -170,7 +180,7 @@ jobs:
       - name: Collect run logs in a log file
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.access-token }}
         run: |
           for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
             echo "Fetching logs for job ${job_id}..."
@@ -209,6 +219,7 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hiero-network-node-linux-large
     needs: tck-regression
+    if: ${{ always() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@4d991eb9b905ef189e4c376166672c3f2f230481 # v2.11.0
@@ -301,7 +312,7 @@ jobs:
       - name: Report Status to TCK Working Group
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+          webhook: ${{ secrets.slack-report-webhook }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
