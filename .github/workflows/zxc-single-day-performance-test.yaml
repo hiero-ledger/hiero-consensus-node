@@ -1201,7 +1201,7 @@ jobs:
 
           echo "result=${RESULT}" >> "${GITHUB_OUTPUT}"
 
-          echo "echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Single Day Performance Result" >> "${GITHUB_STEP_SUMMARY}"
           echo "result=${BUILD_TAG}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-Slack:
