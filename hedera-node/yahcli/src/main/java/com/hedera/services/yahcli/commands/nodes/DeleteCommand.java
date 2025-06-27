@@ -14,7 +14,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "delete",
-        subcommands = {picocli.CommandLine.HelpCommand.class},
+        subcommands = {CommandLine.HelpCommand.class},
         description = "Delete a node")
 public class DeleteCommand implements Callable<Integer> {
     @CommandLine.ParentCommand
