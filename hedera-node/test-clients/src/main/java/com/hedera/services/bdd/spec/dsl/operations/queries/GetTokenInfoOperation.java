@@ -42,6 +42,16 @@ public class GetTokenInfoOperation extends AbstractSpecOperation implements Spec
         return this;
     }
 
+    /**
+     * Allows to get TokenInfo into tokenInfoConsumer
+     * @param tokenInfoConsumer the consumer that will get TokenInfo when response will be available
+     * @return this
+     */
+    public GetTokenInfoOperation andGet(Consumer<TokenInfo> tokenInfoConsumer) {
+        this.assertions = op -> op.getTokenInfo(tokenInfoConsumer);
+        return this;
+    }
+
     @NonNull
     @Override
     protected SpecOperation computeDelegate(@NonNull HapiSpec spec) {

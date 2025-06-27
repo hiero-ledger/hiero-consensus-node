@@ -38,6 +38,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import org.apache.logging.log4j.LogManager;
@@ -133,6 +134,9 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
 
     @Nullable
     private Function<TokenInfo, SpecOperation> validationOp = null;
+
+    @Nullable
+    private Consumer<TokenInfo> tokenInfoConsumer = null;
 
     @Override
     public HederaFunctionality type() {
@@ -390,10 +394,19 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
         return this;
     }
 
+    public HapiGetTokenInfo getTokenInfo(Consumer<TokenInfo> tokenInfoConsumer) {
+        tokenInfoConsumer = tokenInfoConsumer;
+        return this;
+    }
+
     @Override
     @SuppressWarnings("java:S5960")
     protected void assertExpectationsGiven(HapiSpec spec) {
         var actualInfo = response.getTokenGetInfo().getTokenInfo();
+
+        if (tokenInfoConsumer == null) {
+            tokenInfoConsumer.accept(actualInfo);
+        }
 
         if (validationOp != null) {
             allRunFor(spec, validationOp.apply(actualInfo));

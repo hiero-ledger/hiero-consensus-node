@@ -555,11 +555,14 @@ public class NumericValidationTest {
     @DisplayName("HTS complex non-static functions")
     class CreateAndUpdateTokenTests {
 
+        // TODO get ticket expire
         @BeforeAll
         public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
             lifecycle.doAdhoc(
                     alice.transferHBarsTo(numericContractComplex, ONE_HUNDRED_HBARS),
-                    numericContractComplex.getBalance().andAssert(balance -> balance.hasTinyBars(ONE_HUNDRED_HBARS)));
+                    numericContractComplex.getBalance().andAssert(balance -> balance.hasTinyBars(ONE_HUNDRED_HBARS)),
+                    fungibleToken.getInfo().andGet(e -> System.out.println(e))
+            );
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -792,7 +795,7 @@ public class NumericValidationTest {
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("NFT 0x167 createNonFungibleToken V3")
-        public Stream<DynamicTest> failToUseCreateNonFungibleTokenV3WithNegativeExpiry() {
+        public Stream<DynamicTest> failToUseCreateNonFungibleTokenV3() {
             return Stream.of(
                             // INVALID_RENEWAL_PERIOD
                             new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10L),
@@ -827,7 +830,8 @@ public class NumericValidationTest {
                             numericContractComplex
                                     .call("updateTokenInfoV2", fungibleToken, maxSupply)
                                     .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
-                            fungibleToken.getInfo().andAssert(info -> info.hasMaxSupply(1200))));
+                            fungibleToken.getInfo()
+                                    .andAssert(info -> info.hasMaxSupply(1200))));
         }
 
         //TODO Glib test _expirySecond
@@ -835,8 +839,6 @@ public class NumericValidationTest {
         @DisplayName("FT 0x167 updateTokenInfo V3")
         public Stream<DynamicTest> failToUpdateTokenInfoV3Fungible() {
             return Stream.of(
-                            // AUTORENEW_DURATION_NOT_IN_RANGE
-//                            new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 3_000_000L, 10L),
                             // INVALID_EXPIRATION_TIME
                             new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 3_000_000L, 10L),
                             // INVALID_EXPIRATION_TIME
