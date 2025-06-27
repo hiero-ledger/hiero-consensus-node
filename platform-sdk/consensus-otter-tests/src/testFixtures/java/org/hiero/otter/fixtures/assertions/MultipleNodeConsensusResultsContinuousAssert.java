@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import com.swirlds.platform.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -108,11 +109,13 @@ public class MultipleNodeConsensusResultsContinuousAssert
                     @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
-                        if (!suppressedNodeIds.contains(nodeId)) {
+                        final NodeId protoNodeId =
+                                NodeId.newBuilder().id(nodeId.id()).build();
+                        if (!suppressedNodeIds.contains(protoNodeId)) {
                             for (final ConsensusRound round : rounds) {
                                 final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
-                                if (!nodeId.equals(reference.nodeId)) {
+                                        round.getRoundNum(), key -> new RoundFromNode(protoNodeId, round));
+                                if (!protoNodeId.equals(reference.nodeId)) {
                                     RoundInternalEqualityValidation.INSTANCE.validate(reference.round(), round);
                                 }
                             }

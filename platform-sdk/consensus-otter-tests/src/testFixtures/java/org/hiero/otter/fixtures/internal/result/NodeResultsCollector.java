@@ -3,14 +3,15 @@ package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -36,7 +37,7 @@ public class NodeResultsCollector {
      * @param nodeId the node ID of the node
      */
     public NodeResultsCollector(@NonNull final NodeId nodeId) {
-        this.nodeId = requireNonNull(nodeId);
+        this.nodeId = Objects.requireNonNull(nodeId, "nodeId should not be null");
     }
 
     /**
@@ -111,6 +112,7 @@ public class NodeResultsCollector {
      *
      * @return the {@link SingleNodePlatformStatusResults}
      */
+    @NonNull
     public SingleNodePlatformStatusResults getStatusProgression() {
         return new SingleNodePlatformStatusResultsImpl(nodeId, new ArrayList<>(platformStatuses));
     }
