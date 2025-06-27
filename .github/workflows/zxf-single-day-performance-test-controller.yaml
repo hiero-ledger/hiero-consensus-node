@@ -117,7 +117,7 @@ jobs:
           fi
 
   run-single-day-performance-test:
-    name: Run Single Day Performance Test
+    name: Performance Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
