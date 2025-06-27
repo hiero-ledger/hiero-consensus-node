@@ -1,0 +1,39 @@
+{
+  "entries" : [ {
+    "deprecatedIp" : "127.0.0.1",
+    "deprecatedMemo" : "0.0.3",
+    "deprecatedPortNo" : 50204,
+    "nodeId" : 0,
+    "certHash" : "<N/A>",
+    "rsaPubKey" : "123456789",
+    "nodeAccount" : "0.0.3",
+    "endpoints" : [ {
+      "ipAddressV4" : "127.0.0.1",
+      "port" : 50204
+    } ]
+  }, {
+    "deprecatedIp" : "127.0.0.1",
+    "deprecatedMemo" : "0.0.4",
+    "deprecatedPortNo" : 50205,
+    "nodeId" : 1,
+    "certHash" : "<N/A>",
+    "rsaPubKey" : "123456789",
+    "nodeAccount" : "0.0.4",
+    "endpoints" : [ {
+      "ipAddressV4" : "127.0.0.1",
+      "port" : 50205
+    } ]
+  }, {
+    "deprecatedIp" : "127.0.0.1",
+    "deprecatedMemo" : "0.0.5",
+    "deprecatedPortNo" : 50206,
+    "nodeId" : 2,
+    "certHash" : "<N/A>",
+    "rsaPubKey" : "12345789",
+    "nodeAccount" : "0.0.5",
+    "endpoints" : [ {
+      "ipAddressV4" : "127.0.0.1",
+      "port" : 50206
+    } ]
+  } ]
+}
