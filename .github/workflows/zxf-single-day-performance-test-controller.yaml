@@ -118,7 +118,8 @@ jobs:
 
   run-single-day-performance-test:
     name: Run Single Day Performance Test
-    needs: verify-tag
+    needs:
+      - verify-tag
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"

@@ -627,7 +627,8 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     runs-on: hiero-network-node-linux-large
-    needs: performance-tests-start
+    needs:
+      - performance-tests-start
     env:
       run_namespace: ${{ inputs.test-asset }}
       RUN_HCN_VERSION: ${{ inputs.ref }}
@@ -815,7 +816,8 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     runs-on: hiero-network-node-linux-large
-    needs: performance-NftTransferLoadTest-watch1
+    needs:
+      - performance-NftTransferLoadTest-watch1
     env:
       run_namespace: ${{ inputs.test-asset }}
       RUN_HCN_VERSION: ${{ inputs.ref }}
@@ -1087,7 +1089,8 @@ jobs:
           sh "${{ github.workspace }}"/node_control/resetCNlogs.sh "${{ env.namespace }}"
 
   performance-HCSLoadTest:
-    needs: performance-NftTransferLoadTest-report
+    needs:
+      - performance-NftTransferLoadTest-report
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
@@ -1101,7 +1104,8 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-CryptoTransferLoadTest:
-    needs: performance-HCSLoadTest
+    needs:
+      - performance-HCSLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
@@ -1115,7 +1119,8 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-HeliSwapLoadTest:
-    needs: performance-CryptoTransferLoadTest
+    needs:
+      - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
@@ -1129,7 +1134,8 @@ jobs:
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   performance-SmartContractLoadTest:
-    needs: performance-HeliSwapLoadTest
+    needs:
+      - performance-HeliSwapLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
