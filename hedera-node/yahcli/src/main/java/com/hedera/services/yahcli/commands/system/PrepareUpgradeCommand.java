@@ -15,7 +15,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "prepare-upgrade",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Stages artifacts prior to an NMT software upgrade")
 public class PrepareUpgradeCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

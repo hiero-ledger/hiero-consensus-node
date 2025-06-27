@@ -12,7 +12,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "freeze-abort",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Aborts any scheduled freeze and discards any staged NMT upgrade")
 public class FreezeAbortCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

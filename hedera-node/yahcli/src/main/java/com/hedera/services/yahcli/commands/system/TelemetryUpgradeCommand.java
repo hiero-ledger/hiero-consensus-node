@@ -16,7 +16,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "upgrade-telemetry",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Upgrades telemetry via NMT")
 public class TelemetryUpgradeCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

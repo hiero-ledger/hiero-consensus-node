@@ -15,7 +15,7 @@ import picocli.CommandLine.ParentCommand;
 
 @Command(
         name = "download",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Downloads system files")
 public class SysFileDownloadCommand implements Callable<Integer> {
     @ParentCommand

@@ -13,7 +13,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "freeze",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Schedules a freeze for network maintenance (no NMT upgrade)")
 public class FreezeOnlyCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

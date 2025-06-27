@@ -23,7 +23,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "print-keys",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Prints the public and private keys in a Ed25519 key pair")
 public class ExtractDetailsCommand implements Callable<Integer> {
     public static final String DER_EDDSA_PREFIX = "302e020100300506032b657004220420";

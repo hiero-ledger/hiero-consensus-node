@@ -21,7 +21,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "gen-new",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Generates a new ED25519 key")
 public class NewPemCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

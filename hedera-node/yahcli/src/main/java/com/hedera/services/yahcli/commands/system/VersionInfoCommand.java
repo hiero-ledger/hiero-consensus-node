@@ -9,7 +9,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "version",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Get the deployed version of a network")
 public final class VersionInfoCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

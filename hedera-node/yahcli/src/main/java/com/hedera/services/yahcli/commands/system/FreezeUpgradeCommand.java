@@ -16,7 +16,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "freeze-upgrade",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Schedules a staged NMT software upgrade")
 public class FreezeUpgradeCommand implements Callable<Integer> {
     @CommandLine.ParentCommand

@@ -15,7 +15,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "upload",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Uploads a system file")
 public class SysFileUploadCommand implements Callable<Integer> {
     private static final int DEFAULT_BYTES_PER_APPEND = TxnUtils.BYTES_4K;

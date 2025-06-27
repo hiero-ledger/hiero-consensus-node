@@ -15,7 +15,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "activate-staking",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Activates staking on the target network (requires <SHARD>.<REALM>.2 payer)")
 public class SetupStakeCommand implements Callable<Integer> {
     private static final long CANONICAL_REWARD_RATE = 6849L;

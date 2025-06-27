@@ -17,7 +17,7 @@ import picocli.CommandLine;
 
 @CommandLine.Command(
         name = "print-public",
-        subcommands = {CommandLine.HelpCommand.class},
+        subcommands = {picocli.CommandLine.HelpCommand.class},
         description = "Prints the public part of a Ed25519 key in PEM or mnemonic form")
 public class ExtractPublicCommand implements Callable<Integer> {
     @CommandLine.ParentCommand
