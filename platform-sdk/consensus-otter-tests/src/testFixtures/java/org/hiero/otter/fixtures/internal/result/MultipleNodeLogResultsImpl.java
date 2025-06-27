@@ -4,12 +4,12 @@ package org.hiero.otter.fixtures.internal.result;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.OtterResult;
@@ -33,7 +33,7 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         this.results = unmodifiableList(requireNonNull(results));
 
         // The subscription mechanism is a bit tricky, because we have two levels of subscriptions.
-        // A subscriber A can subscribe to this class. It will be notified if any of the nodes has new rounds.
+        // A subscriber A can subscribe to this class. It will be notified if any of the nodes has new log entries.
         // To implement this, we define a meta-subscriber that will be subscribed to the results of all nodes.
         // This meta-subscriber will notify all child-subscribers to this class (among them A).
         // If a child-subscriber wants to be unsubscribed, it will return SubscriberAction.UNSUBSCRIBE.

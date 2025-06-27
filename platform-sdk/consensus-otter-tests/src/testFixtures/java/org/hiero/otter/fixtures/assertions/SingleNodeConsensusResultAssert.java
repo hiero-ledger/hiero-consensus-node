@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import com.swirlds.platform.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -124,6 +125,20 @@ public class SingleNodeConsensusResultAssert
                 }
             }
         }
+        return this;
+    }
+
+    /**
+     * Verifies that the created consensus rounds are consistent.
+     *
+     * <p>This includes checking if the ancient thresholds are increasing and the timestamps of
+     * events are strictly increasing.
+     *
+     * @return this assertion object for method chaining
+     */
+    public SingleNodeConsensusResultAssert hasConsistentRounds() {
+        isNotNull();
+        ConsensusRoundValidator.validate(actual.consensusRounds());
         return this;
     }
 }

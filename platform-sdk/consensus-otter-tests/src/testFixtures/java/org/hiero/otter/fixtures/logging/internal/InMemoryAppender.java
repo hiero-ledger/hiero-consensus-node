@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging.internal;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -17,7 +18,6 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -98,7 +98,7 @@ public class InMemoryAppender extends AbstractAppender {
             return null;
         }
         try {
-            return NodeId.of(Long.parseLong(value));
+            return NodeId.newBuilder().id(Long.parseLong(value)).build();
         } catch (final NumberFormatException e) {
             return null;
         }
@@ -118,6 +118,18 @@ public class InMemoryAppender extends AbstractAppender {
                     .filter(Objects::nonNull)
                     .filter(log -> log.nodeId() == nodeId)
                     .toList();
+        }
+    }
+
+    /**
+     * Returns an unmodifiable list of all captured log statements for all nodes
+     *
+     * @return an unmodifiable list of all captured log statements
+     */
+    @NonNull
+    public static List<StructuredLog> getLogs() {
+        synchronized (logs) {
+            return logs.stream().filter(Objects::nonNull).toList();
         }
     }
 

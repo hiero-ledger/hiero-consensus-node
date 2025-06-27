@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.assertions;
 
 import static java.util.Comparator.comparingInt;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -12,7 +13,6 @@ import org.assertj.core.api.AbstractAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -108,7 +108,7 @@ public class MultipleNodeConsensusResultsAssert
                 continue;
             }
 
-            // Get the same rounds from this node as created by the node with the most rounds and compare them
+            // Get the same rounds from this node as create by the node with the most rounds and compare them
             final List<ConsensusRound> roundsToAssert = roundsFromNodeToAssert.rounds();
             final List<ConsensusRound> expectedRounds =
                     longestNodeRoundsResult.rounds().subList(0, roundsToAssert.size());
@@ -184,6 +184,22 @@ public class MultipleNodeConsensusResultsAssert
         isNotNull();
         for (final SingleNodeConsensusResult result : actual.results()) {
             OtterAssertions.assertThat(result).hasBirthRoundSplit(splitTime, splitRound);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that the created consensus rounds are consistent.
+     *
+     * <p>This includes checking if the ancient thresholds are increasing and the timestamps of
+     * events are strictly increasing.
+     *
+     * @return this assertion object for method chaining
+     */
+    public MultipleNodeConsensusResultsAssert haveConsistentRounds() {
+        isNotNull();
+        for (final SingleNodeConsensusResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasConsistentRounds();
         }
         return this;
     }
