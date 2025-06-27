@@ -7,6 +7,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BooleanSupplier;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.awaitility.core.ConditionTimeoutException;
 import org.hiero.otter.fixtures.TimeManager;
 
@@ -15,12 +17,16 @@ import org.hiero.otter.fixtures.TimeManager;
  */
 public class RegularTimeManager implements TimeManager {
 
+    private static final Logger log = LogManager.getLogger();
+
     /**
      * {@inheritDoc}
      */
     @Override
     @SuppressWarnings("java:S2925") // Suppressing warning about intended Thread.sleep usage
     public void waitFor(@NonNull final Duration waitTime) throws InterruptedException {
+        log.info("Waiting for {}...", waitTime);
+
         Thread.sleep(waitTime.toMillis());
     }
 
@@ -29,6 +35,8 @@ public class RegularTimeManager implements TimeManager {
      */
     @Override
     public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
+        log.debug("Waiting up to {} for condition to become true...", waitTime);
+
         try {
             await().atMost(waitTime).until(condition::getAsBoolean);
         } catch (final ConditionTimeoutException ex) {

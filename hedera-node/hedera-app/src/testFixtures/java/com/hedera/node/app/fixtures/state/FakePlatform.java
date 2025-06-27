@@ -3,6 +3,7 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.METRIC_EXECUTOR;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -129,4 +130,10 @@ public final class FakePlatform implements Platform {
 
     @Override
     public void start() {}
+
+    @Override
+    public void destroy() throws InterruptedException {
+        notificationEngine.shutdown();
+        getMetricsProvider().removePlatformMetrics(selfNodeId);
+    }
 }

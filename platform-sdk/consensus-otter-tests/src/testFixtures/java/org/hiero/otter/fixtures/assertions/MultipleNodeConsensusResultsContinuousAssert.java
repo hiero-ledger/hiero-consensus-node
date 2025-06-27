@@ -4,13 +4,14 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.SubscriberAction;
@@ -63,13 +64,19 @@ public class MultipleNodeConsensusResultsContinuousAssert
                     @NonNull final NodeId nodeId, final @NonNull List<ConsensusRound> rounds) {
                 return switch (state) {
                     case ACTIVE -> {
-                        if (!suppressedNodeIds.contains(nodeId)) {
+                        final NodeId protoNodeId =
+                                NodeId.newBuilder().id(nodeId.id()).build();
+                        if (!suppressedNodeIds.contains(protoNodeId)) {
                             for (final ConsensusRound round : rounds) {
                                 final RoundFromNode reference = referenceRounds.computeIfAbsent(
-                                        round.getRoundNum(), key -> new RoundFromNode(nodeId, round));
-                                if (!nodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
+                                        round.getRoundNum(), key -> new RoundFromNode(protoNodeId, round));
+                                if (!protoNodeId.equals(reference.nodeId) && !round.equals(reference.round())) {
                                     failWithMessage(summarizeDifferences(
-                                            reference.nodeId, nodeId, round.getRoundNum(), reference.round(), round));
+                                            reference.nodeId,
+                                            protoNodeId,
+                                            round.getRoundNum(),
+                                            reference.round(),
+                                            round));
                                 }
                             }
                         }
@@ -102,12 +109,12 @@ public class MultipleNodeConsensusResultsContinuousAssert
                 .append(roundNum)
                 .append(" has the following differences:\n");
         for (int i = 0; i < round1.getEventCount(); i++) {
-            final var event1 = round1.getConsensusEvents().get(i);
-            final var event2 = round2.getConsensusEvents().get(i);
+            final PlatformEvent event1 = round1.getConsensusEvents().get(i);
+            final PlatformEvent event2 = round2.getConsensusEvents().get(i);
             if (!event1.equals(event2)) {
                 sb.append("Event ").append(i).append(" differs:\n");
-                sb.append("Node ").append(node1).append(" produced\n").append(event1);
-                sb.append("Node ").append(node2).append(" produced\n").append(event2);
+                sb.append("Node ").append(node1.id()).append(" produced\n").append(event1);
+                sb.append("Node ").append(node2.id()).append(" produced\n").append(event2);
             }
         }
         return sb.toString();

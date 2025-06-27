@@ -112,7 +112,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void start() throws InterruptedException {
+    public void start() {
         defaultStartAction.start();
     }
 
@@ -240,7 +240,7 @@ public abstract class AbstractNetwork implements Network {
          * {@inheritDoc}
          */
         @Override
-        public void start() throws InterruptedException {
+        public void start() {
             throwIfInState(State.RUNNING, "Network is already running.");
 
             log.info("Starting network...");
