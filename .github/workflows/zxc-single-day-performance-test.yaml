@@ -237,7 +237,7 @@ jobs:
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew assemble
+        run: ./gradlew clean build --no-daemon --rerun-tasks -Dorg.gradle.caching=false --no-configuration-cache
 
       - name: Build Solo
         run: |
