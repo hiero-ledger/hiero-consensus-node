@@ -235,7 +235,6 @@ jobs:
 
       - name: Compile
         run: ./gradlew assemble
-        working-directory: ${{ github.workspace }}
 
       - name: Build Solo
         run: |
