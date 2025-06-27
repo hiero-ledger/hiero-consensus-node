@@ -1238,7 +1238,7 @@ jobs:
           {
             "attachments": [
               {
-                "color": "#FF0000",
+                "color": "#777777",
                 "blocks": [
                   {
                     "type": "header",
