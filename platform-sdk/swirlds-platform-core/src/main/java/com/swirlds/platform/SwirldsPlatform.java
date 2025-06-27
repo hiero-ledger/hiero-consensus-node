@@ -4,6 +4,7 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
 
@@ -267,7 +268,7 @@ public class SwirldsPlatform implements Platform {
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.
             final long minimumGenerationNonAncientForOldestState =
-                    savedStates.get(savedStates.size() - 1).metadata().minimumGenerationNonAncient();
+                    savedStates.get(savedStates.size() - 1).metadata().minimumBirthRoundNonAncient();
             platformWiring.getPcesMinimumGenerationToStoreInput().inject(minimumGenerationNonAncientForOldestState);
         }
 
@@ -351,6 +352,14 @@ public class SwirldsPlatform implements Platform {
 
         replayPreconsensusEvents();
         platformWiring.startGossip();
+    }
+
+    @Override
+    public void destroy() throws InterruptedException {
+        notificationEngine.shutdown();
+        platformContext.getRecycleBin().stop();
+        platformWiring.stop();
+        getMetricsProvider().removePlatformMetrics(selfId);
     }
 
     /**

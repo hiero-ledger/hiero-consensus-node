@@ -329,6 +329,7 @@ public class ParentTxnFactory {
         final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
+
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -355,6 +356,7 @@ public class ParentTxnFactory {
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
                 preHandleResult.innerResults(),
+                preHandleWorkflow,
                 transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {

@@ -68,9 +68,9 @@ on:
         required: true
       cdn-bucket-name:
         required: true
-      svcs-ossrh-username:
+      central-pulishing-username:
         required: true
-      svcs-ossrh-password:
+      central-publishing-password:
         required: true
       svcs-gpg-key-contents:
         required: true
@@ -306,12 +306,6 @@ jobs:
         with:
           name: version.txt
 
-      - name: Cache Build Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: ~/artifact-build
-          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
-
       - name: Gradle Assemble
         id: gradle-build
         run: ./gradlew assemble
@@ -337,6 +331,12 @@ jobs:
         working-directory: ${{ steps.artifact-staging.outputs.folder }}
         run: |
           printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "${{ needs.validate.outputs.version }}" "${{ needs.validate.outputs.commit-id-short }}" "$(date -u)" | tee VERSION
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          path: ~/artifact-build
+          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Create Artifact Archive
         id: artifact-release
@@ -451,11 +451,10 @@ jobs:
           password: ${{ steps.google-auth.outputs.access_token }}
 
       - name: Restore Build Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          fail-on-cache-miss: true
           path: ~/artifact-build
-          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
+          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Stage SDK Artifacts
         run: |
@@ -760,12 +759,6 @@ jobs:
           SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
           COMMIT_SHA="${{ needs.validate.outputs.commit-id-short }}"
 
-          #if [[ "${{ steps.archive-cache.outputs.cache-hit }}" == true ]]; then
-          #  echo "::group::Removing Existing Archive Cache Items"
-          #  rm -rvf "${SDK_ARCHIVE_DIR}"/*
-          #  echo "::endgroup::"
-          #fi
-
           echo "::group::Creating Release Directories"
             [[ -f "${SDK_RELEASE_DIR}" ]] || mkdir -p "${SDK_RELEASE_DIR}"
             [[ -f "${SDK_ARCHIVE_DIR}" ]] || mkdir -p "${SDK_ARCHIVE_DIR}"
@@ -824,12 +817,16 @@ jobs:
             gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
           echo "::endgroup::"
 
-      - name: Gradle Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        env:
-          NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
-          NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
+      - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
+        if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+
+      - name: Gradle Publish to Maven Central
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.central-pulishing-username }}
+          NEXUS_PASSWORD: ${{ secrets.central-pulishing-password }}
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -872,7 +869,7 @@ jobs:
           echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
       - name: Send Slack Notification (Maven Central)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.slack-webhook-url }}
           webhook-type: incoming-webhook

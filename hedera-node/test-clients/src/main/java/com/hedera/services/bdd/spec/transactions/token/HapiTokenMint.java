@@ -143,7 +143,12 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
             return;
         }
         lookupSubmissionRecord(spec);
-        spec.registry().saveCreationTime(token, recordOfSubmission.getConsensusTimestamp());
+        // For child/inner transactions, use parent consensus timestamp
+        // since this is the timestamp saved in the state.
+        final var creationTime = recordOfSubmission.hasParentConsensusTimestamp()
+                ? recordOfSubmission.getParentConsensusTimestamp()
+                : recordOfSubmission.getConsensusTimestamp();
+        spec.registry().saveCreationTime(token, creationTime);
     }
 
     @Override

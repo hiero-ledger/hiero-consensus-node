@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -39,14 +41,24 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             // CONSENSUS_GAS_EXHAUSTED
                                             case UNSET -> ContractFunctionResult.DEFAULT;
                                             case ETHEREUM_CALL_RESULT -> {
-                                                final var callResult = ethTxOutput.ethereumCallResultOrThrow();
-                                                recordBuilder.contractCallResult(callResult);
-                                                yield callResult;
+                                                var resultBuilder = ethTxOutput
+                                                        .ethereumCallResultOrThrow()
+                                                        .copyBuilder();
+                                                if (parts.status() == SUCCESS) {
+                                                    mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                                }
+                                                recordBuilder.contractCallResult(resultBuilder);
+                                                yield resultBuilder.build();
                                             }
                                             case ETHEREUM_CREATE_RESULT -> {
-                                                final var createResult = ethTxOutput.ethereumCreateResultOrThrow();
-                                                recordBuilder.contractCreateResult(createResult);
-                                                yield createResult;
+                                                var resultBuilder = ethTxOutput
+                                                        .ethereumCreateResultOrThrow()
+                                                        .copyBuilder();
+                                                if (parts.status() == SUCCESS) {
+                                                    mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                                }
+                                                recordBuilder.contractCreateResult(resultBuilder);
+                                                yield resultBuilder.build();
                                             }
                                         };
                                 if (result.gasUsed() > 0L) {

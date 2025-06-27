@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.impl;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
+
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.TraceData;
@@ -27,7 +30,13 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                 TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
                         .map(TransactionOutput::contractCallOrThrow)
                         .ifPresent(callContractOutput -> {
-                            final var result = callContractOutput.contractCallResultOrThrow();
+                            final var resultBuilder = callContractOutput
+                                    .contractCallResultOrThrow()
+                                    .copyBuilder();
+                            if (parts.status() == SUCCESS) {
+                                mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                            }
+                            final var result = resultBuilder.build();
                             recordBuilder.contractCallResult(result);
                             if (parts.transactionIdOrThrow().nonce() == 0 && result.gasUsed() > 0L) {
                                 receiptBuilder.contractID(result.contractID());

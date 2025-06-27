@@ -18,25 +18,22 @@ public class HederaOpsDuration {
     // As floating point values cannot be used, we use a factor of 100 to use integers.
     public static final long MULTIPLIER_FACTOR = 100;
 
-    private final Map<Integer, Long> opsDuration = new HashMap<>();
+    private final long[] opsDuration = new long[256];
     private final Map<String, Long> gasBasedDurationMultiplier = new HashMap<>();
 
     public void applyDurationFromConfig(@NonNull final OpsDurationConfig opsDurationConfig) {
         opsDurationConfig
                 .opsDurations1_to_64()
-                .forEach(opsDurPair -> opsDuration.put(opsDurPair.left().intValue(), opsDurPair.right()));
+                .forEach(opsDurationPair -> opsDuration[opsDurationPair.left().intValue()] = opsDurationPair.right());
         opsDurationConfig
                 .opsDurations65_to_128()
-                .forEach(opsDurationPair ->
-                        opsDuration.put(opsDurationPair.left().intValue(), opsDurationPair.right()));
+                .forEach(opsDurationPair -> opsDuration[opsDurationPair.left().intValue()] = opsDurationPair.right());
         opsDurationConfig
                 .opsDurations129_to_192()
-                .forEach(opsDurationPair ->
-                        opsDuration.put(opsDurationPair.left().intValue(), opsDurationPair.right()));
+                .forEach(opsDurationPair -> opsDuration[opsDurationPair.left().intValue()] = opsDurationPair.right());
         opsDurationConfig
                 .opsDurations193_to_256()
-                .forEach(opsDurationPair ->
-                        opsDuration.put(opsDurationPair.left().intValue(), opsDurationPair.right()));
+                .forEach(opsDurationPair -> opsDuration[opsDurationPair.left().intValue()] = opsDurationPair.right());
         gasBasedDurationMultiplier.put(OP_DURATION_MULTIPLIER_KEY, opsDurationConfig.opsGasBasedDurationMultiplier());
         gasBasedDurationMultiplier.put(
                 PRECOMPILE_MULTIPLIER_KEY, opsDurationConfig.precompileGasBasedDurationMultiplier());
@@ -44,7 +41,7 @@ public class HederaOpsDuration {
                 SYSTEM_CONTRACT_MULTIPLIER_KEY, opsDurationConfig.systemContractGasBasedDurationMultiplier());
     }
 
-    public Map<Integer, Long> getOpsDuration() {
+    public long[] getOpsDuration() {
         return opsDuration;
     }
 

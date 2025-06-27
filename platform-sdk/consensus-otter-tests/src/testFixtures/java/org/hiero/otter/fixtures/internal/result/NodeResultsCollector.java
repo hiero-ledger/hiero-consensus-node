@@ -3,19 +3,20 @@ package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber;
-import org.hiero.otter.fixtures.result.ConsensusRoundSubscriber.SubscriberAction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
-import org.hiero.otter.fixtures.result.SingleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Helper class that collects all test results of a node.
@@ -26,6 +27,8 @@ public class NodeResultsCollector {
     private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
+
+    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
 
     /**
@@ -34,7 +37,7 @@ public class NodeResultsCollector {
      * @param nodeId the node ID of the node
      */
     public NodeResultsCollector(@NonNull final NodeId nodeId) {
-        this.nodeId = requireNonNull(nodeId);
+        this.nodeId = Objects.requireNonNull(nodeId, "nodeId should not be null");
     }
 
     /**
@@ -105,12 +108,13 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns a {@link SingleNodeStatusProgression} of the current state.
+     * Returns a {@link SingleNodePlatformStatusResults} of the current state.
      *
-     * @return the {@link SingleNodeStatusProgression}
+     * @return the {@link SingleNodePlatformStatusResults}
      */
-    public SingleNodeStatusProgression getStatusProgression() {
-        return new SingleNodeStatusProgressionImpl(nodeId, new ArrayList<>(platformStatuses));
+    @NonNull
+    public SingleNodePlatformStatusResults getStatusProgression() {
+        return new SingleNodePlatformStatusResultsImpl(nodeId, new ArrayList<>(platformStatuses));
     }
 
     /**
