@@ -33,9 +33,9 @@ class AddressBookServiceImplTest {
         final var schemaRegistry = mock(SchemaRegistry.class);
         ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
         subject.registerSchemas(schemaRegistry);
-        verify(schemaRegistry, times(2)).register(schemaCaptor.capture());
+        verify(schemaRegistry, times(1)).register(schemaCaptor.capture());
         final var schemas = schemaCaptor.getAllValues();
-        assertThat(schemas).hasSize(2);
+        assertThat(schemas).hasSize(1);
         assertThat(schemas.getFirst()).isInstanceOf(V053AddressBookSchema.class);
     }
 }
