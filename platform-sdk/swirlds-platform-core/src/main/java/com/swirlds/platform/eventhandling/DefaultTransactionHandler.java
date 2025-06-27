@@ -253,7 +253,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             final CesEvent last = round.getStreamedEvents().getLast();
             if (freezeRoundReceived) {
                 logger.info(
-                        "Last event in the freezeRound:{} is:{} and has consensus time:{}",
+                        "Last event in the freezeRound {} has consensus time {} {}",
                         round.getRoundNum(),
                         last.getPlatformEvent().getConsensusTimestamp(),
                         last.getPlatformEvent().getDescriptor());
