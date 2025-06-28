@@ -174,7 +174,7 @@ jobs:
 
       - name: Tag SDPT Passing
         run: |
-          TAG_NAME="$(printf "sdpt-pass-%05d" "${{ needs.verify-tag.outputs.build-number }}")"
+          TAG_NAME="sdpt-pass-${{ needs.verify-tag.outputs.build-number }}"
           git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
           git push --set-upstream origin --tags
 
