@@ -3,7 +3,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
@@ -21,11 +20,8 @@ public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     private Hash hash;
 
     public FakeConsensusEvent(
-            @NonNull final FakeEvent event,
-            final long consensusOrder,
-            @NonNull final Instant consensusTimestamp,
-            @NonNull final SemanticVersion version) {
-        super(event.getCreatorId(), event.getTimeCreated(), version, event.transaction);
+            @NonNull final FakeEvent event, final long consensusOrder, @NonNull final Instant consensusTimestamp) {
+        super(event.getCreatorId(), event.getTimeCreated(), event.transaction, event.getBirthRound());
         this.consensusOrder = consensusOrder;
         this.consensusTimestamp = requireNonNull(consensusTimestamp);
         this.hash = event.getHash();

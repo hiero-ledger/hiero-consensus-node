@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -60,7 +59,7 @@ public class DockerApp {
 
     private final Platform platform;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
-    private final List<Consumer<List<ConsensusRound>>> consensusRoundListeners = new CopyOnWriteArrayList<>();
+    private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Creates a new DockerApp instance with the specified parameters.
@@ -77,7 +76,6 @@ public class DockerApp {
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
             @Nullable final Map<String, String> overriddenProperties) {
-        // --- Configure platform infrastructure and derive node id from the command line and environment ---
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
 
@@ -92,14 +90,12 @@ public class DockerApp {
         // to avoid using default behavior instead of that defined in platformConfig
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
-        // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
 
-        // --- Build required infrastructure to load the initial state, then initialize the States API ---
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
@@ -121,11 +117,9 @@ public class DockerApp {
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
 
-        // --- Create the platform context and initialize the cryptography ---
         final MerkleNodeState state = initialState.get().getState();
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
-        // --- Build the platform component builder so we can access wiring ---
         final PlatformBuilder builder = PlatformBuilder.create(
                         APP_NAME,
                         SWIRLD_NAME,
@@ -141,15 +135,15 @@ public class DockerApp {
                 .withKeysAndCerts(keysAndCerts)
                 .withSystemTransactionEncoderCallback(DockerApp::encodeSystemTransaction);
 
+        // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
         final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
-        final PlatformWiring wiring = blocks.platformWiring();
 
-        // Forward consensus rounds to registered listeners
+        // Wiring: Forward consensus rounds to registered listeners
+        final PlatformWiring wiring = blocks.platformWiring();
         wiring.getConsensusEngineOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
-        // Build the platform
         platform = componentBuilder.build();
 
         platform.getNotificationEngine()
@@ -195,10 +189,10 @@ public class DockerApp {
     }
 
     private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
-        consensusRoundListeners.forEach(listener -> listener.accept(rounds));
+        consensusRoundListeners.forEach(listener -> listener.onConsensusRounds(rounds));
     }
 
-    public void registerConsensusRoundListener(@NonNull final Consumer<List<ConsensusRound>> listener) {
+    public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
     }
 }

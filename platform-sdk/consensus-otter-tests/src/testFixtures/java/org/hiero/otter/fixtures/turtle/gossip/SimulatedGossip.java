@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle.gossip;
 
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
@@ -9,7 +11,6 @@ import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -33,8 +34,8 @@ public class SimulatedGossip implements Gossip {
      * @param selfId  the ID of the node running this gossip system
      */
     public SimulatedGossip(@NonNull final SimulatedNetwork network, @NonNull final NodeId selfId) {
-        this.network = Objects.requireNonNull(network);
-        this.selfId = Objects.requireNonNull(selfId);
+        this.network = requireNonNull(network);
+        this.selfId = requireNonNull(selfId);
     }
 
     /**
@@ -43,7 +44,7 @@ public class SimulatedGossip implements Gossip {
      * @param intakeEventCounter the intake event counter
      */
     public void provideIntakeEventCounter(@NonNull final IntakeEventCounter intakeEventCounter) {
-        this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
+        this.intakeEventCounter = requireNonNull(intakeEventCounter);
     }
 
     /**
@@ -61,7 +62,7 @@ public class SimulatedGossip implements Gossip {
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
             @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput) {
 
-        this.eventOutput = Objects.requireNonNull(eventOutput);
+        this.eventOutput = requireNonNull(eventOutput);
         eventInput.bindConsumer(event -> network.submitEvent(selfId, event));
 
         eventWindowInput.bindConsumer(ignored -> {});
