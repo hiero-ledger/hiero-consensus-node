@@ -147,6 +147,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     needs:
       - run-single-day-performance-test
+      - verify-tag
     if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
@@ -345,6 +346,7 @@ jobs:
                           "type": "mrkdwn",
                           "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
                         }
+                      ]
                     }
                   ]
                 }
