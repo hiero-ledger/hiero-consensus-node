@@ -165,8 +165,12 @@ jobs:
 
       - name: Tag SDPT Passing
         run: |
-          git tag --annotate "sdpt-pass-${{ needs.verify-tag.outputs.build-number }}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
-          git push origin "sdpt-pass-${{ needs.verify-tag.outputs.build-number }}" --force
+          TAG_NAME="sdpt-pass-${{ needs.verify-tag.outputs.build-number }}"
+          git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
+          git push --set-upstream origin --tags
+
+          echo "### SDPT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDPT Passing Tag: ${TAG_name}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
@@ -347,10 +351,10 @@ jobs:
       - run-single-day-performance-test
       - tag-sdpt-passing
       - get-commit-info
-    if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdpt-passing.result == 'success' &&
-      needs.run-single-day-performance-test.outputs.result == 'success' &&
-      needs.get-commit-info.result == 'success') &&
+    if: ${{ (needs.verify-tag.result != 'success' ||
+      needs.tag-sdpt-passing.result != 'success' ||
+      needs.run-single-day-performance-test.outputs.result != 'success' ||
+      needs.get-commit-info.result != 'success') &&
       inputs.disable-notifications != true && !cancelled() && always() }}
 
     steps:
