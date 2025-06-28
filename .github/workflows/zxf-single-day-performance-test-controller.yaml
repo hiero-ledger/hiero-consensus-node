@@ -117,7 +117,7 @@ jobs:
           else
             echo "::warning title=Invalid Build Tag::The provided tag (${inputs.ref}) is not a valid build tag."
           fi
-          
+
           echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
           echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
 
