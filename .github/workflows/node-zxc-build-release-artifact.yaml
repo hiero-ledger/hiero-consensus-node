@@ -68,7 +68,7 @@ on:
         required: true
       cdn-bucket-name:
         required: true
-      central-pulishing-username:
+      central-publishing-username:
         required: true
       central-publishing-password:
         required: true
@@ -824,8 +824,8 @@ jobs:
       - name: Gradle Publish to Maven Central
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
-          NEXUS_USERNAME: ${{ secrets.central-pulishing-username }}
-          NEXUS_PASSWORD: ${{ secrets.central-pulishing-password }}
+          NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
+          NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
         run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Upload SDK Release Archives
