@@ -81,6 +81,8 @@ defaults:
 permissions:
   contents: write
   id-token: write
+  actions: write
+  statuses: write
 
 jobs:
   verify-tag:
