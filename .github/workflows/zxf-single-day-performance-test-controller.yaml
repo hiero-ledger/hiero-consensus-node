@@ -102,6 +102,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Verify Tag
+        id: verify-tag
         env:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
           CHECK_TAG: "${{ inputs.ref }}"
@@ -170,7 +171,7 @@ jobs:
 
       - name: Tag SDPT Passing
         run: |
-          TAG_NAME="$(printf "sdpt-pass--%05d" "${{ needs.verify-tag.outputs.build-number }}")"
+          TAG_NAME="$(printf "sdpt-pass-%05d" "${{ needs.verify-tag.outputs.build-number }}")"
           git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
           git push --set-upstream origin --tags
 
