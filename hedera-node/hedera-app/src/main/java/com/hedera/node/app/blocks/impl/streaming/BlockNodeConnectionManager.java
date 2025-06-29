@@ -18,12 +18,8 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import io.helidon.common.tls.Tls;
-import io.helidon.webclient.grpc.GrpcClient;
-import io.helidon.webclient.grpc.GrpcClientMethodDescriptor;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
-import io.helidon.webclient.grpc.GrpcServiceClient;
-import io.helidon.webclient.grpc.GrpcServiceDescriptor;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -48,7 +44,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
-import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
 
 /**
@@ -242,36 +237,10 @@ public class BlockNodeConnectionManager {
         }
     }
 
-    /**
-     * Creates a new gRPC client based on the specified configuration.
-     *
-     * @param nodeConfig the configuration to use for a specific block node to connect to
-     * @return a gRPC client
-     */
-    private @NonNull GrpcServiceClient createNewGrpcClient(@NonNull final BlockNodeConfig nodeConfig) {
-        requireNonNull(nodeConfig);
-
-        final GrpcClient client = GrpcClient.builder()
-                .tls(Tls.builder().enabled(false).build())
-                .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
-                .protocolConfig(GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(Duration.ofSeconds(30))
-                        .build())
-                .keepAlive(true)
+    private @NonNull ManagedChannel createNewManagedChannel(@NonNull final BlockNodeConfig nodeConfig) {
+        return ManagedChannelBuilder.forAddress(nodeConfig.address(), nodeConfig.port())
+                .usePlaintext()
                 .build();
-
-        return client.serviceClient(GrpcServiceDescriptor.builder()
-                .serviceName(BlockStreamPublishServiceGrpc.SERVICE_NAME)
-                .putMethod(
-                        grpcEndpoint,
-                        GrpcClientMethodDescriptor.bidirectional(
-                                        BlockStreamPublishServiceGrpc.SERVICE_NAME, grpcEndpoint)
-                                .requestType(PublishStreamRequest.class)
-                                .responseType(PublishStreamResponse.class)
-                                .marshallerSupplier(new RequestResponseMarshaller.Supplier())
-                                .build())
-                .build());
     }
 
     /**
@@ -488,9 +457,9 @@ public class BlockNodeConnectionManager {
         logger.info("Scheduling connection attempt for block node {}:{}", nodeConfig.address(), nodeConfig.port());
 
         // Create the connection object
-        final GrpcServiceClient grpcClient = createNewGrpcClient(nodeConfig);
+        final ManagedChannel managedChannel = createNewManagedChannel(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
-                configProvider, nodeConfig, this, blockBufferService, grpcClient, blockStreamMetrics, grpcEndpoint);
+                configProvider, nodeConfig, this, blockBufferService, managedChannel, blockStreamMetrics, grpcEndpoint);
 
         connections.put(nodeConfig, connection);
         // Immediately schedule the FIRST connection attempt.
@@ -608,9 +577,12 @@ public class BlockNodeConnectionManager {
                     requestIndex);
             final PublishStreamRequest publishStreamRequest = blockState.getRequest(requestIndex);
             if (publishStreamRequest != null) {
-                connection.sendRequest(publishStreamRequest);
-                blockState.markRequestSent(requestIndex);
-                requestIndex++;
+                if (connection.sendRequest(publishStreamRequest)) {
+                    blockState.markRequestSent(requestIndex);
+                    requestIndex++;
+                } else {
+                    return true; // If the stream observer is not ready, we should sleep and wait for the next iteration
+                }
             }
         }
 

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -13,31 +12,33 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.BlockNodeConfig;
-import com.hedera.pbj.runtime.OneOf;
+import io.grpc.ManagedChannel;
 import io.grpc.stub.StreamObserver;
-import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Queue;
-import org.hiero.block.api.PublishStreamRequest;
-import org.hiero.block.api.PublishStreamResponse;
-import org.hiero.block.api.PublishStreamResponse.EndOfStream;
-import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
-import org.hiero.block.api.PublishStreamResponse.ResponseOneOfType;
+import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
+import org.hiero.block.api.protoc.PublishStreamRequest;
+import org.hiero.block.api.protoc.PublishStreamResponse;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
+import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,7 +60,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     private BlockNodeConnectionManager connectionManager;
     private BlockBufferService stateManager;
-    private GrpcServiceClient grpcServiceClient;
+    private ManagedChannel managedChannel;
     private BlockStreamMetrics metrics;
     private final String grpcEndpoint = "foo";
     private StreamObserver<PublishStreamRequest> requestObserver;
@@ -70,32 +71,57 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfig nodeConfig = new BlockNodeConfig("localhost", 8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
         stateManager = mock(BlockBufferService.class);
-        grpcServiceClient = mock(GrpcServiceClient.class);
+        managedChannel = mock(ManagedChannel.class);
         metrics = mock(BlockStreamMetrics.class);
         requestObserver = mock(StreamObserver.class);
 
         connection = new BlockNodeConnection(
-                configProvider, nodeConfig, connectionManager, stateManager, grpcServiceClient, metrics, grpcEndpoint);
-
-        lenient().doReturn(requestObserver).when(grpcServiceClient).bidi(grpcEndpoint, connection);
+                configProvider, nodeConfig, connectionManager, stateManager, managedChannel, metrics, grpcEndpoint);
     }
 
     @Test
     void testCreateRequestObserver() {
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
-        connection.createRequestObserver();
+        try (MockedStatic<BlockStreamPublishServiceGrpc> mockedStatic =
+                Mockito.mockStatic(BlockStreamPublishServiceGrpc.class)) {
+            // Mock the static method
+            BlockStreamPublishServiceGrpc.BlockStreamPublishServiceStub mockStub =
+                    mock(BlockStreamPublishServiceGrpc.BlockStreamPublishServiceStub.class);
+            mockedStatic
+                    .when(() -> BlockStreamPublishServiceGrpc.newStub(managedChannel))
+                    .thenReturn(mockStub);
 
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
-        verify(grpcServiceClient).bidi(grpcEndpoint, connection);
+            // Mock the behavior of the stub's publishBlockStream method
+            StreamObserver<org.hiero.block.api.protoc.PublishStreamRequest> mockObserver = mock(StreamObserver.class);
+            when(mockStub.publishBlockStream(any())).thenReturn(mockObserver);
+
+            assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.UNINITIALIZED);
+            connection.createRequestObserver();
+
+            assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.PENDING);
+            verify(mockStub).publishBlockStream(any());
+        }
     }
 
     @Test
     void testCreateRequestObserver_alreadyExists() {
-        connection.createRequestObserver();
-        connection.createRequestObserver();
+        try (MockedStatic<BlockStreamPublishServiceGrpc> mockedStatic =
+                Mockito.mockStatic(BlockStreamPublishServiceGrpc.class)) {
+            // Mock the static method
+            BlockStreamPublishServiceGrpc.BlockStreamPublishServiceStub mockStub =
+                    mock(BlockStreamPublishServiceGrpc.BlockStreamPublishServiceStub.class);
+            mockedStatic
+                    .when(() -> BlockStreamPublishServiceGrpc.newStub(managedChannel))
+                    .thenReturn(mockStub);
 
-        verify(grpcServiceClient).bidi(grpcEndpoint, connection); // should only be called once
-        verifyNoMoreInteractions(grpcServiceClient);
+            // Mock the behavior of the stub's publishBlockStream method
+            StreamObserver<org.hiero.block.api.protoc.PublishStreamRequest> mockObserver = mock(StreamObserver.class);
+            when(mockStub.publishBlockStream(any())).thenReturn(mockObserver);
+            connection.createRequestObserver();
+            connection.createRequestObserver();
+
+            verify(mockStub).publishBlockStream(any()); // should only be called once
+            verifyNoMoreInteractions(mockStub);
+        }
     }
 
     @Test
@@ -225,7 +251,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(eosTimestamps).hasSize(6);
 
-        verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
+        verify(metrics).incrementEndOfStreamCount(org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.BEHIND);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).rescheduleAndSelectNewNode(eq(connection), any(Duration.class));
@@ -245,7 +271,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).incrementEndOfStreamCount(responseCode);
+        verify(metrics)
+                .incrementEndOfStreamCount(
+                        org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.fromProtobufOrdinal(
+                                responseCode.ordinal()));
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
@@ -265,7 +294,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).incrementEndOfStreamCount(responseCode);
+        verify(metrics)
+                .incrementEndOfStreamCount(
+                        org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.fromProtobufOrdinal(
+                                responseCode.ordinal()));
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
@@ -283,7 +315,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).incrementEndOfStreamCount(Code.SUCCESS);
+        verify(metrics).incrementEndOfStreamCount(org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.SUCCESS);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
@@ -301,7 +333,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
+        verify(metrics).incrementEndOfStreamCount(org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.BEHIND);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).scheduleConnectionAttempt(connection, Duration.ofSeconds(1), 11L);
@@ -320,7 +352,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
+        verify(metrics).incrementEndOfStreamCount(org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.BEHIND);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
@@ -338,7 +370,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).incrementEndOfStreamCount(Code.UNKNOWN);
+        verify(metrics).incrementEndOfStreamCount(org.hiero.block.api.PublishStreamResponse.EndOfStream.Code.UNKNOWN);
         verify(requestObserver).onCompleted();
         verify(connectionManager).jumpToBlock(-1L);
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
@@ -417,7 +449,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnNext_unknown() {
-        final PublishStreamResponse response = new PublishStreamResponse(new OneOf<>(ResponseOneOfType.UNSET, null));
+        final PublishStreamResponse response =
+                PublishStreamResponse.newBuilder().build();
 
         connection.onNext(response);
 
@@ -430,17 +463,21 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSendRequest() {
+    void testSendRequest() throws InvalidProtocolBufferException {
         openConnectionAndResetMocks();
 
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
         final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item);
+        final org.hiero.block.api.PublishStreamRequest request = createRequest(item);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.sendRequest(request);
 
-        verify(requestObserver).onNext(request);
+        verify(requestObserver)
+                .onNext(org.hiero.block.api.protoc.PublishStreamRequest.parseFrom(
+                        org.hiero.block.api.PublishStreamRequest.PROTOBUF
+                                .toBytes(createRequest(item))
+                                .toByteArray()));
         verifyNoInteractions(metrics);
         verifyNoMoreInteractions(requestObserver);
         verifyNoMoreInteractions(connectionManager);
@@ -448,10 +485,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testSendRequest_notActive() {
+    void testSendRequest_notActive() throws InvalidProtocolBufferException {
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
         final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item);
+        final org.hiero.block.api.PublishStreamRequest request = createRequest(item);
 
         connection.createRequestObserver();
         connection.updateConnectionState(ConnectionState.PENDING);
@@ -467,7 +504,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testSendRequest_observerNull() {
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
         final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item);
+        final org.hiero.block.api.PublishStreamRequest request = createRequest(item);
 
         // don't create the observer
         connection.updateConnectionState(ConnectionState.PENDING);
