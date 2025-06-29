@@ -30,4 +30,20 @@ public class Utils {
                 .map(LogMarker::getMarker)
                 .collect(Collectors.toSet());
     }
+
+    /**
+     * Gathers elements in a {@link Set}
+     *
+     * @param first the first element
+     * @param rest additional optional elements
+     * @param <T> the type of the elements
+     * @return a set of elements collected from the provided elements
+     */
+    @NonNull
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    public static <T> Set<T> collect(@NonNull final T first, @Nullable final T... rest) {
+        final Stream<T> restStream = rest == null ? Stream.empty() : Arrays.stream(rest);
+        return Stream.concat(Stream.of(first), restStream).collect(Collectors.toSet());
+    }
 }

@@ -856,6 +856,16 @@ public class PlatformWiring {
     }
 
     /**
+     * Get the output wire for the status state machine.
+     *
+     * @return the output wire for the status state machine
+     */
+    @NonNull
+    public OutputWire<PlatformStatus> getStatusStateMachineOutputWire() {
+        return statusStateMachineWiring.getOutputWire();
+    }
+
+    /**
      * Inject a new event window into all components that need it.
      *
      * @param eventWindow the new event window

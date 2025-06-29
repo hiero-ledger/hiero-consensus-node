@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.result;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -12,7 +13,7 @@ import org.hiero.otter.fixtures.Node;
  * <p>The provided data is a snapshot of the state at the moment when the result was requested.
  */
 @SuppressWarnings("unused")
-public interface MultipleNodePlatformStatusResults {
+public interface MultipleNodePlatformStatusResults extends OtterResult {
 
     /**
      * Returns the list of {@link SingleNodePlatformStatusResults} for all nodes
@@ -20,7 +21,7 @@ public interface MultipleNodePlatformStatusResults {
      * @return the list of status progressions
      */
     @NonNull
-    List<SingleNodePlatformStatusResults> statusProgressions();
+    List<SingleNodePlatformStatusResults> results();
 
     /**
      * Excludes the status progression of a specific node from the current results.
@@ -41,4 +42,13 @@ public interface MultipleNodePlatformStatusResults {
     default MultipleNodePlatformStatusResults suppressingNode(@NonNull final Node node) {
         return suppressingNode(node.selfId());
     }
+
+    /**
+     * Subscribes to {@link PlatformStatus} changes the nodes go through.
+     *
+     * <p>The subscriber will be notified every time the status of one of the nodes changes.
+     *
+     * @param subscriber the subscriber that will receive the new status
+     */
+    void subscribe(PlatformStatusSubscriber subscriber);
 }

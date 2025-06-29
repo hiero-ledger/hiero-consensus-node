@@ -47,7 +47,7 @@ public class MultipleNodePlatformStatusResultsAssert
     public MultipleNodePlatformStatusResultsAssert haveSteps(
             @NonNull final StatusProgressionStep first, @Nullable final StatusProgressionStep... rest) {
         isNotNull();
-        for (final SingleNodePlatformStatusResults statusProgression : actual.statusProgressions()) {
+        for (final SingleNodePlatformStatusResults statusProgression : actual.results()) {
             OtterAssertions.assertThat(statusProgression).hasSteps(first, rest);
         }
         return this;
