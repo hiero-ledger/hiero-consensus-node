@@ -49,6 +49,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
+import org.hiero.block.api.protoc.BlockNodeServiceGrpc;
 import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
 
 /**
@@ -85,6 +88,10 @@ public class BlockNodeConnectionManager {
      * The gRPC endpoint used to establish communication between the consensus node and block node.
      */
     private final String grpcEndpoint;
+    /**
+     * The gRPC endpoint used to get the block node server status.
+     */
+    private final String blockNodeStatusEndpoint;
     /**
      * Tracks what the last verified block for each connection is. Note: The data maintained here is based on what the
      * block node has informed the consensus node of. If a block node is not actively connected, then this data may be
@@ -175,6 +182,9 @@ public class BlockNodeConnectionManager {
         final String endpoint =
                 BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
         grpcEndpoint = requireNonNull(endpoint, "gRPC endpoint is missing");
+        final String serverStatusEndpoint =
+                BlockNodeServiceGrpc.getServerStatusMethod().getBareMethodName();
+        blockNodeStatusEndpoint = requireNonNull(serverStatusEndpoint, "Block node server status endpoint is missing");
         isStreamingEnabled.set(isStreamingEnabled());
 
         if (isStreamingEnabled.get()) {
@@ -269,6 +279,13 @@ public class BlockNodeConnectionManager {
                                         BlockStreamPublishServiceGrpc.SERVICE_NAME, grpcEndpoint)
                                 .requestType(PublishStreamRequest.class)
                                 .responseType(PublishStreamResponse.class)
+                                .marshallerSupplier(new RequestResponseMarshaller.Supplier())
+                                .build())
+                .putMethod(
+                        blockNodeStatusEndpoint,
+                        GrpcClientMethodDescriptor.unary(BlockNodeServiceGrpc.SERVICE_NAME, blockNodeStatusEndpoint)
+                                .requestType(ServerStatusRequest.class)
+                                .responseType(ServerStatusResponse.class)
                                 .marshallerSupplier(new RequestResponseMarshaller.Supplier())
                                 .build())
                 .build());
@@ -489,6 +506,29 @@ public class BlockNodeConnectionManager {
 
         // Create the connection object
         final GrpcServiceClient grpcClient = createNewGrpcClient(nodeConfig);
+
+        // Call serverStatus endpoint before establishing the BlockNodeConnection
+        try {
+            ServerStatusRequest statusRequest = ServerStatusRequest.newBuilder().build();
+            ServerStatusResponse statusResponse = grpcClient.unary(
+                    BlockNodeServiceGrpc.getServerStatusMethod().getBareMethodName(), statusRequest);
+
+            logger.info(
+                    "Server status for node {}:{}: firstAvailableBlock={}, lastAvailableBlock={}",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    statusResponse.firstAvailableBlock(),
+                    statusResponse.lastAvailableBlock());
+        } catch (Exception e) {
+            logger.error(
+                    "Failed to get server status from block node {}:{}: {}",
+                    nodeConfig.address(),
+                    nodeConfig.port(),
+                    e.getMessage(),
+                    e);
+            return;
+        }
+
         final BlockNodeConnection connection = new BlockNodeConnection(
                 configProvider, nodeConfig, this, blockBufferService, grpcClient, blockStreamMetrics, grpcEndpoint);
 

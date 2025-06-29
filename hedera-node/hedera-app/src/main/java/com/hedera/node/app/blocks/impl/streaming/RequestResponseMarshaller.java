@@ -13,8 +13,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
 import org.hiero.block.api.codec.PublishStreamRequestProtoCodec;
 import org.hiero.block.api.codec.PublishStreamResponseProtoCodec;
+import org.hiero.block.api.codec.ServerStatusRequestProtoCodec;
+import org.hiero.block.api.codec.ServerStatusResponseProtoCodec;
 
 public class RequestResponseMarshaller<T> implements MethodDescriptor.Marshaller<T> {
     private final Codec<T> codec;
@@ -26,6 +30,10 @@ public class RequestResponseMarshaller<T> implements MethodDescriptor.Marshaller
             this.codec = (Codec<T>) new PublishStreamRequestProtoCodec();
         } else if (clazz == PublishStreamResponse.class) {
             this.codec = (Codec<T>) new PublishStreamResponseProtoCodec();
+        } else if (clazz == ServerStatusRequest.class) {
+            this.codec = (Codec<T>) new ServerStatusRequestProtoCodec();
+        } else if (clazz == ServerStatusResponse.class) {
+            this.codec = (Codec<T>) new ServerStatusResponseProtoCodec();
         } else {
             throw new IllegalArgumentException("Unsupported class: " + clazz.getName());
         }

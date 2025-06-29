@@ -20,11 +20,14 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.protoc.BlockNodeServiceGrpc;
 import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
 import org.hiero.block.api.protoc.PublishStreamRequest;
 import org.hiero.block.api.protoc.PublishStreamResponse;
 import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.protoc.PublishStreamResponse.ResendBlock;
+import org.hiero.block.api.protoc.ServerStatusRequest;
+import org.hiero.block.api.protoc.ServerStatusResponse;
 
 /**
  * A simulated block node server that implements the block streaming gRPC service.
@@ -57,6 +60,7 @@ public class SimulatedBlockNodeServer {
     private final Server server;
     private final int port;
     private final MockBlockStreamServiceImpl serviceImpl;
+    private final MockServerStatusServiceImpl serverStatusService;
 
     // Configuration for EndOfStream responses
     private final AtomicReference<EndOfStreamConfig> endOfStreamConfig = new AtomicReference<>();
@@ -89,7 +93,11 @@ public class SimulatedBlockNodeServer {
     public SimulatedBlockNodeServer(final int port) {
         this.port = port;
         this.serviceImpl = new MockBlockStreamServiceImpl();
-        this.server = ServerBuilder.forPort(port).addService(serviceImpl).build();
+        this.serverStatusService = new MockServerStatusServiceImpl();
+        this.server = ServerBuilder.forPort(port)
+                .addService(serviceImpl)
+                .addService(serverStatusService)
+                .build();
     }
 
     /**
@@ -678,6 +686,20 @@ public class SimulatedBlockNodeServer {
                     e);
             // If we can't send an ack, the stream is likely broken. Remove it.
             serviceImpl.removeStreamFromTracking(responseObserver);
+        }
+    }
+
+    private class MockServerStatusServiceImpl extends BlockNodeServiceGrpc.BlockNodeServiceImplBase {
+        @Override
+        public void serverStatus(ServerStatusRequest request, StreamObserver<ServerStatusResponse> responseObserver) {
+            final long lastAvailableBlock = lastVerifiedBlockNumber.get();
+            final long firstAvailableBlock = lastAvailableBlock > 0 ? 0 : -1;
+            ServerStatusResponse response = ServerStatusResponse.newBuilder()
+                    .setFirstAvailableBlock(firstAvailableBlock)
+                    .setLastAvailableBlock(lastAvailableBlock)
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         }
     }
 }
