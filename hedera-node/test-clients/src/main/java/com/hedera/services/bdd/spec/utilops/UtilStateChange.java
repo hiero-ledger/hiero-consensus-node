@@ -17,7 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.AUTO_CREATION_KEY_N
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHip32Auto;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -144,9 +144,8 @@ public class UtilStateChange {
         final Map<ECKind, Address> evmAddresses = new HashMap<>(); // Collect addresses of created accounts here
 
         final var ops = List.of(
-
                 // Validate (after all ops executed) that our accounts did get created
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         visibleNonSyntheticItems(
                                 ecAccountsValidator(evmAddresses, accountsToCreate), accountCreationTxnIds),
                         Duration.ofSeconds(15)),
