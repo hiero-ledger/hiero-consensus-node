@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
@@ -34,12 +33,12 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
@@ -59,18 +58,17 @@ import static com.hederahashgraph.api.proto.java.TokenKycStatus.Revoked;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.util.HapiAtomicBatch;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -78,7 +76,6 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -126,7 +123,6 @@ public class AtomicBatchContractKeysHtsTest {
             "nonZeroTokenBalanceDissociateWithDelegateContractKeyFailedTxn";
     private static final String TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN =
             "tokenDissociateWithDelegateContractKeyHappyTxn";
-    private static final String CREATION_TX = "creationTx";
     private static final String DISTRIBUTE_TX = "distributeTx";
     private static final String TOKEN_ASSOCIATE = "tokenAssociate";
     private static final String TOKEN_DISSOCIATE = "tokenDissociate";
@@ -147,36 +143,45 @@ public class AtomicBatchContractKeysHtsTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(
                 Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        testLifecycle.doAdhoc(cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+        testLifecycle.doAdhoc(
+                cryptoCreate(DEFAULT_BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                uploadInitCode(
+                        BURN_TOKEN,
+                        OUTER_CONTRACT,
+                        NESTED_CONTRACT,
+                        NESTED_ASSOCIATE_DISSOCIATE,
+                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                        STATIC_CONTRACT,
+                        ORDINARY_CALLS_CONTRACT),
+                newKeyNamed(MULTI_KEY),
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(UNIVERSAL_KEY),
+                cryptoCreate(TOKEN_TREASURY));
     }
 
     @HapiTest
     public final Stream<DynamicTest> burnWithKeyAsPartOf1OfXThreshold() {
         final var delegateContractKeyShape = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
-
+        final var tokenAddress = new AtomicReference<Address>();
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TOKEN_USAGE)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(50L)
                         .supplyKey(MULTI_KEY)
                         .adminKey(MULTI_KEY)
-                        .treasury(TOKEN_TREASURY),
-                uploadInitCode(BURN_TOKEN),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                        BURN_TOKEN,
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
-                                .via(CREATION_TX))),
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress::set),
+                sourcing(() -> contractCreate(BURN_TOKEN, tokenAddress.get())),
                 newKeyNamed(DELEGATE_KEY).shape(delegateContractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
-                tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
-                atomicBatchDefaultOperator(contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                        .via("burn with delegate contract key")
-                        .gas(GAS_TO_OFFER)),
+                atomicBatchDefaultOperator(
+                        tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
+                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                                .via("burn with delegate contract key")
+                                .gas(GAS_TO_OFFER)),
                 childRecordsCheck(
                         "burn with delegate contract key",
                         SUCCESS,
@@ -191,10 +196,11 @@ public class AtomicBatchContractKeysHtsTest {
                                 .newTotalSupply(49)),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(TOKEN_USAGE, 49),
                 newKeyNamed(CONTRACT_KEY).shape(contractKeyShape.signedWith(sigs(ON, BURN_TOKEN))),
-                tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
-                atomicBatchDefaultOperator(contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                        .via(BURN_WITH_CONTRACT_KEY)
-                        .gas(GAS_TO_OFFER)),
+                atomicBatchDefaultOperator(
+                        tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
+                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                                .via(BURN_WITH_CONTRACT_KEY)
+                                .gas(GAS_TO_OFFER)),
                 childRecordsCheck(
                         BURN_WITH_CONTRACT_KEY,
                         SUCCESS,
@@ -211,10 +217,8 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -222,27 +226,26 @@ public class AtomicBatchContractKeysHtsTest {
                         .adminKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0L)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
                 contractCreate(NESTED_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, OUTER_CONTRACT))),
-                        tokenUpdate(VANILLA_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(SUPPLY_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                nestedContractCreate(OUTER_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, OUTER_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN)
+                                        .supplyKey(CONTRACT_KEY)
+                                        .signedByPayerAnd(SUPPLY_KEY),
+                                contractCall(
                                                 OUTER_CONTRACT,
                                                 "burnDelegateCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                vanillaTokenTokenAddress.get(),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .payingWith(GENESIS)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
                         CONTRACT_REVERT_EXECUTED,
@@ -257,10 +260,8 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> delegateCallForMintWithContractKey() {
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -268,24 +269,23 @@ public class AtomicBatchContractKeysHtsTest {
                         .adminKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(50L)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(OUTER_CONTRACT, NESTED_CONTRACT),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 contractCreate(NESTED_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                OUTER_CONTRACT, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, OUTER_CONTRACT))),
-                        tokenUpdate(VANILLA_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(SUPPLY_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                nestedContractCreate(OUTER_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, OUTER_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN)
+                                        .supplyKey(CONTRACT_KEY)
+                                        .signedByPayerAnd(SUPPLY_KEY),
+                                contractCall(
                                                 OUTER_CONTRACT,
                                                 "mintDelegateCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .payingWith(GENESIS)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
                         CONTRACT_REVERT_EXECUTED,
@@ -301,99 +301,76 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForDissociatePrecompileFails() {
-        final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
-        final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
                 cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, nestedContract),
-                contractCreate(nestedContract),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
-                                                "dissociateStaticCall",
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("staticDissociateCallTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                nestedContractCreate(NESTED_ASSOCIATE_DISSOCIATE, ASSOCIATE_DISSOCIATE_CONTRACT),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        NESTED_ASSOCIATE_DISSOCIATE,
+                                        "dissociateStaticCall",
+                                        accountAddress.get(),
+                                        vanillaTokenTokenAddress.get())
+                                .payingWith(GENESIS)
+                                .via("staticDissociateCallTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticDissociateCallTxn", CONTRACT_REVERT_EXECUTED),
                 getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForTransferWithContractKey() {
-        final var outerContract = STATIC_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> receiverAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
-                uploadInitCode(outerContract, NESTED_CONTRACT),
-                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                // since we have CONTRACT_ID key
-                contractCreate(NESTED_CONTRACT).refusingEthConversion(),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(RECEIVER).exposingEvmAddressTo(receiverAddress::set),
+                contractCreate(NESTED_CONTRACT),
                 tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 tokenAssociate(RECEIVER, VANILLA_TOKEN),
                 cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
                         .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                        outerContract,
-                                        asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec)))
-                                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon
-                                // tokenAssociate,
-                                // since we have CONTRACT_ID key
-                                .refusingEthConversion(),
-                        tokenAssociate(outerContract, VANILLA_TOKEN),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
+                nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenAssociate(STATIC_CONTRACT, VANILLA_TOKEN),
+                                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                                contractCall(
+                                                STATIC_CONTRACT,
                                                 "transferStaticCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(receiverID.get())),
+                                                vanillaTokenTokenAddress.get(),
+                                                accountAddress.get(),
+                                                receiverAddress.get(),
                                                 1L)
                                         .payingWith(GENESIS)
                                         .via("staticTransferCallWithContractKeyTxn")
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticTransferCallWithContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
-        final var outerContract = STATIC_CONTRACT;
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -401,37 +378,34 @@ public class AtomicBatchContractKeysHtsTest {
                         .adminKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0L)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                uploadInitCode(outerContract, NESTED_CONTRACT),
+                uploadInitCode(STATIC_CONTRACT, NESTED_CONTRACT),
                 contractCreate(NESTED_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        tokenUpdate(VANILLA_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(SUPPLY_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
+                nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN)
+                                        .supplyKey(CONTRACT_KEY)
+                                        .signedByPayerAnd(SUPPLY_KEY),
+                                contractCall(
+                                                STATIC_CONTRACT,
                                                 "burnStaticCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                vanillaTokenTokenAddress.get(),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForMintWithContractKey() {
-        final var outerContract = STATIC_CONTRACT;
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -439,81 +413,72 @@ public class AtomicBatchContractKeysHtsTest {
                         .adminKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(50L)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, NESTED_CONTRACT),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 contractCreate(NESTED_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        tokenUpdate(VANILLA_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(SUPPLY_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
+                nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN)
+                                        .supplyKey(CONTRACT_KEY)
+                                        .signedByPayerAnd(SUPPLY_KEY),
+                                contractCall(
+                                                STATIC_CONTRACT,
                                                 "mintStaticCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForTransferWithDelegateContractKey() {
-        final var outerContract = STATIC_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-        final AtomicReference<AccountID> receiverID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
+        final AtomicReference<Address> receiverAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(RECEIVER).exposingCreatedIdTo(receiverID::set),
-                uploadInitCode(outerContract, NESTED_CONTRACT),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(RECEIVER).exposingEvmAddressTo(receiverAddress::set),
                 contractCreate(NESTED_CONTRACT).refusingEthConversion(),
-                tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
-                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                        .payingWith(GENESIS),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        tokenAssociate(outerContract, VANILLA_TOKEN),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
+                nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
+                                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                                tokenAssociate(RECEIVER, VANILLA_TOKEN),
+                                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
+                                        .payingWith(GENESIS),
+                                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                                tokenAssociate(STATIC_CONTRACT, VANILLA_TOKEN),
+                                contractCall(
+                                                STATIC_CONTRACT,
                                                 "transferStaticCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(receiverID.get())),
+                                                vanillaTokenTokenAddress.get(),
+                                                accountAddress.get(),
+                                                receiverAddress.get(),
                                                 1L)
                                         .payingWith(GENESIS)
                                         .via("staticTransferCallWithDelegateContractKeyTxn")
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticTransferCallWithDelegateContractKeyTxn", CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
-        final var outerContract = STATIC_CONTRACT;
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
@@ -522,38 +487,33 @@ public class AtomicBatchContractKeysHtsTest {
                         .adminKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0L)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                uploadInitCode(outerContract, NESTED_CONTRACT),
                 contractCreate(NESTED_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        tokenUpdate(VANILLA_TOKEN).supplyKey(DELEGATE_KEY).signedByPayerAnd(SUPPLY_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
+                nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN)
+                                        .supplyKey(DELEGATE_KEY)
+                                        .signedByPayerAnd(SUPPLY_KEY),
+                                contractCall(
+                                                STATIC_CONTRACT,
                                                 "burnStaticCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                vanillaTokenTokenAddress.get(),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
                                         .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
-        final var outerContract = STATIC_CONTRACT;
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
@@ -561,60 +521,51 @@ public class AtomicBatchContractKeysHtsTest {
                         .adminKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(50L)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, NESTED_CONTRACT),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
                 contractCreate(NESTED_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(NESTED_CONTRACT, spec))),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        tokenUpdate(VANILLA_TOKEN).supplyKey(DELEGATE_KEY).signedByPayerAnd(SUPPLY_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
+                nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
+                newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                tokenUpdate(VANILLA_TOKEN)
+                                        .supplyKey(DELEGATE_KEY)
+                                        .signedByPayerAnd(SUPPLY_KEY),
+                                contractCall(
+                                                STATIC_CONTRACT,
                                                 "mintStaticCall",
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())),
+                                                vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
                                         .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN, CONTRACT_REVERT_EXECUTED));
     }
 
     @HapiTest
     public final Stream<DynamicTest> staticCallForAssociatePrecompileFails() {
-        final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
-        final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT)
                         .balance(ONE_MILLION_HBARS)
                         .payingWith(GENESIS)
-                        .exposingCreatedIdTo(accountID::set),
+                        .exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, nestedContract),
-                contractCreate(nestedContract),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
-                        atomicBatchDefaultOperator(contractCall(
-                                                outerContract,
-                                                "associateStaticCall",
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
-                                        .payingWith(ACCOUNT)
-                                        .via("staticAssociateCallTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                nestedContractCreate(NESTED_ASSOCIATE_DISSOCIATE, ASSOCIATE_DISSOCIATE_CONTRACT),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        NESTED_ASSOCIATE_DISSOCIATE,
+                                        "associateStaticCall",
+                                        accountAddress.get(),
+                                        vanillaTokenTokenAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("staticAssociateCallTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 emptyChildRecordsCheck("staticAssociateCallTxn", CONTRACT_REVERT_EXECUTED),
                 getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
@@ -623,11 +574,8 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> callForMintWithContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
-
-        final AtomicLong fungibleNum = new AtomicLong();
-
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
                 cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TYPE_OF_TOKEN)
@@ -636,23 +584,19 @@ public class AtomicBatchContractKeysHtsTest {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
-                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                        .exposingAddressTo(fungibleAddress::set),
                 contractCreate(ORDINARY_CALLS_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(CONTRACT_KEY)
-                                .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
                         tokenUpdate(TYPE_OF_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "mintTokenCall",
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(TYPE_OF_TOKEN))),
+                                        fungibleAddress.get(),
                                         BigInteger.valueOf(amount),
                                         new byte[][] {})
                                 .via(firstMintTxn)
-                                .payingWith(ACCOUNT_NAME)))),
+                                .payingWith(ACCOUNT_NAME))),
                 childRecordsCheck(
                         firstMintTxn,
                         SUCCESS,
@@ -674,11 +618,8 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> callForMintWithDelegateContractKey() {
         final var firstMintTxn = "firstMintTxn";
         final var amount = 10L;
-
-        final AtomicLong fungibleNum = new AtomicLong();
-
+        final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
                 cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TYPE_OF_TOKEN)
@@ -687,23 +628,20 @@ public class AtomicBatchContractKeysHtsTest {
                         .treasury(TOKEN_TREASURY)
                         .adminKey(MULTI_KEY)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(idLit -> fungibleNum.set(asDotDelimitedLongArray(idLit)[2])),
-                uploadInitCode(ORDINARY_CALLS_CONTRACT),
+                        .exposingAddressTo(fungibleAddress::set),
                 contractCreate(ORDINARY_CALLS_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
                         tokenUpdate(TYPE_OF_TOKEN).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "mintTokenCall",
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(TYPE_OF_TOKEN))),
+                                        fungibleAddress.get(),
                                         BigInteger.valueOf(amount),
                                         new byte[][] {})
                                 .via(firstMintTxn)
-                                .payingWith(ACCOUNT_NAME)))),
+                                .payingWith(ACCOUNT_NAME))),
                 childRecordsCheck(
                         firstMintTxn,
                         SUCCESS,
@@ -723,49 +661,38 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForTransferWithContractKey() {
+        final AtomicReference<Address> nftAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> receiverAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(UNIVERSAL_KEY),
-                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(RECEIVER).exposingEvmAddressTo(receiverAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(NFT)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(UNIVERSAL_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
                         .initialSupply(0)
-                        .treasury(TOKEN_TREASURY),
-                tokenAssociate(ACCOUNT, NFT),
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(nftAddress::set),
                 mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
-                uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                contractCreate(ORDINARY_CALLS_CONTRACT)
-                        // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon
-                        // tokenAssociate,
-                        // since we have CONTRACT_ID key
-                        .refusingEthConversion()
-                        .via(CREATION_TX),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(CONTRACT_KEY)
-                                .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                contractCreate(ORDINARY_CALLS_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        tokenAssociate(ACCOUNT, NFT),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
                         tokenAssociate(ORDINARY_CALLS_CONTRACT, List.of(NFT)),
                         tokenAssociate(RECEIVER, List.of(NFT)),
                         cryptoTransfer(movingUnique(NFT, 1).between(TOKEN_TREASURY, ACCOUNT)),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "transferNFTCall",
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(NFT))),
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(ACCOUNT))),
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(RECEIVER))),
+                                        nftAddress.get(),
+                                        accountAddress.get(),
+                                        receiverAddress.get(),
                                         1L)
-                                .fee(2 * ONE_HBAR)
-                                .hasKnownStatus(SUCCESS)
-                                .payingWith(GENESIS)
                                 .gas(GAS_TO_OFFER)
-                                .via(DISTRIBUTE_TX)))),
+                                .via(DISTRIBUTE_TX))),
                 getTokenInfo(NFT).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT, 1),
@@ -785,46 +712,42 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForTransferWithDelegateContractKey() {
+        final AtomicReference<Address> nftAddress = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> receiverAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(UNIVERSAL_KEY),
-                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(RECEIVER).exposingEvmAddressTo(receiverAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(NFT)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(UNIVERSAL_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
                         .initialSupply(0)
-                        .treasury(TOKEN_TREASURY),
-                tokenAssociate(ACCOUNT, NFT),
-                mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
-                uploadInitCode(ORDINARY_CALLS_CONTRACT),
-                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
-                // since we have CONTRACT_ID key
-                contractCreate(ORDINARY_CALLS_CONTRACT).refusingEthConversion(),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(nftAddress::set),
+                contractCreate(ORDINARY_CALLS_CONTRACT),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ORDINARY_CALLS_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        tokenAssociate(ACCOUNT, NFT),
+                        mintToken(NFT, List.of(metadata("firstMemo"), metadata("secondMemo"))),
                         cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
                         tokenAssociate(ORDINARY_CALLS_CONTRACT, List.of(NFT)),
                         tokenAssociate(RECEIVER, List.of(NFT)),
                         cryptoTransfer(movingUnique(NFT, 1).between(TOKEN_TREASURY, ACCOUNT)),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ORDINARY_CALLS_CONTRACT,
                                         "transferNFTCall",
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(NFT))),
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(ACCOUNT))),
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getAccountID(RECEIVER))),
+                                        nftAddress.get(),
+                                        accountAddress.get(),
+                                        receiverAddress.get(),
                                         1L)
                                 .fee(2 * ONE_HBAR)
                                 .hasKnownStatus(SUCCESS)
                                 .payingWith(GENESIS)
                                 .gas(GAS_TO_OFFER)
-                                .via(DISTRIBUTE_TX)))),
+                                .via(DISTRIBUTE_TX))),
                 getTokenInfo(NFT).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT, 1),
@@ -844,32 +767,27 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForAssociateWithDelegateContractKey() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
                         cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)))),
+                                .gas(GAS_TO_OFFER))),
                 childRecordsCheck(
                         VANILLA_TOKEN_ASSOCIATE_TXN,
                         SUCCESS,
@@ -883,32 +801,26 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForAssociateWithContractKey() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(CONTRACT_KEY)
-                                .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via(VANILLA_TOKEN_ASSOCIATE_TXN)
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)))),
+                                .gas(GAS_TO_OFFER))),
                 childRecordsCheck(
                         VANILLA_TOKEN_ASSOCIATE_TXN,
                         SUCCESS,
@@ -922,48 +834,42 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForDissociateWithDelegateContractKey() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         final var totalSupply = 1_000;
-
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(totalSupply)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        cryptoUpdate(TOKEN_TREASURY).key(DELEGATE_KEY),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
-                        atomicBatchDefaultOperator(contractCall(
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                // fails with TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES
+                                contractCall(
                                                 ASSOCIATE_DISSOCIATE_CONTRACT,
                                                 TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
+                                                accountAddress.get(),
+                                                vanillaTokenAddress.get())
                                         .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
                                         .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
                         cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
-                        atomicBatchDefaultOperator(contractCall(
+                        contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via(TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN)
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)))),
+                                .gas(GAS_TO_OFFER))),
                 childRecordsCheck(
                         NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN,
                         CONTRACT_REVERT_EXECUTED,
@@ -985,48 +891,42 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForDissociateWithContractKey() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         final var totalSupply = 1_000;
 
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(totalSupply)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(CONTRACT_KEY)
-                                .shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        cryptoUpdate(TOKEN_TREASURY).key(CONTRACT_KEY),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("nonZeroTokenBalanceDissociateWithContractKeyFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
-                        atomicBatchDefaultOperator(contractCall(
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                cryptoUpdate(TOKEN_TREASURY).key(CONTRACT_KEY),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("nonZeroTokenBalanceDissociateWithContractKeyFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via("tokenDissociateWithContractKeyHappyTxn")
-                                .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)))),
+                                .gas(GAS_TO_OFFER))),
                 childRecordsCheck(
                         "nonZeroTokenBalanceDissociateWithContractKeyFailedTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1048,28 +948,23 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
+        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TOKEN_USAGE)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(50L)
                         .supplyKey(MULTI_KEY)
                         .adminKey(MULTI_KEY)
-                        .treasury(TOKEN_TREASURY),
-                uploadInitCode(BURN_TOKEN),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                        BURN_TOKEN,
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
-                                .via(CREATION_TX))),
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress::set),
+                sourcing(() -> contractCreate(BURN_TOKEN, tokenAddress.get())),
                 newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
-                tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
-                atomicBatchDefaultOperator(contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
-                        .via(BURN_WITH_CONTRACT_KEY)
-                        .gas(GAS_TO_OFFER)),
+                atomicBatchDefaultOperator(
+                        tokenUpdate(TOKEN_USAGE).supplyKey(DELEGATE_KEY).signedByPayerAnd(MULTI_KEY),
+                        contractCall(BURN_TOKEN, BURN_TOKEN_METHOD, BigInteger.ONE, new long[0])
+                                .via(BURN_WITH_CONTRACT_KEY)
+                                .gas(GAS_TO_OFFER)),
                 childRecordsCheck(
                         BURN_WITH_CONTRACT_KEY,
                         SUCCESS,
@@ -1087,36 +982,30 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithDelegateContractKeyWorks() {
-        final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
-        final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, nestedContract),
-                contractCreate(nestedContract),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                nestedContractCreate(NESTED_ASSOCIATE_DISSOCIATE, ASSOCIATE_DISSOCIATE_CONTRACT),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_DISSOCIATE))),
+                sourcing(() -> atomicBatchDefaultOperator(
                         cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                        outerContract,
+                        contractCall(
+                                        NESTED_ASSOCIATE_DISSOCIATE,
                                         "associateDelegateCall",
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
+                                        accountAddress.get(),
+                                        vanillaTokenTokenAddress.get())
                                 .payingWith(GENESIS)
                                 .via("delegateAssociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
-                                .gas(GAS_TO_OFFER)))),
+                                .gas(GAS_TO_OFFER))),
                 childRecordsCheck(
                         "delegateAssociateCallWithDelegateContractKeyTxn",
                         SUCCESS,
@@ -1130,37 +1019,31 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithDelegateContractKeyWorks() {
-        final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
-        final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, nestedContract),
-                contractCreate(nestedContract),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                nestedContractCreate(NESTED_ASSOCIATE_DISSOCIATE, ASSOCIATE_DISSOCIATE_CONTRACT),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_DISSOCIATE))),
+                sourcing(() -> atomicBatchDefaultOperator(
                         tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
                         cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                        outerContract,
+                        contractCall(
+                                        NESTED_ASSOCIATE_DISSOCIATE,
                                         "dissociateDelegateCall",
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        vanillaTokenTokenAddress.get())
                                 .via("delegateDissociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
-                                .gas(GAS_TO_OFFER)))),
+                                .gas(GAS_TO_OFFER))),
                 childRecordsCheck(
                         "delegateDissociateCallWithDelegateContractKeyTxn",
                         SUCCESS,
@@ -1174,12 +1057,11 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
 
         return hapiTest(
-                newKeyNamed(KYC_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1187,41 +1069,36 @@ public class AtomicBatchContractKeysHtsTest {
                         .initialSupply(0)
                         .supplyKey(GENESIS)
                         .kycKey(KYC_KEY)
-                        .exposingCreatedIdTo(id -> kycTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(kycTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycNFTAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(kycTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycNFTAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
                                 .via("kycNFTAssociateTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycNFTSecondAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                                .hasKnownStatus(SUCCESS))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycNFTSecondAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "kycNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1251,65 +1128,60 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleVanilla() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> treasuryAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
 
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY).exposingEvmAddressTo(treasuryAddress::set),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(TOTAL_SUPPLY)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        cryptoUpdate(TOKEN_TREASURY).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(treasuryID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("tokenDissociateFromTreasuryFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("tokenDissociateWithDelegateContractKeyFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
-                        atomicBatchDefaultOperator(contractCall(
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                cryptoUpdate(TOKEN_TREASURY).key(DELEGATE_KEY),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        treasuryAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("tokenDissociateFromTreasuryFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("tokenDissociateWithDelegateContractKeyFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(moving(1, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via(NON_ZERO_TOKEN_BALANCE_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_FAILED_TXN)
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoTransfer(moving(1, VANILLA_TOKEN).between(ACCOUNT, TOKEN_TREASURY)),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via(TOKEN_DISSOCIATE_WITH_DELEGATE_CONTRACT_KEY_HAPPY_TXN)
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)))),
+                                .hasKnownStatus(SUCCESS))),
                 childRecordsCheck(
                         "tokenDissociateFromTreasuryFailedTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1347,48 +1219,41 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleFrozen() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
 
         return hapiTest(
-                newKeyNamed(FREEZE_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .freezeDefault(true)
                         .freezeKey(FREEZE_KEY)
-                        .exposingCreatedIdTo(id -> frozenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(frozenTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        tokenAssociate(ACCOUNT, FROZEN_TOKEN),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenTokenAssociateWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatchDefaultOperator(
-                                tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("UnfrozenTokenAssociateWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)))),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                tokenAssociate(ACCOUNT, FROZEN_TOKEN),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenTokenAssociateWithDelegateContractKeyTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("UnfrozenTokenAssociateWithDelegateContractKeyTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
                 childRecordsCheck(
                         "frozenTokenAssociateWithDelegateContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1410,46 +1275,40 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
 
         return hapiTest(
-                newKeyNamed(KYC_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .kycKey(KYC_KEY)
-                        .exposingCreatedIdTo(id -> kycTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(kycTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycTokenDissociateWithDelegateContractKeyFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatchDefaultOperator(
-                                tokenAssociate(ACCOUNT, KYC_TOKEN),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycTokenDissociateWithDelegateContractKeyHappyTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)))),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycTokenDissociateWithDelegateContractKeyFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        tokenAssociate(ACCOUNT, KYC_TOKEN),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .payingWith(GENESIS)
+                                .via("kycTokenDissociateWithDelegateContractKeyHappyTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
                 childRecordsCheck(
                         "kycTokenDissociateWithDelegateContractKeyFailedTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1471,68 +1330,62 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> treasuryAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
 
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).balance(0L).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY).balance(0L).exposingEvmAddressTo(treasuryAddress::set),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0)
                         .supplyKey(MULTI_KEY)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(metadata("memo"))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        cryptoUpdate(TOKEN_TREASURY).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(treasuryID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("NFTDissociateFromTreasuryFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("NFTDissociateWithDelegateContractKeyFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(TOKEN_TREASURY, ACCOUNT)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(ACCOUNT, TOKEN_TREASURY)),
-                        atomicBatchDefaultOperator(contractCall(
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                cryptoUpdate(TOKEN_TREASURY).key(DELEGATE_KEY),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_DISSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        treasuryAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("NFTDissociateFromTreasuryFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("NFTDissociateWithDelegateContractKeyFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(TOKEN_TREASURY, ACCOUNT)),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("nonZeroNFTBalanceDissociateWithDelegateContractKeyFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoTransfer(movingUnique(VANILLA_TOKEN, 1).between(ACCOUNT, TOKEN_TREASURY)),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via("NFTDissociateWithDelegateContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)))),
+                                .hasKnownStatus(SUCCESS))),
                 childRecordsCheck(
                         "NFTDissociateFromTreasuryFailedTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1570,14 +1423,11 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(FREEZE_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(GENESIS)
@@ -1585,35 +1435,31 @@ public class AtomicBatchContractKeysHtsTest {
                         .initialSupply(0)
                         .freezeDefault(true)
                         .freezeKey(FREEZE_KEY)
-                        .exposingCreatedIdTo(id -> frozenTokenID.set(HapiPropertySource.asToken(id))),
+                        .exposingAddressTo(frozenTokenAddress::set),
                 uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        tokenAssociate(ACCOUNT, FROZEN_TOKEN),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenNFTAssociateWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatchDefaultOperator(
-                                tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("UnfrozenNFTAssociateWithDelegateContractKeyTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)))),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                tokenAssociate(ACCOUNT, FROZEN_TOKEN),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenNFTAssociateWithDelegateContractKeyTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        tokenUnfreeze(FROZEN_TOKEN, ACCOUNT),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("UnfrozenNFTAssociateWithDelegateContractKeyTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
                 childRecordsCheck(
                         "frozenNFTAssociateWithDelegateContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1635,48 +1481,40 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> dissociatePrecompileWithDelegateContractKeyForNonFungibleWithKyc() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<AccountID> treasuryID = new AtomicReference<>();
-        final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(KYC_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
-                cryptoCreate(TOKEN_TREASURY).exposingCreatedIdTo(treasuryID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
+                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
                         .supplyKey(GENESIS)
                         .initialSupply(0)
                         .kycKey(KYC_KEY)
-                        .exposingCreatedIdTo(id -> kycTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(kycTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycNFTDissociateWithDelegateContractKeyFailedTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        atomicBatchDefaultOperator(
-                                tokenAssociate(ACCOUNT, KYC_TOKEN),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_DISSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycNFTDissociateWithDelegateContractKeyHappyTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)))),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycNFTDissociateWithDelegateContractKeyFailedTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        tokenAssociate(ACCOUNT, KYC_TOKEN),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_DISSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycNFTDissociateWithDelegateContractKeyHappyTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
                 childRecordsCheck(
                         "kycNFTDissociateWithDelegateContractKeyFailedTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1698,12 +1536,11 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleFrozen() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed(FREEZE_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -1712,41 +1549,36 @@ public class AtomicBatchContractKeysHtsTest {
                         .initialSupply(0)
                         .freezeKey(FREEZE_KEY)
                         .freezeDefault(true)
-                        .exposingCreatedIdTo(id -> frozenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(frozenTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenNFTAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenNFTAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
                                 .via("frozenNFTAssociateTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenNFTSecondAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                                .hasKnownStatus(SUCCESS))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenNFTSecondAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "frozenNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1776,52 +1608,47 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForNonFungibleVanilla() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
                         .supplyKey(GENESIS)
                         .initialSupply(0)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("vanillaNFTAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                        atomicBatchDefaultOperator(contractCall(
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
                                         ASSOCIATE_DISSOCIATE_CONTRACT,
                                         TOKEN_ASSOCIATE,
-                                        asHeadlongAddress(asAddress(accountID.get())),
-                                        asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                .payingWith(GENESIS)
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("vanillaNFTAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
                                 .via("vanillaNFTAssociateTxn")
                                 .gas(GAS_TO_OFFER)
-                                .hasKnownStatus(SUCCESS)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("vanillaNFTSecondAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                                .hasKnownStatus(SUCCESS))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .payingWith(GENESIS)
+                                .via("vanillaNFTSecondAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "vanillaNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1851,53 +1678,45 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleWithKyc() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> kycTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(KYC_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
                         .kycKey(KYC_KEY)
-                        .exposingCreatedIdTo(id -> kycTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(kycTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycTokenAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        atomicBatchDefaultOperator(
-                                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycTokenAssociateTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(kycTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("kycTokenSecondAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycTokenAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycTokenAssociateTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        kycTokenAddress.get())
+                                .via("kycTokenSecondAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "kycTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -1927,12 +1746,11 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleFrozen() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> frozenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed(FREEZE_KEY),
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -1940,42 +1758,36 @@ public class AtomicBatchContractKeysHtsTest {
                         .initialSupply(TOTAL_SUPPLY)
                         .freezeKey(FREEZE_KEY)
                         .freezeDefault(true)
-                        .exposingCreatedIdTo(id -> frozenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(frozenTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenTokenAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        atomicBatchDefaultOperator(
-                                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenTokenAssociateTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(frozenTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("frozenTokenSecondAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenTokenAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenTokenAssociateTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        frozenTokenAddress.get())
+                                .via("frozenTokenSecondAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "frozenTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -2005,51 +1817,44 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> associatePrecompileWithDelegateContractKeyForFungibleVanilla() {
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
+                        .exposingAddressTo(vanillaTokenAddress::set),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("vanillaTokenAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                        newKeyNamed(DELEGATE_KEY)
-                                .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
-                        atomicBatchDefaultOperator(
-                                cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
-                                contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via(VANILLA_TOKEN_ASSOCIATE_TXN)
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)),
-                        atomicBatchDefaultOperator(contractCall(
-                                                ASSOCIATE_DISSOCIATE_CONTRACT,
-                                                TOKEN_ASSOCIATE,
-                                                asHeadlongAddress(asAddress(accountID.get())),
-                                                asHeadlongAddress(asAddress(vanillaTokenID.get())))
-                                        .payingWith(GENESIS)
-                                        .via("vanillaTokenSecondAssociateFailsTxn")
-                                        .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("vanillaTokenAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                newKeyNamed(DELEGATE_KEY)
+                        .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                        cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
+                        contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via(VANILLA_TOKEN_ASSOCIATE_TXN)
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                        ASSOCIATE_DISSOCIATE_CONTRACT,
+                                        TOKEN_ASSOCIATE,
+                                        accountAddress.get(),
+                                        vanillaTokenAddress.get())
+                                .via("vanillaTokenSecondAssociateFailsTxn")
+                                .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "vanillaTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -2079,37 +1884,29 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> delegateCallForAssociatePrecompileSignedWithContractKeyFails() {
-        final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
-        final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, nestedContract),
-                contractCreate(nestedContract),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        atomicBatchDefaultOperator(
-                                        cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                                        contractCall(
-                                                        outerContract,
-                                                        "associateDelegateCall",
-                                                        asHeadlongAddress(asAddress(accountID.get())),
-                                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
-                                                .payingWith(GENESIS)
-                                                .via("delegateAssociateCallWithContractKeyTxn")
-                                                .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                                                .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                nestedContractCreate(NESTED_ASSOCIATE_DISSOCIATE, ASSOCIATE_DISSOCIATE_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_DISSOCIATE))),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                                contractCall(
+                                                NESTED_ASSOCIATE_DISSOCIATE,
+                                                "associateDelegateCall",
+                                                accountAddress.get(),
+                                                vanillaTokenTokenAddress.get())
+                                        .via("delegateAssociateCallWithContractKeyTxn")
+                                        .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
+                                        .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "delegateAssociateCallWithContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -2123,37 +1920,29 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> delegateCallForDissociatePrecompileSignedWithContractKeyFails() {
-        final var outerContract = NESTED_ASSOCIATE_DISSOCIATE;
-        final var nestedContract = ASSOCIATE_DISSOCIATE_CONTRACT;
-        final AtomicReference<AccountID> accountID = new AtomicReference<>();
-        final AtomicReference<TokenID> vanillaTokenTokenID = new AtomicReference<>();
-
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
-                        .exposingCreatedIdTo(id -> vanillaTokenTokenID.set(HapiPropertySource.asToken(id))),
-                uploadInitCode(outerContract, nestedContract),
-                contractCreate(nestedContract),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                outerContract, asHeadlongAddress(getNestedContractAddress(nestedContract, spec))),
-                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, outerContract))),
-                        tokenAssociate(ACCOUNT, VANILLA_TOKEN),
-                        atomicBatchDefaultOperator(
-                                        cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                                        contractCall(
-                                                        outerContract,
-                                                        "dissociateDelegateCall",
-                                                        asHeadlongAddress(asAddress(accountID.get())),
-                                                        asHeadlongAddress(asAddress(vanillaTokenTokenID.get())))
-                                                .payingWith(GENESIS)
-                                                .via("delegateDissociateCallWithContractKeyTxn")
-                                                .gas(GAS_TO_OFFER))
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
+                        .exposingAddressTo(vanillaTokenTokenAddress::set),
+                contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
+                nestedContractCreate(NESTED_ASSOCIATE_DISSOCIATE, ASSOCIATE_DISSOCIATE_CONTRACT),
+                newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_DISSOCIATE))),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                sourcing(() -> atomicBatchDefaultOperator(
+                                cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                                contractCall(
+                                                NESTED_ASSOCIATE_DISSOCIATE,
+                                                "dissociateDelegateCall",
+                                                accountAddress.get(),
+                                                vanillaTokenTokenAddress.get())
+                                        .via("delegateDissociateCallWithContractKeyTxn")
+                                        .gas(GAS_TO_OFFER))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "delegateDissociateCallWithContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
@@ -2167,23 +1956,17 @@ public class AtomicBatchContractKeysHtsTest {
 
     @HapiTest
     public final Stream<DynamicTest> callForBurnWithContractKey() {
+        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
                 cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TOKEN_USAGE)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(50L)
                         .supplyKey(MULTI_KEY)
                         .adminKey(MULTI_KEY)
-                        .treasury(TOKEN_TREASURY),
-                uploadInitCode(BURN_TOKEN),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        contractCreate(
-                                        BURN_TOKEN,
-                                        asHeadlongAddress(
-                                                asAddress(spec.registry().getTokenID(TOKEN_USAGE))))
-                                .via(CREATION_TX))),
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress::set),
+                withOpContext((spec, opLog) -> allRunFor(spec, contractCreate(BURN_TOKEN, tokenAddress.get()))),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, BURN_TOKEN))),
                 atomicBatchDefaultOperator(
                         tokenUpdate(TOKEN_USAGE).supplyKey(CONTRACT_KEY).signedByPayerAnd(MULTI_KEY),
@@ -2210,5 +1993,11 @@ public class AtomicBatchContractKeysHtsTest {
                         .map(op -> op.batchKey(DEFAULT_BATCH_OPERATOR))
                         .toArray(HapiTxnOp[]::new))
                 .payingWith(DEFAULT_BATCH_OPERATOR);
+    }
+
+    private HapiSpecOperation nestedContractCreate(final String contractToCreate, final String parentContract) {
+        return withOpContext((spec, opLog) -> allRunFor(
+                spec,
+                contractCreate(contractToCreate, asHeadlongAddress(getNestedContractAddress(parentContract, spec)))));
     }
 }

@@ -160,7 +160,7 @@ public class AtomicBatchEthereumCallKeysTest {
     }
 
     @HapiTest
-    public final Stream<DynamicTest> etx013PrecompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
+    public final Stream<DynamicTest> precompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
         final String fungibleToken = "token";
         final String mintTxn = "mintTxn";
