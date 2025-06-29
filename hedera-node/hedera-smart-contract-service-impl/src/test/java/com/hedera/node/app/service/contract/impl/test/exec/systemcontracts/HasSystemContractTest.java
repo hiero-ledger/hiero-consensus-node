@@ -9,7 +9,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertS
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -45,9 +44,6 @@ class HasSystemContractTest {
     private ContractMetrics contractMetrics;
 
     @Mock
-    private OpsDurationMetrics opsDurationMetrics;
-
-    @Mock
     private HederaOpsDuration hederaOpsDuration;
 
     private MockedStatic<FrameUtils> frameUtils;
@@ -58,8 +54,7 @@ class HasSystemContractTest {
     @BeforeEach
     void setUp() {
         frameUtils = Mockito.mockStatic(FrameUtils.class);
-        subject = new HasSystemContract(
-                gasCalculator, attemptFactory, contractMetrics, opsDurationMetrics, hederaOpsDuration);
+        subject = new HasSystemContract(gasCalculator, attemptFactory, contractMetrics, hederaOpsDuration);
     }
 
     @AfterEach

@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.metrics;
 
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_6;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.metrics.api.Counter;
-import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -21,11 +17,8 @@ import javax.inject.Singleton;
 @Singleton
 public class SystemContractOpsDurationMetric {
     private static final String CONTRACT_CATEGORY = "system_contract";
-    private static final String DURATION_SUFFIX = "_duration_ns";
-    private static final String COUNT_SUFFIX = "_count";
-    private static final String TOTAL_SUFFIX = "_total_ns";
 
-    private final Map<SystemContractMethod, OpsDurationMetricTriple> operationDurations = new HashMap<>();
+    private final Map<SystemContractMethod, CountAccumulateAverageMetricTriplet> operationDurations = new HashMap<>();
     private final Metrics metrics;
 
     public SystemContractOpsDurationMetric(@NonNull final Metrics metrics) {
@@ -39,28 +32,14 @@ public class SystemContractOpsDurationMetric {
      * @param durationNanos the duration in nanoseconds
      */
     public void recordOperationDuration(@NonNull final SystemContractMethod method, final long durationNanos) {
-        final var metric = operationDurations.computeIfAbsent(method, this::createOperationDurationMetric);
-        metric.update(durationNanos);
-    }
-
-    private OpsDurationMetricTriple createOperationDurationMetric(@NonNull final SystemContractMethod method) {
-        final String methodName = method.methodName();
-
-        final var averageConfig = new RunningAverageMetric.Config(CONTRACT_CATEGORY, methodName + DURATION_SUFFIX)
-                .withDescription("Average duration of " + methodName + " operation in nanoseconds")
-                .withFormat(FORMAT_10_6);
-
-        final var counterConfig = new Counter.Config(CONTRACT_CATEGORY, methodName + COUNT_SUFFIX)
-                .withDescription("Count of " + methodName + " operations");
-
-        final var accumulatorConfig = new LongAccumulator.Config(CONTRACT_CATEGORY, methodName + TOTAL_SUFFIX)
-                .withDescription("Total duration of " + methodName + " operation in nanoseconds")
-                .withAccumulator(Long::sum);
-
-        return new OpsDurationMetricTriple(
-                metrics.getOrCreate(averageConfig),
-                metrics.getOrCreate(counterConfig),
-                metrics.getOrCreate(accumulatorConfig));
+        final var metric = operationDurations.computeIfAbsent(
+                method,
+                _method -> CountAccumulateAverageMetricTriplet.create(
+                        metrics,
+                        CONTRACT_CATEGORY,
+                        method.methodName(),
+                        "Ops duration of system contract method " + method.methodName() + " in nanoseconds"));
+        metric.recordObservation(durationNanos);
     }
 
     /**
@@ -71,7 +50,7 @@ public class SystemContractOpsDurationMetric {
      */
     public double getAverageSystemContractOpsDuration(@NonNull final SystemContractMethod method) {
         final var metric = operationDurations.get(method);
-        return metric != null ? metric.averageMetric().get() : 0.0;
+        return metric != null ? metric.average().get() : 0.0;
     }
 
     /**

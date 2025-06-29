@@ -114,6 +114,13 @@ public class ContractMetricsTest {
         assertThat(subject.getAllCounterValues()).isEmpty();
     }
 
+    @Test
+    public void processedTransactionIsRecordedWithoutErrors() {
+        final var subject = getSubject();
+        subject.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(10, 10, 10, 10, true));
+        assertThat(subject.getProcessedTransactionCount()).isEqualTo(1L);
+    }
+
     private static final long DEFAULT_NODE_ID = 3;
 
     public static Metrics fakeMetrics() {

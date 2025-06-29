@@ -508,7 +508,10 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (throttleAdviser != null) {
             final var shouldThrottle = throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration);
             if (shouldThrottle) {
-                requireNonNull(enhancement.operations().opsDurationMetrics())
+                enhancement
+                        .operations()
+                        .contractMetrics()
+                        .opsDurationMetrics()
                         .recordTransactionsThrottledByOpsDuration();
                 throw new ResourceExhaustedException(THROTTLED_AT_CONSENSUS);
             }
