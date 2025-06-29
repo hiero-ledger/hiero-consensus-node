@@ -263,7 +263,8 @@ public class QueryHederaOperations implements HederaOperations {
         return configValidated(contractId, hederaConfig);
     }
 
-    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
+    @Override
+    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @NonNull Bytes evmAddress) {
         throw new UnsupportedOperationException("Queries cannot create accounts");
     }
 

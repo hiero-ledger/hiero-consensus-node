@@ -3859,7 +3859,8 @@ public class TraceabilitySuite {
                         .hasKnownStatus(SUCCESS)
                         .via(FIRST_CREATE_TXN),
                 withOpContext((spec, opLog) -> {
-                    final HapiGetTxnRecord txnRecord = getTxnRecord(FIRST_CREATE_TXN);
+                    final HapiGetTxnRecord txnRecord =
+                            getTxnRecord(FIRST_CREATE_TXN).logged();
                     allRunFor(
                             spec,
                             txnRecord,

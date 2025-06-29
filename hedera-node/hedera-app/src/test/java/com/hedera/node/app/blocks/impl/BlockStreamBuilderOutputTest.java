@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -15,6 +16,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.EventTransaction;
@@ -38,6 +40,8 @@ class BlockStreamBuilderOutputTest {
             AccountID.newBuilder().accountNum(1L).build();
     private static final ContractFunctionResult FUNCTION_RESULT =
             ContractFunctionResult.newBuilder().amount(666L).build();
+    private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
+            EvmTransactionResult.newBuilder().build();
     private static final BlockItem EVENT_TRANSACTION = BlockItem.newBuilder()
             .eventTransaction(EventTransaction.newBuilder()
                     .applicationTransaction(Bytes.wrap("MOCK"))
@@ -54,7 +58,7 @@ class BlockStreamBuilderOutputTest {
             .build();
     private static final BlockItem SECOND_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
-                    .contractCall(new CallContractOutput(FUNCTION_RESULT))
+                    .contractCall(new CallContractOutput(EVM_TRANSACTION_RESULT))
                     .build())
             .build();
     private static final BlockItem STATE_CHANGES = BlockItem.newBuilder()

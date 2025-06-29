@@ -42,7 +42,7 @@ message InternalCallContext {
 }
 
 /**
- * Results of executing EVM transaction.<br/>
+ * Results of executing a EVM transaction.<br/>
  */
 message EvmTransactionResult {
     /**
@@ -73,7 +73,8 @@ message EvmTransactionResult {
     uint64 gas_used = 5;
 
     /**
-     * If not already externalized, the context of the internal call producing this result.
+     * If not already externalized in a transaction body, the context of the
+     * internal call producing this result.
      */
     InternalCallContext internal_call_context = 6;
 }

@@ -3,15 +3,59 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.MAP_DELETE;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.MAP_UPDATE;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.NftID;
+import com.hedera.hapi.node.base.PendingAirdropId;
+import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.TimestampSeconds;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TopicID;
+import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.common.EntityIDPair;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.consensus.Topic;
+import com.hedera.hapi.node.state.contract.Bytecode;
+import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.HintsKeySet;
+import com.hedera.hapi.node.state.hints.HintsPartyId;
+import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
+import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.schedule.ScheduleList;
+import com.hedera.hapi.node.state.schedule.ScheduledCounts;
+import com.hedera.hapi.node.state.schedule.ScheduledOrder;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
+import com.hedera.hapi.node.state.token.Nft;
+import com.hedera.hapi.node.state.token.Token;
+import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.state.tss.TssMessageMapKey;
+import com.hedera.hapi.node.state.tss.TssVoteMapKey;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
+import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class KVStateChangeListenerTest {
     private static final int STATE_ID = 1;
@@ -61,4 +105,138 @@ class KVStateChangeListenerTest {
         assertEquals(STATE_ID, stateChange.stateId());
         assertEquals(KEY, stateChange.mapDelete().key().accountIdKey());
     }
+
+    @ParameterizedTest
+    @EnumSource(MapChangeKey.KeyChoiceOneOfType.class)
+    void allMapChangeKeysAreValid(MapChangeKey.KeyChoiceOneOfType type) {
+        final MapUpdateScenario<?, ?> scenario =
+                switch (type) {
+                    case UNSET -> null;
+
+                    case ACCOUNT_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal(), AccountID.DEFAULT, Account.DEFAULT);
+
+                    case TOKEN_RELATIONSHIP_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_TOKEN_RELATIONS.protoOrdinal(),
+                                new EntityIDPair(AccountID.DEFAULT, TokenID.DEFAULT),
+                                TokenRelation.DEFAULT);
+
+                    case ENTITY_NUMBER_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_CONTRACT_BYTECODE.protoOrdinal(),
+                                new EntityNumber(1L),
+                                Bytecode.DEFAULT);
+
+                    case FILE_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_FILES.protoOrdinal(), FileID.DEFAULT, File.DEFAULT);
+
+                    case NFT_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_NFTS.protoOrdinal(), NftID.DEFAULT, Nft.DEFAULT);
+
+                    case PROTO_BYTES_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_ALIASES.protoOrdinal(),
+                                new ProtoBytes(Bytes.wrap("alias")),
+                                new ProtoString("value"));
+
+                    case PROTO_LONG_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_ENTITY_ID.protoOrdinal(),
+                                new ProtoLong(123_456L),
+                                new ProtoString("value"));
+
+                    case PROTO_STRING_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_LEDGER_ID.protoOrdinal(),
+                                new ProtoString("key"),
+                                new ProtoString("value"));
+
+                    case SCHEDULE_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_SCHEDULES_BY_ID.protoOrdinal(),
+                                ScheduleID.DEFAULT,
+                                Schedule.DEFAULT);
+
+                    case SCHEDULED_ORDER_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_SCHEDULED_ORDERS.protoOrdinal(),
+                                ScheduledOrder.DEFAULT,
+                                ScheduleList.DEFAULT);
+
+                    case TIMESTAMP_SECONDS_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_SCHEDULED_COUNTS.protoOrdinal(),
+                                new TimestampSeconds(0L),
+                                ScheduledCounts.DEFAULT);
+
+                    case SLOT_KEY_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_CONTRACT_STORAGE.protoOrdinal(),
+                                SlotKey.DEFAULT,
+                                SlotValue.DEFAULT);
+
+                    case CONTRACT_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_CONTRACT_BYTECODE.protoOrdinal(),
+                                ContractID.DEFAULT,
+                                Bytecode.DEFAULT);
+
+                    case TOKEN_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_TOKENS.protoOrdinal(), TokenID.DEFAULT, Token.DEFAULT);
+
+                    case TOPIC_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_TOPICS.protoOrdinal(), TopicID.DEFAULT, Topic.DEFAULT);
+
+                    case PENDING_AIRDROP_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_PENDING_AIRDROPS.protoOrdinal(),
+                                PendingAirdropId.DEFAULT,
+                                AccountPendingAirdrop.DEFAULT);
+
+                    case TSS_MESSAGE_MAP_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_TSS_MESSAGES.protoOrdinal(),
+                                TssMessageMapKey.DEFAULT,
+                                TssMessageTransactionBody.DEFAULT);
+
+                    case TSS_VOTE_MAP_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_TSS_VOTES.protoOrdinal(),
+                                TssVoteMapKey.DEFAULT,
+                                TssVoteTransactionBody.DEFAULT);
+
+                    case HINTS_PARTY_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_HINTS_KEY_SETS.protoOrdinal(),
+                                HintsPartyId.DEFAULT,
+                                HintsKeySet.DEFAULT);
+
+                    case PREPROCESSING_VOTE_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_PREPROCESSING_VOTES.protoOrdinal(),
+                                PreprocessingVoteId.DEFAULT,
+                                PreprocessingVote.DEFAULT);
+
+                    case NODE_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_NODES.protoOrdinal(), NodeId.DEFAULT, Node.DEFAULT);
+
+                    case CONSTRUCTION_NODE_ID_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_HISTORY_SIGNATURES.protoOrdinal(),
+                                ConstructionNodeId.DEFAULT,
+                                RecordedHistorySignature.DEFAULT);
+                };
+        if (scenario != null) {
+            assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));
+        }
+    }
+
+    private record MapUpdateScenario<K, V>(int stateId, K key, V value) {}
 }

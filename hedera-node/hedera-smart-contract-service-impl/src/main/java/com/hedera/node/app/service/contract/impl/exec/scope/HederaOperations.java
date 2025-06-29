@@ -263,7 +263,7 @@ public interface HederaOperations {
      * @param contractId    ContractId of hollow account
      * @param evmAddress    Evm address of hollow account
      */
-    void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress);
+    void externalizeHollowAccountMerge(@NonNull ContractID contractId, @NonNull Bytes evmAddress);
 
     /**
      * Given a {@link ContractID}, returns it if the shard and realm match for this node; otherwise,

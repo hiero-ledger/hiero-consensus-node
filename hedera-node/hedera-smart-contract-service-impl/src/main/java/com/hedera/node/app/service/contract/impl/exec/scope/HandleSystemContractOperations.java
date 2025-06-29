@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
@@ -113,15 +114,20 @@ public class HandleSystemContractOperations implements SystemContractOperations 
 
     @Override
     public void externalizeResult(
-            @NonNull final ContractFunctionResult result,
+            @Deprecated @NonNull final ContractFunctionResult result,
             @NonNull final ResponseCodeEnum responseStatus,
-            @NonNull final Transaction transaction) {
+            @NonNull final Transaction transaction,
+            @NonNull final EvmTransactionResult txResult) {
         requireNonNull(transaction);
+        requireNonNull(result);
+        requireNonNull(responseStatus);
+        requireNonNull(txResult);
         context.savepointStack()
                 .addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL)
                 .transaction(transaction)
                 .status(responseStatus)
-                .contractCallResult(result);
+                .contractCallResult(result)
+                .evmCallTransactionResult(txResult);
     }
 
     @Override

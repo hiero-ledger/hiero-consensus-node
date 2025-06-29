@@ -32,12 +32,20 @@ public interface EthereumTransactionStreamBuilder extends ContractOperationStrea
     EthereumTransactionStreamBuilder contractID(@Nullable ContractID contractId);
 
     /**
+     * Tracks the nonce of the sender after the HAPI Ethereum transaction.
+     * @return this builder
+     */
+    @NonNull
+    EthereumTransactionStreamBuilder newSenderNonce(long senderNonce);
+
+    /**
      * Tracks the result of a HAPI Ethereum transaction performing a top-level contract call.
      *
      * @param result the {@link ContractFunctionResult} of the contract call
      * @return this builder
      */
     @NonNull
+    @Deprecated
     EthereumTransactionStreamBuilder contractCallResult(@Nullable ContractFunctionResult result);
 
     /**
@@ -47,14 +55,16 @@ public interface EthereumTransactionStreamBuilder extends ContractOperationStrea
      * @return this builder
      */
     @NonNull
+    @Deprecated
     EthereumTransactionStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result);
 
     /**
      * Tracks the hash of a HAPI Ethereum transaction.
      *
      * @param ethereumHash the {@link Bytes} of the Ethereum transaction hash
+     * @param hydratedFromFile whether the Ethereum transaction data was hydrated from a file
      * @return this builder
      */
     @NonNull
-    EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash);
+    EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash, boolean hydratedFromFile);
 }

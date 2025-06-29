@@ -147,11 +147,14 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         final var outcome = component.contextTransactionProcessor().call();
 
         // Assemble the appropriate top-level record for the result
-        final var ethTxData =
-                requireNonNull(requireNonNull(component.hydratedEthTxData()).ethTxData());
-        context.savepointStack()
+        final var hydratedEthTxData = requireNonNull(component.hydratedEthTxData());
+        final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
+        final var ethStreamBuilder = context.savepointStack()
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
-                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
+                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
+        if (outcome.hasNewSenderNonce()) {
+            ethStreamBuilder.newSenderNonce(outcome.newSenderNonceOrThrow());
+        }
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
             outcome.addCallDetailsTo(streamBuilder);
@@ -169,11 +172,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
      */
     public void handleThrottled(@NonNull final HandleContext context) {
         final var component = getTransactionComponent(context, ETHEREUM_TRANSACTION);
-        final var ethTxData =
-                requireNonNull(requireNonNull(component.hydratedEthTxData()).ethTxData());
+        final var hydratedEthTxData = requireNonNull(component.hydratedEthTxData());
+        final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
         context.savepointStack()
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
-                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
+                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
     }
 
     @Override

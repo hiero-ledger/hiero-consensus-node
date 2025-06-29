@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -126,9 +127,14 @@ public class Erc20TransfersCall extends AbstractCall {
             final var encodedOutput = (from == null)
                     ? ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))
                     : ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true));
-            recordBuilder.contractCallResult(ContractFunctionResult.newBuilder()
-                    .contractCallResult(Bytes.wrap(encodedOutput.array()))
-                    .build());
+            final var outputData = Bytes.wrap(encodedOutput.array());
+            recordBuilder
+                    .contractCallResult(ContractFunctionResult.newBuilder()
+                            .contractCallResult(outputData)
+                            .build())
+                    .evmCallTransactionResult(EvmTransactionResult.newBuilder()
+                            .resultData(outputData)
+                            .build());
             return gasOnly(successResult(encodedOutput, gasRequirement, recordBuilder), status, false);
         }
     }

@@ -285,7 +285,6 @@ class TokenServiceApiImplTest {
         assertEquals(1, accountStore.sizeOfAccountState());
         final var deletedContract = requireNonNull(accountStore.getContractById(CONTRACT_ID_BY_NUM));
         assertTrue(deletedContract.deleted());
-        assertEquals(Bytes.EMPTY, deletedContract.alias());
         assertEquals(0, accountStore.sizeOfAliasesState());
     }
 

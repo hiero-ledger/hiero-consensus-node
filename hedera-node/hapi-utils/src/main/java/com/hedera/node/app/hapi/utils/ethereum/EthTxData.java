@@ -99,27 +99,6 @@ public record EthTxData(
     }
 
     @VisibleForTesting
-    EthTxData replaceOfferedGasPrice(@NonNull final BigInteger replacementGasPrice) {
-        return new EthTxData(
-                null,
-                type,
-                chainId,
-                nonce,
-                replacementGasPrice.toByteArray(),
-                maxPriorityGas,
-                maxGas,
-                gasLimit,
-                to,
-                value,
-                callData,
-                accessList,
-                recId,
-                v,
-                r,
-                s);
-    }
-
-    @VisibleForTesting
     EthTxData replaceValue(@NonNull final BigInteger replacementValue) {
         return new EthTxData(
                 null,
@@ -150,45 +129,48 @@ public record EthTxData(
             throw new IllegalStateException("Re-encoding access list is unsupported");
         }
         return switch (type) {
-            case LEGACY_ETHEREUM -> RLPEncoder.list(
-                    Integers.toBytes(nonce),
-                    gasPrice,
-                    Integers.toBytes(gasLimit),
-                    to,
-                    Integers.toBytesUnsigned(value),
-                    callData,
-                    v,
-                    r,
-                    s);
-            case EIP2930 -> RLPEncoder.sequence(
-                    Integers.toBytes(0x01),
-                    List.of(
-                            chainId,
-                            Integers.toBytes(nonce),
-                            gasPrice,
-                            Integers.toBytes(gasLimit),
-                            to,
-                            Integers.toBytesUnsigned(value),
-                            callData,
-                            List.of(/*accessList*/ ),
-                            Integers.toBytes(recId),
-                            r,
-                            s));
-            case EIP1559 -> RLPEncoder.sequence(
-                    Integers.toBytes(0x02),
-                    List.of(
-                            chainId,
-                            Integers.toBytes(nonce),
-                            maxPriorityGas,
-                            maxGas,
-                            Integers.toBytes(gasLimit),
-                            to,
-                            Integers.toBytesUnsigned(value),
-                            callData,
-                            List.of(/*accessList*/ ),
-                            Integers.toBytes(recId),
-                            r,
-                            s));
+            case LEGACY_ETHEREUM ->
+                RLPEncoder.list(
+                        Integers.toBytes(nonce),
+                        gasPrice,
+                        Integers.toBytes(gasLimit),
+                        to,
+                        Integers.toBytesUnsigned(value),
+                        callData,
+                        v,
+                        r,
+                        s);
+            case EIP2930 ->
+                RLPEncoder.sequence(
+                        Integers.toBytes(0x01),
+                        List.of(
+                                chainId,
+                                Integers.toBytes(nonce),
+                                gasPrice,
+                                Integers.toBytes(gasLimit),
+                                to,
+                                Integers.toBytesUnsigned(value),
+                                callData,
+                                List.of(/*accessList*/ ),
+                                Integers.toBytes(recId),
+                                r,
+                                s));
+            case EIP1559 ->
+                RLPEncoder.sequence(
+                        Integers.toBytes(0x02),
+                        List.of(
+                                chainId,
+                                Integers.toBytes(nonce),
+                                maxPriorityGas,
+                                maxGas,
+                                Integers.toBytes(gasLimit),
+                                to,
+                                Integers.toBytesUnsigned(value),
+                                callData,
+                                List.of(/*accessList*/ ),
+                                Integers.toBytes(recId),
+                                r,
+                                s));
         };
     }
 

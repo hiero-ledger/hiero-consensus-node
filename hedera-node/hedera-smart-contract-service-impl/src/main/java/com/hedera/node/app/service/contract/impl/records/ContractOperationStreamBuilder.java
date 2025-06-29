@@ -8,6 +8,7 @@ import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -77,6 +78,9 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         }
         if (outcome.hasLogs()) {
             addLogs(outcome.logsOrThrow());
+        }
+        if (outcome.hasChangedNonces()) {
+            changedNonceInfo(outcome.changedNonceInfosOrThrow());
         }
         return this;
     }
@@ -149,5 +153,12 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
-    ContractCallStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs);
+    ContractOperationStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs);
+
+    /**
+     * Tracks the contract ids that have changed nonce values as a result of this contract creation.
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder changedNonceInfo(@NonNull List<ContractNonceInfo> nonceInfos);
 }

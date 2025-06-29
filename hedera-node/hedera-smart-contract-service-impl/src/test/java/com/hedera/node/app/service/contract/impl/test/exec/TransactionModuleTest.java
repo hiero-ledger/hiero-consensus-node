@@ -132,7 +132,7 @@ class TransactionModuleTest {
 
     @Test
     void providesCorrespondingKeyForAvailableEthTxData() {
-        final var hydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA);
+        final var hydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false);
         given(ethTxSigsCache.computeIfAbsent(ETH_DATA_WITH_CALL_DATA))
                 .willReturn(
                         new EthTxSigs(A_SECP256K1_KEY.ecdsaSecp256k1OrThrow().toByteArray(), new byte[0]));
@@ -166,7 +166,7 @@ class TransactionModuleTest {
         final var body =
                 TransactionBody.newBuilder().ethereumTransaction(ethTxn).build();
         given(context.body()).willReturn(body);
-        final var expectedHydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA);
+        final var expectedHydration = HydratedEthTxData.successFrom(ETH_DATA_WITH_CALL_DATA, false);
         given(hydration.tryToHydrate(ethTxn, fileStore, DEFAULT_HEDERA_CONFIG.firstUserEntity()))
                 .willReturn(expectedHydration);
         assertSame(

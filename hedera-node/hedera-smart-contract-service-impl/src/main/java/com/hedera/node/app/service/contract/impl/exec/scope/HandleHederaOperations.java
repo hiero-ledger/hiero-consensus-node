@@ -23,6 +23,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -379,14 +380,19 @@ public class HandleHederaOperations implements HederaOperations {
     }
 
     @Override
-    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
+    public void externalizeHollowAccountMerge(@NonNull final ContractID contractId, @NonNull final Bytes evmAddress) {
+        requireNonNull(contractId);
+        requireNonNull(evmAddress);
         final var recordBuilder = context.savepointStack()
                 .addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE)
                 .createdContractID(contractId)
+                .createdEvmAddress(evmAddress)
                 .status(SUCCESS)
                 .transaction(transactionWith(TransactionBody.newBuilder()
                         .contractCreateInstance(synthContractCreationForExternalization(contractId))
                         .build()))
+                .evmCreateTransactionResult(
+                        EvmTransactionResult.newBuilder().contractId(contractId).build())
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(contractId)
                         .evmAddress(evmAddress)
@@ -443,6 +449,10 @@ public class HandleHederaOperations implements HederaOperations {
         pendingCreationMetadataRef.set(newContractId, pendingCreationMetadata);
         streamBuilder
                 .createdContractID(newContractId)
+                .createdEvmAddress(evmAddress)
+                .evmCreateTransactionResult(EvmTransactionResult.newBuilder()
+                        .contractId(newContractId)
+                        .build())
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(newContractId)
                         .evmAddress(evmAddress)

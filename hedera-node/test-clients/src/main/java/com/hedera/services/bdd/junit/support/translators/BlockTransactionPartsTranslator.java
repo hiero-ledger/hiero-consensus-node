@@ -7,6 +7,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 
 /**
@@ -30,6 +31,7 @@ public interface BlockTransactionPartsTranslator {
      * @param parts the parts of the transaction
      * @param baseTranslator the base translator
      * @param remainingStateChanges the state changes remaining to be processed
+     * @param tracesSoFar if not null, the traces up to this point of the transaction unit
      * @param followingUnitTraces any additional trace data associated with the transaction unit
      * @return the translated record
      */
@@ -37,5 +39,6 @@ public interface BlockTransactionPartsTranslator {
             @NonNull BlockTransactionParts parts,
             @NonNull BaseTranslator baseTranslator,
             @NonNull List<StateChange> remainingStateChanges,
+            @Nullable List<TraceData> tracesSoFar,
             @NonNull List<TraceData> followingUnitTraces);
 }

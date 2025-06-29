@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
@@ -12,6 +13,7 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 
 /**
@@ -23,6 +25,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
+            @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<TraceData> followingUnitTraces) {
         return baseTranslator.recordFrom(
                 parts,
@@ -30,13 +33,14 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                 TransactionOutput.TransactionOneOfType.CONTRACT_CALL)
                         .map(TransactionOutput::contractCallOrThrow)
                         .ifPresent(callContractOutput -> {
-                            final var resultBuilder = callContractOutput
-                                    .contractCallResultOrThrow()
-                                    .copyBuilder();
-                            if (parts.status() == SUCCESS) {
-                                mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                            final var derivedBuilder =
+                                    resultBuilderFrom(callContractOutput.evmTransactionResultOrThrow());
+                            if (parts.status() == SUCCESS && (parts.isTopLevel() || parts.inBatch())) {
+                                mapTracesToVerboseLogs(derivedBuilder, parts.traces());
+                                baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);
                             }
-                            final var result = resultBuilder.build();
+                            final var result = derivedBuilder.build();
                             recordBuilder.contractCallResult(result);
                             if (parts.transactionIdOrThrow().nonce() == 0 && result.gasUsed() > 0L) {
                                 receiptBuilder.contractID(result.contractID());
