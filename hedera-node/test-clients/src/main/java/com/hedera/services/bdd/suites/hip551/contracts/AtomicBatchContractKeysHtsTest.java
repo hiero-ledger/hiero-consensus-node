@@ -167,7 +167,6 @@ public class AtomicBatchContractKeysHtsTest {
         final var contractKeyShape = KeyShape.threshOf(1, SIMPLE, KeyShape.CONTRACT);
         final var tokenAddress = new AtomicReference<Address>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TOKEN_USAGE)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(50L)
@@ -219,7 +218,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> delegateCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
@@ -242,7 +240,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
-                                        .payingWith(GENESIS)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -262,7 +259,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> delegateCallForMintWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .supplyKey(SUPPLY_KEY)
@@ -282,7 +278,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 "mintDelegateCall",
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
-                                        .payingWith(GENESIS)
                                         .via(DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -304,7 +299,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
@@ -318,7 +312,6 @@ public class AtomicBatchContractKeysHtsTest {
                                         "dissociateStaticCall",
                                         accountAddress.get(),
                                         vanillaTokenTokenAddress.get())
-                                .payingWith(GENESIS)
                                 .via("staticDissociateCallTxn")
                                 .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -332,7 +325,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
@@ -346,8 +338,7 @@ public class AtomicBatchContractKeysHtsTest {
                 tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                 tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                        .payingWith(GENESIS),
+                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT)),
                 nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
                 sourcing(() -> atomicBatchDefaultOperator(
@@ -360,7 +351,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 accountAddress.get(),
                                                 receiverAddress.get(),
                                                 1L)
-                                        .payingWith(GENESIS)
                                         .via("staticTransferCallWithContractKeyTxn")
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -371,7 +361,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
@@ -381,7 +370,6 @@ public class AtomicBatchContractKeysHtsTest {
                         .exposingAddressTo(vanillaTokenTokenAddress::set),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(FIRST_STRING_FOR_MINT))),
                 mintToken(VANILLA_TOKEN, List.of(copyFromUtf8(SECOND_STR_FOR_MINT))),
-                uploadInitCode(STATIC_CONTRACT, NESTED_CONTRACT),
                 contractCreate(NESTED_CONTRACT),
                 nestedContractCreate(STATIC_CONTRACT, NESTED_CONTRACT),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, STATIC_CONTRACT))),
@@ -395,7 +383,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
-                                        .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -406,7 +393,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> staticCallForMintWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .supplyKey(SUPPLY_KEY)
@@ -426,7 +412,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 "mintStaticCall",
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
-                                        .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -439,7 +424,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         final AtomicReference<Address> receiverAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
@@ -456,8 +440,7 @@ public class AtomicBatchContractKeysHtsTest {
                                 tokenAssociate(NESTED_CONTRACT, VANILLA_TOKEN),
                                 tokenAssociate(ACCOUNT, VANILLA_TOKEN),
                                 tokenAssociate(RECEIVER, VANILLA_TOKEN),
-                                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT))
-                                        .payingWith(GENESIS),
+                                cryptoTransfer(movingUnique(VANILLA_TOKEN, 1L).between(TOKEN_TREASURY, ACCOUNT)),
                                 cryptoUpdate(ACCOUNT).key(DELEGATE_KEY),
                                 tokenAssociate(STATIC_CONTRACT, VANILLA_TOKEN),
                                 contractCall(
@@ -467,7 +450,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 accountAddress.get(),
                                                 receiverAddress.get(),
                                                 1L)
-                                        .payingWith(GENESIS)
                                         .via("staticTransferCallWithDelegateContractKeyTxn")
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -478,9 +460,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> staticCallForBurnWithDelegateContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
@@ -503,7 +482,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ZERO,
                                                 new long[] {1L})
-                                        .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -514,7 +492,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> staticCallForMintWithDelegateContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .supplyKey(SUPPLY_KEY)
@@ -534,7 +511,6 @@ public class AtomicBatchContractKeysHtsTest {
                                                 "mintStaticCall",
                                                 vanillaTokenTokenAddress.get(),
                                                 BigInteger.ONE)
-                                        .payingWith(GENESIS)
                                         .via(STATIC_BURN_CALL_WITH_DELEGATE_CONTRACT_KEY_TXN)
                                         .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -546,11 +522,7 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(ACCOUNT)
-                        .balance(ONE_MILLION_HBARS)
-                        .payingWith(GENESIS)
-                        .exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(ONE_MILLION_HBARS).exposingEvmAddressTo(accountAddress::set),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -577,7 +549,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TYPE_OF_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(0)
@@ -621,7 +592,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT_NAME).balance(10 * ONE_HUNDRED_HBARS),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TYPE_OF_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(0)
@@ -667,7 +637,6 @@ public class AtomicBatchContractKeysHtsTest {
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(RECEIVER).exposingEvmAddressTo(receiverAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(NFT)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(UNIVERSAL_KEY)
@@ -718,7 +687,6 @@ public class AtomicBatchContractKeysHtsTest {
         return hapiTest(
                 cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(RECEIVER).exposingEvmAddressTo(receiverAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(NFT)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(UNIVERSAL_KEY)
@@ -745,7 +713,6 @@ public class AtomicBatchContractKeysHtsTest {
                                         1L)
                                 .fee(2 * ONE_HBAR)
                                 .hasKnownStatus(SUCCESS)
-                                .payingWith(GENESIS)
                                 .gas(GAS_TO_OFFER)
                                 .via(DISTRIBUTE_TX))),
                 getTokenInfo(NFT).hasTotalSupply(2),
@@ -771,7 +738,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -805,7 +771,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -839,7 +804,6 @@ public class AtomicBatchContractKeysHtsTest {
         final var totalSupply = 1_000;
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -903,7 +867,6 @@ public class AtomicBatchContractKeysHtsTest {
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(totalSupply)
                         .exposingAddressTo(vanillaTokenAddress::set),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
                 cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
@@ -950,7 +913,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> callForBurnWithDelegateContractKey() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TOKEN_USAGE)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(50L)
@@ -986,7 +948,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1002,7 +963,6 @@ public class AtomicBatchContractKeysHtsTest {
                                         "associateDelegateCall",
                                         accountAddress.get(),
                                         vanillaTokenTokenAddress.get())
-                                .payingWith(GENESIS)
                                 .via("delegateAssociateCallWithDelegateContractKeyTxn")
                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS)
                                 .gas(GAS_TO_OFFER))),
@@ -1024,7 +984,6 @@ public class AtomicBatchContractKeysHtsTest {
 
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1062,7 +1021,6 @@ public class AtomicBatchContractKeysHtsTest {
 
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
@@ -1140,7 +1098,6 @@ public class AtomicBatchContractKeysHtsTest {
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(TOTAL_SUPPLY)
                         .exposingAddressTo(vanillaTokenAddress::set),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1224,7 +1181,6 @@ public class AtomicBatchContractKeysHtsTest {
 
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1280,7 +1236,6 @@ public class AtomicBatchContractKeysHtsTest {
 
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1305,7 +1260,6 @@ public class AtomicBatchContractKeysHtsTest {
                                         TOKEN_DISSOCIATE,
                                         accountAddress.get(),
                                         kycTokenAddress.get())
-                                .payingWith(GENESIS)
                                 .via("kycTokenDissociateWithDelegateContractKeyHappyTxn")
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(SUCCESS))),
@@ -1335,7 +1289,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
 
         return hapiTest(
-                newKeyNamed(MULTI_KEY),
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
                 cryptoCreate(TOKEN_TREASURY).balance(0L).exposingEvmAddressTo(treasuryAddress::set),
                 tokenCreate(VANILLA_TOKEN)
@@ -1427,7 +1380,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(GENESIS)
@@ -1436,7 +1388,6 @@ public class AtomicBatchContractKeysHtsTest {
                         .freezeDefault(true)
                         .freezeKey(FREEZE_KEY)
                         .exposingAddressTo(frozenTokenAddress::set),
-                uploadInitCode(ASSOCIATE_DISSOCIATE_CONTRACT),
                 contractCreate(ASSOCIATE_DISSOCIATE_CONTRACT),
                 newKeyNamed(DELEGATE_KEY)
                         .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_DISSOCIATE_CONTRACT))),
@@ -1485,7 +1436,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
@@ -1539,9 +1489,7 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(FREEZE_KEY),
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(GENESIS)
@@ -1612,7 +1560,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
@@ -1645,7 +1592,6 @@ public class AtomicBatchContractKeysHtsTest {
                                         TOKEN_ASSOCIATE,
                                         accountAddress.get(),
                                         vanillaTokenAddress.get())
-                                .payingWith(GENESIS)
                                 .via("vanillaNFTSecondAssociateFailsTxn")
                                 .gas(GAS_TO_OFFER))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -1682,7 +1628,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> kycTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(KYC_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1749,9 +1694,7 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> frozenTokenAddress = new AtomicReference<>();
         return hapiTest(
-                newKeyNamed(FREEZE_KEY),
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(FROZEN_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1821,7 +1764,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1888,7 +1830,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1924,7 +1865,6 @@ public class AtomicBatchContractKeysHtsTest {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
                 cryptoCreate(ACCOUNT).exposingEvmAddressTo(accountAddress::set),
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(VANILLA_TOKEN)
                         .tokenType(FUNGIBLE_COMMON)
                         .treasury(TOKEN_TREASURY)
@@ -1958,7 +1898,6 @@ public class AtomicBatchContractKeysHtsTest {
     public final Stream<DynamicTest> callForBurnWithContractKey() {
         final AtomicReference<Address> tokenAddress = new AtomicReference<>();
         return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
                 tokenCreate(TOKEN_USAGE)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(50L)
