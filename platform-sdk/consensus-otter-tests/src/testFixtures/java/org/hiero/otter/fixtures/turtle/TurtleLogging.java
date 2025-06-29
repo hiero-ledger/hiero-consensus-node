@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.Filter.Result;
@@ -35,8 +36,8 @@ public class TurtleLogging {
     }
 
     public void addNodeLogging(@NonNull final NodeId nodeId, @NonNull final Path outputDirectory) {
-        Objects.requireNonNull(nodeId, "nodeId cannot be null");
-        Objects.requireNonNull(outputDirectory, "outputDirectory cannot be null");
+        requireNonNull(nodeId, "nodeId cannot be null");
+        requireNonNull(outputDirectory, "outputDirectory cannot be null");
         nodeIdConfigurations.put(nodeId, outputDirectory);
         updateLogging();
     }
