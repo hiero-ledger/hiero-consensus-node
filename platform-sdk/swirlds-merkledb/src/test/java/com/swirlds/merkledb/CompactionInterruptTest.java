@@ -12,8 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.TestType;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
@@ -195,17 +193,12 @@ class CompactionInterruptTest {
             final int start = batch * count;
             final int end = start + count;
             final int lastLeafPath = (COUNT + end) - 1;
-            final KeySerializer keySerializer =
-                    TestType.variable_variable.dataType().getKeySerializer();
-            final ValueSerializer valueSerializer =
-                    TestType.variable_variable.dataType().getValueSerializer();
             dataSource.saveRecords(
                     COUNT,
                     lastLeafPath,
                     IntStream.range(start, end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
                     IntStream.range(COUNT + start, COUNT + end)
-                            .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i))
-                            .map(r -> r.toBytes(keySerializer, valueSerializer)),
+                            .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
                     Stream.empty());
         }
     }

@@ -89,9 +89,14 @@ public final class StateUtils {
      * an {@link InMemoryWritableKVState}'s value merkle type to be deserialized, answering with the
      * generated class ID.
      *
+     * @deprecated Registrations should be removed when there are no longer any objects of the relevant class.
+     * Once all registrations have been removed, this method itself should be deleted.
+     * See <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/19416">GitHub issue</a>.
+     *
      * @param md The state metadata
      */
     @SuppressWarnings({"rawtypes", "unchecked"})
+    @Deprecated
     public static void registerWithSystem(
             @NonNull final StateMetadata md, @NonNull ConstructableRegistry constructableRegistry) {
         // Register with the system the uniqueId as the "classId" of an InMemoryValue. There can be
@@ -105,20 +110,28 @@ public final class StateUtils {
                             md.inMemoryValueClassId(),
                             md.stateDefinition().keyCodec(),
                             md.stateDefinition().valueCodec())));
+            // FUTURE WORK: remove OnDiskKey registration, once there are no objects of this class
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskKey.class,
                     () -> new OnDiskKey<>(
                             md.onDiskKeyClassId(), md.stateDefinition().keyCodec())));
+            // FUTURE WORK: remove OnDiskKeySerializer registration, once there are no objects of this class
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskKeySerializer.class,
                     () -> new OnDiskKeySerializer<>(
                             md.onDiskKeySerializerClassId(),
                             md.onDiskKeyClassId(),
                             md.stateDefinition().keyCodec())));
+            // FUTURE WORK: remove OnDiskValue registration, once there are no objects of this class
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskValue.class,
                     () -> new OnDiskValue<>(
                             md.onDiskValueClassId(), md.stateDefinition().valueCodec())));
+            // FUTURE WORK: remove OnDiskValueSerializer registration, once there are no objects of this class
+            // in existing state snapshots
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     OnDiskValueSerializer.class,
                     () -> new OnDiskValueSerializer<>(

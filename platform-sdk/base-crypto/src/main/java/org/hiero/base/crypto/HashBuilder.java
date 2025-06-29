@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.logging.legacy.LogMarker;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -139,6 +140,23 @@ public class HashBuilder {
             digest.update(t);
         }
 
+        return this;
+    }
+
+    /**
+     * hash the given Bytes object, including its length
+     *
+     * @param bytes
+     *      the Bytes object to be hashed
+     * @return the HashBuilder object after digesting this Bytes object
+     */
+    public HashBuilder update(final Bytes bytes) {
+        if (bytes == null) {
+            update(0);
+        } else {
+            update(bytes.length());
+            bytes.writeTo(digest);
+        }
         return this;
     }
 

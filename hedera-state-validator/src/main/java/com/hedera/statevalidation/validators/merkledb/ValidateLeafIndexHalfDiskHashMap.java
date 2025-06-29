@@ -9,6 +9,7 @@ import static com.hedera.statevalidation.validators.Utils.printFileDataLocationE
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.merkledb.reflect.BucketIterator;
 import com.hedera.statevalidation.merkledb.reflect.HalfDiskHashMapW;
 import com.hedera.statevalidation.merkledb.reflect.MemoryIndexDiskKeyValueStoreW;
@@ -20,10 +21,8 @@ import com.hedera.statevalidation.reporting.SlackReportGenerator;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -50,7 +49,6 @@ public class ValidateLeafIndexHalfDiskHashMap {
             return;
         }
 
-        final VirtualMap<VirtualKey, VirtualValue> map = vmAndSource.map();
         final KeySerializer keySerializer = vmAndSource.keySerializer();
         final ValueSerializer valueSerializer = vmAndSource.valueSerializer();
         boolean skipStaleKeysValidation = VALIDATE_STALE_KEYS_EXCLUSIONS.contains(vmAndSource.name());
@@ -91,29 +89,35 @@ public class ValidateLeafIndexHalfDiskHashMap {
                 long path;
                 while (bucketIterator.hasNext()) {
                     ParsedBucket.BucketEntry entry = bucketIterator.next();
-                    VirtualKey key = (VirtualKey) keySerializer.fromBytes(entry.getKeyBytes());
+                    Bytes keyBytes = entry.getKeyBytes();
                     path = entry.getValue();
                     // get path -> dataLocation
                     var dataLocation = pathToDiskLocationLeafNodes.get(path);
                     if (dataLocation == 0) {
-                        collectInfo(new StalePathInfo(path, key), stalePathsInfos);
+                        collectInfo(new StalePathInfo(path, parseKey(keySerializer, keyBytes)), stalePathsInfos);
                         continue;
                     }
                     final BufferedData leafData = leafStoreDFC.readDataItem(dataLocation);
                     if (leafData == null) {
                         printFileDataLocationError(log, "Record with null leafs!", dfc, bucketLocation);
-                        collectInfo(new NullLeafInfo(path, key), nullLeafsInfo);
+                        collectInfo(new NullLeafInfo(path, parseKey(keySerializer, keyBytes)), nullLeafsInfo);
                         continue;
                     }
                     final VirtualLeafBytes leafBytes = VirtualLeafBytes.parseFrom(leafData);
-                    final VirtualLeafRecord<?, ?> leaf = leafBytes.toRecord(keySerializer, valueSerializer);
-                    if (!key.equals(leaf.getKey())) {
+                    if (!keyBytes.equals(leafBytes.keyBytes())) {
                         printFileDataLocationError(log, "Record with unexpected key!", dfc, bucketLocation);
-                        collectInfo(new UnexpectedKeyInfo(path, key, leaf.getKey()), unexpectedKeyInfos);
+                        collectInfo(
+                                new UnexpectedKeyInfo(
+                                        path,
+                                        parseKey(keySerializer, keyBytes),
+                                        parseKey(keySerializer, leafBytes.keyBytes())),
+                                unexpectedKeyInfos);
                     }
-                    if (leaf.getPath() != path) {
+                    if (leafBytes.path() != path) {
                         printFileDataLocationError(log, "Record with unexpected path!", dfc, bucketLocation);
-                        collectInfo(new PathMismatchInfo(path, leaf.getPath(), key), pathMismatchInfos);
+                        collectInfo(
+                                new PathMismatchInfo(path, leafBytes.path(), parseKey(keySerializer, keyBytes)),
+                                pathMismatchInfos);
                     }
                 }
             } catch (Exception e) {
@@ -169,6 +173,10 @@ public class ValidateLeafIndexHalfDiskHashMap {
                                         pathMismatchInfos.isEmpty(),
                                         incorrectBucketIndexList.isEmpty(),
                                         incorrectBucketIndexList));
+    }
+
+    private static VirtualKey parseKey(KeySerializer keySerializer, Bytes keyBytes) {
+        return (VirtualKey) keySerializer.fromBytes(keyBytes);
     }
 
     private static <T> void collectInfo(T info, CopyOnWriteArrayList<T> list) {

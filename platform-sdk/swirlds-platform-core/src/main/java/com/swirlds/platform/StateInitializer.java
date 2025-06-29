@@ -61,7 +61,7 @@ public final class StateInitializer {
         // Although the state from disk / genesis state is initially hashed, we are actually dealing with a copy
         // of that state here. That copy should have caused the hash to be cleared.
 
-        if (initialState.getHash() != null) {
+        if (initialState.isHashed()) {
             throw new IllegalStateException("Expected initial state to be unhashed");
         }
 
