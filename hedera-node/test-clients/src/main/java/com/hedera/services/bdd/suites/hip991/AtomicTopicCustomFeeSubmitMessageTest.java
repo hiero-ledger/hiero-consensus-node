@@ -437,6 +437,7 @@ public class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     }));
         }
 
+        @HapiTest
         @DisplayName("Submit message to a topic after fee update")
         // TOPIC_FEE_126
         final Stream<DynamicTest> submitMessageAfterUpdate() {
