@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.anyResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
@@ -17,6 +18,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTIO
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountUpdateSuite.ALIAS;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -25,7 +27,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -117,6 +118,27 @@ class AliasTest {
                                             getABIFor(FUNCTION, IS_VALID_ALIAS_CALL, hrc632Contract.name()),
                                             isLiteralResult(new Object[] {Boolean.FALSE})))));
         }
+
+        @HapiTest
+        @DisplayName("returns false for deleted account")
+        public Stream<DynamicTest> isValidAliasDeletedAccount(
+                @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS) SpecAccount toBeDeletedAlice) {
+            return hapiTest(
+                    hrc632Contract
+                            .call(IS_VALID_ALIAS_CALL, toBeDeletedAlice)
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
+                    cryptoDelete(toBeDeletedAlice.name()),
+                    hrc632Contract
+                            .call(IS_VALID_ALIAS_CALL, toBeDeletedAlice)
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasResults(
+                                    anyResult(),
+                                    resultWith()
+                                            .resultThruAbi(
+                                                    getABIFor(FUNCTION, IS_VALID_ALIAS_CALL, hrc632Contract.name()),
+                                                    isLiteralResult(new Object[] {Boolean.FALSE})))));
+        }
     }
 
     @Nested
@@ -138,7 +160,7 @@ class AliasTest {
             return hapiTest(hrc632Contract
                     .call(GET_EVM_ADDRESS_ALIAS_CALL, nonExtantAlias)
                     .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
         @HapiTest
@@ -147,7 +169,7 @@ class AliasTest {
             return hapiTest(hrc632Contract
                     .call(GET_EVM_ADDRESS_ALIAS_CALL, nonExtantAccount)
                     .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
     }
 
@@ -170,7 +192,7 @@ class AliasTest {
             return hapiTest(hrc632Contract
                     .call(GET_HEDERA_ACCOUNT_NUM_ALIAS_CALL, nonExtantAlias)
                     .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
         @HapiTest
@@ -179,7 +201,20 @@ class AliasTest {
             return hapiTest(hrc632Contract
                     .call(GET_HEDERA_ACCOUNT_NUM_ALIAS_CALL, nonExtantAccount)
                     .gas(1_000_000L)
-                    .andAssert(txn -> txn.hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+        }
+
+        @HapiTest
+        @DisplayName("reverts when given long zero address of a deleted account")
+        public Stream<DynamicTest> hederaAccountNumAliasWithDeletedAccount(
+                @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS) SpecAccount toBeDeletedAlice) {
+            return hapiTest(
+                    toBeDeletedAlice.getBalance(),
+                    cryptoDelete(toBeDeletedAlice.name()),
+                    hrc632Contract
+                            .call(GET_HEDERA_ACCOUNT_NUM_ALIAS_CALL, toBeDeletedAlice)
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
     }
 }
