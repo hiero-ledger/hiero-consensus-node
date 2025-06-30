@@ -92,6 +92,7 @@ public class IssMetrics {
      *
      * @param metrics
      * 		a reference to the metrics-system
+     * @param roster the active roster for this network
      * @throws IllegalArgumentException
      * 		if {@code metrics} is {@code null}
      */

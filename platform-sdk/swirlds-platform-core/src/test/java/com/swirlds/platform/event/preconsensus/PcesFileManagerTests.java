@@ -13,7 +13,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
 import com.swirlds.platform.test.fixtures.event.preconsensus.PcesTestFilesGenerator;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -22,13 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Tests for {@link PcesFileManager}
@@ -56,29 +52,25 @@ class PcesFileManagerTests {
         random = getRandomPrintSeed();
     }
 
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Generate Descriptors With Manager Test")
-    void generateDescriptorsWithManagerTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final PlatformContext platformContext =
-                TestPlatformContexts.context(ancientMode, Time.getCurrent(), dataDirectory);
+    void generateDescriptorsWithManagerTest() throws IOException {
+        final PlatformContext platformContext = TestPlatformContexts.context(Time.getCurrent(), dataDirectory);
 
-        final var result = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+        final var result = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .build()
                 .generate();
 
-        final PcesFileTracker fileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
 
         final List<PcesFile> expectedFiles = result.files();
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
     }
 
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Incremental Pruning By Ancient Boundary Test")
-    void incrementalPruningByAncientBoundaryTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void incrementalPruningByAncientBoundaryTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .withNumFilesToGenerate(NUM_FILES)
                 .build()
                 .generate();
@@ -94,11 +86,10 @@ class PcesFileManagerTests {
 
         // Set the far in the future, we want all files to be GC eligible by temporal reckoning.
         final FakeTime time = new FakeTime(lastFile.getTimestamp().plus(Duration.ofHours(1)), Duration.ZERO);
-        final PlatformContext platformContext = TestPlatformContexts.context(ancientMode, time, dataDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
-        final PcesFileTracker fileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, NodeId.of(0), 0);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
+        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
 
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
@@ -113,7 +104,7 @@ class PcesFileManagerTests {
             // Parse files afresh to make sure we aren't "cheating" by just
             // removing the in-memory descriptor without also removing the file on disk
             final PcesFileTracker freshFileTracker =
-                    PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
+                    PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
 
             final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
@@ -150,7 +141,7 @@ class PcesFileManagerTests {
         // Parse files afresh to make sure we aren't "cheating" by just
         // removing the in-memory descriptor without also removing the file on disk
         final PcesFileTracker freshFileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
+                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
 
         final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
@@ -165,11 +156,10 @@ class PcesFileManagerTests {
         assertEquals(middleFileIndex + 1, firstUnPrunedIndex);
     }
 
-    @ParameterizedTest
-    @EnumSource(AncientMode.class)
+    @Test
     @DisplayName("Incremental Pruning By Timestamp Test")
-    void incrementalPruningByTimestampTest(@NonNull final AncientMode ancientMode) throws IOException {
-        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(ancientMode, random, fileDirectory)
+    void incrementalPruningByTimestampTest() throws IOException {
+        final var pcesFilesGeneratorResult = PcesTestFilesGenerator.Builder.create(random, fileDirectory)
                 .withNumFilesToGenerate(NUM_FILES)
                 .build()
                 .generate();
@@ -185,11 +175,10 @@ class PcesFileManagerTests {
 
         // Set the clock before the first file is not garbage collection eligible
         final FakeTime time = new FakeTime(firstFile.getTimestamp().plus(Duration.ofMinutes(59)), Duration.ZERO);
-        final PlatformContext platformContext = TestPlatformContexts.context(ancientMode, time, dataDirectory);
+        final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
-        final PcesFileTracker fileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, NodeId.of(0), 0);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
+        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
 
         assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
@@ -206,7 +195,7 @@ class PcesFileManagerTests {
             // Parse files afresh to make sure we aren't "cheating" by just
             // removing the in-memory descriptor without also removing the file on disk
             final PcesFileTracker freshFileTracker =
-                    PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
+                    PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
 
             final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
@@ -250,7 +239,7 @@ class PcesFileManagerTests {
         // Parse files afresh to make sure we aren't "cheating" by just
         // removing the in-memory descriptor without also removing the file on disk
         final PcesFileTracker freshFileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false, ancientMode);
+                PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
 
         final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 

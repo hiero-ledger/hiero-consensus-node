@@ -107,7 +107,7 @@ class PlatformTestingToolStateTest {
         roster = new Roster(Collections.EMPTY_LIST);
         transaction = mock(TransactionWrapper.class);
         platformEvent = mock(PlatformEvent.class);
-        eventWindow = EventWindowBuilder.birthRoundMode()
+        eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(10)
                 .setAncientThreshold(5)
                 .setExpiredThreshold(20)
@@ -117,7 +117,7 @@ class PlatformTestingToolStateTest {
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
 
         when(platformEvent.getCreatorId()).thenReturn(new NodeId());
-        when(platformEvent.getSoftwareVersion()).thenReturn(new SemanticVersion(1, 1, 1, "", ""));
+        when(platformEvent.getSoftwareVersion()).thenReturn(null);
         when(platformEvent.getConsensusTimestamp()).thenReturn(Instant.now());
 
         final Randotron randotron = Randotron.create();

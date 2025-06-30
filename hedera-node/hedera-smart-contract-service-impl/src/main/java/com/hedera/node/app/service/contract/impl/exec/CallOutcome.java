@@ -4,16 +4,19 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
-import com.hedera.hapi.streams.ContractActions;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 
 /**
  * Summarizes the outcome of an EVM message call.
@@ -23,21 +26,52 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * @param recipientId if known, the Hedera id of the contract that was called
  * @param actions any contract actions that should be externalized in a sidecar
  * @param stateChanges any contract state changes that should be externalized in a sidecar
- * @param hederaOpsDuration the duration of the evm ops performed during the transaction
+ * @param slotUsages any contract slot usages that should be externalized in trace data
+ * @param logs
  */
 public record CallOutcome(
         @NonNull ContractFunctionResult result,
         @NonNull ResponseCodeEnum status,
         @Nullable ContractID recipientId,
-        @Nullable ContractActions actions,
-        @Nullable ContractStateChanges stateChanges,
-        long hederaOpsDuration) {
+        @Nullable List<ContractAction> actions,
+        @Nullable @Deprecated ContractStateChanges stateChanges,
+        @Nullable List<ContractSlotUsage> slotUsages,
+        @Nullable List<EvmTransactionLog> logs) {
 
     /**
      * @return whether some state changes appeared from the execution of the contract
      */
+    @Deprecated
     public boolean hasStateChanges() {
         return stateChanges != null && !stateChanges.contractStateChanges().isEmpty();
+    }
+
+    /**
+     * @return whether some slot usages appeared from the execution of the contract
+     */
+    public boolean hasSlotUsages() {
+        return slotUsages != null && !slotUsages.isEmpty();
+    }
+
+    /**
+     * @return whether some logs appeared from the execution of the contract.
+     */
+    public boolean hasLogs() {
+        return logs != null && !logs.isEmpty();
+    }
+
+    /**
+     * Return the slot usages.
+     */
+    public @NonNull List<ContractSlotUsage> slotUsagesOrThrow() {
+        return requireNonNull(slotUsages);
+    }
+
+    /**
+     * Return the slot usages.
+     */
+    public @NonNull List<EvmTransactionLog> logsOrThrow() {
+        return requireNonNull(logs);
     }
 
     /**
@@ -53,7 +87,8 @@ public record CallOutcome(
                 hevmResult.recipientId(),
                 hevmResult.actions(),
                 hevmResult.stateChanges(),
-                hevmResult.opsDuration());
+                hevmResult.slotUsages(),
+                hevmResult.evmLogs());
     }
 
     /**
@@ -64,7 +99,7 @@ public record CallOutcome(
     public static CallOutcome fromResultsWithoutSidecars(
             @NonNull ContractFunctionResult result, @NonNull HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
-                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, hevmResult.opsDuration());
+                result, hevmResult.finalStatus(), hevmResult.recipientId(), null, null, null, hevmResult.evmLogs());
     }
 
     /**
@@ -73,6 +108,8 @@ public record CallOutcome(
      * @param recipientId if known, the Hedera id of the contract that was called
      * @param actions any contract actions that should be externalized in a sidecar
      * @param stateChanges any contract state changes that should be externalized in a sidecar
+     * @param slotUsages any contract slot usages that should be externalized in trace data
+     * @param logs
      */
     public CallOutcome {
         requireNonNull(result);
@@ -118,7 +155,7 @@ public record CallOutcome(
      */
     public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder recordBuilder) {
         requireNonNull(recordBuilder);
-        recordBuilder.contractID(recipientIdIfCreated());
+        recordBuilder.createdContractID(recipientIdIfCreated());
         recordBuilder.contractCreateResult(result);
         recordBuilder.withCommonFieldsSetFrom(this);
     }

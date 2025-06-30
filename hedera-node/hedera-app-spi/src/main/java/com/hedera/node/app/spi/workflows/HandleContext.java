@@ -155,6 +155,14 @@ public interface HandleContext {
              * A fee charging strategy that should be used to customize further dispatches.
              */
             CUSTOM_FEE_CHARGING,
+            /**
+             * Whether a contract dispatch should externalize explicit writes with its slot usage traces.
+             */
+            EXPLICIT_WRITE_TRACING,
+            /**
+             * Batch inner transaction bytes. Used to prehandle inner transaction while dispatching them.
+             */
+            INNER_TRANSACTION_BYTES,
         }
     }
 

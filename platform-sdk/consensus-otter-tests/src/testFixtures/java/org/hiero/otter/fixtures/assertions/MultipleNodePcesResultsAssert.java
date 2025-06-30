@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.assertions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import org.assertj.core.api.AbstractAssert;
 import org.hiero.otter.fixtures.OtterAssertions;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -42,7 +43,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasAllBirthRoundsEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveAllBirthRoundsEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -60,7 +61,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -78,7 +79,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundLessThan(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundLessThan(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -97,7 +98,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundLessThanOrEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundLessThanOrEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -115,7 +116,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundGreaterThan(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundGreaterThan(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -133,7 +134,7 @@ public class MultipleNodePcesResultsAssert
      * @return this assertion object for method chaining
      */
     @NonNull
-    public MultipleNodePcesResultsAssert hasMaxBirthRoundGreaterThanOrEqualTo(final long expected) {
+    public MultipleNodePcesResultsAssert haveMaxBirthRoundGreaterThanOrEqualTo(final long expected) {
         // assert that actual is not null
         isNotNull();
 
@@ -141,6 +142,25 @@ public class MultipleNodePcesResultsAssert
             OtterAssertions.assertThat(pcesResult).hasMaxBirthRoundGreaterThanOrEqualTo(expected);
         }
 
+        return this;
+    }
+
+    /**
+     * Verifies that events with a creation time prior to and including the given {@code splitTime} have a birth round
+     * equal to or less than the {@code splitRound}, and all events with a creation time after the {@code splitTime}
+     * have a birth ground greater than {@code splitRound}.
+     *
+     * @param splitTime  all events with a creation time before and including this time should have a birth round equal
+     *                   to or less that the {@code splitRound}
+     * @param splitRound the maximum birth round for events created before and up to the {@code splitTime}
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodePcesResultsAssert haveBirthRoundSplit(@NonNull final Instant splitTime, final long splitRound) {
+        isNotNull();
+        for (final SingleNodePcesResult result : actual.pcesResults()) {
+            OtterAssertions.assertThat(result).hasBirthRoundSplit(splitTime, splitRound);
+        }
         return this;
     }
 }

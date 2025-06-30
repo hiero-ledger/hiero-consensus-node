@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,7 +37,7 @@ class CallOutcomeTest {
     @Test
     void setsAbortCallResult() {
         final var abortedCall = new CallOutcome(
-                ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, null, null, opsDuration);
+                ContractFunctionResult.DEFAULT, INSUFFICIENT_GAS, CALLED_CONTRACT_ID, null, null, null, null);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder);
         verify(contractCallRecordBuilder).contractCallResult(any());
     }
@@ -48,7 +47,7 @@ class CallOutcomeTest {
         given(updater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, opsDuration);
+                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, null, null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
 
@@ -56,7 +55,7 @@ class CallOutcomeTest {
     void recognizesNoCreatedIdWhenEvmAddressNotSet() {
         given(updater.entityIdFactory()).willReturn(entityIdFactory);
         final var outcome =
-                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, opsDuration);
+                new CallOutcome(SUCCESS_RESULT.asProtoResultOf(updater), SUCCESS, null, null, null, null, null);
         assertNull(outcome.recipientIdIfCreated());
     }
 
@@ -69,7 +68,8 @@ class CallOutcomeTest {
                 CALLED_CONTRACT_ID,
                 null,
                 null,
-                opsDuration);
+                null,
+                null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());
     }
 }

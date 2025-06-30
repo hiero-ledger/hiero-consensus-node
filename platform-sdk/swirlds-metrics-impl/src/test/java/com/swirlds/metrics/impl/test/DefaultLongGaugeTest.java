@@ -68,6 +68,35 @@ class DefaultLongGaugeTest {
     }
 
     @Test
+    @DisplayName("Test of get() and add()-operation")
+    void testGetAndAdd() {
+        // given
+        final LongGauge.Config config = new LongGauge.Config(CATEGORY, NAME).withInitialValue(2L);
+        final LongGauge gauge = new DefaultLongGauge(config);
+
+        // when
+        gauge.set(5);
+
+        // then
+        assertEquals(5, gauge.get(), "Value should be 5");
+        assertEquals(5, gauge.get(VALUE), "Value should be 5");
+
+        // when
+        gauge.add(3);
+
+        // then
+        assertEquals(8, gauge.get(), "Value should be 8");
+        assertEquals(8, gauge.get(VALUE), "Value should be 8");
+
+        // when
+        gauge.add(-12);
+
+        // then
+        assertEquals(-4, gauge.get(), "Value should be -4");
+        assertEquals(-4, gauge.get(VALUE), "Value should be -4");
+    }
+
+    @Test
     void testSnapshot() {
         // given
         final LongGauge.Config config = new LongGauge.Config(CATEGORY, NAME).withInitialValue(2L);

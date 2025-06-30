@@ -2,9 +2,6 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
-import static org.hiero.consensus.model.event.AncientMode.BIRTH_ROUND_THRESHOLD;
-import static org.hiero.consensus.model.event.AncientMode.GENERATION_THRESHOLD;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
@@ -18,9 +15,6 @@ import java.time.Instant;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * <p>
@@ -70,28 +64,22 @@ public class PcesFileManager {
     private final PcesFileTracker files;
 
     /**
-     * The PCES file type for new files.
-     */
-    private final AncientMode newFileType;
-
-    /**
      * Constructor
      *
-     * @param platformContext the platform context for this node
-     * @param files           the files to track
-     * @param selfId          the ID of this node
-     * @param startingRound   the round number of the initial state of the system
+     * @param platformContext   the platform context for this node
+     * @param files             the files to track
+     * @param databaseDirectory the directory where new files will be created
+     * @param startingRound     the round number of the initial state of the system
      * @throws IOException if there is an error reading the files
      */
     public PcesFileManager(
             @NonNull final PlatformContext platformContext,
             @NonNull final PcesFileTracker files,
-            @NonNull final NodeId selfId,
+            @NonNull final Path databaseDirectory,
             final long startingRound)
             throws IOException {
 
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(selfId);
 
         if (startingRound < 0) {
             throw new IllegalArgumentException("starting round must be non-negative");
@@ -104,16 +92,9 @@ public class PcesFileManager {
         this.files = Objects.requireNonNull(files);
         this.metrics = new PcesMetrics(platformContext.getMetrics());
         this.minimumRetentionPeriod = preconsensusEventStreamConfig.minimumRetentionPeriod();
-        this.databaseDirectory = getDatabaseDirectory(platformContext, selfId);
+        this.databaseDirectory = Objects.requireNonNull(databaseDirectory);
 
         this.currentOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
-
-        this.newFileType = platformContext
-                        .getConfiguration()
-                        .getConfigData(EventConfig.class)
-                        .useBirthRoundAncientThreshold()
-                ? BIRTH_ROUND_THRESHOLD
-                : GENERATION_THRESHOLD;
 
         initializeMetrics();
     }
@@ -203,7 +184,6 @@ public class PcesFileManager {
         }
 
         final PcesFile descriptor = PcesFile.of(
-                newFileType,
                 time.now(),
                 getNextSequenceNumber(),
                 lowerBoundForFile,
@@ -254,7 +234,6 @@ public class PcesFileManager {
         metrics.getPreconsensusEventAverageFileSpan().update(file.getSpan());
         metrics.getPreconsensusEventAverageUnUtilizedFileSpan().update(file.getUnUtilizedSpan());
         updateFileSizeMetrics();
-        metrics.updateMetricsWithPcesFileWritingStats(file.writerStats());
     }
 
     /**

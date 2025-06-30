@@ -40,7 +40,6 @@ import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.event.validation.InternalEventValidator;
-import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
@@ -60,7 +59,6 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateDumpRequest;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
-import com.swirlds.platform.system.events.BirthRoundMigrationShim;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
@@ -74,13 +72,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -90,6 +86,7 @@ import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -130,7 +127,6 @@ public class PlatformWiring {
     private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
     private final ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring;
     private final PlatformCoordinator platformCoordinator;
-    private final ComponentWiring<BirthRoundMigrationShim, PlatformEvent> birthRoundMigrationShimWiring;
     private final ComponentWiring<AppNotifier, Void> notifierWiring;
     private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
     private final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring;
@@ -165,17 +161,6 @@ public class PlatformWiring {
         this.model = Objects.requireNonNull(model);
 
         config = platformContext.getConfiguration().getConfigData(PlatformSchedulersConfig.class);
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        if (ancientMode == AncientMode.BIRTH_ROUND_THRESHOLD && !isGenesis) {
-            birthRoundMigrationShimWiring =
-                    new ComponentWiring<>(model, BirthRoundMigrationShim.class, DIRECT_THREADSAFE_CONFIGURATION);
-        } else {
-            birthRoundMigrationShimWiring = null;
-        }
 
         eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, config.eventHasher());
 
@@ -343,29 +328,13 @@ public class PlatformWiring {
      * Wire the components together.
      */
     private void wire() {
-        /*
-         * When the birth round migration shim is active, the path should be:
-         *   -> EventHasher -> BirthRoundMigrationShim -> InternalEventValidator ->
-         * When the shim is not active, the path should be:
-         *   -> EventHasher -> InternalEventValidator ->
-         */
-
         final InputWire<PlatformEvent> hasherInputWire =
                 eventHasherWiring.getInputWire(EventHasher::hashEvent, "unhashed event");
         gossipWiring.getEventOutput().solderTo(hasherInputWire);
 
-        if (birthRoundMigrationShimWiring != null) {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(birthRoundMigrationShimWiring.getInputWire(BirthRoundMigrationShim::migrateEvent));
-            birthRoundMigrationShimWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        } else {
-            eventHasherWiring
-                    .getOutputWire()
-                    .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
-        }
+        eventHasherWiring
+                .getOutputWire()
+                .solderTo(internalEventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
 
         internalEventValidatorWiring
                 .getOutputWire()
@@ -580,7 +549,7 @@ public class PlatformWiring {
                 stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::addReservedState));
 
         stateSnapshotManagerWiring
-                .getTransformedOutput(StateSnapshotManager::extractOldestMinimumGenerationOnDisk)
+                .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
                 .solderTo(
                         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
                         INJECT);
@@ -640,7 +609,7 @@ public class PlatformWiring {
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
         notifierWiring.getInputWire(AppNotifier::sendReconnectCompleteNotification);
         notifierWiring.getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
-        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosters);
+        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
         eventWindowManagerWiring.getInputWire(EventWindowManager::updateEventWindow);
         orphanBufferWiring.getInputWire(OrphanBuffer::clear);
         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
@@ -662,8 +631,6 @@ public class PlatformWiring {
      * @param pcesReplayer              the PCES replayer to bind
      * @param stateSignatureCollector   the signed state manager to bind
      * @param eventWindowManager        the event window manager to bind
-     * @param birthRoundMigrationShim   the birth round migration shim to bind, ignored if birth round migration has not
-     *                                  yet happened, must not be null if birth round migration has happened
      * @param latestImmutableStateNexus the latest immutable state nexus to bind
      * @param latestCompleteStateNexus  the latest complete state nexus to bind
      * @param savedStateController      the saved state controller to bind
@@ -675,7 +642,6 @@ public class PlatformWiring {
             @NonNull final PcesReplayer pcesReplayer,
             @NonNull final StateSignatureCollector stateSignatureCollector,
             @NonNull final EventWindowManager eventWindowManager,
-            @Nullable final BirthRoundMigrationShim birthRoundMigrationShim,
             @Nullable final InlinePcesWriter inlinePcesWriter,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
@@ -706,9 +672,6 @@ public class PlatformWiring {
         issDetectorWiring.bind(builder::buildIssDetector);
         issHandlerWiring.bind(builder::buildIssHandler);
         hashLoggerWiring.bind(builder::buildHashLogger);
-        if (birthRoundMigrationShimWiring != null) {
-            birthRoundMigrationShimWiring.bind(Objects.requireNonNull(birthRoundMigrationShim));
-        }
         latestCompleteStateNotifierWiring.bind(builder::buildLatestCompleteStateNotifier);
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);
@@ -735,15 +698,15 @@ public class PlatformWiring {
     }
 
     /**
-     * Get the input wire for the address book update.
+     * Get the input wire for the roster history update.
      * <p>
-     * Future work: this is a temporary hook to update the address book in the new intake pipeline.
+     * Future work: this is a temporary hook to update the rosters in the new intake pipeline.
      *
-     * @return the input method for the address book update
+     * @return the input wire for the roster history update.
      */
     @NonNull
-    public InputWire<RosterUpdate> getRosterUpdateInput() {
-        return eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosters);
+    public InputWire<RosterHistory> getRosterHistoryInput() {
+        return eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
     }
 
     /**

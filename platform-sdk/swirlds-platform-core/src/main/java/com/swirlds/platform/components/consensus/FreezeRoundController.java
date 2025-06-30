@@ -73,8 +73,7 @@ public class FreezeRoundController {
                 // migration logic is needed.
                 round.getEventWindow().latestConsensusRound(),
                 round.getEventWindow().ancientThreshold(),
-                round.getEventWindow().expiredThreshold(),
-                round.getEventWindow().ancientMode());
+                round.getEventWindow().expiredThreshold());
         return new ConsensusRound(
                 round.getConsensusRoster(),
                 round.getConsensusEvents(),

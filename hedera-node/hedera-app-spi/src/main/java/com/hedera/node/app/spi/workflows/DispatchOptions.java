@@ -354,13 +354,15 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param customFeeCharging the custom fee charging strategy for the dispatch
+     * @param innerTransactionBytes inner txn bytes used for pre-handling on dispatch
      * @return the options for the atomic batch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> atomicBatchDispatch(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @NonNull final FeeCharging customFeeCharging) {
+            @NonNull final FeeCharging customFeeCharging,
+            @NonNull final DispatchMetadata innerTransactionBytes) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -373,7 +375,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,
                 NOOP_TRANSACTION_CUSTOMIZER,
-                EMPTY_METADATA,
+                innerTransactionBytes,
                 customFeeCharging);
     }
 }
