@@ -7,6 +7,7 @@ import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
+import org.hiero.otter.fixtures.TimeManager;
 
 /**
  * This class contains examples that are used in the documentation. If you change the examples, please make sure
@@ -14,22 +15,29 @@ import org.hiero.otter.fixtures.TestEnvironment;
  */
 class DocExamplesTest {
 
-    // This test is used in the README.md file.
+    // This test is used in the README.md and getting-started.md files.
     @OtterTest
     void testConsensus(final TestEnvironment env) throws InterruptedException {
-        // Define a network with 4 nodes
+        // 1. Get the network and time manager
         final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        // 2. Create a 4-node network
         network.addNodes(4);
 
-        // Start the network
+        // 3. Start the network
         network.start();
 
-        // Wait for 30 seconds to allow the consensus to progress
-        env.timeManager().waitFor(Duration.ofSeconds(30));
+        // 4. Let the network run for 30 seconds
+        timeManager.waitFor(Duration.ofSeconds(30));
 
-        // Validate the results
+        // 5. Verify consensus was reached
         assertThat(network.getConsensusResults())
                 .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(5));
+
+        // 6. Check for no error-level log messages
+        assertThat(network.getLogResults())
+                .haveNoErrorLevelMessages();
     }
 }

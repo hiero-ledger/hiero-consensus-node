@@ -4,7 +4,7 @@ A comprehensive Java-based testing framework for the Consensus Module, supportin
 
 ## 🚀 Quick Start
 
-https://github.com/hiero-ledger/hiero-consensus-node/blob/main/platform-sdk/consensus-otter-tests/src/test/java/org/hiero/otter/test/DocExampleTest.java#L18-L34
+https://github.com/hiero-ledger/hiero-consensus-node/blob/main/platform-sdk/consensus-otter-tests/src/test/java/org/hiero/otter/test/DocExampleTest.java#L19-L42
 
 ## ✨ Key Features
 
