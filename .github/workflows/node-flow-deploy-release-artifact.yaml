@@ -37,7 +37,7 @@ jobs:
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -83,8 +83,8 @@ jobs:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
       cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
-      svcs-ossrh-username: ${{ secrets.SVCS_OSSRH_USERNAME }}
-      svcs-ossrh-password: ${{ secrets.SVCS_OSSRH_PASSWORD }}
+      central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+      central-publishing-password: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
       svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
       svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
       sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
@@ -104,7 +104,7 @@ jobs:
       - prepare-tag-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -135,7 +135,7 @@ jobs:
 
       - name: Import GPG key for commit signoff
         id: gpg_import
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           gpg_private_key: ${{ secrets.PROTOBUFS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.PROTOBUFS_GPG_KEY_PASSPHRASE }}
@@ -169,8 +169,8 @@ jobs:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
       cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
-      svcs-ossrh-username: ${{ secrets.SVCS_OSSRH_USERNAME }}
-      svcs-ossrh-password: ${{ secrets.SVCS_OSSRH_PASSWORD }}
+      central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+      central-publishing-password: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
       svcs-gpg-key-contents: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
       svcs-gpg-key-passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
       sdk-ossrh-username: ${{ secrets.PLATFORM_OSSRH_USERNAME }}
@@ -190,7 +190,7 @@ jobs:
       - release-branch
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -233,7 +233,7 @@ jobs:
       - release-branch
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -277,7 +277,7 @@ jobs:
     if: ${{ inputs.dry-run-enabled == false && (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 

@@ -198,6 +198,14 @@ public class HapiSpecRegistry {
         return get(name, Long.class);
     }
 
+    public void saveTokenBalanceSnapshot(String token, String name, Long balance) {
+        put(token + "-" + name, balance);
+    }
+
+    public long getTokenBalanceSnapshot(String token, String name) {
+        return get(token + "-" + name, Long.class);
+    }
+
     public Timestamp getTimestamp(String label) {
         return get(label, Timestamp.class);
     }
