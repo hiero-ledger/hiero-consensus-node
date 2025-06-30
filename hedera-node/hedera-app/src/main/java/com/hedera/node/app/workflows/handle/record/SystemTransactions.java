@@ -45,7 +45,6 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.WritableEntityIdStore;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -86,7 +85,6 @@ import com.swirlds.state.lifecycle.EntityIdFactory;
 import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
-import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -108,7 +106,6 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
-import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * This class is responsible for storing the system accounts created during node startup, and then creating
@@ -482,13 +479,8 @@ public class SystemTransactions {
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
-        log.info(
-                "Attempting to dispatch transplant updates for round {}, isTransplantInProgress{}, network{}",
-                currentRoundNum - 1,
-                rosterStore.isTransplantInProgress(),
-                network);
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
-            log.info("Roster transplant in progress, dispatching node updates");
+            log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
                     .map(NodeMetadata::rosterEntry)
                     .map(RosterEntry::nodeId)
@@ -542,13 +534,7 @@ public class SystemTransactions {
                     log.info("Node {} in state is not part of the override network and is being marked deleted", i);
                 }
             }
-
-            final var writableStates = state.getWritableStates(RosterService.NAME);
-            final var writableRosterStore = new WritableRosterStore(writableStates);
-            writableRosterStore.updateTransplantInProgress(false);
-            ((CommittableWritableStates) writableStates).commit();
             log.info("Roster transplant completed, node updates dispatched");
-
             return true;
         }
         return false;

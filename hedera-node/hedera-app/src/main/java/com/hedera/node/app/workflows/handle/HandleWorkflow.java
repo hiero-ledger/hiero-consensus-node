@@ -109,6 +109,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -262,18 +263,26 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
-        try {
-            // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
-            // Dispatch transplant updates for the nodes in override network
-            if (streamMode != RECORDS && !checkedForTransplant) {
+        // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
+        // Dispatch transplant updates for the nodes in override network
+        if (boundaryStateChangeListener.lastConsensusTime() != null && !checkedForTransplant) {
+            try {
                 transactionsDispatched |= systemTransactions.dispatchTransplantUpdates(
                         state,
                         boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
                         round.getRoundNum());
+            } catch (Exception e) {
+                logger.error("Failed to dispatch transplant updates", e);
+            } finally {
+                final var writableStates = state.getWritableStates(RosterService.NAME);
+                final var writableRosterStore = new WritableRosterStore(writableStates);
+                if (writableRosterStore.isTransplantInProgress()) {
+                    writableRosterStore.updateTransplantInProgress(false);
+                    ((CommittableWritableStates) writableStates).commit();
+                    logger.info("Transplant in progress is set to false in the roster store");
+                }
                 checkedForTransplant = true;
             }
-        } catch (Exception e) {
-            logger.warn("Failed to dispatch transplant updates", e);
         }
 
         configureTssCallbacks(state);
