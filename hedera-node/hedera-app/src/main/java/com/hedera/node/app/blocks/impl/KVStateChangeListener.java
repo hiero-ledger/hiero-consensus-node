@@ -49,7 +49,6 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
@@ -97,7 +96,6 @@ public class KVStateChangeListener implements StateChangeListener {
     public <K, V> void mapUpdateChange(final int stateId, @NonNull final K key, @NonNull final V value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
-
         final var change = MapUpdateChange.newBuilder()
                 .key(mapChangeKeyFor(key))
                 .value(mapChangeValueFor(value))
@@ -126,149 +124,133 @@ public class KVStateChangeListener implements StateChangeListener {
 
     private static <K> MapChangeKey mapChangeKeyFor(@NonNull final K key) {
         return switch (key) {
-            case AccountID accountID -> MapChangeKey.newBuilder()
-                    .accountIdKey(accountID)
-                    .build();
-            case EntityIDPair entityIDPair -> MapChangeKey.newBuilder()
-                    .tokenRelationshipKey(new TokenAssociation(entityIDPair.tokenId(), entityIDPair.accountId()))
-                    .build();
-            case EntityNumber entityNumber -> MapChangeKey.newBuilder()
-                    .entityNumberKey(entityNumber.number())
-                    .build();
+            case AccountID accountID ->
+                MapChangeKey.newBuilder().accountIdKey(accountID).build();
+            case EntityIDPair entityIDPair ->
+                MapChangeKey.newBuilder()
+                        .tokenRelationshipKey(new TokenAssociation(entityIDPair.tokenId(), entityIDPair.accountId()))
+                        .build();
+            case EntityNumber entityNumber ->
+                MapChangeKey.newBuilder().entityNumberKey(entityNumber.number()).build();
             case FileID fileID -> MapChangeKey.newBuilder().fileIdKey(fileID).build();
             case NftID nftID -> MapChangeKey.newBuilder().nftIdKey(nftID).build();
-            case ProtoBytes protoBytes -> MapChangeKey.newBuilder()
-                    .protoBytesKey(protoBytes.value())
-                    .build();
-            case ProtoLong protoLong -> MapChangeKey.newBuilder()
-                    .protoLongKey(protoLong.value())
-                    .build();
-            case ProtoString protoString -> MapChangeKey.newBuilder()
-                    .protoStringKey(protoString.value())
-                    .build();
-            case ScheduleID scheduleID -> MapChangeKey.newBuilder()
-                    .scheduleIdKey(scheduleID)
-                    .build();
-            case SlotKey slotKey -> MapChangeKey.newBuilder()
-                    .slotKeyKey(slotKey)
-                    .build();
-            case TokenID tokenID -> MapChangeKey.newBuilder()
-                    .tokenIdKey(tokenID)
-                    .build();
-            case TopicID topicID -> MapChangeKey.newBuilder()
-                    .topicIdKey(topicID)
-                    .build();
-            case ContractID contractID -> MapChangeKey.newBuilder()
-                    .contractIdKey(contractID)
-                    .build();
-            case PendingAirdropId pendingAirdropId -> MapChangeKey.newBuilder()
-                    .pendingAirdropIdKey(pendingAirdropId)
-                    .build();
-            case TimestampSeconds timestampSeconds -> MapChangeKey.newBuilder()
-                    .timestampSecondsKey(timestampSeconds)
-                    .build();
-            case ScheduledOrder scheduledOrder -> MapChangeKey.newBuilder()
-                    .scheduledOrderKey(scheduledOrder)
-                    .build();
-            case TssMessageMapKey tssMessageMapKey -> MapChangeKey.newBuilder()
-                    .tssMessageMapKey(tssMessageMapKey)
-                    .build();
-            case TssVoteMapKey tssVoteMapKey -> MapChangeKey.newBuilder()
-                    .tssVoteMapKey(tssVoteMapKey)
-                    .build();
-            case HintsPartyId hintsPartyId -> MapChangeKey.newBuilder()
-                    .hintsPartyIdKey(hintsPartyId)
-                    .build();
-            case PreprocessingVoteId preprocessingVoteId -> MapChangeKey.newBuilder()
-                    .preprocessingVoteIdKey(preprocessingVoteId)
-                    .build();
+            case ProtoBytes protoBytes ->
+                MapChangeKey.newBuilder().protoBytesKey(protoBytes.value()).build();
+            case ProtoLong protoLong ->
+                MapChangeKey.newBuilder().protoLongKey(protoLong.value()).build();
+            case ProtoString protoString ->
+                MapChangeKey.newBuilder().protoStringKey(protoString.value()).build();
+            case ScheduleID scheduleID ->
+                MapChangeKey.newBuilder().scheduleIdKey(scheduleID).build();
+            case SlotKey slotKey ->
+                MapChangeKey.newBuilder().slotKeyKey(slotKey).build();
+            case TokenID tokenID ->
+                MapChangeKey.newBuilder().tokenIdKey(tokenID).build();
+            case TopicID topicID ->
+                MapChangeKey.newBuilder().topicIdKey(topicID).build();
+            case ContractID contractID ->
+                MapChangeKey.newBuilder().contractIdKey(contractID).build();
+            case PendingAirdropId pendingAirdropId ->
+                MapChangeKey.newBuilder().pendingAirdropIdKey(pendingAirdropId).build();
+            case TimestampSeconds timestampSeconds ->
+                MapChangeKey.newBuilder().timestampSecondsKey(timestampSeconds).build();
+            case ScheduledOrder scheduledOrder ->
+                MapChangeKey.newBuilder().scheduledOrderKey(scheduledOrder).build();
+            case TssMessageMapKey tssMessageMapKey ->
+                MapChangeKey.newBuilder().tssMessageMapKey(tssMessageMapKey).build();
+            case TssVoteMapKey tssVoteMapKey ->
+                MapChangeKey.newBuilder().tssVoteMapKey(tssVoteMapKey).build();
+            case HintsPartyId hintsPartyId ->
+                MapChangeKey.newBuilder().hintsPartyIdKey(hintsPartyId).build();
+            case PreprocessingVoteId preprocessingVoteId ->
+                MapChangeKey.newBuilder()
+                        .preprocessingVoteIdKey(preprocessingVoteId)
+                        .build();
             case NodeId nodeId -> MapChangeKey.newBuilder().nodeIdKey(nodeId).build();
-            case ConstructionNodeId constructionNodeId -> MapChangeKey.newBuilder()
-                    .constructionNodeIdKey(constructionNodeId)
-                    .build();
-            default -> throw new IllegalStateException(
-                    "Unrecognized key type " + key.getClass().getSimpleName());
+            case ConstructionNodeId constructionNodeId ->
+                MapChangeKey.newBuilder()
+                        .constructionNodeIdKey(constructionNodeId)
+                        .build();
+            default ->
+                throw new IllegalStateException(
+                        "Unrecognized key type " + key.getClass().getSimpleName());
         };
     }
 
     private static <V> MapChangeValue mapChangeValueFor(@NonNull final V value) {
         return switch (value) {
             case Node node -> MapChangeValue.newBuilder().nodeValue(node).build();
-            case Account account -> MapChangeValue.newBuilder()
-                    .accountValue(account)
-                    .build();
-            case AccountID accountID -> MapChangeValue.newBuilder()
-                    .accountIdValue(accountID)
-                    .build();
-            case Bytecode bytecode -> MapChangeValue.newBuilder()
-                    .bytecodeValue(bytecode)
-                    .build();
+            case Account account ->
+                MapChangeValue.newBuilder().accountValue(account).build();
+            case AccountID accountID ->
+                MapChangeValue.newBuilder().accountIdValue(accountID).build();
+            case Bytecode bytecode ->
+                MapChangeValue.newBuilder().bytecodeValue(bytecode).build();
             case File file -> MapChangeValue.newBuilder().fileValue(file).build();
             case Nft nft -> MapChangeValue.newBuilder().nftValue(nft).build();
-            case ProtoString protoString -> MapChangeValue.newBuilder()
-                    .protoStringValue(protoString.value())
-                    .build();
-            case Roster roster -> MapChangeValue.newBuilder()
-                    .rosterValue(roster)
-                    .build();
-            case Schedule schedule -> MapChangeValue.newBuilder()
-                    .scheduleValue(schedule)
-                    .build();
-            case ScheduleID scheduleID -> MapChangeValue.newBuilder()
-                    .scheduleIdValue(scheduleID)
-                    .build();
-            case ScheduleList scheduleList -> MapChangeValue.newBuilder()
-                    .scheduleListValue(scheduleList)
-                    .build();
-            case SlotValue slotValue -> MapChangeValue.newBuilder()
-                    .slotValueValue(slotValue)
-                    .build();
-            case StakingNodeInfo stakingNodeInfo -> MapChangeValue.newBuilder()
-                    .stakingNodeInfoValue(stakingNodeInfo)
-                    .build();
+            case ProtoString protoString ->
+                MapChangeValue.newBuilder()
+                        .protoStringValue(protoString.value())
+                        .build();
+            case Roster roster ->
+                MapChangeValue.newBuilder().rosterValue(roster).build();
+            case Schedule schedule ->
+                MapChangeValue.newBuilder().scheduleValue(schedule).build();
+            case ScheduleID scheduleID ->
+                MapChangeValue.newBuilder().scheduleIdValue(scheduleID).build();
+            case ScheduleList scheduleList ->
+                MapChangeValue.newBuilder().scheduleListValue(scheduleList).build();
+            case SlotValue slotValue ->
+                MapChangeValue.newBuilder().slotValueValue(slotValue).build();
+            case StakingNodeInfo stakingNodeInfo ->
+                MapChangeValue.newBuilder()
+                        .stakingNodeInfoValue(stakingNodeInfo)
+                        .build();
             case Token token -> MapChangeValue.newBuilder().tokenValue(token).build();
-            case TokenRelation tokenRelation -> MapChangeValue.newBuilder()
-                    .tokenRelationValue(tokenRelation)
-                    .build();
+            case TokenRelation tokenRelation ->
+                MapChangeValue.newBuilder().tokenRelationValue(tokenRelation).build();
             case Topic topic -> MapChangeValue.newBuilder().topicValue(topic).build();
-            case AccountPendingAirdrop accountPendingAirdrop -> MapChangeValue.newBuilder()
-                    .accountPendingAirdropValue(accountPendingAirdrop)
-                    .build();
-            case ScheduledCounts scheduledCounts -> MapChangeValue.newBuilder()
-                    .scheduledCountsValue(scheduledCounts)
-                    .build();
-            case ThrottleUsageSnapshots throttleUsageSnapshots -> MapChangeValue.newBuilder()
-                    .throttleUsageSnapshotsValue(throttleUsageSnapshots)
-                    .build();
-            case TssMessageTransactionBody tssMessageTransactionBody -> MapChangeValue.newBuilder()
-                    .tssMessageValue(tssMessageTransactionBody)
-                    .build();
-            case TssVoteTransactionBody tssVoteTransactionBody -> MapChangeValue.newBuilder()
-                    .tssVoteValue(tssVoteTransactionBody)
-                    .build();
-            case TssEncryptionKeys tssEncryptionKeys -> MapChangeValue.newBuilder()
-                    .tssEncryptionKeysValue(tssEncryptionKeys)
-                    .build();
-            case HintsKeySet hintsKeySet -> MapChangeValue.newBuilder()
-                    .hintsKeySetValue(hintsKeySet)
-                    .build();
-            case PreprocessingVote preprocessingVote -> MapChangeValue.newBuilder()
-                    .preprocessingVoteValue(preprocessingVote)
-                    .build();
-            case RecordedHistorySignature recordedHistorySignature -> MapChangeValue.newBuilder()
-                    .historySignatureValue(recordedHistorySignature)
-                    .build();
-            case HistoryProofVote historyProofVote -> MapChangeValue.newBuilder()
-                    .historyProofVoteValue(historyProofVote)
-                    .build();
-            case ProofKeySet proofKeySet -> MapChangeValue.newBuilder()
-                    .proofKeySetValue(proofKeySet)
-                    .build();
-            case CrsPublicationTransactionBody crsPublicationTransactionBody -> MapChangeValue.newBuilder()
-                    .crsPublicationValue(crsPublicationTransactionBody)
-                    .build();
-            default -> throw new IllegalStateException(
-                    "Unexpected value: " + value.getClass().getSimpleName());
+            case AccountPendingAirdrop accountPendingAirdrop ->
+                MapChangeValue.newBuilder()
+                        .accountPendingAirdropValue(accountPendingAirdrop)
+                        .build();
+            case ScheduledCounts scheduledCounts ->
+                MapChangeValue.newBuilder()
+                        .scheduledCountsValue(scheduledCounts)
+                        .build();
+            case ThrottleUsageSnapshots throttleUsageSnapshots ->
+                MapChangeValue.newBuilder()
+                        .throttleUsageSnapshotsValue(throttleUsageSnapshots)
+                        .build();
+            case TssMessageTransactionBody tssMessageTransactionBody ->
+                MapChangeValue.newBuilder()
+                        .tssMessageValue(tssMessageTransactionBody)
+                        .build();
+            case TssVoteTransactionBody tssVoteTransactionBody ->
+                MapChangeValue.newBuilder().tssVoteValue(tssVoteTransactionBody).build();
+            case HintsKeySet hintsKeySet ->
+                MapChangeValue.newBuilder().hintsKeySetValue(hintsKeySet).build();
+            case PreprocessingVote preprocessingVote ->
+                MapChangeValue.newBuilder()
+                        .preprocessingVoteValue(preprocessingVote)
+                        .build();
+            case RecordedHistorySignature recordedHistorySignature ->
+                MapChangeValue.newBuilder()
+                        .historySignatureValue(recordedHistorySignature)
+                        .build();
+            case HistoryProofVote historyProofVote ->
+                MapChangeValue.newBuilder()
+                        .historyProofVoteValue(historyProofVote)
+                        .build();
+            case ProofKeySet proofKeySet ->
+                MapChangeValue.newBuilder().proofKeySetValue(proofKeySet).build();
+            case CrsPublicationTransactionBody crsPublicationTransactionBody ->
+                MapChangeValue.newBuilder()
+                        .crsPublicationValue(crsPublicationTransactionBody)
+                        .build();
+            default ->
+                throw new IllegalStateException(
+                        "Unexpected value: " + value.getClass().getSimpleName());
         };
     }
 }

@@ -76,9 +76,9 @@ public class EthereumCallDataHydration {
                 return failureFrom(CONTRACT_FILE_EMPTY);
             }
 
-            return successFrom(ethTxData.replaceCallData(callData));
+            return successFrom(ethTxData.replaceCallData(callData), true);
         } else {
-            return successFrom(ethTxData);
+            return successFrom(ethTxData, false);
         }
     }
 

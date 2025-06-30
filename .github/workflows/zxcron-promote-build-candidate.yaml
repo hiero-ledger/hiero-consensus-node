@@ -155,13 +155,12 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: "Trigger ZXF: [CITR] Single Day Performance Test"
+      - name: "Trigger ZXF: [CITR] Single Day Performance Test (SDPT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main
-          # ensure we are always using the workflow definition from the main branch
+          ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "test-asset": "Latitude3",
@@ -174,6 +173,17 @@ jobs:
             "crypto-bench-merkle-db-java-args": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
             "crypto-bench-merkle-db-test-params": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000",
             "disable-notifications": "false"
+            }'
+
+      - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/flow-node-performance-tests.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
             }'
 
   report-promotion:
