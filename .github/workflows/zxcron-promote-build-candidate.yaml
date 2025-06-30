@@ -155,7 +155,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: "Trigger ZXF: [CITR] Single Day Performance Test"
+      - name: "Trigger ZXF: [CITR] Single Day Performance Test (SDPT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/zxf-single-day-performance-test-controller.yaml
@@ -175,7 +175,7 @@ jobs:
             "disable-notifications": "false"
             }'
 
-      - name: "Trigger ZXF: [CITR] Single Day Longevity Test"
+      - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/flow-node-performance-tests.yaml
