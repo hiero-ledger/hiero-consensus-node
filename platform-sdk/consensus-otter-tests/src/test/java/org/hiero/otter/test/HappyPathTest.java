@@ -12,16 +12,26 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 
+/**
+ * The most simple sanity test for the Otter framework.
+ */
 public class HappyPathTest {
 
+    /**
+     * Simple test that runs a network with 4 nodes for some time and does some basic validations.
+     *
+     * @param env the test environment for this test
+     * @throws InterruptedException if an operation times out
+     */
     @OtterTest
-    void testHappyPath(final TestEnvironment env) throws InterruptedException {
+    void testHappyPath(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 

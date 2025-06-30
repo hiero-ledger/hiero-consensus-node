@@ -8,9 +8,7 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
-import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
@@ -22,8 +20,6 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 public class SingleNodePlatformStatusResultContinuousAssert
         extends AbstractContinuousAssertion<
                 SingleNodePlatformStatusResultContinuousAssert, SingleNodePlatformStatusResults> {
-
-    protected final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResults}.
