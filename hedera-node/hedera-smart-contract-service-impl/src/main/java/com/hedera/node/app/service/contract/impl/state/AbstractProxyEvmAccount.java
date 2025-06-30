@@ -160,4 +160,11 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
     public boolean isHollow() {
         return HOLLOW_ACCOUNT_KEY.equals(toNativeAccount().key());
     }
+
+    @Override
+    public boolean isStorageEmpty() {
+        final com.hedera.pbj.runtime.io.buffer.Bytes key =
+                state.getNativeAccount(accountID).firstContractStorageKey();
+        return key == null || key.length() == 0;
+    }
 }
