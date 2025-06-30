@@ -77,7 +77,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.3.2
+  NLG_VERSION: 0.4.1
   #if needed to re-build NLG from branch:
   NLG_REBUILD: false
   NLG_BRANCH: main
@@ -370,7 +370,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
-          helm upgrade --install nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ env.namespace }}"
+          helm upgrade --install --set appName=nlg nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ env.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
           nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
@@ -419,7 +419,7 @@ jobs:
           set +e
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
-          helm install --set name=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ env.namespace }}"
+          helm install --set name=merkle --set appName=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ env.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
           merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
@@ -453,7 +453,7 @@ jobs:
           n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
           NLG_c=32
 
-          NLGargs="-R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
@@ -596,7 +596,7 @@ jobs:
           n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
           NLG_c=32
 
-          NLGargs="-R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
 
           case "${{ env.run_NLG_Test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;

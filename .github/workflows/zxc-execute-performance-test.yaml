@@ -66,7 +66,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.3.2
+  NLG_VERSION: 0.4.1
   #if needed to re-build NLG from branch:
   NLG_REBUILD: false
   NLG_BRANCH: main
@@ -240,7 +240,7 @@ jobs:
           n=`expr "${{ inputs.nlg-accounts }}" / 1000`
           NLG_c=32
 
-          NLGargs="-R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
 
           case "${{ inputs.nlg-test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
