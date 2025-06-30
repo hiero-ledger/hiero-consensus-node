@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167;
 
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BRACKETS;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FIXED_FEE;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FIXED_FEE_V2;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FRACTIONAL_FEE;
@@ -51,11 +50,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                             + HEDERA_TOKEN_V1
                             + ",uint,uint,"
                             + FIXED_FEE
-                            + ARRAY_BRACKETS
-                            + ","
+                            + "[],"
                             + FRACTIONAL_FEE
-                            + ARRAY_BRACKETS
-                            + ")",
+                            + "[])",
                     "(int64,address)")
             .withVariants(Variant.V1, Variant.FT, Variant.WITH_CUSTOM_FEES)
             .withCategory(Category.CREATE_DELETE_TOKEN);
@@ -65,11 +62,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                             + HEDERA_TOKEN_V2
                             + ",uint64,uint32,"
                             + FIXED_FEE
-                            + ARRAY_BRACKETS
-                            + ","
+                            + "[],"
                             + FRACTIONAL_FEE
-                            + ARRAY_BRACKETS
-                            + ")",
+                            + "[])",
                     "(int64,address)")
             .withVariants(Variant.V2, Variant.FT, Variant.WITH_CUSTOM_FEES)
             .withCategory(Category.CREATE_DELETE_TOKEN);
@@ -79,11 +74,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                             + HEDERA_TOKEN_V3
                             + ",int64,int32,"
                             + FIXED_FEE_V2
-                            + ARRAY_BRACKETS
-                            + ","
+                            + "[],"
                             + FRACTIONAL_FEE_V2
-                            + ARRAY_BRACKETS
-                            + ")",
+                            + "[])",
                     "(int64,address)")
             .withVariants(Variant.V3, Variant.FT, Variant.WITH_CUSTOM_FEES)
             .withCategory(Category.CREATE_DELETE_TOKEN);
@@ -111,11 +104,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                                     + HEDERA_TOKEN_V1
                                     + ","
                                     + FIXED_FEE
-                                    + ARRAY_BRACKETS
-                                    + ","
+                                    + "[],"
                                     + ROYALTY_FEE
-                                    + ARRAY_BRACKETS
-                                    + ")",
+                                    + "[])",
                             "(int64,address)")
                     .withVariants(Variant.V1, Variant.NFT, Variant.WITH_CUSTOM_FEES)
                     .withCategory(Category.CREATE_DELETE_TOKEN);
@@ -126,11 +117,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                                     + HEDERA_TOKEN_V2
                                     + ","
                                     + FIXED_FEE
-                                    + ARRAY_BRACKETS
-                                    + ","
+                                    + "[],"
                                     + ROYALTY_FEE
-                                    + ARRAY_BRACKETS
-                                    + ")",
+                                    + "[])",
                             "(int64,address)")
                     .withVariants(Variant.V2, Variant.NFT, Variant.WITH_CUSTOM_FEES)
                     .withCategory(Category.CREATE_DELETE_TOKEN);
@@ -141,11 +130,9 @@ public class CreateTranslator extends CreateCommonTranslator {
                                     + HEDERA_TOKEN_V3
                                     + ","
                                     + FIXED_FEE_V2
-                                    + ARRAY_BRACKETS
-                                    + ","
+                                    + "[],"
                                     + ROYALTY_FEE_V2
-                                    + ARRAY_BRACKETS
-                                    + ")",
+                                    + "[])",
                             "(int64,address)")
                     .withVariants(Variant.V3, Variant.NFT, Variant.WITH_CUSTOM_FEES)
                     .withCategory(Category.CREATE_DELETE_TOKEN);
