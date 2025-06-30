@@ -45,13 +45,13 @@ public class ParseUtils {
      * For any other values (including `null`), the value passed in will be the value returned.
      * <p>
      * E.g.:
-     * <li>
-     *     <ul>`"1.2.3"` will return `"3"`</ul>
-     *     <ul>`"5"` will return `"5"`</ul>
-     *     <ul>`null` will return `null`</ul>
-     *     <ul>`"null"` will return `"null"`</ul>
-     *     <ul>`"whatever value you want"` will return `"whatever value you want"`</ul>
-     * </li>
+     * <ul>
+     *     <li>`"1.2.3"` will return `"3"`</li>
+     *     <li>`"5"` will return `"5"`</li>
+     *     <li>`null` will return `null`</li>
+     *     <li>`"null"` will return `"null"`</li>
+     *     <li>`"whatever value you want"` will return `"whatever value you want"`</li>
+     * </ul>
      *
      * @param config the yahcli configuration, specifically the target shard and realm.
      *                  Included only to indicate any mismatch to the end user (via console message)

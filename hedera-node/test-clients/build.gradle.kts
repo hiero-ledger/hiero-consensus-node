@@ -13,10 +13,7 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-sourceSets {
-    create("rcdiff")
-    create("yahcli")
-}
+sourceSets { create("rcdiff") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
@@ -399,17 +396,6 @@ tasks.withType<ShadowJar>().configureEach { isZip64 = true }
 
 tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
 
-val yahCliJar =
-    tasks.register<ShadowJar>("yahCliJar") {
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
-        from(sourceSets["main"].output)
-        from(sourceSets["yahcli"].output)
-        archiveClassifier.set("yahcli")
-        configurations = listOf(project.configurations.getByName("yahcliRuntimeClasspath"))
-
-        manifest { attributes("Main-Class" to "com.hedera.services.yahcli.Yahcli") }
-    }
-
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
         exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
@@ -449,21 +435,4 @@ val cleanValidation =
         delete(File(project.file("validation-scenarios"), "ValidationScenarios.jar"))
     }
 
-val copyYahCli =
-    tasks.register<Copy>("copyYahCli") {
-        group = "copy"
-        from(yahCliJar)
-        into(project.file("yahcli"))
-        rename { "yahcli.jar" }
-    }
-
-val cleanYahCli =
-    tasks.register<Delete>("cleanYahCli") {
-        group = "copy"
-        delete(File(project.file("yahcli"), "yahcli.jar"))
-    }
-
-tasks.clean {
-    dependsOn(cleanYahCli)
-    dependsOn(cleanValidation)
-}
+tasks.clean { dependsOn(cleanValidation) }
