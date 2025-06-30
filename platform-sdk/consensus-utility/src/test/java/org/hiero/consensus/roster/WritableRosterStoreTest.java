@@ -52,7 +52,7 @@ class WritableRosterStoreTest {
                 WritableRosterStore.ROSTER_STATES_KEY,
                 0,
                 RosterState.PROTOBUF,
-                new RosterState(null, new LinkedList<>()));
+                new RosterState(null, new LinkedList<>(), false));
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         WritableRosterStore.ROSTER_KEY)
                 .build();

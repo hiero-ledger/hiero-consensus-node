@@ -122,4 +122,8 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
                 .filter(bytes -> bytes.length() > 0)
                 .orElse(null);
     }
+
+    public boolean isTransplantInProgress() {
+        return rosterState.get() != null && requireNonNull(rosterState.get()).transplantInProgress();
+    }
 }

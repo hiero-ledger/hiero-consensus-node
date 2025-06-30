@@ -143,6 +143,12 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
         rosterMap.put(ProtoBytes.newBuilder().value(rosterHash).build(), roster);
     }
 
+    public void updateTransplantInProgress(final boolean inProgress) {
+        final RosterState currentRosterState = rosterStateOrDefault();
+        final Builder newRosterStateBuilder = currentRosterState.copyBuilder().transplantInProgress(inProgress);
+        rosterState.put(newRosterStateBuilder.build());
+    }
+
     /**
      * Reset the roster state to an empty list and remove all entries from the roster map.
      * This method is primarily intended to be used in CLI tools that may need to reset

@@ -329,7 +329,7 @@ class DiskStartupNetworksTest {
         final var rosters = writableStates.<ProtoBytes, Roster>get(ROSTER_KEY);
         rosters.put(new ProtoBytes(currentRosterHash), currentRoster);
         final var rosterState = writableStates.<RosterState>getSingleton(ROSTER_STATES_KEY);
-        rosterState.put(new RosterState(Bytes.EMPTY, List.of(new RoundRosterPair(0L, currentRosterHash))));
+        rosterState.put(new RosterState(Bytes.EMPTY, List.of(new RoundRosterPair(0L, currentRosterHash)), false));
         ((CommittableWritableStates) writableStates).commit();
     }
 

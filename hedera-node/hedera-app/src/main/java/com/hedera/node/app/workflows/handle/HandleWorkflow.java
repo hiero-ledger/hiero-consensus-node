@@ -265,6 +265,19 @@ public class HandleWorkflow {
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
 
+        try {
+            // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
+            // Dispatch transplant updates for the nodes in override network
+            if (boundaryStateChangeListener.lastConsensusTime() != null) {
+                transactionsDispatched |= systemTransactions.dispatchTransplantUpdates(
+                        state,
+                        boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
+                        round.getRoundNum());
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to dispatch transplant updates", e);
+        }
+
         configureTssCallbacks(state);
         try {
             reconcileTssState(state, round.getConsensusTimestamp());
