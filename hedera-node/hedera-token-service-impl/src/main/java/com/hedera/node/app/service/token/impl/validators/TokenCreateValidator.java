@@ -75,8 +75,10 @@ public class TokenCreateValidator {
         validateTruePreCheck(op.hasTreasury(), INVALID_TREASURY_ACCOUNT_FOR_TOKEN);
         if (op.hasAutoRenewAccount()) {
             // TODO Glib: _expiryRenew=0 is passing this check, but -1 not
-            // TODO Glib: also validateTrue is used instead of validateTruePreCheck, throws HandleException instead of PreCheckException
-            // validateTruePreCheck(op.hasAutoRenewPeriod() && op.autoRenewPeriod().seconds() > 0, INVALID_RENEWAL_PERIOD);
+            // TODO Glib: also validateTrue is used instead of validateTruePreCheck, throws HandleException instead of
+            // PreCheckException
+            // validateTruePreCheck(op.hasAutoRenewPeriod() && op.autoRenewPeriod().seconds() > 0,
+            // INVALID_RENEWAL_PERIOD);
             validateTrue(op.hasAutoRenewPeriod() && op.autoRenewPeriod().seconds() >= 0, INVALID_RENEWAL_PERIOD);
         }
 

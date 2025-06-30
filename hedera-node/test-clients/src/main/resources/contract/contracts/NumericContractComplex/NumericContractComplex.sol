@@ -361,14 +361,6 @@ contract NumericContractComplex is KeyHelper {
         require(responseCode == SUCCESS_CODE);
     }
 
-    function transferTokenERC(address token, address sender, address receiver, uint256 amount) public {
-        (bool success, bytes memory result) =
-                                address(token).call(abi.encodeWithSignature("transfer(address,address,uint256)", sender, receiver, amount));
-
-        int32 responseCode = abi.decode(result, (int32));
-        require(responseCode == SUCCESS_CODE);
-    }
-
     function transferNFTs(
         address token,
         address sender,
