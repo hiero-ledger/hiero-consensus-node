@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
@@ -22,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccoun
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.batchOfSize;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
@@ -30,6 +32,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DOES_N
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_STILL_OWNS_NFTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_BURN_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
@@ -310,6 +313,47 @@ public class UniqueTokenManagementSpecs {
                         getAccountInfo(TOKEN_TREASURY)
                                 .hasToken(relationshipWith(NFT))
                                 .hasOwnedNfts(0));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintFailsOnInvalidSupplyKey() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                // create valid NFT
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                // mint with the wrong supply key
+                mintToken(NFT, List.of(metadata("1"), metadata("2")))
+                        .signedBy(GENESIS, GENESIS)
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                // mint with the right supply key
+                mintToken(NFT, List.of(metadata("1"), metadata("2")))
+                        .signedBy(GENESIS, SUPPLY_KEY)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> burnFailsOnInvalidSupplyKey() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                // create valid NFT
+                tokenCreate(NFT)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .initialSupply(0)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                mintToken(NFT, List.of(metadata("1"), metadata("2"))),
+                // burn with the wrong supply key
+                burnToken(NFT, List.of(1L, 2L)).signedBy(GENESIS, GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // burn with the right supply key
+                burnToken(NFT, List.of(1L, 2L)).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS));
     }
 
     @HapiTest

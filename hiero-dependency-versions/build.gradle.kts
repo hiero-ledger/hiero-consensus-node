@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.1.Final"))
+    api(platform("io.netty:netty-bom:4.2.2.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -73,6 +73,7 @@ dependencies.constraints {
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
+    api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
     api("com.esaulpaugh:headlong:13.2.2") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
