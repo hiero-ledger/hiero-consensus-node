@@ -87,7 +87,6 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -104,7 +103,6 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -128,8 +126,7 @@ public class SystemTransactions {
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
-    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {
-    };
+    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
@@ -418,8 +415,7 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {
-        }, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -481,8 +477,7 @@ public class SystemTransactions {
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var systemContext = newSystemContext(now, state, dispatch -> {
-        }, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
@@ -754,11 +749,8 @@ public class SystemTransactions {
                     WritableSingletonState<EntityCounts> countsBefore = dispatch.stack()
                             .getWritableStates(EntityIdService.NAME)
                             .getSingleton(ENTITY_COUNTS_KEY);
-                    prevEntityNum = requireNonNull(countsBefore
-                            .get())
-                            .numNodes();
-                    countsBefore.put(requireNonNull(countsBefore
-                            .get())
+                    prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
+                    countsBefore.put(requireNonNull(countsBefore.get())
                             .copyBuilder()
                             .numNodes(nextEntityNum)
                             .build());
@@ -782,18 +774,15 @@ public class SystemTransactions {
                 onSuccess.accept(dispatch);
             }
             if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
-                WritableSingletonState<EntityCounts> countsBefore = dispatch.stack()
-                        .getWritableStates(EntityIdService.NAME)
-                        .getSingleton(ENTITY_COUNTS_KEY);
-                countsBefore.put(requireNonNull(countsBefore
-                        .get())
+                WritableSingletonState<EntityCounts> countsBefore =
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
+                countsBefore.put(requireNonNull(countsBefore.get())
                         .copyBuilder()
                         .numNodes(Math.max(nextEntityNum, prevEntityNum))
                         .build());
             } else {
-                WritableSingletonState<EntityNumber> controlledNum = dispatch.stack()
-                        .getWritableStates(EntityIdService.NAME)
-                        .getSingleton(ENTITY_ID_STATE_KEY);
+                WritableSingletonState<EntityNumber> controlledNum =
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
                 controlledNum.put(new EntityNumber(prevEntityNum));
             }
             dispatch.stack().commitFullStack();
