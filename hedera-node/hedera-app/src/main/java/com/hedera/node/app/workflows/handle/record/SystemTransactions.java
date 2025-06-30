@@ -32,7 +32,6 @@ import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -145,7 +144,6 @@ public class SystemTransactions {
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
-    private final SemanticVersion softwareVersionFactory;
     private final StartupNetworks startupNetworks;
 
     private int nextDispatchNonce = 1;
@@ -166,7 +164,6 @@ public class SystemTransactions {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
-            @NonNull final SemanticVersion softwareVersionFactory,
             final StartupNetworks startupNetworks) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
@@ -183,7 +180,6 @@ public class SystemTransactions {
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.recordCache = requireNonNull(recordCache);
-        this.softwareVersionFactory = requireNonNull(softwareVersionFactory);
         this.startupNetworks = requireNonNull(startupNetworks);
     }
 

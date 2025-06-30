@@ -158,6 +158,8 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
+    // Flag to indicate whether we have checked for transplant updates after JVM started
+    private boolean checkedForTransplant;
 
     @Inject
     public HandleWorkflow(
@@ -263,11 +265,12 @@ public class HandleWorkflow {
         try {
             // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
             // Dispatch transplant updates for the nodes in override network
-            if (boundaryStateChangeListener.lastConsensusTime() != null) {
+            if (streamMode != RECORDS && !checkedForTransplant) {
                 transactionsDispatched |= systemTransactions.dispatchTransplantUpdates(
                         state,
                         boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
                         round.getRoundNum());
+                checkedForTransplant = true;
             }
         } catch (Exception e) {
             logger.warn("Failed to dispatch transplant updates", e);
@@ -910,6 +913,7 @@ public class HandleWorkflow {
 
     /**
      * Configure the TSS callbacks for the given state.
+     *
      * @param state the latest state
      */
     private void configureTssCallbacks(@NonNull final State state) {

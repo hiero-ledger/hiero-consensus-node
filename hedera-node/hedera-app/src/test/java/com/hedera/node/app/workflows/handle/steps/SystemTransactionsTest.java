@@ -12,7 +12,6 @@ import static org.mockito.BDDMockito.verify;
 import static org.mockito.Mockito.times;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -116,9 +115,6 @@ class SystemTransactionsTest {
     private HederaRecordCache recordCache;
 
     @Mock
-    private SemanticVersion softwareVersionFactory;
-
-    @Mock
     private StartupNetworks startupNetworks;
 
     @LoggingSubject
@@ -148,7 +144,6 @@ class SystemTransactionsTest {
                 blockStreamManager,
                 exchangeRateManager,
                 recordCache,
-                softwareVersionFactory,
                 startupNetworks);
     }
 
