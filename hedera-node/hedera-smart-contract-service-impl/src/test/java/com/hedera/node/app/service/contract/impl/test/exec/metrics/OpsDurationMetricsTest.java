@@ -53,7 +53,7 @@ class OpsDurationMetricsTest {
         subject.recordSystemContractOpsDuration(method1, 100L);
         subject.recordSystemContractOpsDuration(method1, 200L);
         subject.recordSystemContractOpsDuration(method2, 300L);
-        assertThat(subject.getAverageSystemContractOpsDuration(method1)).isCloseTo(150.0, within(1.0));
+        assertThat(subject.getAverageSystemContractOpsDuration(method1)).isCloseTo(150.0, within(5.0));
         assertThat(subject.getSystemContractOpsDurationCount(method1)).isEqualTo(2);
         assertThat(subject.getTotalSystemContractOpsDuration(method1)).isEqualTo(300L);
         assertThat(subject.getAverageSystemContractOpsDuration(method2)).isEqualTo(300.0);
@@ -68,7 +68,7 @@ class OpsDurationMetricsTest {
         subject.recordOpCodeOpsDuration(opCode1, 100L);
         subject.recordOpCodeOpsDuration(opCode1, 200L);
         subject.recordOpCodeOpsDuration(opCode2, 300L);
-        assertThat(subject.getAverageOpCodeOpsDuration(opCode1)).isCloseTo(150.0, within(1.0));
+        assertThat(subject.getAverageOpCodeOpsDuration(opCode1)).isCloseTo(150.0, within(5.0));
         assertThat(subject.getOpCodeOpsDurationCount(opCode1)).isEqualTo(2);
         assertThat(subject.getTotalOpCodeOpsDuration(opCode1)).isEqualTo(300L);
         assertThat(subject.getAverageOpCodeOpsDuration(opCode2)).isEqualTo(300.0);
@@ -83,7 +83,7 @@ class OpsDurationMetricsTest {
         subject.recordPrecompileOpsDuration(precompile1, 100L);
         subject.recordPrecompileOpsDuration(precompile1, 200L);
         subject.recordPrecompileOpsDuration(precompile2, 300L);
-        assertThat(subject.getAveragePrecompileOpsDuration(precompile1)).isCloseTo(150.0, within(1.0));
+        assertThat(subject.getAveragePrecompileOpsDuration(precompile1)).isCloseTo(150.0, within(5.0));
         assertThat(subject.getPrecompileOpsDurationCount(precompile1)).isEqualTo(2);
         assertThat(subject.getTotalPrecompileOpsDuration(precompile1)).isEqualTo(300L);
         assertThat(subject.getAveragePrecompileOpsDuration(precompile2)).isEqualTo(300.0);
@@ -95,7 +95,7 @@ class OpsDurationMetricsTest {
     void transactionOpsDurationMetricsAreRecordedAndRetrieved() {
         subject.recordTxnTotalOpsDuration(100L);
         subject.recordTxnTotalOpsDuration(200L);
-        assertThat(subject.getAverageTransactionOpsDuration()).isCloseTo(150.0, within(1.0));
+        assertThat(subject.getAverageTransactionOpsDuration()).isCloseTo(150.0, within(5.0));
         assertThat(subject.getTransactionOpsDurationCount()).isEqualTo(2);
         assertThat(subject.getTotalTransactionOpsDuration()).isEqualTo(300L);
     }

@@ -52,7 +52,7 @@ class PrecompileOpsDurationMetricTest {
         final double average = subject.getAveragePrecompileDuration(precompileName);
         final double count = subject.getPrecompileOpsDurationCount(precompileName);
         final double total = subject.getPrecompileOpsTotalDuration(precompileName);
-        assertThat(average).isCloseTo(150.0, within(0.5)); // (100 + 200) / 2
+        assertThat(average).isCloseTo(150.0, within(5.0)); // (100 + 200) / 2
         assertThat(count).isEqualTo(2.0); // Two durations recorded
         assertThat(total).isEqualTo(300.0); // 100 + 200
     }

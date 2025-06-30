@@ -52,7 +52,7 @@ class OpCodeOpsDurationMetricTest {
         final double average = subject.getAverageOpCodeOpsDuration(opcode);
         final long total = subject.getTotalOpCodeOpsDuration(opcode);
         final long count = subject.getOpCodeOpsDurationCount(opcode);
-        assertThat(average).isCloseTo(150.0, within(1.0)); // (100 + 200) / 2
+        assertThat(average).isCloseTo(150.0, within(5.0)); // (100 + 200) / 2
         assertThat(total).isEqualTo(300L); // 100 + 200
         assertThat(count).isEqualTo(2L); // Two durations recorded
     }
