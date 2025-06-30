@@ -296,6 +296,7 @@ contract NumericContractComplex is KeyHelper {
     function updateTokenInfoV3(address token, int64 _expirySecond, int64 _expiryRenew, int64 _maxSupply) public {
         Structs.HederaTokenV3 memory newToken;
         newToken.expiry = Structs.ExpiryV2(_expirySecond, address(this), _expiryRenew);
+        newToken.maxSupply = _maxSupply;
 
         (bool success, bytes memory result) = address(0x167).call(
             abi.encodeWithSelector(NumericHelperV3.updateTokenInfo.selector, token, newToken));

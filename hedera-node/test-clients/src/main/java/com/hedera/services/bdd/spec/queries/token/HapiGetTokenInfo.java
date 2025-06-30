@@ -395,7 +395,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
     }
 
     public HapiGetTokenInfo getTokenInfo(Consumer<TokenInfo> tokenInfoConsumer) {
-        tokenInfoConsumer = tokenInfoConsumer;
+        this.tokenInfoConsumer = tokenInfoConsumer;
         return this;
     }
 
@@ -404,7 +404,7 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
     protected void assertExpectationsGiven(HapiSpec spec) {
         var actualInfo = response.getTokenGetInfo().getTokenInfo();
 
-        if (tokenInfoConsumer == null) {
+        if (tokenInfoConsumer != null) {
             tokenInfoConsumer.accept(actualInfo);
         }
 
