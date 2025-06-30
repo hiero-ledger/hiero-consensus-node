@@ -337,6 +337,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                             .build();
 
                     sendRequest(endStream);
+                    close();
 
                     blockNodeConnectionManager.rescheduleAndSelectNewNode(this, LONGER_RETRY_DELAY);
                 }

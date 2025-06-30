@@ -333,6 +333,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                                 .endCode(PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
                                 .build())
                         .build());
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestObserver);
         verifyNoMoreInteractions(connectionManager);
