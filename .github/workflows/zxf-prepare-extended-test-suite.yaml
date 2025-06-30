@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: Prepare Extended Test Suite"
+name: "ZXF: [CITR] Prepare Extended Test Suite"
 on:
   workflow_dispatch:
     inputs:
       ref:
         description: Git Commit Reference for the XTS prep tag
         required: true
+      dry-run-enabled:
+        description: "If true, the workflow will not create a tag, but will validate the commit."
+        required: false
+        default: false
+        type: boolean
 
 defaults:
   run:
@@ -27,7 +32,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -60,7 +65,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -93,7 +98,7 @@ jobs:
 
       # move the tag if successful
       - name: Tag Code and push
-        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' }}
+        if: ${{ steps.check-xts-required.outputs.xts-checks-required == 'true' && !inputs.dry-run-enabled }}
         run: |
           # Check if the tag exists
           set +e
@@ -112,8 +117,8 @@ jobs:
           git push --set-upstream origin --tags
 
       - name: Report failure
-        if: ${{ !cancelled() && failure() && always() }}
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        if: ${{ !inputs.dry-run-enabled && !cancelled() && failure() && always() }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -139,7 +144,7 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+                        "text": "*Source Commit*: \n<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
                       }
                     }
                   ]

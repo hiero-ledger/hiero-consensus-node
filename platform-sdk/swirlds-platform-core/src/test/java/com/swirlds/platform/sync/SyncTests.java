@@ -838,7 +838,7 @@ public class SyncTests {
         // to be sent to the caller, will be expired. Since we are hacking birth rounds to be the same as generations,
         // we can use the same indicator for both.
         executor.setCustomPreSyncConfiguration((c, l) ->
-                indicatorToExpire.set(l.getEmitter().getGraphGenerator().getMaxGeneration(creatorId) / 2));
+                indicatorToExpire.set(l.getEmitter().getGraphGenerator().getMaxBirthRound(creatorId) / 2));
 
         final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setExpiredThresholdOrGenesis(indicatorToExpire.get())

@@ -6,10 +6,14 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 class ConfigurationImpl implements Configuration, ConfigLifecycle {
@@ -162,23 +166,44 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
         return getValues(propertyName, propertyType);
     }
 
+    /**
+     * Creates an immutable set with a stable iteration order out of the provided collection.
+     * @param collection a nullable collection
+     * @param propertyType a non-null type of elements in the collection
+     * @return null, or a set with a stable iteration order
+     * @param <T> the type of elements in the set
+     */
+    private <T> Set<T> createStableSet(@Nullable final Collection<T> collection, @NonNull final Class<T> propertyType) {
+        if (collection == null) {
+            return null;
+        }
+        if (collection.isEmpty()) {
+            return Collections.emptySet();
+        }
+        if (Enum.class.isAssignableFrom(propertyType)) {
+            return Collections.unmodifiableSet(EnumSet.copyOf((Collection<? extends Enum>) collection));
+        }
+        if (Comparable.class.isAssignableFrom(propertyType)) {
+            return Collections.unmodifiableSortedSet(new TreeSet<>(collection));
+        }
+        // For non-sortable elements, we retain the order in which they're listed in the original collection
+        return Collections.unmodifiableSet(new LinkedHashSet<>(collection));
+    }
+
     @Override
     @Nullable
     public Set<String> getValueSet(@NonNull final String propertyName) {
         final List<String> values = getValues(propertyName);
-        if (values == null) {
-            return null;
-        }
-        return Set.copyOf(values);
+        return createStableSet(values, String.class);
     }
 
     @Override
     @Nullable
     public Set<String> getValueSet(@NonNull final String propertyName, @Nullable final Set<String> defaultValue) {
         if (!exists(propertyName)) {
-            return defaultValue;
+            return createStableSet(defaultValue, String.class);
         }
-        return getValueSet(propertyName);
+        return createStableSet(getValues(propertyName), String.class);
     }
 
     @Override
@@ -186,10 +211,7 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
     public <T> Set<T> getValueSet(@NonNull final String propertyName, @NonNull final Class<T> propertyType)
             throws NoSuchElementException, IllegalArgumentException {
         final List<T> values = getValues(propertyName, propertyType);
-        if (values == null) {
-            return null;
-        }
-        return Set.copyOf(values);
+        return createStableSet(values, propertyType);
     }
 
     @Override
@@ -200,9 +222,9 @@ class ConfigurationImpl implements Configuration, ConfigLifecycle {
             @Nullable final Set<T> defaultValue)
             throws IllegalArgumentException {
         if (!exists(propertyName)) {
-            return defaultValue;
+            return createStableSet(defaultValue, propertyType);
         }
-        return getValueSet(propertyName, propertyType);
+        return createStableSet(getValues(propertyName, propertyType), propertyType);
     }
 
     @NonNull

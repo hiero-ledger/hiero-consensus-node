@@ -55,7 +55,6 @@ import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
-import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,6 +74,7 @@ import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -272,7 +272,7 @@ public class Browser {
             final ReservedSignedState initialState = reservedState.state();
 
             // Initialize the address book
-            final AddressBook addressBook = initializeAddressBook(
+            initializeAddressBook(
                     nodeId,
                     appMain.getSemanticVersion(),
                     initialState,
@@ -283,7 +283,8 @@ public class Browser {
 
             // Build the platform with the given values
             final State state = initialState.get().getState();
-            final long round = platformStateFacade.roundOf(state);
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
@@ -291,8 +292,8 @@ public class Browser {
                     initialState,
                     consensusStateEventHandler,
                     nodeId,
-                    AddressBookUtils.formatConsensusEventStreamName(addressBook, nodeId),
-                    RosterUtils.buildRosterHistory(state, round),
+                    String.valueOf(nodeId),
+                    rosterHistory,
                     platformStateFacade);
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);

@@ -95,7 +95,6 @@ import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -570,17 +569,16 @@ public class UtilVerbs {
 
     /**
      * Returns a submission strategy that requires an embedded network and given one submits a transaction with
-     * the given synthetic version.
-     *
-     * @param syntheticVersion the synthetic version to use
+     * the given event birth round.
+     * @param eventBirthRound the event birth round to use for the submission
      * @return the submission strategy
      */
-    public static HapiTxnOp.SubmissionStrategy usingVersion(@NonNull final SyntheticVersion syntheticVersion) {
+    public static HapiTxnOp.SubmissionStrategy usingEventBirthRound(long eventBirthRound) {
         return (network, transaction, functionality, target, nodeAccountId) -> {
             if (!(network instanceof EmbeddedNetwork embeddedNetwork)) {
                 throw new IllegalArgumentException("Expected an EmbeddedNetwork");
             }
-            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, syntheticVersion);
+            return embeddedNetwork.embeddedHederaOrThrow().submit(transaction, nodeAccountId, eventBirthRound);
         };
     }
 
@@ -759,7 +757,17 @@ public class UtilVerbs {
      * @return the operation that sleeps until the beginning of the next block stream block
      */
     public static HapiSpecWaitUntilNextBlock waitUntilNextBlock() {
-        return new HapiSpecWaitUntilNextBlock();
+        return waitUntilNextBlocks(1);
+    }
+
+    /**
+     * Returns a {@link HapiSpecOperation} that sleeps until at least the beginning of the next N block stream blocks.
+     *
+     * @param blocksToWait the number of blocks to wait for
+     * @return the operation that sleeps until the beginning of the next N block stream blocks
+     */
+    public static HapiSpecWaitUntilNextBlock waitUntilNextBlocks(final int blocksToWait) {
+        return new HapiSpecWaitUntilNextBlock().waitingForBlocks(blocksToWait);
     }
 
     public static HapiSpecWaitUntil waitUntilJustBeforeNextStakingPeriod(
@@ -888,6 +896,10 @@ public class UtilVerbs {
 
     public static BalanceSnapshot balanceSnapshot(String name, String forAccount) {
         return new BalanceSnapshot(forAccount, name);
+    }
+
+    public static BalanceSnapshot tokenBalanceSnapshot(String token, String name, String forAccount) {
+        return new BalanceSnapshot(forAccount, name).forToken(token);
     }
 
     public static MutateAccountOp mutateAccount(
@@ -1923,8 +1935,7 @@ public class UtilVerbs {
                     .sorted(Comparator.comparing(ContractID::getContractNum))
                     .toList();
             final var createdId = createdIds.get(creationNum);
-            final var accDetails = getContractInfo(CommonUtils.hex(
-                            asEvmAddress(createdId.getShardNum(), createdId.getRealmNum(), createdId.getContractNum())))
+            final var accDetails = getContractInfo(CommonUtils.hex(asEvmAddress(createdId.getContractNum())))
                     .logged();
             allRunFor(spec, accDetails);
         });
@@ -2000,6 +2011,10 @@ public class UtilVerbs {
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
         });
+    }
+
+    public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
+        return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.00);
     }
 
     public static CustomSpecAssert validateInnerTxnChargedUsd(
@@ -2479,6 +2494,10 @@ public class UtilVerbs {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(asAddress(account)), amount, isApproval);
     }
 
+    public static Tuple accountAmount(final Address accountAddress, final Long amount, final boolean isApproval) {
+        return Tuple.of(accountAddress, amount, isApproval);
+    }
+
     public static Tuple accountAmountAlias(final byte[] alias, final Long amount) {
         return Tuple.of(HapiParserUtil.asHeadlongAddress(alias), amount);
     }
@@ -2566,7 +2585,7 @@ public class UtilVerbs {
     }
 
     private static Object swapLongZeroToEVMAddresses(HapiSpec spec, Object arg, Address address) {
-        if (isLongZeroAddress(spec.shard(), spec.realm(), explicitFromHeadlong(address))) {
+        if (isLongZeroAddress(explicitFromHeadlong(address))) {
             var contractNum = numberOfLongZero(explicitFromHeadlong(address));
             if (spec.registry().hasEVMAddress(String.valueOf(contractNum))) {
                 return HapiParserUtil.asHeadlongAddress(spec.registry().getEVMAddress(String.valueOf(contractNum)));

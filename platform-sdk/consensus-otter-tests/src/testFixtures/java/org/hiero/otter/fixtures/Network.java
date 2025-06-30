@@ -8,7 +8,7 @@ import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
-import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 
 /**
  * Interface representing a network of nodes.
@@ -32,10 +32,8 @@ public interface Network {
      * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
      * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start();
 
     /**
      * Add an instrumented node to the network.
@@ -50,6 +48,10 @@ public interface Network {
 
     /**
      * Get the list of nodes in the network.
+     *
+     * <p>The {@link List} cannot be modified directly. However, if a node is added or removed from the network, the
+     * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
+     * create a copy.
      *
      * @return a list of nodes in the network
      */
@@ -129,12 +131,12 @@ public interface Network {
     MultipleNodeLogResults getLogResults();
 
     /**
-     * Gets the status progression of all nodes in the network.
+     * Gets the status progression results of all nodes in the network.
      *
-     * @return the status progression of the nodes
+     * @return the status progression results of the nodes
      */
     @NonNull
-    MultipleNodeStatusProgression getStatusProgression();
+    MultipleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
      * Gets the results related to PCES files.

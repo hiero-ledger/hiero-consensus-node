@@ -12,7 +12,8 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 /**
  * A validator that ensures that the internal state of two rounds from different nodes are equal.
  */
-public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
+public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonValidation {
+    INSTANCE;
 
     /**
      * Validates that the internal state of two rounds from different nodes are equal.
@@ -87,7 +88,6 @@ public class RoundInternalEqualityValidation implements ConsensusRoundValidation
     /** Add a description to a string builder as to why two events are different. */
     private static void getEventDifference(
             final StringBuilder sb, final PlatformEvent event1, final PlatformEvent event2) {
-        checkGeneration(event1, event2, sb);
         checkConsensusTimestamp(event1, event2, sb);
         checkConsensusOrder(event1, event2, sb);
     }
@@ -110,17 +110,6 @@ public class RoundInternalEqualityValidation implements ConsensusRoundValidation
                     .append(event1.getConsensusTimestamp())
                     .append(" vs ")
                     .append(event2.getConsensusTimestamp())
-                    .append("\n");
-        }
-    }
-
-    private static void checkGeneration(
-            final PlatformEvent event1, final PlatformEvent event2, final StringBuilder sb) {
-        if (event1.getGeneration() != event2.getGeneration()) {
-            sb.append("   generation mismatch: ")
-                    .append(event1.getGeneration())
-                    .append(" vs ")
-                    .append(event2.getGeneration())
                     .append("\n");
         }
     }

@@ -28,7 +28,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
         with:
           egress-policy: audit
 
@@ -63,7 +63,7 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Import GPG Key
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true
@@ -72,7 +72,7 @@ jobs:
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
       - name: Setup Node
-        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
 

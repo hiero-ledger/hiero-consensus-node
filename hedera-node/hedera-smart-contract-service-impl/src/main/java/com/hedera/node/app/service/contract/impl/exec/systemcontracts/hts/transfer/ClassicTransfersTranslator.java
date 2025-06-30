@@ -148,21 +148,21 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
 
     private @Nullable TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
         if (attempt.isSelector(CRYPTO_TRANSFER)) {
-            return decoder.decodeCryptoTransfer(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeCryptoTransfer(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(CRYPTO_TRANSFER_V2)) {
-            return decoder.decodeCryptoTransferV2(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeCryptoTransferV2(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_TOKENS)) {
-            return decoder.decodeTransferTokens(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferTokens(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_TOKEN)) {
-            return decoder.decodeTransferToken(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferToken(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_NFTS)) {
-            return decoder.decodeTransferNfts(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferNfts(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_NFT)) {
-            return decoder.decodeTransferNft(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeTransferNft(attempt.inputBytes(), attempt);
         } else if (attempt.isSelector(TRANSFER_FROM)) {
-            return decoder.decodeHrcTransferFrom(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeHrcTransferFrom(attempt.inputBytes(), attempt);
         } else {
-            return decoder.decodeHrcTransferNftFrom(attempt.inputBytes(), attempt.addressIdConverter());
+            return decoder.decodeHrcTransferNftFrom(attempt.inputBytes(), attempt);
         }
     }
 

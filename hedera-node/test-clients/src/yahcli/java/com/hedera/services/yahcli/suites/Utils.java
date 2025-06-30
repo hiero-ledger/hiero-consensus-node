@@ -3,8 +3,10 @@ package com.hedera.services.yahcli.suites;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isIdLiteral;
+import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
 
 import com.hedera.services.bdd.spec.HapiPropertySource;
+import com.hedera.services.yahcli.config.ConfigManager;
 import com.hederahashgraph.api.proto.java.FileID;
 import java.io.File;
 import java.time.Instant;
@@ -56,7 +58,7 @@ public class Utils {
         return Instant.from(DATE_TIME_FORMAT.parse(timeStampInStr));
     }
 
-    enum ServiceType {
+    public enum ServiceType {
         CRYPTO,
         CONSENSUS,
         TOKEN,
@@ -92,15 +94,24 @@ public class Utils {
             Map.entry("throttles.json", 123L),
             Map.entry("software-zip", 150L),
             Map.entry("telemetry-zip", 159L));
-    private static final Map<Long, String> NUMBERS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
-            // For any found duplicates, use the actual file name as the key
-            .filter(e -> e.getKey().matches("^[a-zA-Z0-9-]\\.[a-z0-9]+$"))
-            .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey));
+    private static final Map<FileID, String> IDS_TO_NAMES = NAMES_TO_NUMBERS.entrySet().stream()
+            .filter(entry -> !entry.getKey().contains("."))
+            .collect(Collectors.toMap(
+                    (Map.Entry<String, Long> entry) ->
+                            FileID.newBuilder().setFileNum(entry.getValue()).build(),
+                    Map.Entry::getKey));
 
     private static final Set<Long> VALID_NUMBERS = new HashSet<>(NAMES_TO_NUMBERS.values());
 
     public static String nameOf(FileID fid) {
-        return Optional.ofNullable(NUMBERS_TO_NAMES.get(fid.getFileNum())).orElse("<N/A>");
+        return Optional.ofNullable(IDS_TO_NAMES.get(fid)).orElse("<N/A>");
+    }
+
+    public static void mismatchedShardRealmMsg(ConfigManager config, final String entityId) {
+        COMMON_MESSAGES.warn("Configured shard/realm for entity ID " + entityId + " does not match "
+                + "the target network's configured shard/realm of "
+                + config.shard().getShardNum() + "." + config.realm().getRealmNum()
+                + "! Using shard/realm configured for network instead.");
     }
 
     public static EnumSet<ServiceType> rationalizedServices(final String[] services) {

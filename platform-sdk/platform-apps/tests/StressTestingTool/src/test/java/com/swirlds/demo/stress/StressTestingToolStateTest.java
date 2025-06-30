@@ -244,7 +244,7 @@ class StressTestingToolStateTest {
 
     private void givenRoundAndEvent() {
         when(event.getCreatorId()).thenReturn(new NodeId());
-        when(event.getSoftwareVersion()).thenReturn(new SemanticVersion(1, 1, 1, "", ""));
+        when(event.getSoftwareVersion()).thenReturn(null);
         when(event.getConsensusTimestamp()).thenReturn(Instant.now());
         when(event.consensusTransactionIterator())
                 .thenReturn(Collections.singletonList((ConsensusTransaction) transaction)

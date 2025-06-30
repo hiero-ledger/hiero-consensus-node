@@ -96,7 +96,7 @@ class OwnerOfCallTest extends CallTestBase {
         assertEquals(
                 Bytes.wrap(OwnerOfTranslator.OWNER_OF
                         .getOutputs()
-                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(entityIdFactory, ownerNum))))
+                        .encode(Tuple.singleton(asHeadlongAddress(asLongZeroAddress(ownerNum))))
                         .array()),
                 result.getOutput());
     }
@@ -106,7 +106,6 @@ class OwnerOfCallTest extends CallTestBase {
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(TREASURY_OWNED_NFT);
-        final long ownerNum = NON_FUNGIBLE_TOKEN.treasuryAccountIdOrThrow().accountNumOrThrow();
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(TestHelpers.ALIASED_SOMEBODY);
 
         final var result = subject.execute().fullResult().result();

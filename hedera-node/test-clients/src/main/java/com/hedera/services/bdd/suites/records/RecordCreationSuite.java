@@ -41,7 +41,8 @@ import org.junit.jupiter.api.DynamicTest;
 
 @HapiTestLifecycle
 public class RecordCreationSuite {
-    private static final long SLEEP_MS = 1_000L;
+
+    private static final long SLEEP_MS = 2_000L;
     private static final String BEFORE = "before";
     private static final String FUNDING_BEFORE = "fundingBefore";
     private static final String STAKING_REWARD1 = "stakingReward";

@@ -8,6 +8,9 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -33,6 +36,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -197,6 +201,8 @@ public class RecordStreamBuilder
     private TokenType tokenType;
     private HederaFunctionality function;
 
+    private boolean isContractCreate;
+
     /**
      * ops duration used by the contract transaction
      */
@@ -316,7 +322,11 @@ public class RecordStreamBuilder
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-        transactionReceiptBuilder.contractID((ContractID) null);
+
+        if (isContractCreate) {
+            transactionReceiptBuilder.contractID((ContractID) null);
+        }
+
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
@@ -512,6 +522,12 @@ public class RecordStreamBuilder
         transactionRecordBuilder.contractCreateResult(contractCreateResult);
         this.contractFunctionResult = contractCreateResult;
         return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
     /**
@@ -849,6 +865,21 @@ public class RecordStreamBuilder
     }
 
     /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @Override
+    @NonNull
+    public RecordStreamBuilder createdContractID(@Nullable final ContractID contractID) {
+        isContractCreate = true;
+        contractID(contractID);
+        return this;
+    }
+
+    /**
      * Gets the {@link ExchangeRateSet} that is currently set for the receipt.
      *
      * @return the {@link ExchangeRateSet}
@@ -1067,10 +1098,22 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
     @Override
-    public ContractOperationStreamBuilder opsDuration(long opsDuration) {
-        this.opsDuration = opsDuration;
-        return this;
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
     }
 
     /**
