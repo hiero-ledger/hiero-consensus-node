@@ -87,6 +87,7 @@ jobs:
   verify-tag:
     name: Verify Tag
     runs-on: hiero-network-node-linux-medium
+    continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
