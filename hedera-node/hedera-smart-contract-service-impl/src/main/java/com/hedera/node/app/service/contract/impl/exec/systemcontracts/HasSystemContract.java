@@ -9,10 +9,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -34,8 +36,16 @@ public class HasSystemContract extends AbstractNativeSystemContract implements H
     public HasSystemContract(
             @NonNull final GasCalculator gasCalculator,
             @NonNull final HasCallFactory callFactory,
-            @NonNull final ContractMetrics contractMetrics) {
-        super(HAS_SYSTEM_CONTRACT_NAME, callFactory, gasCalculator, contractMetrics);
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final OpsDurationMetrics opsDurationMetrics,
+            @NonNull final HederaOpsDuration hederaOpsDuration) {
+        super(
+                HAS_SYSTEM_CONTRACT_NAME,
+                callFactory,
+                gasCalculator,
+                contractMetrics,
+                opsDurationMetrics,
+                hederaOpsDuration);
     }
 
     @Override

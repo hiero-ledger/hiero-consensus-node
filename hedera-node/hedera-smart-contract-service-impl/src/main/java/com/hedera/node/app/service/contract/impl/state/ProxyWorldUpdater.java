@@ -12,7 +12,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.is
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
-import static com.hedera.node.app.spi.workflows.ResourceExhaustedException.validateResource;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 
@@ -507,7 +506,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     public void checkOpsDurationThrottle(final long currentOpsDuration) {
         final var throttleAdviser = enhancement.operations().getThrottleAdviser();
         if (throttleAdviser != null) {
-            validateResource(!throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration), THROTTLED_AT_CONSENSUS);
+            final var shouldThrottle = throttleAdviser.shouldThrottleByOpsDuration(currentOpsDuration);
+            if (shouldThrottle) {
+                requireNonNull(enhancement.operations().opsDurationMetrics())
+                        .recordTransactionsThrottledByOpsDuration();
+                throw new ResourceExhaustedException(THROTTLED_AT_CONSENSUS);
+            }
         }
     }
 }

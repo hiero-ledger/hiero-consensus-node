@@ -10,6 +10,7 @@ import com.hedera.services.bdd.junit.hedera.AbstractGrpcNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
@@ -92,6 +93,11 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
     @Override
     public long realm() {
         return realm;
+    }
+
+    @Override
+    public PrometheusClient prometheusClient() {
+        throw new UnsupportedOperationException("Prometheus status is not supported for remote networks");
     }
 
     private static NodeMetadata metadataFor(final int nodeId, @NonNull final NodeConnectInfo connectInfo) {

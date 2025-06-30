@@ -13,6 +13,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
@@ -25,7 +26,6 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
     requires com.swirlds.base;
-    requires com.swirlds.common;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
