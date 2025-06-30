@@ -25,6 +25,8 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
 
     private final NodeId nodeId;
     private final Set<Marker> suppressedLogMarkers;
+
+    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile int startIndex = 0;
 
     /**
@@ -55,7 +57,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     public List<StructuredLog> logs() {
         return InMemoryAppender.getLogs(nodeId).stream()
                 .skip(startIndex)
-                .filter(logEntry -> !suppressedLogMarkers.contains(logEntry.marker()))
+                .filter(logEntry -> logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))
                 .toList();
     }
 
@@ -65,7 +67,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     @NonNull
     @Override
     public SingleNodeLogResult suppressingLogMarker(@NonNull final LogMarker marker) {
-        Objects.requireNonNull(marker, "marker cannot be null");
+        requireNonNull(marker, "marker cannot be null");
 
         final Set<Marker> markers = new HashSet<>(suppressedLogMarkers);
         markers.add(marker.getMarker());
