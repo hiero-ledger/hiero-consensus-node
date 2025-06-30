@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
@@ -108,7 +109,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             // throw if more than one tx has the same transactionID
             validateTruePreCheck(txIds.add(txBody.transactionID()), BATCH_LIST_CONTAINS_DUPLICATES);
 
-            // validate batch key exists on each inner transaction
+            // validates a batch key exists on each inner transaction
             validateTruePreCheck(txBody.hasBatchKey(), MISSING_BATCH_KEY);
 
             if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
@@ -127,7 +128,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
 
         final var txns = atomicBatchTransactionBody.transactions();
-        // not using stream below as throwing exception from middle of functional pipeline is a terrible idea
+        // not using a stream below as throwing exception in the middle of a functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
             final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
             validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
@@ -155,13 +156,14 @@ public class AtomicBatchHandler implements TransactionHandler {
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
         for (final var txnBytes : txns) {
-            // Use the unchecked get because if the transaction is correct it should be in the cache by now
+            // Use the unchecked get because if the transaction is correct, it should be in the cache by now
             final TransactionBody innerTxnBody;
             innerTxnBody = innerTxnCache.computeIfAbsentUnchecked(txnBytes);
             final var payerId = innerTxnBody.transactionIDOrThrow().accountIDOrThrow();
-            // all the inner transactions' keys are verified in PreHandleWorkflow
-            final var dispatchOptions =
-                    atomicBatchDispatch(payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging);
+            // Set txn bytes as dispatch metadata. Used to pre-handle inner transaction while dispatching them.
+            final var dispatchMetadata = new HandleContext.DispatchMetadata(INNER_TRANSACTION_BYTES, txnBytes);
+            final var dispatchOptions = atomicBatchDispatch(
+                    payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);

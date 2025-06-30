@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
-import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -34,9 +33,7 @@ import org.junit.jupiter.api.Test;
 
 class FutureEventBufferTests {
     public static final Metrics METRICS = new NoOpMetrics();
-    public static final Configuration CONFIGURATION = new TestConfigBuilder()
-            .withValue(EventConfig_.USE_BIRTH_ROUND_ANCIENT_THRESHOLD, "true")
-            .getOrCreateConfig();
+    public static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
 
     /**
      * This test verifies the following:
@@ -57,7 +54,7 @@ class FutureEventBufferTests {
         final long pendingConsensusRound = nonAncientBirthRound * 2;
         final long maxFutureRound = nonAncientBirthRound * 3;
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(pendingConsensusRound - 1)
                 .setAncientThreshold(nonAncientBirthRound)
                 .build();
@@ -99,7 +96,7 @@ class FutureEventBufferTests {
                 newPendingConsensusRound <= maxFutureRound;
                 newPendingConsensusRound++) {
 
-            final EventWindow newEventWindow = EventWindowBuilder.birthRoundMode()
+            final EventWindow newEventWindow = EventWindowBuilder.builder()
                     .setLatestConsensusRound(newPendingConsensusRound - 1)
                     .setAncientThreshold(nonAncientBirthRound)
                     .build();
@@ -116,7 +113,7 @@ class FutureEventBufferTests {
         assertEquals(futureEvents, unBufferedEvents);
 
         // Make a big window shift. There should be no events that come out of the buffer.
-        final EventWindow newEventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow newEventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(pendingConsensusRound * 1000)
                 .setAncientThreshold(nonAncientBirthRound)
                 .build();
@@ -151,7 +148,7 @@ class FutureEventBufferTests {
         final long pendingConsensusRound = nonAncientBirthRound * 2;
         final long maxFutureRound = nonAncientBirthRound * 3;
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(pendingConsensusRound - 1)
                 .setAncientThreshold(nonAncientBirthRound)
                 .build();
@@ -185,7 +182,7 @@ class FutureEventBufferTests {
             }
         }
 
-        final EventWindow newEventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow newEventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(pendingConsensusRound * 1000)
                 .setAncientThreshold(nonAncientBirthRound * 1000)
                 .build();
@@ -205,7 +202,7 @@ class FutureEventBufferTests {
         final long pendingConsensusRound = random.nextLong(100, 1_000);
         final long nonAncientBirthRound = pendingConsensusRound / 2;
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(pendingConsensusRound - 1)
                 .setAncientThreshold(nonAncientBirthRound)
                 .build();
@@ -227,7 +224,7 @@ class FutureEventBufferTests {
                 currentConsensusRound < eventBirthRound - 1;
                 currentConsensusRound++) {
 
-            final EventWindow newEventWindow = EventWindowBuilder.birthRoundMode()
+            final EventWindow newEventWindow = EventWindowBuilder.builder()
                     .setLatestConsensusRound(currentConsensusRound)
                     .setAncientThreshold(nonAncientBirthRound)
                     .build();
@@ -241,7 +238,7 @@ class FutureEventBufferTests {
         // To land with the pending consensus round at the exact value as the event's birth round, we need to
         // set the current consensus round to the event's birth round - 1.
 
-        final EventWindow newEventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow newEventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(eventBirthRound - 1)
                 .setAncientThreshold(nonAncientBirthRound)
                 .build();
@@ -292,7 +289,7 @@ class FutureEventBufferTests {
     }
 
     private FutureEventBuffer pendingRoundFutureBuffer() {
-        return new FutureEventBuffer(CONFIGURATION, METRICS, PENDING_CONSENSUS_ROUND);
+        return new FutureEventBuffer(METRICS, PENDING_CONSENSUS_ROUND);
     }
 
     /**
@@ -416,15 +413,15 @@ class FutureEventBufferTests {
     @Test
     @DisplayName("Tests both future event buffering options")
     void eventBufferingOptions() {
-        final FutureEventBuffer pendingBuffer = new FutureEventBuffer(CONFIGURATION, METRICS, PENDING_CONSENSUS_ROUND);
-        final FutureEventBuffer birthRoundBuffer = new FutureEventBuffer(CONFIGURATION, METRICS, EVENT_BIRTH_ROUND);
+        final FutureEventBuffer pendingBuffer = new FutureEventBuffer(METRICS, PENDING_CONSENSUS_ROUND);
+        final FutureEventBuffer birthRoundBuffer = new FutureEventBuffer(METRICS, EVENT_BIRTH_ROUND);
 
         final long latestConsensusRound = 1;
         // the latest consensus round is 1, which means pending round is 2
         final long pendingRound = latestConsensusRound + 1;
         final long eventBirthRound = 1;
 
-        final EventWindow eventWindow = EventWindowBuilder.birthRoundMode()
+        final EventWindow eventWindow = EventWindowBuilder.builder()
                 .setLatestConsensusRound(latestConsensusRound)
                 .setNewEventBirthRound(eventBirthRound)
                 .build();
@@ -521,9 +518,7 @@ class FutureEventBufferTests {
         }
 
         public EventWindow getEventWindowForMaxBirthRound() {
-            return EventWindowBuilder.birthRoundMode()
-                    .setLatestConsensusRound(3)
-                    .build();
+            return EventWindowBuilder.builder().setLatestConsensusRound(3).build();
         }
 
         /**
@@ -534,7 +529,7 @@ class FutureEventBufferTests {
          * @return the event window
          */
         public EventWindow eventWindowForPendingRound(final long newPendingRound) {
-            return EventWindowBuilder.birthRoundMode()
+            return EventWindowBuilder.builder()
                     .setLatestConsensusRound(newPendingRound - 1)
                     .build();
         }

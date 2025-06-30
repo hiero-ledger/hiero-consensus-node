@@ -13,6 +13,7 @@ import com.hedera.node.app.hapi.fees.usage.crypto.CryptoCreateMeta;
 import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -38,7 +39,8 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private static final Logger log = LogManager.getLogger(HapiAtomicBatch.class);
     private static final String DEFAULT_NODE_ACCOUNT_ID = "0.0.0";
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
-    private final Map<TransactionID, HapiTxnOp<?>> operationsMap = new HashMap<>();
+    private final Map<TransactionID, HapiTxnOp<?>> innerOpsByTxnId = new HashMap<>();
+    private final Map<TransactionID, Transaction> innerTnxsByTxnId = new HashMap<>();
     private final List<String> txnIdsForOrderValidation = new ArrayList<>();
 
     public HapiAtomicBatch() {}
@@ -89,9 +91,11 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                                                 spec.logPrefix(),
                                                 txnToString(transaction));
                                     }
-                                    // save transaction id
+                                    // save transaction id and transaction
                                     final var txnId = extractTxnId(transaction);
-                                    operationsMap.put(txnId, op);
+                                    innerOpsByTxnId.put(txnId, op);
+                                    innerTnxsByTxnId.put(txnId, transaction);
+
                                     // add the transaction to the batch
                                     b.addTransactions(transaction.getSignedTransactionBytes());
                                 } catch (Throwable e) {
@@ -103,9 +107,31 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     }
 
     @Override
+    public void setTransactionSubmitted(final Transaction txn) {
+        // Set the submitted outer (batch) transaction
+        this.txnSubmitted = txn;
+
+        // For each of the included operations, also set the submitted transaction
+        this.innerOpsByTxnId.forEach(
+                (transactionID, hapiTxnOp) -> hapiTxnOp.setTransactionSubmitted(innerTnxsByTxnId.get(transactionID)));
+    }
+
+    @Override
+    protected void maybeRegisterTxnSubmitted(final HapiSpec spec) throws Throwable {
+        super.maybeRegisterTxnSubmitted(spec);
+
+        for (final var entry : innerTnxsByTxnId.entrySet()) {
+            final var op = innerOpsByTxnId.get(entry.getKey());
+            if (op != null && op.shouldRegisterTxn()) {
+                HapiSpecOperation.registerTransaction(spec, op.getTxnName(), entry.getValue());
+            }
+        }
+    }
+
+    @Override
     public void updateStateOf(HapiSpec spec) throws Throwable {
         if (actualStatus == SUCCESS) {
-            for (Map.Entry<TransactionID, HapiTxnOp<?>> entry : operationsMap.entrySet()) {
+            for (Map.Entry<TransactionID, HapiTxnOp<?>> entry : innerOpsByTxnId.entrySet()) {
                 TransactionID txnId = entry.getKey();
                 HapiTxnOp<?> op = entry.getValue();
 

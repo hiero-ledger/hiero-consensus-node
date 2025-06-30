@@ -3,7 +3,6 @@ package com.swirlds.platform.consensus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.event.linking.SimpleLinker;
@@ -15,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.hiero.consensus.config.EventConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -31,10 +29,8 @@ class LocalConsensusGenerationTest {
     @Test
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
-        final PlatformContext context = TestPlatformContextBuilder.create().build();
         // We need a linker to created EventImpl objects that hold the cGen value
-        final SimpleLinker linker = new SimpleLinker(
-                context.getConfiguration().getConfigData(EventConfig.class).getAncientMode());
+        final SimpleLinker linker = new SimpleLinker();
         // We need an orphan buffer to assign nGen values to the events
         final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
                 TestPlatformContextBuilder.create().build(), Mockito.mock(IntakeEventCounter.class));

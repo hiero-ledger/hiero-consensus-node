@@ -14,6 +14,8 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
+import com.swirlds.platform.recovery.RecoveryTestUtils;
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
@@ -27,14 +29,15 @@ class ConsensusEventStreamTest {
     private static final MultiStream<CesEvent> multiStreamMock = mock(MultiStream.class);
     private static final ConsensusEventStream CONSENSUS_EVENT_STREAM = new DefaultConsensusEventStream(
             Time.getCurrent(), multiStreamMock, ConsensusEventStreamTest::isFreezeEvent);
+    private static final Random RANDOM = RandomUtils.getRandomPrintSeed();
 
-    private static final CesEvent freezeEvent = mock(CesEvent.class);
+    private static final CesEvent freezeEvent = createRandomEvent();
 
     @Test
     void addEventTest() {
         final int nonFreezeEventsNum = 10;
         for (int i = 0; i < nonFreezeEventsNum; i++) {
-            final CesEvent event = mock(CesEvent.class);
+            final CesEvent event = createRandomEvent();
             CONSENSUS_EVENT_STREAM.addEvents(List.of(event));
 
             verify(multiStreamMock).addObject(event);
@@ -57,7 +60,7 @@ class ConsensusEventStreamTest {
         // for freeze event, multiStream should be closed after adding it
         verify(multiStreamMock).close();
 
-        final CesEvent eventAddAfterFrozen = mock(CesEvent.class);
+        final CesEvent eventAddAfterFrozen = createRandomEvent();
         CONSENSUS_EVENT_STREAM.addEvents(List.of(eventAddAfterFrozen));
         // after frozen, when adding event to the EventStreamManager, multiStream.add(event) should not be called
         verify(multiStreamMock, never()).addObject(eventAddAfterFrozen);
@@ -92,5 +95,13 @@ class ConsensusEventStreamTest {
      */
     private static boolean isFreezeEvent(final CesEvent event) {
         return event == freezeEvent;
+    }
+
+    /**
+     * Creates a random CesEvent
+     * @return a random CesEvent
+     */
+    private static CesEvent createRandomEvent() {
+        return RecoveryTestUtils.generateRandomEvent(RANDOM, RANDOM.nextLong(), false, Instant.now());
     }
 }

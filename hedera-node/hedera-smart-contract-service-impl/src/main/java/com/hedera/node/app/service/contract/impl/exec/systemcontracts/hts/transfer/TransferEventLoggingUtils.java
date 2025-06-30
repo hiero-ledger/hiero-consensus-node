@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.priorityAddressOf;
 import static java.util.Objects.requireNonNull;
@@ -13,7 +12,6 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AbiConstants;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -52,12 +50,7 @@ public class TransferEventLoggingUtils {
         if (credit.amount() < 0) {
             throw new IllegalArgumentException("Credit adjustment must appear first");
         }
-        frame.addLog(builderFor(
-                        tokenId,
-                        adjusts.getLast().accountIDOrThrow(),
-                        credit.accountIDOrThrow(),
-                        accountStore,
-                        entityIdFactory(frame))
+        frame.addLog(builderFor(tokenId, adjusts.getLast().accountIDOrThrow(), credit.accountIDOrThrow(), accountStore)
                 .forDataItem(credit.amount())
                 .build());
     }
@@ -83,8 +76,7 @@ public class TransferEventLoggingUtils {
                         tokenId,
                         nftTransfer.senderAccountIDOrThrow(),
                         nftTransfer.receiverAccountIDOrThrow(),
-                        accountStore,
-                        entityIdFactory(frame))
+                        accountStore)
                 .forIndexedArgument(BigInteger.valueOf(nftTransfer.serialNumber()))
                 .build());
     }
@@ -93,9 +85,8 @@ public class TransferEventLoggingUtils {
             @NonNull final TokenID tokenId,
             @NonNull final AccountID senderId,
             @NonNull final AccountID receiverId,
-            @NonNull final ReadableAccountStore accountStore,
-            @NonNull final EntityIdFactory entityIdFactory) {
-        final var tokenAddress = asLongZeroAddress(entityIdFactory, tokenId.tokenNum());
+            @NonNull final ReadableAccountStore accountStore) {
+        final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
         final var senderAddress = priorityAddressOf(requireNonNull(accountStore.getAliasedAccountById(senderId)));
         final var receiverAddress = priorityAddressOf(requireNonNull(accountStore.getAliasedAccountById(receiverId)));
         return LogBuilder.logBuilder()

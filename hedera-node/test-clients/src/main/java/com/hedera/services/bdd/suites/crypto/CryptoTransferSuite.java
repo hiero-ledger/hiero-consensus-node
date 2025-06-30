@@ -150,23 +150,15 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class CryptoTransferSuite {
     private static final String OWNER = "owner";
-    private static final String OTHER_OWNER = "otherOwner";
     private static final String SPENDER = "spender";
     private static final String PAYER = "payer";
     private static final String SENDER = "sender";
     private static final String RECEIVER = "receiver";
     private static final String TREASURY = "treasury";
-    private static final String OTHER_RECEIVER = "otherReceiver";
-    private static final String ANOTHER_RECEIVER = "anotherReceiver";
     private static final String FUNGIBLE_TOKEN = "fungible";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungible";
-    private static final String TOKEN_WITH_CUSTOM_FEE = "tokenWithCustomFee";
-    private static final String ADMIN_KEY = "adminKey";
-    private static final String KYC_KEY = "kycKey";
-    private static final String FREEZE_KEY = "freezeKey";
     private static final String SUPPLY_KEY = "supplyKey";
     private static final String WIPE_KEY = "wipeKey";
-    private static final String PAUSE_KEY = "pauseKey";
     private static final String PARTY = "party";
     public static final String COUNTERPARTY = "counterparty";
     private static final String MULTI_KEY = "multi";
@@ -528,9 +520,9 @@ public class CryptoTransferSuite {
                     final var registry = spec.registry();
                     ftId.set(registry.getTokenID(FUNGIBLE_TOKEN));
                     nftId.set(registry.getTokenID(NON_FUNGIBLE_TOKEN));
-                    partyId.set(accountIdFromHexedMirrorAddress(partyMirrorAddr.get()));
+                    partyId.set(accountIdFromHexedMirrorAddress(spec, partyMirrorAddr.get()));
                     partyLiteral.set(asAccountString(partyId.get()));
-                    counterId.set(accountIdFromHexedMirrorAddress(counterMirrorAddr.get()));
+                    counterId.set(accountIdFromHexedMirrorAddress(spec, counterMirrorAddr.get()));
                     counterLiteral.set(asAccountString(counterId.get()));
                 }),
                 sourcing(() -> tokenAssociate(partyLiteral.get(), List.of(FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN))

@@ -4,11 +4,13 @@ package com.hedera.services.yahcli.commands.nodes;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asCsServiceEndpoints;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asTypedServiceEndpoint;
 import static com.hedera.services.yahcli.commands.nodes.CreateCommand.allBytesAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validateKeyAt;
 import static com.hedera.services.yahcli.commands.nodes.NodesCommand.validatedX509Cert;
 import static com.hedera.services.yahcli.config.ConfigUtils.keyFileFor;
 import static com.hedera.services.yahcli.output.CommonMessages.COMMON_MESSAGES;
+import static com.hedera.services.yahcli.util.ParseUtils.normalizePossibleIdLiteral;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -98,23 +100,32 @@ public class UpdateCommand implements Callable<Integer> {
             paramLabel = "triggers a node to begin declining reward payments")
     Boolean startDecliningRewards;
 
+    @CommandLine.Option(
+            names = {"--grpcProxyEndpoint"},
+            paramLabel =
+                    "updated web proxy endpoint for gRPC from non-gRPC clients, e.g. 10.0.0.1:50051,my.fqdn.com:50051")
+    String grpcProxyEndpoint;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
         var config = ConfigUtils.configFrom(yahcli);
-        final var targetNodeId = validatedNodeId(nodeId);
+        final var normalizedNodeId = normalizePossibleIdLiteral(config, nodeId);
+        final var targetNodeId = validatedNodeId(normalizedNodeId);
         final AccountID newAccountId;
         final String feeAccountKeyLoc;
         final List<ServiceEndpoint> newGossipEndpoints;
         final List<ServiceEndpoint> newHapiEndpoints;
         final byte[] newGossipCaCertificate;
         final byte[] newHapiCertificateHash;
-        if (accountId == null) {
+        final ServiceEndpoint newGrpcProxyEndpoint;
+        final var normalizedAccountId = normalizePossibleIdLiteral(config, accountId);
+        if (normalizedAccountId == null) {
             newAccountId = null;
             feeAccountKeyLoc = null;
         } else {
             newAccountId = validatedAccountId(
-                    config.shard().getShardNum(), config.realm().getRealmNum(), accountId);
+                    config.shard().getShardNum(), config.realm().getRealmNum(), normalizedAccountId);
             final var feeAccountKeyFile = keyFileFor(config.keysLoc(), "account" + newAccountId.getAccountNum());
             feeAccountKeyLoc = feeAccountKeyFile.map(File::getPath).orElse(null);
             if (feeAccountKeyLoc == null) {
@@ -139,6 +150,11 @@ public class UpdateCommand implements Callable<Integer> {
             newHapiEndpoints = asCsServiceEndpoints(serviceEndpoints);
         } else {
             newHapiEndpoints = null;
+        }
+        if (grpcProxyEndpoint != null) {
+            newGrpcProxyEndpoint = asTypedServiceEndpoint(grpcProxyEndpoint);
+        } else {
+            newGrpcProxyEndpoint = null;
         }
         if (gossipCaCertificatePath != null) {
             newGossipCaCertificate = validatedX509Cert(gossipCaCertificatePath, null, null, yahcli);
@@ -173,7 +189,8 @@ public class UpdateCommand implements Callable<Integer> {
                 newHapiEndpoints,
                 newGossipCaCertificate,
                 newHapiCertificateHash,
-                declineReward);
+                declineReward,
+                newGrpcProxyEndpoint);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

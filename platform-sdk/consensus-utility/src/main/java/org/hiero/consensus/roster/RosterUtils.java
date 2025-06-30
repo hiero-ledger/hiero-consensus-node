@@ -16,7 +16,6 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -287,44 +286,15 @@ public final class RosterUtils {
     }
 
     /**
-     * Build an instance of RosterHistory from the current/previous rosters as reported by the RosterRetriever.
-     * <p>
-     * The RosterRetriever implementation fetches the rosters from the RosterState/RosterMap.
-     *
-     * @param state a State object to fetch data from
-     * @param round of the provided state
-     * @return a RosterHistory
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete and Browser/Turtle stop using it
-     */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    public static RosterHistory buildRosterHistory(final State state, final long round) {
-        final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
-        final Map<Bytes, Roster> rosterMap = new HashMap<>();
-
-        final Roster currentRoster = RosterRetriever.retrieveActive(state, round);
-        final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
-        rosterMap.put(currentHash, currentRoster);
-
-        final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
-        if (previousRoster != null) {
-            final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
-            roundRosterPairList.add(new RoundRosterPair(0, previousHash));
-            rosterMap.put(previousHash, previousRoster);
-        }
-
-        return new RosterHistory(roundRosterPairList, rosterMap);
-    }
-
-    /**
      * Creates the Roster History to be used by Platform.
      *
-     * @param rosterStore the roster store containing the active rosters.
+     * @param state the state containing the active roster history.
      * @return the roster history if roster store contains active rosters, otherwise NullPointerException is thrown.
      */
     @NonNull
-    public static RosterHistory createRosterHistory(@NonNull final ReadableRosterStore rosterStore) {
+    public static RosterHistory createRosterHistory(@NonNull final State state) {
+        final ReadableRosterStore rosterStore =
+                new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.NAME));
         final List<RoundRosterPair> roundRosterPairs = rosterStore.getRosterHistory();
         final Map<Bytes, Roster> rosterMap = new HashMap<>();
         for (final RoundRosterPair pair : roundRosterPairs) {

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -16,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
@@ -24,6 +26,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
+import com.hedera.node.config.data.OpsDurationConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -55,6 +58,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final RootProxyWorldUpdater rootProxyWorldUpdater;
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
+    private final HederaOpsDuration hederaOpsDuration;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -81,7 +85,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final RootProxyWorldUpdater worldUpdater,
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
-            @NonNull final CustomGasCharging customGasCharging) {
+            @NonNull final CustomGasCharging customGasCharging,
+            @NonNull final HederaOpsDuration hederaOpsDuration) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -93,10 +98,14 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hederaEvmContext = requireNonNull(hederaEvmContext);
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
+        this.hederaOpsDuration = requireNonNull(hederaOpsDuration);
     }
 
     @Override
     public CallOutcome call() {
+        // Apply the latest ops duration schedule from the configuration
+        setOpsDurationValues();
+
         // Ensure that if this is an EthereumTransaction, we have a valid EthTxData
         assertEthTxDataValidIfApplicable();
 
@@ -127,10 +136,16 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             // For mono-service fidelity, externalize an initcode-only sidecar when a top-level creation fails
             if (!result.isSuccess() && hevmTransaction.needsInitcodeExternalizedOnFailure()) {
+                // (FUTURE) Remove after switching to block stream
                 final var contractBytecode = ContractBytecode.newBuilder()
                         .initcode(hevmTransaction.payload())
                         .build();
-                requireNonNull(hederaEvmContext.recordBuilder()).addContractBytecode(contractBytecode, false);
+                requireNonNull(hederaEvmContext.streamBuilder()).addContractBytecode(contractBytecode, false);
+                // No-op for the RecordStreamBuilder
+                final var initcode = ContractInitcode.newBuilder()
+                        .failedInitcode(hevmTransaction.payload())
+                        .build();
+                requireNonNull(hederaEvmContext.streamBuilder()).addInitcode(initcode);
             }
             return CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater), result);
@@ -201,5 +216,10 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
     private @Nullable EthTxData ethTxDataIfApplicable() {
         return hydratedEthTxData == null ? null : hydratedEthTxData.ethTxData();
+    }
+
+    private void setOpsDurationValues() {
+        final var opsDurationConfig = configuration.getConfigData(OpsDurationConfig.class);
+        hederaOpsDuration.applyDurationFromConfig(requireNonNull(opsDurationConfig));
     }
 }

@@ -7,12 +7,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACC
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.ADJUSTMENTS_MAP_FACTORY;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.asFixedFee;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.getFungibleTokenCredits;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.getNonExemptTokenDebits;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.AdjustmentUtils.safeFractionMultiply;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.customfees.CustomFeeExemptions.isPayerExempt;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.CustomFee;
@@ -61,18 +61,16 @@ public class CustomFractionalFeeAssessor {
     @SuppressWarnings("java:S135")
     public void assessFractionalFees(
             @NonNull final Token token, @NonNull final AccountID sender, @NonNull final AssessmentResult result) {
-        final var denom = token.tokenId();
+        final var denom = token.tokenIdOrThrow();
 
         final var nonMutableInputTokenTransfers = result.getImmutableInputTokenAdjustments();
-        final var mutableInputTokenTransfers = result.getMutableInputBalanceAdjustments();
-
         // get the initial units for this token change from given input.
         // This is needed to see the fraction of the adjustment to be charged as custom fee
         final var initialAdjustment = nonMutableInputTokenTransfers.get(denom).get(sender);
         // custom fees can't be assessed for credits
         validateTrue(initialAdjustment < 0, CUSTOM_FEE_MUST_BE_POSITIVE);
 
-        var unitsLeft = -initialAdjustment;
+        long unitsLeft = -initialAdjustment;
         final var creditsForToken = getFungibleTokenCredits(nonMutableInputTokenTransfers.get(denom));
         for (final var fee : token.customFees()) {
             final var collector = fee.feeCollectorAccountId();
@@ -82,41 +80,59 @@ public class CustomFractionalFeeAssessor {
             if (!fee.fee().kind().equals(CustomFee.FeeOneOfType.FRACTIONAL_FEE) || sender.equals(collector)) {
                 continue;
             }
-            final var filteredCredits = filteredByExemptions(creditsForToken, token, fee);
-            if (filteredCredits.isEmpty()) {
+            final var filteredOriginalCredits = filteredByExemptCredits(creditsForToken, token, fee);
+            if (filteredOriginalCredits.isEmpty()) {
                 continue;
             }
             final var fractionalFee = fee.fractionalFeeOrThrow();
-
-            // calculate amount that should be paid for fractional custom fee;
-            // note the fraction is always calculated from the initial adjustment,
-            // not from the units left after previous fees
-            var assessedAmount = amountOwed(-initialAdjustment, fractionalFee);
-
-            // If it is netOfTransfers the sender will pay the fee, otherwise the receiver will pay the fee
             if (fractionalFee.netOfTransfers()) {
+                // Assess net-of-transfers relative to the initial debit amount, not the amount of non-exempt credits
+                long assessedAmount = netOfTransferAmountOwed(-initialAdjustment, fractionalFee);
                 final var addedFee =
                         asFixedFee(assessedAmount, denom, fee.feeCollectorAccountId(), fee.allCollectorsAreExempt());
                 fixedFeeAssessor.assessFixedFee(token, sender, addedFee, result);
             } else {
-                // amount that should be deducted from the credits to token
-                // Inside this reclaim there will be debits to the input transaction
-                final long exemptAmount = reclaim(assessedAmount, filteredCredits);
-                // debits from the input transaction should be adjusted
-                adjustInputTokenTransfersWithReclaimAmounts(
-                        mutableInputTokenTransfers, denom, filteredCredits, creditsForToken);
-
-                assessedAmount -= exemptAmount;
-                unitsLeft -= assessedAmount;
-                validateTrue(unitsLeft >= 0, INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
-
-                // make credit to the collector
+                final long totalDebits;
+                final long nonExemptCredits;
+                try {
+                    totalDebits =
+                            getNonExemptTokenDebits(nonMutableInputTokenTransfers.get(denom), token, fee)
+                                    .values()
+                                    .stream()
+                                    .mapToLong(Long::longValue)
+                                    .reduce(0L, Math::addExact);
+                    nonExemptCredits = filteredOriginalCredits.values().stream()
+                            .mapToLong(Long::longValue)
+                            .reduce(0L, Math::addExact);
+                } catch (Exception e) {
+                    throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
+                }
+                // Assess fee relative to the proportion of total debits that this debit accounted for
+                final var nonNetAssessment = assessNonNetOfTransferForDebit(
+                        -initialAdjustment, totalDebits, nonExemptCredits, fractionalFee);
+                long assessedAmount = nonNetAssessment.amount();
                 final var map =
                         result.getMutableInputBalanceAdjustments().computeIfAbsent(denom, ADJUSTMENTS_MAP_FACTORY);
-                map.merge(collector, assessedAmount, AdjustmentUtils::addExactOrThrow);
+                final var filteredRemainingCredits = filteredByExemptCredits(map, token, fee);
+                // This has the side effect of reducing the filtered credits map
+                final long unreclaimedAmount = reclaim(assessedAmount, filteredRemainingCredits);
+                if (nonNetAssessment.isMinimum() && unreclaimedAmount > 0) {
+                    throw new HandleException(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
+                }
+                if (unreclaimedAmount == assessedAmount) {
+                    // Nothing to do here, the fee rounded down to zero
+                    continue;
+                }
+                final long collectedAmount = assessedAmount - unreclaimedAmount;
+                unitsLeft -= collectedAmount;
+                validateTrue(unitsLeft >= 0, INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
+                // Adjust mutable input map with the updated credits
+                map.putAll(filteredRemainingCredits);
+                // And update the collector's credit with the collected amount
+                map.merge(collector, collectedAmount, AdjustmentUtils::addExactOrThrow);
                 result.getMutableInputBalanceAdjustments().put(denom, map);
 
-                final var finalEffPayerNums = filteredCredits.keySet();
+                final var finalEffPayerNums = filteredOriginalCredits.keySet();
                 final var finalEffPayerNumsArray = new AccountID[finalEffPayerNums.size()];
 
                 // Add assessed custom fees to the result. This is needed to build transaction record
@@ -124,69 +140,76 @@ public class CustomFractionalFeeAssessor {
                         .effectivePayerAccountId(finalEffPayerNums.toArray(finalEffPayerNumsArray))
                         .feeCollectorAccountId(collector)
                         .tokenId(denom)
-                        .amount(assessedAmount)
+                        .amount(collectedAmount)
                         .build());
             }
         }
     }
 
     /**
-     * For a given input token transfers from transaction body, if the fractional fee has to be
-     * adjusted from credits, adjusts the given transaction body with the adjustments.
-     *
-     * @param mutableInputTokenAdjustments the input token adjustments from given transaction body
-     * @param denom the token id
-     * @param filteredCredits the credits that should be adjusted
-     * @param creditsForToken the original credits for the token
-     */
-    private void adjustInputTokenTransfersWithReclaimAmounts(
-            @NonNull final Map<TokenID, Map<AccountID, Long>> mutableInputTokenAdjustments,
-            @NonNull final TokenID denom,
-            @NonNull final Map<AccountID, Long> filteredCredits,
-            @NonNull final Map<AccountID, Long> creditsForToken) {
-        // if we reached here it means there are credits for the token
-        final var map = mutableInputTokenAdjustments.get(denom);
-        for (final var entry : filteredCredits.entrySet()) {
-            final var account = entry.getKey();
-            final var amount = entry.getValue();
-            // Further reduce the credit to an effective payer account
-            // by the amount that was redirected to fee collector accounts
-            map.merge(account, amount - creditsForToken.get(account), AdjustmentUtils::addExactOrThrow);
-        }
-        mutableInputTokenAdjustments.put(denom, map);
-    }
-
-    /**
-     * From the given credits, filters all credits whose payer is not exempt from custom fee.
+     * From the given adjustments, filters all credits whose payer is not exempt from custom fee.
      * Returns credits back if there are no credits whose payer is not exempt from custom fee.
      * If all credits are exempt from custom fee, returns empty map
-     * @param creditsForToken the credits for a token
+     * @param adjustments the adjustments for a token
      * @param token the fee meta
      * @param fee the custom fee
      * @return the filtered credits whose payer is not exempt from custom fee
      */
-    private Map<AccountID, Long> filteredByExemptions(
-            @NonNull final Map<AccountID, Long> creditsForToken,
-            @NonNull final Token token,
-            @NonNull final CustomFee fee) {
+    private Map<AccountID, Long> filteredByExemptCredits(
+            @NonNull final Map<AccountID, Long> adjustments, @NonNull final Token token, @NonNull final CustomFee fee) {
         final var filteredCredits = new LinkedHashMap<AccountID, Long>();
-        for (final var entry : creditsForToken.entrySet()) {
+        for (final var entry : adjustments.entrySet()) {
             final var account = entry.getKey();
             final var amount = entry.getValue();
-            if (!isPayerExempt(token, fee, account)) {
+            if (amount > 0 && !isPayerExempt(token, fee, account)) {
                 filteredCredits.put(account, amount);
             }
         }
         return filteredCredits;
     }
 
+    public record NonNetAssessment(long amount, boolean isMinimum) {}
+
     /**
      * Calculates the amount owned to be paid as fractional custom fee.
+     *
+     * @param activeDebit the debit triggering the fractional fee assessment
+     * @param totalDebits the total debits for the token type with the fee in the transaction
+     * @param nonExemptCredits units transferred in the transaction
+     * @param fractionalFee the fractional fee
+     * @return the amount owned to be paid as fractional custom fee
+     */
+    public NonNetAssessment assessNonNetOfTransferForDebit(
+            final long activeDebit,
+            final long totalDebits,
+            final long nonExemptCredits,
+            @NonNull final FractionalFee fractionalFee) {
+        final long numerator = fractionalFee.fractionalAmountOrThrow().numerator();
+        final long denominator = fractionalFee.fractionalAmountOrThrow().denominator();
+        long nominalFee;
+        boolean isMinimum = false;
+        try {
+            nominalFee = safeFractionMultiply(numerator, denominator, nonExemptCredits);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
+        }
+        long effectiveFee = Math.max(nominalFee, fractionalFee.minimumAmount());
+        if (effectiveFee > nominalFee) {
+            isMinimum = true;
+        }
+        if (fractionalFee.maximumAmount() > 0) {
+            effectiveFee = Math.min(effectiveFee, fractionalFee.maximumAmount());
+        }
+        return new NonNetAssessment(safeFractionMultiply(activeDebit, totalDebits, effectiveFee), isMinimum);
+    }
+
+    /**
+     * Assesses the amount to be paid as net-of-transfers fractional custom fee.
      * @param givenUnits  units transferred in the transaction
      * @param fractionalFee the fractional fee
      * @return the amount owned to be paid as fractional custom fee
      */
-    public long amountOwed(final long givenUnits, @NonNull final FractionalFee fractionalFee) {
+    private long netOfTransferAmountOwed(final long givenUnits, @NonNull final FractionalFee fractionalFee) {
         final var numerator = fractionalFee.fractionalAmountOrThrow().numerator();
         final var denominator = fractionalFee.fractionalAmountOrThrow().denominator();
         var nominalFee = 0L;
@@ -210,18 +233,19 @@ public class CustomFractionalFeeAssessor {
      * @return the amount reclaimed
      */
     private long reclaim(final long amount, @NonNull final Map<AccountID, Long> credits) {
-        var availableToReclaim = 0L;
+        long availableToReclaim = 0L;
         for (final var entry : credits.entrySet()) {
             availableToReclaim += entry.getValue();
             validateTrue(availableToReclaim >= 0, CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
         }
+        final long amountToReclaim = Math.min(amount, availableToReclaim);
 
-        var amountReclaimed = 0L;
+        long amountReclaimed = 0L;
         for (final var entry : credits.entrySet()) {
             final var account = entry.getKey();
-            final var creditAmount = entry.getValue();
+            final long creditAmount = entry.getValue();
             try {
-                final var toReclaimHere = safeFractionMultiply(creditAmount, availableToReclaim, amount);
+                final long toReclaimHere = safeFractionMultiply(creditAmount, availableToReclaim, amountToReclaim);
                 credits.put(account, creditAmount - toReclaimHere);
                 amountReclaimed += toReclaimHere;
             } catch (final ArithmeticException e) {
@@ -229,12 +253,12 @@ public class CustomFractionalFeeAssessor {
             }
         }
 
-        if (amountReclaimed < amount) {
-            var leftToReclaim = amount - amountReclaimed;
+        if (amountReclaimed < amountToReclaim) {
+            long leftToReclaim = amountToReclaim - amountReclaimed;
             for (final var entry : credits.entrySet()) {
                 final var account = entry.getKey();
-                final var creditAmount = entry.getValue();
-                final var toReclaimHere = Math.min(creditAmount, leftToReclaim);
+                final long creditAmount = entry.getValue();
+                final long toReclaimHere = Math.min(creditAmount, leftToReclaim);
                 credits.put(account, creditAmount - toReclaimHere);
                 amountReclaimed += toReclaimHere;
                 leftToReclaim -= toReclaimHere;

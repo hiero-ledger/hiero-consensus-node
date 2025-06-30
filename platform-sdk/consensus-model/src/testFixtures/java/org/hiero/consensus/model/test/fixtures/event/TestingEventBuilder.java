@@ -3,9 +3,7 @@ package org.hiero.consensus.model.test.fixtures.event;
 
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.util.HapiUtils;
@@ -34,8 +32,6 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class TestingEventBuilder {
     private static final Instant DEFAULT_TIMESTAMP = Instant.ofEpochMilli(1588771316678L);
-    private static final SemanticVersion DEFAULT_SOFTWARE_VERSION =
-            SemanticVersion.newBuilder().major(1).build();
     private static final NodeId DEFAULT_CREATOR_ID = NodeId.of(0);
     private static final int DEFAULT_APP_TRANSACTION_COUNT = 2;
     private static final int DEFAULT_SYSTEM_TRANSACTION_COUNT = 0;
@@ -100,20 +96,6 @@ public class TestingEventBuilder {
     private List<PlatformEvent> otherParents;
 
     /**
-     * Overrides the generation of the configured self parent.
-     * <p>
-     * Only relevant if the self parent is set.
-     */
-    private Long selfParentGenerationOverride;
-
-    /**
-     * Overrides the generation of the configured other parent.
-     * <p>
-     * Only relevant if the other parent is set.
-     */
-    private Long otherParentGenerationOverride;
-
-    /**
      * Overrides the birth round of the configured self parent.
      * <p>
      * Only relevant if the self parent is set.
@@ -134,13 +116,6 @@ public class TestingEventBuilder {
      * between 0 and 2 inclusive.
      */
     private Long birthRound;
-
-    /**
-     * The software version of the event.
-     * <p>
-     * If not set, defaults to {@link #DEFAULT_SOFTWARE_VERSION}.
-     */
-    private SemanticVersion softwareVersion;
 
     /**
      * The consensus timestamp of the event.
@@ -197,20 +172,6 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setNGen(final long nGen) {
         this.nGen = nGen;
-        return this;
-    }
-
-    /**
-     * Set the software version of the event.
-     * <p>
-     * If not set, defaults to {@link #DEFAULT_SOFTWARE_VERSION}.
-     *
-     * @param softwareVersion the software version
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder setSoftwareVersion(@Nullable final SemanticVersion softwareVersion) {
-        this.softwareVersion =
-                SemanticVersion.newBuilder().major(softwareVersion.major()).build();
         return this;
     }
 
@@ -360,32 +321,6 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Override the generation of the configured self parent.
-     * <p>
-     * Only relevant if the self parent is set.
-     *
-     * @param generation the generation to override with
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder overrideSelfParentGeneration(final long generation) {
-        this.selfParentGenerationOverride = generation;
-        return this;
-    }
-
-    /**
-     * Override the generation of the configured other parent.
-     * <p>
-     * Only relevant if the other parent is set.
-     *
-     * @param generation the generation to override with
-     * @return this instance
-     */
-    public @NonNull TestingEventBuilder overrideOtherParentGeneration(final long generation) {
-        this.otherParentGenerationOverride = generation;
-        return this;
-    }
-
-    /**
      * Override the birth round of the configured self parent.
      * <p>
      * Only relevant if the self parent is set.
@@ -499,33 +434,27 @@ public class TestingEventBuilder {
      * Create an event descriptor from a parent event.
      *
      * @param parent             the parent event
-     * @param generationOverride the generation to override with, or null if no override is necessary
      * @param birthRoundOverride the birth round to override with, or null if no override is necessary
      * @return the parent event descriptor
      */
     @Nullable
     private EventDescriptorWrapper createDescriptorFromParent(
-            @Nullable final PlatformEvent parent,
-            @Nullable final Long generationOverride,
-            @Nullable final Long birthRoundOverride) {
-
+            @Nullable final PlatformEvent parent, @Nullable final Long birthRoundOverride) {
         if (parent == null) {
-            if (generationOverride != null) {
-                throw new IllegalArgumentException("Cannot override generation on a parent that doesn't exist");
-            }
-
             if (birthRoundOverride != null) {
                 throw new IllegalArgumentException("Cannot override birth round on a parent that doesn't exist");
             }
-
             return null;
         }
+        if (birthRoundOverride == null) {
+            return parent.getDescriptor();
+        }
 
-        final long generation = generationOverride == null ? parent.getGeneration() : generationOverride;
-        final long birthRound = birthRoundOverride == null ? parent.getBirthRound() : birthRoundOverride;
-
-        return new EventDescriptorWrapper(new EventDescriptor(
-                parent.getHash().getBytes(), parent.getCreatorId().id(), birthRound, generation));
+        return new EventDescriptorWrapper(parent.getDescriptor()
+                .eventDescriptor()
+                .copyBuilder()
+                .birthRound(birthRoundOverride)
+                .build());
     }
 
     /**
@@ -534,10 +463,6 @@ public class TestingEventBuilder {
      * @return the new event
      */
     public @NonNull PlatformEvent build() {
-        if (softwareVersion == null) {
-            softwareVersion = DEFAULT_SOFTWARE_VERSION;
-        }
-
         if (creatorId == null) {
             if (selfParent != null) {
                 creatorId = selfParent.getCreatorId();
@@ -547,11 +472,10 @@ public class TestingEventBuilder {
         }
 
         final EventDescriptorWrapper selfParentDescriptor =
-                createDescriptorFromParent(selfParent, selfParentGenerationOverride, selfParentBirthRoundOverride);
+                createDescriptorFromParent(selfParent, selfParentBirthRoundOverride);
         final List<EventDescriptorWrapper> otherParentDescriptors = Stream.ofNullable(otherParents)
                 .flatMap(List::stream)
-                .map(parent -> createDescriptorFromParent(
-                        parent, otherParentGenerationOverride, otherParentBirthRoundOverride))
+                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
                 .toList();
 
         if (this.birthRound == null) {
@@ -581,13 +505,7 @@ public class TestingEventBuilder {
         }
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                softwareVersion,
-                creatorId,
-                selfParentDescriptor,
-                otherParentDescriptors,
-                birthRound,
-                timeCreated,
-                transactionBytes);
+                creatorId, selfParentDescriptor, otherParentDescriptors, birthRound, timeCreated, transactionBytes);
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);

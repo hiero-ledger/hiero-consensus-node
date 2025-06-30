@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.REPEATABLE_KEY_GENERATOR;
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
+import static com.hedera.services.bdd.junit.hedera.BlockNodeNetwork.BLOCK_NODE_LOCAL_PORT;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.support.StreamFileAccess.STREAM_FILE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.SpecStatus.ERROR;
@@ -62,6 +63,8 @@ import com.hedera.node.app.service.schedule.impl.schemas.V0570ScheduleSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -69,6 +72,7 @@ import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.RepeatableEmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.remote.RemoteNetwork;
+import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
@@ -177,6 +181,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     public static final ThreadLocal<HederaNetwork> TARGET_NETWORK = new ThreadLocal<>();
+    public static final ThreadLocal<BlockNodeNetwork> TARGET_BLOCK_NODE_NETWORK = new ThreadLocal<>();
     /**
      * If set, a list of properties to preserve in construction of this thread's next {@link HapiSpec} instance.
      * Typically the {@link NetworkTargetingExtension} will bind this value to the thread prior to executing a
@@ -616,6 +621,36 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public List<HederaNode> getNetworkNodes() {
         return requireNonNull(targetNetwork).nodes();
+    }
+
+    public int getBlockNodePortById(final long nodeId) {
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == null) {
+            throw new IllegalStateException("Node " + nodeId + " is not a block node");
+        } else if (mode == BlockNodeMode.REAL) {
+            return blockNodeNetwork.getBlockNodeContainerById().get(nodeId).getGrpcPort();
+        } else if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getPort();
+        } else if (mode == BlockNodeMode.LOCAL_NODE) {
+            return BLOCK_NODE_LOCAL_PORT;
+        } else {
+            throw new IllegalStateException("Node " + nodeId + " is not a block node");
+        }
+    }
+
+    public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork != null) {
+            final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+            if (mode == BlockNodeMode.SIMULATOR) {
+                return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId);
+            } else {
+                throw new IllegalStateException("Node " + nodeId + " is not a block node");
+            }
+        } else {
+            throw new IllegalStateException("No target block node available");
+        }
     }
 
     public static boolean ok(HapiSpec spec) {
