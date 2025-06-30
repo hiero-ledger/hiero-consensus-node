@@ -195,30 +195,30 @@ public class ContractMetrics {
                 final var metric = newCounter(metrics, config);
                 rejectedEthType3Counter = metric;
             }
-        }
 
-        transactionDuration = CountAccumulateAverageMetricTriplet.create(
-                metrics,
-                METRIC_CATEGORY,
-                METRIC_SERVICE + "_transaction_duration",
-                "Actual duration of processed smart contract transactions in nanoseconds");
-        successfulTransactionDuration = CountAccumulateAverageMetricTriplet.create(
-                metrics,
-                METRIC_CATEGORY,
-                METRIC_SERVICE + "_successful_transaction_duration",
-                "Actual duration of successful smart contract transactions in nanoseconds");
-        failedTransactionDuration = CountAccumulateAverageMetricTriplet.create(
-                metrics,
-                METRIC_CATEGORY,
-                METRIC_SERVICE + "_failed_transaction_duration",
-                "Actual duration of failed smart contract transactions in nanoseconds");
-        transactionGasUsed = CountAccumulateAverageMetricTriplet.create(
-                metrics,
-                METRIC_CATEGORY,
-                METRIC_SERVICE + "_transaction_gas_used",
-                "Actual gas used by smart contract transactions");
-        gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + "_transaction_gas_price")
-                .withDescription("Gas price of the latest processed smart contract transaction"));
+            transactionDuration = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + "_transaction_duration",
+                    "Actual duration of processed smart contract transactions in nanoseconds");
+            successfulTransactionDuration = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + "_successful_transaction_duration",
+                    "Actual duration of successful smart contract transactions in nanoseconds");
+            failedTransactionDuration = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + "_failed_transaction_duration",
+                    "Actual duration of failed smart contract transactions in nanoseconds");
+            transactionGasUsed = CountAccumulateAverageMetricTriplet.create(
+                    metrics,
+                    METRIC_CATEGORY,
+                    METRIC_SERVICE + "_transaction_gas_used",
+                    "Actual gas used by smart contract transactions");
+            gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + "_transaction_gas_price")
+                    .withDescription("Gas price of the latest processed smart contract transaction"));
+        }
     }
 
     private @NonNull Counter makeCounter(
@@ -396,14 +396,16 @@ public class ContractMetrics {
     }
 
     public void recordProcessedTransaction(TransactionProcessingSummary summary) {
-        this.transactionDuration.recordObservation(summary.durationNs());
-        if (summary.success()) {
-            this.successfulTransactionDuration.recordObservation(summary.durationNs());
-        } else {
-            this.failedTransactionDuration.recordObservation(summary.durationNs());
+        if (p1MetricsEnabled) {
+            this.transactionDuration.recordObservation(summary.durationNs());
+            if (summary.success()) {
+                this.successfulTransactionDuration.recordObservation(summary.durationNs());
+            } else {
+                this.failedTransactionDuration.recordObservation(summary.durationNs());
+            }
+            this.transactionGasUsed.recordObservation(summary.gasUsed());
+            this.gasPrice.set(summary.gasPrice());
         }
-        this.transactionGasUsed.recordObservation(summary.gasUsed());
-        this.gasPrice.set(summary.gasPrice());
 
         this.opsDurationMetrics.recordTxnTotalOpsDuration(summary.opsDurationUnitsConsumed());
     }
