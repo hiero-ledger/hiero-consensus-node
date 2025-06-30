@@ -28,7 +28,7 @@ class DocExamplesTest {
         // 3. Start the network
         network.start();
 
-        // 4. Let the network run for 30 seconds
+        // 4. Wait 30 seconds while the network is running
         timeManager.waitFor(Duration.ofSeconds(30));
 
         // 5. Verify consensus was reached

@@ -10,7 +10,12 @@ https://github.com/hiero-ledger/hiero-consensus-node/blob/main/platform-sdk/cons
 
 ### Key Components Explained
 
-The test environment provides three main components:
+- **`@OtterTest`** - Marks test methods for Otter execution
+- **`TestEnvironment`** - Provides access to network, time manager, and transaction generator
+- **`Network`** - Manages consensus nodes and their lifecycle
+- **`TimeManager`**: Controls time progression (simulated in Turtle, real in Container)
+
+The test environment provides three main components. The diagram below illustrates how `TestEnvironment` serves as the main entry point, providing access to `Network` for network management and `TimeManager` for time control.
 
 ```mermaid
 classDiagram
@@ -36,14 +41,6 @@ classDiagram
     TestEnvironment --> Network : provides
     TestEnvironment --> TimeManager : provides
 ```
-
-The diagram above illustrates how `TestEnvironment` serves as the main entry point, providing access to `Network` for network management and `TimeManager` for time control.
-
-Key components:
-- **`@OtterTest`** - Marks test methods for Otter execution
-- **`TestEnvironment`** - Provides access to network, time manager, and transaction generator
-- **`Network`** - Manages consensus nodes and their lifecycle
-- **`TimeManager`**: Controls time progression (simulated in Turtle, real in Container)
 
 ## 🎯 Test Environments
 
