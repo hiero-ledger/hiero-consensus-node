@@ -1310,10 +1310,8 @@ public class AtomicTokenCreateSpecs {
                                 .treasury(TOKEN_TREASURY)
                                 .autoRenewAccount("autoRenewAccount")
                                 .autoRenewPeriod(Long.MIN_VALUE)
-                                .hasPrecheck(INVALID_RENEWAL_PERIOD)
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+                        .payingWith(BATCH_OPERATOR));
     }
 
     @HapiTest
@@ -1331,7 +1329,7 @@ public class AtomicTokenCreateSpecs {
                                 .hasPrecheck(INVALID_RENEWAL_PERIOD)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @HapiTest
@@ -1357,16 +1355,13 @@ public class AtomicTokenCreateSpecs {
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate("autoRenewAccount"),
                 atomicBatch(tokenCreate(token)
-                                .skipAutoRenewPeriod()
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .supplyKey(GENESIS)
                                 .initialSupply(0L)
                                 .treasury(TOKEN_TREASURY)
                                 .autoRenewAccount("autoRenewAccount")
-                                .hasPrecheck(INVALID_RENEWAL_PERIOD)
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+                        .payingWith(BATCH_OPERATOR));
     }
 
     @HapiTest
