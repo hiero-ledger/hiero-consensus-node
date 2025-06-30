@@ -3,13 +3,17 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import io.grpc.ManagedChannel;
+import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.StreamObserver;
-import io.helidon.webclient.grpc.GrpcServiceClient;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
@@ -20,13 +24,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.PublishStreamRequest;
-import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.hiero.block.api.protoc.BlockStreamPublishServiceGrpc;
+import org.hiero.block.api.protoc.PublishStreamRequest;
+import org.hiero.block.api.protoc.PublishStreamResponse;
 
 /**
  * Manages a single gRPC bidirectional streaming connection to a block node. Each connection:
@@ -52,10 +57,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * The configuration specific to the block node this connection is for.
      */
     private final BlockNodeConfig blockNodeConfig;
-    /**
-     * The gRPC client to use for creating bi-directional streams between the consensus node and block node.
-     */
-    private final GrpcServiceClient grpcServiceClient;
+
+    private final ManagedChannel managedChannel;
     /**
      * The "parent" connection manager that manages the lifecycle of this connection.
      */
@@ -98,7 +101,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     /**
      * Stream observer used to send messages to the block node.
      */
-    private StreamObserver<PublishStreamRequest> blockNodeStreamObserver;
+    private ClientCallStreamObserver<PublishStreamRequest> blockNodeStreamObserver;
     /**
      * Reference to the current state of this connection.
      */
@@ -137,7 +140,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * @param nodeConfig the configuration for the block node
      * @param blockNodeConnectionManager the connection manager coordinating block node connections
      * @param blockBufferService the block stream state manager for block node connections
-     * @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
+     * //* @param grpcServiceClient the gRPC client to establish the bidirectional streaming to block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      */
     public BlockNodeConnection(
@@ -145,7 +148,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
             @NonNull final BlockNodeConfig nodeConfig,
             @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final GrpcServiceClient grpcServiceClient,
+            @NonNull final ManagedChannel managedChannel,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final String grpcEndpoint) {
         requireNonNull(configProvider, "configProvider must not be null");
@@ -153,7 +156,8 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
         this.blockNodeConnectionManager =
                 requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
-        this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
+        this.managedChannel = requireNonNull(managedChannel, "managedChannel must not be null");
+        // this.grpcServiceClient = requireNonNull(grpcServiceClient, "grpcServiceClient must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.connectionState = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         this.grpcEndpoint = requireNonNull(grpcEndpoint);
@@ -171,7 +175,10 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      */
     public void createRequestObserver() {
         if (blockNodeStreamObserver == null) {
-            blockNodeStreamObserver = grpcServiceClient.bidi(grpcEndpoint, this);
+            BlockStreamPublishServiceGrpc.BlockStreamPublishServiceStub blockingStub =
+                    BlockStreamPublishServiceGrpc.newStub(managedChannel);
+            blockNodeStreamObserver =
+                    (ClientCallStreamObserver<PublishStreamRequest>) blockingStub.publishBlockStream(this);
             updateConnectionState(ConnectionState.PENDING);
         }
     }
@@ -415,11 +422,23 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @param request the request to send
      */
-    public void sendRequest(@NonNull final PublishStreamRequest request) {
+    public boolean sendRequest(@NonNull final org.hiero.block.api.PublishStreamRequest request) {
         requireNonNull(request);
         if (connectionState.get() == ConnectionState.ACTIVE && blockNodeStreamObserver != null) {
-            blockNodeStreamObserver.onNext(request);
+            if (blockNodeStreamObserver.isReady()) {
+                try {
+                    blockNodeStreamObserver.onNext(
+                            PublishStreamRequest.parseFrom(org.hiero.block.api.PublishStreamRequest.PROTOBUF
+                                    .toBytes(request)
+                                    .toByteArray()));
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error("Failed to serialize request to block node: {} Exception: {}", request, e);
+                    return false;
+                }
+                return true;
+            }
         }
+        return false;
     }
 
     /**
@@ -494,11 +513,20 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      * Processes responses received from the block node through the bidirectional gRPC stream.
      * Handles {@link BlockAcknowledgement}s, {@link EndOfStream} response signals, {@link SkipBlock} and {@link ResendBlock}.
      *
-     * @param response the response received from block node
+     * //* @param response the response received from block node
      */
     @Override
-    public void onNext(final @NonNull PublishStreamResponse response) {
-        requireNonNull(response);
+    public void onNext(final @NonNull PublishStreamResponse responseProto) {
+        requireNonNull(responseProto);
+        org.hiero.block.api.PublishStreamResponse response = null;
+        try {
+            response =
+                    org.hiero.block.api.PublishStreamResponse.PROTOBUF.parse(Bytes.wrap(responseProto.toByteArray()));
+        } catch (ParseException e) {
+            logger.error("Failed to parse response from block node {}: {}", this.grpcEndpoint, e.getMessage());
+            // TODO parse error add to metrics??
+            return;
+        }
 
         if (response.hasAcknowledgement()) {
             blockStreamMetrics.incrementAcknowledgedBlockCount();

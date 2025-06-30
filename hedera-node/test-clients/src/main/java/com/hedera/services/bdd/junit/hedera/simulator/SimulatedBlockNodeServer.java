@@ -14,7 +14,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -107,13 +106,8 @@ public class SimulatedBlockNodeServer {
      */
     public void stop() {
         if (server != null) {
-            try {
-                server.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-                log.info("Simulated block node server on port {} stopped", port);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Error stopping simulated block node server on port {}", port, e);
-            }
+            server.shutdownNow();
+            log.info("Simulated block node server on port {} stopped", port);
         }
     }
 
