@@ -87,6 +87,7 @@ import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
 import com.swirlds.state.spi.WritableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -103,6 +104,7 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -126,7 +128,8 @@ public class SystemTransactions {
 
     private static final EnumSet<ResponseCodeEnum> SUCCESSES =
             EnumSet.of(SUCCESS, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
-    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {};
+    private static final Consumer<Dispatch> DEFAULT_DISPATCH_ON_SUCCESS = dispatch -> {
+    };
 
     private final InitTrigger initTrigger;
     private final BlocklistParser blocklistParser = new BlocklistParser();
@@ -415,7 +418,8 @@ public class SystemTransactions {
         requireNonNull(now);
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {
+        }, false);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -477,7 +481,8 @@ public class SystemTransactions {
         final var readableStoreFactory = new ReadableStoreFactory(state);
         final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
         final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
-        final var systemContext = newSystemContext(now, state, dispatch -> {}, false);
+        final var systemContext = newSystemContext(now, state, dispatch -> {
+        }, false);
         final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
@@ -487,7 +492,8 @@ public class SystemTransactions {
                     .toList();
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
-                if (nodeStore.get(node.nodeId()) == null) {
+                final var currentNode = nodeStore.get(node.nodeId());
+                if (currentNode == null || currentNode.deleted()) {
                     // Node is new in the override roster, dispatch a node creation transaction
                     systemContext.dispatchCreation(
                             b -> b.memo("Synthetic node creation")
@@ -674,7 +680,7 @@ public class SystemTransactions {
                     blockRecordManager.startUserTransaction(now, state);
                 }
                 final var handleOutput =
-                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, config, onSuccess);
+                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, onSuccess);
                 if (streamMode != BLOCKS) {
                     final var records =
                             ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
@@ -731,7 +737,6 @@ public class SystemTransactions {
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             final long nextEntityNum,
-            @NonNull final Configuration config,
             @NonNull final Consumer<Dispatch> onSuccess) {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
@@ -743,30 +748,29 @@ public class SystemTransactions {
             blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
         }
         try {
-            WritableSingletonState<EntityNumber> controlledNum = null;
-            WritableSingletonState<EntityCounts> countsBefore = null;
+            long prevEntityNum = 0;
             if (nextEntityNum != 0) {
                 if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
-                    countsBefore = dispatch.stack()
+                    WritableSingletonState<EntityCounts> countsBefore = dispatch.stack()
                             .getWritableStates(EntityIdService.NAME)
                             .getSingleton(ENTITY_COUNTS_KEY);
+                    prevEntityNum = requireNonNull(countsBefore
+                            .get())
+                            .numNodes();
+                    countsBefore.put(requireNonNull(countsBefore
+                            .get())
+                            .copyBuilder()
+                            .numNodes(nextEntityNum)
+                            .build());
                 } else {
-                    controlledNum = dispatch.stack()
+                    WritableSingletonState<EntityNumber> controlledNum = dispatch.stack()
                             .getWritableStates(EntityIdService.NAME)
                             .getSingleton(ENTITY_ID_STATE_KEY);
+                    prevEntityNum = requireNonNull(controlledNum.get()).number();
+                    controlledNum.put(new EntityNumber(nextEntityNum - 1));
                 }
             }
 
-            if (controlledNum != null) {
-                controlledNum.put(new EntityNumber(nextEntityNum - 1));
-            }
-            if (countsBefore != null) {
-                countsBefore.put(countsBefore
-                        .get()
-                        .copyBuilder()
-                        .numNodes(Math.max(nextEntityNum, countsBefore.get().numNodes()))
-                        .build());
-            }
             dispatchProcessor.processDispatch(dispatch);
             if (!SUCCESSES.contains(dispatch.streamBuilder().status())) {
                 log.error(
@@ -777,19 +781,22 @@ public class SystemTransactions {
             } else {
                 onSuccess.accept(dispatch);
             }
-            if (controlledNum != null) {
-                controlledNum.put(new EntityNumber(
-                        config.getConfigData(HederaConfig.class).firstUserEntity() - 1));
-                dispatch.stack().commitFullStack();
-            }
-            if (countsBefore != null) {
-                countsBefore.put(countsBefore
-                        .get()
+            if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
+                WritableSingletonState<EntityCounts> countsBefore = dispatch.stack()
+                        .getWritableStates(EntityIdService.NAME)
+                        .getSingleton(ENTITY_COUNTS_KEY);
+                countsBefore.put(requireNonNull(countsBefore
+                        .get())
                         .copyBuilder()
-                        .numNodes(Math.max(nextEntityNum, countsBefore.get().numNodes()))
+                        .numNodes(Math.max(nextEntityNum, prevEntityNum))
                         .build());
-                dispatch.stack().commitFullStack();
+            } else {
+                WritableSingletonState<EntityNumber> controlledNum = dispatch.stack()
+                        .getWritableStates(EntityIdService.NAME)
+                        .getSingleton(ENTITY_ID_STATE_KEY);
+                controlledNum.put(new EntityNumber(prevEntityNum));
             }
+            dispatch.stack().commitFullStack();
             final var handleOutput =
                     parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
             recordCache.addRecordSource(
