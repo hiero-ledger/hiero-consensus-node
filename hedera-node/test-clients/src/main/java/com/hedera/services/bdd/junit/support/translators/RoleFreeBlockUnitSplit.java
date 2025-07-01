@@ -20,11 +20,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,6 +56,10 @@ public class RoleFreeBlockUnitSplit {
      */
     private final NavigableSet<Integer> txIndexes = new TreeSet<>();
     /**
+     * Indexes of results in the block.
+     */
+    private final NavigableSet<Integer> resultIndexes = new TreeSet<>();
+    /**
      * Indexes of state changes in the block.
      */
     private final NavigableSet<Integer> stateChangeIndexes = new TreeSet<>();
@@ -72,31 +78,57 @@ public class RoleFreeBlockUnitSplit {
         final var items = block.items();
         final int n = items.size();
         final Map<Integer, TransactionParts> parsedParts = new HashMap<>();
-        final IntFunction<TransactionParts> getParts = i -> parsedParts.computeIfAbsent(
-                i,
-                k -> TransactionParts.from(
-                        items.get(i).eventTransactionOrThrow().applicationTransactionOrThrow()));
+        final IntFunction<TransactionParts> getParts = i -> parsedParts.computeIfAbsent(i, k -> {
+            final var item = items.get(i);
+            if (item.hasTransactionResult()) {
+                return null;
+            } else {
+                return TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+            }
+        });
 
-        // First scan to get the indexes of state changes and transactions
+        // First scan to get the indexes of results, state changes and transactions
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
                 stateChangeIndexes.add(i);
             } else if (item.hasEventTransaction()) {
                 txIndexes.add(i);
+            } else if (item.hasTransactionResult()) {
+                resultIndexes.add(i);
             }
         }
+        if (txIndexes.isEmpty()) {
+            return List.of();
+        }
+        // Insert logical tx indexes for atomic batch inners
+        final Set<Integer> batchInnerIdxs = new HashSet<>();
+        resultIndexes.forEach(i -> {
+            if (txIndexes.lower(i) == null) {
+                System.out.println("BOOP");
+            }
+            final var prevTxIndex = requireNonNull(txIndexes.lower(i));
+            final var prevResultIndex = resultIndexes.lower(i);
+            if (prevResultIndex != null && prevResultIndex > prevTxIndex) {
+                batchInnerIdxs.add(i);
+            }
+        });
+        txIndexes.addAll(batchInnerIdxs);
         // Now we can easily identify top-level transactions because they are
         // exactly the transactions that have no intervening transaction between
         // themselves and the next state change
         final List<List<BlockItem>> partItems = new ArrayList<>(txIndexes.size());
         txIndexes.forEach(i -> {
-            final var nextStateChangeIndex = stateChangeIndexes.higher(i);
-            if (nextStateChangeIndex != null) {
-                final int j = requireNonNull(txIndexes.lower(nextStateChangeIndex));
-                if (i == j) {
-                    final var txId = getParts.apply(i).transactionIdOrThrow();
-                    topLevelIds.put(i, txId);
+            // Check if a non-batch inner transaction is top-level (i.e., is the first
+            // transaction preceding the next state changes item in the stream)
+            if (!batchInnerIdxs.contains(i)) {
+                final var nextStateChangeIndex = stateChangeIndexes.higher(i);
+                if (nextStateChangeIndex != null) {
+                    final int j = requireNonNull(txIndexes.lower(nextStateChangeIndex));
+                    if (i == j) {
+                        final var txId = getParts.apply(i).transactionIdOrThrow();
+                        topLevelIds.put(i, txId);
+                    }
                 }
             }
             final var nextTxIndex = txIndexes.higher(i);
@@ -104,30 +136,36 @@ public class RoleFreeBlockUnitSplit {
             partItems.add(new ArrayList<>(items.subList(i, j)));
         });
         // And now we can assign unit ids to each tx's index
-        final AtomicInteger unitIdx = new AtomicInteger(-1);
+        final AtomicInteger unitIdx = new AtomicInteger(0);
         txIndexes.forEach(i -> {
             if (topLevelIds.containsKey(i)) {
-                // Every top-level transaction starts a new unit
-                unitAssignments.put(i, unitIdx.incrementAndGet());
+                // Every top-level transaction is a unit
+                unitAssignments.put(i, unitIdx.getAndIncrement());
             } else {
-                final var prevTopLevelIdx = topLevelIds.lowerKey(i);
-                final var nextTopLevelIdx = topLevelIds.higherKey(i);
-                if (prevTopLevelIdx != null && nextTopLevelIdx != null) {
-                    final var txId = getParts.apply(i).transactionIdOrThrow();
-                    final var nextTxId = getParts.apply(nextTopLevelIdx).transactionIdOrThrow();
-                    if (matchesExceptNonce(txId, nextTxId)) {
-                        // Sandwiched between top-level and matching txId with latter
-                        unitAssignments.put(i, unitIdx.get() + 1);
+                final var maybeParts = getParts.apply(i);
+                if (maybeParts == null) {
+                    // Batch inner, always part of the current unit
+                    unitAssignments.put(i, unitIdx.get() - 1);
+                } else {
+                    final var prevTopLevelIdx = topLevelIds.lowerKey(i);
+                    final var nextTopLevelIdx = topLevelIds.higherKey(i);
+                    if (prevTopLevelIdx != null && nextTopLevelIdx != null) {
+                        final var txId = maybeParts.transactionIdOrThrow();
+                        final var nextTxId = getParts.apply(nextTopLevelIdx).transactionIdOrThrow();
+                        if (matchesExceptNonce(txId, nextTxId)) {
+                            // Sandwiched between top-level and matching txId with latter
+                            unitAssignments.put(i, unitIdx.get());
+                        } else {
+                            // Sandwiched between top-level and not matching txId of latter
+                            unitAssignments.put(i, unitIdx.get() - 1);
+                        }
+                    } else if (nextTopLevelIdx == null) {
+                        // No following top-level transaction to even consider
+                        unitAssignments.put(i, unitIdx.get() - 1);
                     } else {
-                        // Sandwiched between top-level and not matching txId of latter
+                        // Preceding child of first top-level transaction
                         unitAssignments.put(i, unitIdx.get());
                     }
-                } else if (nextTopLevelIdx != null) {
-                    // No following top-level transaction to even consider
-                    unitAssignments.put(i, unitIdx.get());
-                } else {
-                    // Preceding child of first top-level transaction
-                    unitAssignments.put(i, unitIdx.get() + 1);
                 }
             }
         });
@@ -167,13 +205,21 @@ public class RoleFreeBlockUnitSplit {
                     }
                 }
             }
+            if (unitParts == null) {
+                System.out.println("BOOP");
+            }
             requireNonNull(unitParts).add(pending.toBlockTransactionParts(topLevelIds.containsKey(idx)));
+        }
+        if (unitParts != null) {
+            units.add(new BlockTransactionalUnit(unitParts, stateChanges));
         }
         return units;
     }
 
     private void clear() {
         stateChangeIndexes.clear();
+        unitAssignments.clear();
+        resultIndexes.clear();
         topLevelIds.clear();
         txIndexes.clear();
     }
