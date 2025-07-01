@@ -71,7 +71,7 @@ on:
         required: false
         default: false
         type: boolean
-        description: "If true, the test will be executed, but not tag will be applied and slack notifications won't be sent."
+        description: "If true, skip tag and notifications"
 
 defaults:
   run:
@@ -86,7 +86,8 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
+    continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
@@ -114,18 +115,22 @@ jobs:
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
-          else
-            echo "::warning title=Invalid Build Tag::The provided tag (${inputs.ref}) is not a valid build tag."
-          fi
 
-          echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
-          echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
+
+            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
   run-single-day-performance-test:
     name: Performance Test
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
@@ -138,12 +143,11 @@ jobs:
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      nlg-access-token: ${{ secrets.CITR_NLG_ACCESS_TOKEN }}
       perf-analysis-access-token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - run-single-day-performance-test
       - verify-tag
@@ -182,7 +186,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -230,7 +234,7 @@ jobs:
 
   report-success:
     name: Report SDPT execution success
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
       - tag-sdpt-passing
@@ -354,7 +358,7 @@ jobs:
 
   report-failure:
     name: Report SDPT execution failure
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
       - run-single-day-performance-test
