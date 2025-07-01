@@ -116,7 +116,7 @@ public class ContractMetricsTest {
     }
 
     @Test
-    public void processedTransactionIsRecordedWithoutErrors() {
+    void processedTransactionIsRecordedWithoutErrors() {
         when(contractsConfig.metricsSmartContractPrimaryEnabled()).thenReturn(true);
         final var subject = getSubject();
         subject.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(10, 10, 10, 10, true));

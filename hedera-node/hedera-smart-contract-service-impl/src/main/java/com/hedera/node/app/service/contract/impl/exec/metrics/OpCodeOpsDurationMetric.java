@@ -33,7 +33,7 @@ public class OpCodeOpsDurationMetric {
     public void recordOpCodeOpsDurationMetric(final int opcode, final long durationNanos) {
         final var metric = opCodeOpsDuration.computeIfAbsent(
                 opcode,
-                _opcode -> CountAccumulateAverageMetricTriplet.create(
+                unused -> CountAccumulateAverageMetricTriplet.create(
                         metrics,
                         EVM_CATEGORY,
                         Integer.toString(opcode),

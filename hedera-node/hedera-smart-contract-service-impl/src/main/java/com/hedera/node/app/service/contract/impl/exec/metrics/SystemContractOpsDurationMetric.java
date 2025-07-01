@@ -34,7 +34,7 @@ public class SystemContractOpsDurationMetric {
     public void recordOperationDuration(@NonNull final SystemContractMethod method, final long durationNanos) {
         final var metric = operationDurations.computeIfAbsent(
                 method,
-                _method -> CountAccumulateAverageMetricTriplet.create(
+                unused -> CountAccumulateAverageMetricTriplet.create(
                         metrics,
                         CONTRACT_CATEGORY,
                         method.methodName(),

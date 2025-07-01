@@ -34,7 +34,7 @@ public class PrecompileOpsDurationMetric {
     public void recordPrecompileDuration(final String precompileName, final long durationNanos) {
         final var metric = precompileOpsDurations.computeIfAbsent(
                 precompileName,
-                _precompileName -> CountAccumulateAverageMetricTriplet.create(
+                unused -> CountAccumulateAverageMetricTriplet.create(
                         metrics,
                         PRECOMPILE_CATEGORY,
                         precompileName,

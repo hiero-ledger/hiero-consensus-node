@@ -36,7 +36,6 @@ class SystemContractOpsDurationMetricTest {
 
     @BeforeEach
     void setUp() {
-        System.out.println("Before each test!");
         final MetricsConfig metricsConfig =
                 HederaTestConfigBuilder.createConfig().getConfigData(MetricsConfig.class);
 

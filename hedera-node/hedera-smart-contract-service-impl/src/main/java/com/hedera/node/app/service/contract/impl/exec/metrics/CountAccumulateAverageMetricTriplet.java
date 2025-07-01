@@ -19,7 +19,7 @@ public record CountAccumulateAverageMetricTriplet(
     private static final String ACCUMULATOR_SUFFIX = "_sum";
 
     public static CountAccumulateAverageMetricTriplet create(
-            Metrics metrics,
+            @NonNull final Metrics metrics,
             @NonNull final String category,
             @NonNull final String baseName,
             @NonNull final String baseDescription) {
@@ -40,6 +40,14 @@ public record CountAccumulateAverageMetricTriplet(
                 metrics.getOrCreate(averageConfig));
     }
 
+    /**
+     * Records an observed value:
+     *  - increases the accumulator by `value`
+     *  - increases the counter by 1
+     *  - updates the running average accordingly
+     *
+     * @param value the value to record
+     */
     public void recordObservation(final long value) {
         counter.increment();
         accumulator.update(value);

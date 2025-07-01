@@ -216,8 +216,9 @@ public class ContractMetrics {
                     METRIC_CATEGORY,
                     METRIC_SERVICE + "_transaction_gas_used",
                     "Actual gas used by smart contract transactions");
-            gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + "_transaction_gas_price")
-                    .withDescription("Gas price of the latest processed smart contract transaction"));
+            gasPrice =
+                    metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + "_transaction_gas_price")
+                            .withDescription("Gas price of the latest processed smart contract transaction"));
         }
     }
 
@@ -395,7 +396,7 @@ public class ContractMetrics {
         }
     }
 
-    public void recordProcessedTransaction(TransactionProcessingSummary summary) {
+    public void recordProcessedTransaction(final TransactionProcessingSummary summary) {
         if (p1MetricsEnabled) {
             this.transactionDuration.recordObservation(summary.durationNs());
             if (summary.success()) {
