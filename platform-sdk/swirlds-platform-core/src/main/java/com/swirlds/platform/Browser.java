@@ -57,6 +57,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
@@ -78,8 +79,7 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
- * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the
- * Platforms.
+ * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
  * This class will be removed once the demo apps moved to Inversion of Control pattern to build and start platform
  * directly.
  */
@@ -281,8 +281,20 @@ public class Browser {
                     consensusStateEventHandler,
                     platformStateFacade);
 
-            // Build the platform with the given values
             final State state = initialState.get().getState();
+
+            // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
+            // value
+            if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
+                            appMain.getSemanticVersion(), platformStateFacade.creationSemanticVersionOf(state))
+                    > 0) {
+                final long initialStateRound = platformStateFacade.roundOf(state);
+                platformStateFacade.bulkUpdateOf(state, v -> {
+                    v.setLatestFreezeRound(initialStateRound);
+                });
+            }
+
+            // Build the platform with the given values
             final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
 
             final PlatformBuilder builder = PlatformBuilder.create(
