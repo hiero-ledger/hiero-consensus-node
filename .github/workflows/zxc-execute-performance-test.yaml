@@ -386,4 +386,4 @@ jobs:
           echo Done: see results in "${{ steps.gs_https_url.outputs.url }}"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"

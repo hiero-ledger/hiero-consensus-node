@@ -584,7 +584,7 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/create_accounts"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"
 
       - name: Start test
         run: |
@@ -1044,7 +1044,7 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"
 
       - name: Records logs of CryptoBenchMerkleDb
         run: |
@@ -1091,7 +1091,7 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
           echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/paa_scripts/node_control/resetCNlogs.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"
 
   performance-HCSLoadTest:
     needs:
