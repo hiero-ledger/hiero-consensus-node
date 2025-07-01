@@ -75,8 +75,6 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
   NLG_VERSION: 0.3.2
-  #if needed to re-build NLG from branch:
-  NLG_REBUILD: false
 
 jobs:
   performance-tests-start:
@@ -359,14 +357,6 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
-
-      - name: Update NLG code with local build
-        if: ${{ env.NLG_REBUILD == 'true' }}
-        run: |
-          cd "${{ github.workspace }}"
-          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
 
       - name: Build swirlds-benchmark-CryptoBenchMerkleDb.transferPrefetch
         run: |
