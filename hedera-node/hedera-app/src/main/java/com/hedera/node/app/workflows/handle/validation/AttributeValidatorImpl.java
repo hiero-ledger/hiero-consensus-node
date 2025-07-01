@@ -97,7 +97,6 @@ public class AttributeValidatorImpl implements AttributeValidator {
     @Override
     public void validateAutoRenewPeriod(long autoRenewPeriod) {
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
-        // TODO Glib: _expiryRenew=0 is passing this check, but -1 not
         validateTrue(autoRenewPeriod > 0, INVALID_RENEWAL_PERIOD);
         validateTrue(
                 autoRenewPeriod >= ledgerConfig.autoRenewPeriodMinDuration()
