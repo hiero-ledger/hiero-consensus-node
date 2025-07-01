@@ -271,22 +271,22 @@ public class HandleWorkflow {
         // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
         // Dispatch transplant updates for the nodes in override network
         if (boundaryStateChangeListener.lastConsensusTime() != null && !checkedForTransplant) {
+            boolean dispatchedTransplantUpdates = false;
             try {
-                transactionsDispatched |= systemTransactions.dispatchTransplantUpdates(
-                        state,
-                        boundaryStateChangeListener.lastConsensusTimeOrThrow().plusNanos(1),
-                        round.getRoundNum());
+                dispatchedTransplantUpdates = systemTransactions.dispatchTransplantUpdates(
+                        state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getRoundNum());
+                transactionsDispatched |= dispatchedTransplantUpdates;
             } catch (Exception e) {
                 logger.error("Failed to dispatch transplant updates", e);
             } finally {
-                final var writableStates = state.getWritableStates(RosterService.NAME);
-                final var writableRosterStore = new WritableRosterStore(writableStates);
-                if (writableRosterStore.isTransplantInProgress()) {
+                checkedForTransplant = true;
+                if (dispatchedTransplantUpdates) {
+                    final var writableStates = state.getWritableStates(RosterService.NAME);
+                    final var writableRosterStore = new WritableRosterStore(writableStates);
                     writableRosterStore.updateTransplantInProgress(false);
                     ((CommittableWritableStates) writableStates).commit();
                     logger.info("Transplant in progress is set to false in the roster store");
                 }
-                checkedForTransplant = true;
             }
         }
 

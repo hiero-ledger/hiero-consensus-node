@@ -304,18 +304,20 @@ public class SystemTransactions {
                     stack.commitFullStack();
                 }
             });
-            systemContext.dispatchAdmin(b -> {
-                final var nodeCreate = NodeCreateTransactionBody.newBuilder()
-                        .adminKey(adminKey)
-                        .accountId(nodeInfo.accountId())
-                        .description(formatNodeName(nodeInfo.nodeId()))
-                        .gossipEndpoint(nodeInfo.gossipEndpoints())
-                        .gossipCaCertificate(nodeInfo.sigCertBytes())
-                        .serviceEndpoint(hapiEndpoints)
-                        .declineReward(true)
-                        .build();
-                b.nodeCreate(nodeCreate);
-            });
+            systemContext.dispatchCreation(
+                    b -> {
+                        final var nodeCreate = NodeCreateTransactionBody.newBuilder()
+                                .adminKey(adminKey)
+                                .accountId(nodeInfo.accountId())
+                                .description(formatNodeName(nodeInfo.nodeId()))
+                                .gossipEndpoint(nodeInfo.gossipEndpoints())
+                                .gossipCaCertificate(nodeInfo.sigCertBytes())
+                                .serviceEndpoint(hapiEndpoints)
+                                .declineReward(true)
+                                .build();
+                        b.nodeCreate(nodeCreate);
+                    },
+                    nodeInfo.nodeId());
         }
         networkInfo.updateFrom(state);
 
@@ -743,28 +745,28 @@ public class SystemTransactions {
             blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
         }
         try {
-            long prevEntityNum = 0;
-            if (nextEntityNum != 0) {
-                if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
-                    WritableSingletonState<EntityCounts> countsBefore = dispatch.stack()
-                            .getWritableStates(EntityIdService.NAME)
-                            .getSingleton(ENTITY_COUNTS_KEY);
-                    prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
-                    countsBefore.put(requireNonNull(countsBefore.get())
-                            .copyBuilder()
-                            .numNodes(nextEntityNum)
-                            .build());
-                } else {
-                    WritableSingletonState<EntityNumber> controlledNum = dispatch.stack()
-                            .getWritableStates(EntityIdService.NAME)
-                            .getSingleton(ENTITY_ID_STATE_KEY);
-                    prevEntityNum = requireNonNull(controlledNum.get()).number();
+            long prevEntityNum;
+            if (dispatch.txnInfo().functionality() == HederaFunctionality.NODE_CREATE) {
+                WritableSingletonState<EntityCounts> countsBefore =
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
+                prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
+                countsBefore.put(requireNonNull(countsBefore.get())
+                        .copyBuilder()
+                        .numNodes(nextEntityNum)
+                        .build());
+            } else {
+                WritableSingletonState<EntityNumber> controlledNum =
+                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
+                prevEntityNum = requireNonNull(controlledNum.get()).number();
+                if (nextEntityNum != 0) {
                     controlledNum.put(new EntityNumber(nextEntityNum - 1));
                 }
             }
 
             dispatchProcessor.processDispatch(dispatch);
-            if (!SUCCESSES.contains(dispatch.streamBuilder().status())) {
+            final boolean isSuccess =
+                    SUCCESSES.contains(dispatch.streamBuilder().status());
+            if (!isSuccess) {
                 log.error(
                         "Failed to dispatch system transaction {}{} - {}",
                         body,
@@ -778,12 +780,14 @@ public class SystemTransactions {
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_KEY);
                 countsBefore.put(requireNonNull(countsBefore.get())
                         .copyBuilder()
-                        .numNodes(Math.max(nextEntityNum, prevEntityNum))
+                        .numNodes(isSuccess ? Math.max(nextEntityNum + 1, prevEntityNum) : prevEntityNum)
                         .build());
             } else {
                 WritableSingletonState<EntityNumber> controlledNum =
                         dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_KEY);
-                controlledNum.put(new EntityNumber(prevEntityNum));
+                if (nextEntityNum != 0) {
+                    controlledNum.put(new EntityNumber(prevEntityNum));
+                }
             }
             dispatch.stack().commitFullStack();
             final var handleOutput =
