@@ -127,21 +127,23 @@ public final class DockerInit {
                 // Outbound queue and single-writer dispatcher thread. Both are stored
                 // in instance fields so they can be accessed from killImmediately().
                 outbound = new LinkedBlockingQueue<>();
-                dispatcher = new Thread(() -> {
-                    try {
-                        while (!cancelled.get()) {
-                            final EventMessage msg = outbound.take();
+                dispatcher = new Thread(
+                        () -> {
                             try {
-                                responseObserver.onNext(msg);
-                            } catch (final RuntimeException e) {
-                                // Any exception here means the stream is no longer writable
-                                cancelled.set(true);
+                                while (!cancelled.get()) {
+                                    final EventMessage msg = outbound.take();
+                                    try {
+                                        responseObserver.onNext(msg);
+                                    } catch (final RuntimeException e) {
+                                        // Any exception here means the stream is no longer writable
+                                        cancelled.set(true);
+                                    }
+                                }
+                            } catch (final InterruptedException ie) {
+                                Thread.currentThread().interrupt();
                             }
-                        }
-                    } catch (final InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                }, "grpc-outbound-dispatcher");
+                        },
+                        "grpc-outbound-dispatcher");
 
                 if (responseObserver instanceof ServerCallStreamObserver<?> serverObserver) {
                     serverObserver.setOnCancelHandler(() -> {
@@ -160,8 +162,8 @@ public final class DockerInit {
                     }
                 };
 
-                app.registerPlatformStatusChangeListener(notification ->
-                        enqueue.accept(EventMessageFactory.fromPlatformStatusChange(notification)));
+                app.registerPlatformStatusChangeListener(
+                        notification -> enqueue.accept(EventMessageFactory.fromPlatformStatusChange(notification)));
 
                 app.registerConsensusRoundListener(
                         rounds -> enqueue.accept(EventMessageFactory.fromConsensusRounds(rounds)));
@@ -181,8 +183,7 @@ public final class DockerInit {
 
         @Override
         public void submitTransaction(
-                @NonNull final TransactionRequest request,
-                @NonNull final StreamObserver<Empty> responseObserver) {
+                @NonNull final TransactionRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
 
             if (app == null) {
                 responseObserver.onError(Status.FAILED_PRECONDITION
@@ -202,8 +203,8 @@ public final class DockerInit {
         }
 
         @Override
-        public void killImmediately(final KillImmediatelyRequest request,
-                final StreamObserver<Empty> responseObserver) {
+        public void killImmediately(
+                final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
             try {
                 if (app != null) {
                     app.destroy();

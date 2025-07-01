@@ -97,8 +97,8 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
             return;
         }
 
-        final byte[] transaction = TransactionFactory.createEmptyTransaction(random.nextInt())
-                .toByteArray();
+        final byte[] transaction =
+                TransactionFactory.createEmptyTransaction(random.nextInt()).toByteArray();
 
         for (final Node node : nodes) {
             if (node.platformStatus() == PlatformStatus.ACTIVE) {

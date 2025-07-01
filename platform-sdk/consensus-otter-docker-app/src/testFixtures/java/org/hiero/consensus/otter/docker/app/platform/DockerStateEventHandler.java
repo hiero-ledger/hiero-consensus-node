@@ -48,9 +48,7 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
     public void onHandleConsensusRound(
             @NonNull final Round round,
             @NonNull final TurtleAppState state,
-            @NonNull
-                    final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
-                    callback) {
+            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final ConsensusEvent event : round) {
             event.forEachTransaction(txn -> {
                 final Bytes payload = txn.getApplicationTransaction();

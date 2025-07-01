@@ -31,6 +31,7 @@ import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -78,6 +79,7 @@ public class DockerApp {
             @Nullable final Map<String, String> overriddenProperties) {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
+        TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
         final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
         final TestConfigBuilder configurationBuilder = new TestConfigBuilder();

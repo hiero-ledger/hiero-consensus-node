@@ -91,9 +91,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        return TransactionFactory
-                .createFreezeTransaction(freezeTime)
-                .toByteArray();
+        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**
@@ -117,7 +115,7 @@ public class ContainerNetwork extends AbstractNetwork {
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         final Map<NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
 
-        // Sort the node IDs to guarantee roster entry order                     
+        // Sort the node IDs to guarantee roster entry order
         final List<NodeId> sortedNodeIds = keysAndCerts.keySet().stream()
                 .sorted(Comparator.comparingLong(NodeId::id))
                 .toList();

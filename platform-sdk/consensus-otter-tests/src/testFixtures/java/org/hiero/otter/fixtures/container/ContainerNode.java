@@ -143,10 +143,9 @@ public class ContainerNode extends AbstractNode implements Node {
         throwIfIn(DESTROYED, "Node has been destroyed.");
 
         try {
-            final TransactionRequest request =
-                    TransactionRequest.newBuilder()
-                            .setPayload(ByteString.copyFrom(transaction))
-                            .build();
+            final TransactionRequest request = TransactionRequest.newBuilder()
+                    .setPayload(ByteString.copyFrom(transaction))
+                    .build();
 
             blockingStub.submitTransaction(request);
         } catch (final Exception e) {
@@ -283,8 +282,7 @@ public class ContainerNode extends AbstractNode implements Node {
                     boolean expected;
                     if (error instanceof StatusRuntimeException sre) {
                         final var code = sre.getStatus().getCode();
-                        expected = code == Code.UNAVAILABLE
-                                || code == Code.CANCELLED;
+                        expected = code == Code.UNAVAILABLE || code == Code.CANCELLED;
                     } else {
                         final String msg = error.getMessage();
                         expected = msg != null && (msg.startsWith("UNAVAILABLE") || msg.startsWith("CANCELLED"));

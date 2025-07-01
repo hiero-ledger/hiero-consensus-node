@@ -11,11 +11,13 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.config.api;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.metrics.api;
+    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.api;
     requires org.hiero.consensus.utility;
+    requires com.google.protobuf;
     requires io.grpc.stub;
     requires io.grpc;
     requires org.apache.logging.log4j;
-    requires static transitive com.github.spotbugs.annotations;
     requires org.slf4j;
+    requires static transitive com.github.spotbugs.annotations;
 }

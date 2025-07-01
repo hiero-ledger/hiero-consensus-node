@@ -682,5 +682,4 @@ public class ProtobufConverter {
                 .setNodeId(sourceLog.nodeId() != null ? sourceLog.nodeId().id() : -1L)
                 .build();
     }
-
 }

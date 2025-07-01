@@ -10,6 +10,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
+    requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
