@@ -24,20 +24,20 @@ classDiagram
         +timeManager() TimeManager
         +transactionGenerator() TransactionGenerator
     }
-    
+
     class Network {
         +addNodes(int) List~Node~
         +start()
         +getConsensusResults() MultipleNodeConsensusResults
         +getLogResults() MultipleNodeLogResults
     }
-    
+
     class TimeManager {
         +waitFor(Duration)
         +waitForCondition(BooleanSupplier, Duration)
         +now() Instant
     }
-    
+
     TestEnvironment --> Network : provides
     TestEnvironment --> TimeManager : provides
 ```
@@ -47,11 +47,13 @@ classDiagram
 The framework supports two environments with identical APIs:
 
 ### 🐢 Turtle Environment (Default)
+
 - **Simulated time** - Tests complete in seconds
 - **Deterministic** - Reproducible results
 - **Fast feedback** - Perfect for development
 
 ### 🐳 Container Environment
+
 - **Real Docker containers** - Production-like testing
 - **Actual time** - Real network communication
 - **Realistic conditions** - Integration validation
@@ -88,7 +90,6 @@ build/turtle/
     └── swirlds-hashstream.log
 ```
 
-
 ### Container Environment Logs
 
 Container tests run in Docker, and logs are accessible via Docker commands:
@@ -99,12 +100,12 @@ docker logs <container-id>      # Container environment
 
 ## ⚠️ Common Issues
 
-| Issue | Solution |
-|-------|----------|
-| **Docker not found** | Ensure Docker is installed and running |
-| **Port conflicts** | Kill processes using ports 8080+ |
-| **Memory issues** | Increase JVM heap: `-Xmx8g` |
-| **Timeout errors** | Use longer timeouts for Container tests |
+|        Issue         |                Solution                 |
+|----------------------|-----------------------------------------|
+| **Docker not found** | Ensure Docker is installed and running  |
+| **Port conflicts**   | Kill processes using ports 8080+        |
+| **Memory issues**    | Increase JVM heap: `-Xmx8g`             |
+| **Timeout errors**   | Use longer timeouts for Container tests |
 
 ## Next Steps
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
 import static org.assertj.core.data.Percentage.withPercentage;
@@ -37,7 +38,6 @@ class DocExamplesTest {
                 .haveMaxDifferenceInLastRoundNum(withPercentage(5));
 
         // 6. Check for no error-level log messages
-        assertThat(network.getLogResults())
-                .haveNoErrorLevelMessages();
+        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
     }
 }
