@@ -48,14 +48,16 @@ The framework supports two environments with identical APIs:
 
 ### 🐢 Turtle Environment (Default)
 
-- **Simulated time** - Tests complete in seconds
 - **Deterministic** - Reproducible results
+- **Simulated time** - Tests complete in seconds
+- **Simulated gossip** - No real network communication
 - **Fast feedback** - Perfect for development
 
 ### 🐳 Container Environment
 
 - **Real Docker containers** - Production-like testing
 - **Actual time** - Real network communication
+- **Real gossip** - Tests run in a distributed environment
 - **Realistic conditions** - Integration validation
 
 ### Environment Selection
