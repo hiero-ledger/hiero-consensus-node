@@ -178,7 +178,7 @@ jobs:
       - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
-          workflow: .github/workflows/flow-node-performance-tests.yaml
+          workflow: .github/workflows/zxf-single-day-longevity-test.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
