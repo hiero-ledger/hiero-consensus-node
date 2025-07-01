@@ -324,13 +324,6 @@ jobs:
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
-      - name: Build network-load-generator
-        run: |
-          cd network-load-generator
-          ./gradlew --no-daemon clean assemble
-          cd build/libs
-          tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
-
       - name: Prepare NLG parameters
         run: |
           set +x
