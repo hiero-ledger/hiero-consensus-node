@@ -75,10 +75,6 @@ env:
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
   NLG_VERSION: 0.4.1
-  #if needed to re-build NLG from branch:
-  NLG_REBUILD: false
-  NLG_BRANCH: main
-
 
 jobs:
   performance-tests-start:
