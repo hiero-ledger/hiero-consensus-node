@@ -394,8 +394,8 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
         return this;
     }
 
-    public HapiGetTokenInfo getTokenInfo(Consumer<TokenInfo> tokenInfoConsumer) {
-        this.tokenInfoConsumer = tokenInfoConsumer;
+    public HapiGetTokenInfo getTokenInfo(Consumer<TokenInfo> consumer) {
+        this.tokenInfoConsumer = consumer;
         return this;
     }
 
@@ -418,13 +418,9 @@ public class HapiGetTokenInfo extends HapiQueryOp<HapiGetTokenInfo> {
         expectedSupplyType.ifPresent(
                 supplyType -> assertEquals(supplyType, actualInfo.getSupplyType(), "Wrong supply type!"));
 
-        if (expectedSymbol.isPresent()) {
-            assertEquals(expectedSymbol.get(), actualInfo.getSymbol(), "Wrong symbol!");
-        }
+        expectedSymbol.ifPresent(s -> assertEquals(s, actualInfo.getSymbol(), "Wrong symbol!"));
 
-        if (expectedName.isPresent()) {
-            assertEquals(expectedName.get(), actualInfo.getName(), "Wrong name!");
-        }
+        expectedName.ifPresent(s -> assertEquals(s, actualInfo.getName(), "Wrong name!"));
 
         if (expectedAutoRenewAccount.isPresent()) {
             var id = TxnUtils.asId(expectedAutoRenewAccount.get(), spec);

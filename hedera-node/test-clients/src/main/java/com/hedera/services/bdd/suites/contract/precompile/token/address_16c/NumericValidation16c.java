@@ -35,7 +35,7 @@ public class NumericValidation16c {
     static SpecContract numericContract;
 
     // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
-    public static final List<UintTestCase> allFail = List.of(
+    public static final List<UintTestCase> ALL_FAIL = List.of(
             new UintTestCase(NumericValidationTest.NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
             new UintTestCase(NumericValidationTest.MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
             new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));
@@ -79,7 +79,7 @@ public class NumericValidation16c {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for NFT")
     public Stream<DynamicTest> failToGetTokenKeyNFT() {
-        return allFail.stream()
+        return ALL_FAIL.stream()
                 .flatMap(testCase -> hapiTest(numericContract
                         .call("getTokenKey", nft, testCase.amount())
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
@@ -88,7 +88,7 @@ public class NumericValidation16c {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using getTokenKey for Fungible Token")
     public Stream<DynamicTest> failToGetTokenKeyFT() {
-        return allFail.stream()
+        return ALL_FAIL.stream()
                 .flatMap(testCase -> hapiTest(numericContract
                         .call("getTokenKey", fungibleToken, testCase.amount())
                         .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
