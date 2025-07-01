@@ -4,7 +4,7 @@
 
 ## Summary
 
-Quiescence is a feature that stops event creation when there are no transactions. The purpose of this is to reduce the
+Quiescence is a feature that stops event creation when it is not needed. The purpose of this is to reduce the
 amount of data produced and bandwidth used by low volume networks.
 
 | Metadata           | Entities             |
@@ -12,16 +12,16 @@ amount of data produced and bandwidth used by low volume networks.
 | Designers          | Lazar Petrović       |
 | Functional Impacts | Consensus, Execution |
 | Related Proposals  | N/A                  |
-| HIPS               | N/A                  |
+| HIPS               | TODO                 |
 
 ---
 
 ## Purpose and Context
 
-The purpose of this is to reduce the amount of data produced and bandwidth used by low volume networks. When there are
-no transactions being submitted to the network, the network can stop creating events and thus stop gossipping and
-producing blocks. This can drastically reduce the amount of data that needs to be stored long term as well as the amount
-of bandwidth used by the network.
+The purpose of this is to reduce the amount of data produced and bandwidth used by networks with intermittent usage.
+When there are no transactions being submitted to the network, the network can stop creating events and thus stop
+gossipping and producing blocks. This can drastically reduce the amount of data that needs to be stored long term as
+well as the amount of bandwidth used by the network.
 
 ### Requirements
 
@@ -39,69 +39,9 @@ of bandwidth used by the network.
 
 ---
 
-## Quiescence mechanisms
+## HIP
 
-The quiescence feature can be broken up as follows:
-
-- Detecting when to quiesce (quiescence conditions)
-- Quiescing
-- Breaking quiescence
-- Side effects of quiescence
-
-### Quiescence conditions
-
-In its simplest form, detecting when to quiesce is done by counting non-ancient non-consensus transactions. If there are
-no non-ancient non-consensus transactions, there is nothing to reach consensus, so we can stop creating events.
-Additionally, we should also check if there are any pending transactions, if there are, we should not quiesce.
-
-One complication comes from state/block signature transactions. These transactions do not need to reach consensus.
-However, they do need to be gossiped. If we want a fully signed state/block with all transactions, we need to create
-events with these transactions and then gossip them. If we were to try to reach consensus on these signature
-transactions as well, we would produce another block that would again need signatures, this way the network would never
-quiesce. The consensus module will need to be able to distinguish between signature transactions and user transactions.
-An additional API is needed for this.
-
-In order for a state/block to be fully signed, it needs signatures from a majority of nodes. If a node stops creating
-events after it has sent out its signature, other nodes might not be able to do the same as they might not have eligible
-parents. Because of this, we should only stop creating events when a state/block that encompasses all user transactions
-is fully signed. This can lead to a situation where more rounds reach consensus without any transactions in them, and
-empty blocks end up being produced. In order for the consensus module to know when a block is fully signed, the
-execution module would need to notify it. An additional API is needed for this as well.
-
-Another exception is because some functionalities rely on consensus time advancing (i.e. freeze, scheduled
-transactions). Because these mechanisms rely on consensus time advancing, they don't work if the network is quiescing.
-To circumvent this problem, execution needs to tell consensus what consensus time needs to be reached, we shall call
-this target consensus timestamp (or TCT). After each consensus round is handled, the consensus module can ask execution
-for the next TCT. Quiescence should not be active some duration before the TCT based on the wall-clock. This duration
-shall be configurable, and will be named `tctDuration`.
-
-### Quiescing
-
-Once all the conditions are met, we can quiesce. This is done by simply stopping event creation. The consensus module
-will stay in this state until one of the following conditions is met:
-
-- A transaction is submitted to the node that needs to be put into an event
-- A node sends us an event with transactions that need to reach consensus
-- `wallClockTime` + `tctDuration` is less than the next target consensus timestamp (TCT)
-
-If either of these conditions is met, we will break quiescence.
-
-### Breaking quiescence
-
-Breaking quiescence is simply starting event creation again. The complication comes from the tipset algorithm and other
-mechanisms that prevent uncontrolled event creation. Creating an event that does not advance consensus is generally
-considered a bad thing. But if only one node receives a transaction from an end user, it might not be possible to create
-an event that advances consensus. This means that for quiescence, we need to introduce an exception.
-
-The proposal is that we can have events that are do not follow the same rules in the tipset and other algorithms. These
-events will be used for breaking quiescence in situations like the one described above. An event used to break
-quiescence will be called a QB (Quiescence Breaker). A QB will not have other-parents, only a self-parent. By having
-only a self-parent, the QB can be easily identified and special rules can be applied to it. To prevent malicious nodes
-from flooding the network with QBs, a QB should not be allowed to have another QB as a self-parent.
-
-Other conditions for breaking quiescence are that the wall-clock time is nearing the next TCT, or we have received an
-event with a user transaction. If this occurs, while the network is quiescing, the network should resume creating events
-regularly. There is no need to create a QB in this case, since the whole network should be resuming event creation.
+Please refer to the [Quiescence HIP](TODO) for the high level information about this feature.
 
 ### Side effects of quiescence
 
@@ -113,7 +53,7 @@ quiescence, this is not the case. This means that various parts of the system ne
 - `PcesConfig.minimumRetentionPeriod` uses wall-clock time to determine how long to keep events.
 - The platform status `ACTIVE` currently moves to `CHECKING` based on wall-clock time. We will need to add a
   `QUIESCED` status.
-- Various metrics can be misleading if the network is quiescing.
+- Various metrics can be misleading if the network is quiesced.
 - NOTE FOR REVIEWERS: I probably haven't thought of all the side effects yet, please add any you can think of.
 
 ---
@@ -122,44 +62,59 @@ quiescence, this is not the case. This means that various parts of the system ne
 
 ### Architecture and/or Components
 
-- Each transaction we store in an event or the transaction pool needs to have an additional boolean that indicates if it
-  needs to reach consensus or not.
-- We will need functionality to detect non-ancient transactions that need to reach consensus. This should be part of the
-  event creation module.
-- The event creator module should be updated with information about consensus transactions that do not have a boundary
-  round after them. This will be used to determine if the network can quiesce or not. This information needs to be sent
-  from the transaction handler to the event creator module.
-- The event creator should stop creating events if there are no transactions that need to reach consensus, unless there
-  are pending transactions, or there is less than 1 minute before the freeze time according to the wall-clock.
-- The event creator should update the platform status to `QUIESCED` when appropriate.
-- The event creator should create a QB if there are transactions that need to reach consensus, and there are
-  restrictions on creating events that advance consensus.
+- The transaction pool needs to move to execution. When the consensus module is ready to create a new event, it must ask
+  execution for transactions to include in the event.
+- The transaction resubmitter component should be deleted. Output of the stale event detector should be modified to
+  notify the execution of the stale transactions.
+- The event creator should create a QB if we are told to break quiescence, there is at least one transaction to include
+  in a new event, and there are restrictions on creating events that advance consensus. If we are told to break
+  quiescence and there are no transactions to include in a new event, and the tipset algorithm does not allow the
+  creation of a new event, no event will be created until a tipset-legal event can be created.
 
 ### Public API
 
-An additional API is needed for the consensus module to determine if a transaction needs to reach consensus or not.
+An additional API is needed for execution to tell the consensus module to quiesce or break quiescence.
 
-- When we receive transactions as part of events through gossip, we need to check if they need to reach consensus. This
-  should be done with a new method in the `SwirldMain` interface with a definition like:
-  `boolean needsToReachConsensus(Bytes transaction)`. This method should become part of `ApplicationCallbacks`.
-- When transactions are being submitted to the platform before being put into an event, we also need this same
-  information. So the method in `Platform` should be changed to:
-  `boolean createTransaction(byte[] transaction, boolean needsToReachConsensus)`.
+- Two new methods on the `Platform` interface will be created:
+  `void quiesce()` and `void breakQuiescence()`. These methods will send data via a new input wire to the Event Creator
+  component. The Platform Status Component will either get this data directly or via the Event Creator component.
+- The existing `Platform` method `boolean createTransaction(byte[] transaction)` will be removed.
+- A new required field when creating the `PlatformBuilder` will be a transaction supplier. The consensus module will use
+  this supplier to put transactions in new events.
+
+### Execution Conceptual Changes
+
+The execution layer will need to track the number of transactions that need to reach consensus. This number should be
+incremented in the following cases:
+
+1. A transaction is submitted to this node by a user.
+2. A user transaction is received in pre-handle that was submitted by another node.
+3. A user transaction submitted by this node goes stale and is resubmitted.
+
+The number should be decremented in the following cases:
+
+1. A user transaction is handled and the result is written to a block.
+
+Execution must also track the latest block with user transactions. When the latest block with user transactions is fully
+signed, it can instruct the consensus module to quiesce. The only exception to this rule is if the wall clock time is
+within the configured duration of an upcoming TCT (Target Consensus Time).
+
+Execution will instruct the consensus module to break quiescence when any of the following conditions are met:
+
+1. A user transaction is added to this node's execution-owned transaction pool.
+2. A user transaction is received in pre-handle.
 
 ### Configuration
 
-A new configuration option is needed to enable/disable quiescence.
+A new execution level configuration option is needed to enable/disable quiescence.
 
 ### Metrics
-
-The following metrics should be added:
-
-- `numTransNeedCons` the number of non-ancient transactions that need to reach consensus.
 
 The following metrics should be modified:
 
 - `secC2C` & `secR2C` should be modified to only track events that have transactions that need to reach consensus. If
-  this is not done, these metrics will have huge spikes when quiescence is broken.
+  this is not done, these metrics will have huge spikes when quiescence is broken. - TODO figure out what to do for this
+  now that the consensus module will not be tracking what needs to reach consensus.
 
 The following metrics should be removed since they would need to be modified, but are not used:
 
