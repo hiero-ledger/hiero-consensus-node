@@ -85,7 +85,7 @@ env:
 jobs:
   performance-tests-start:
     name: Start
-    runs-on: hiero-citr-linux-llinux-large
+    runs-on: hiero-citr-linux-large
     env:
       run_namespace: ${{ inputs.test-asset }}
       RUN_HCN_VERSION: ${{ inputs.ref }}
