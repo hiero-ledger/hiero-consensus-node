@@ -143,7 +143,6 @@ jobs:
       crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      nlg-access-token: ${{ secrets.CITR_NLG_ACCESS_TOKEN }}
       perf-analysis-access-token: ${{ secrets.PERF_ANALYSIS_TOKEN }}
 
   tag-sdpt-passing:
