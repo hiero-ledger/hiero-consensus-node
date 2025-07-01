@@ -122,7 +122,7 @@ jobs:
             echo "::notice title=Invalid Build Tag::The provided tag (${inputs.ref}) is not a valid build tag."
 
             echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Ref: ${{ inputs.ref }}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
   run-single-day-performance-test:
