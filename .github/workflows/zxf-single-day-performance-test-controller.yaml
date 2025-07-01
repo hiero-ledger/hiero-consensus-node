@@ -115,12 +115,15 @@ jobs:
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
-          else
-            echo "::warning title=Invalid Build Tag::The provided tag (${inputs.ref}) is not a valid build tag."
-          fi
 
-          echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
-          echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "::notice title=Invalid Build Tag::The provided tag (${inputs.ref}) is not a valid build tag."
+            
+            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "Ref: ${{ inputs.ref }}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
   run-single-day-performance-test:
     name: Performance Test
