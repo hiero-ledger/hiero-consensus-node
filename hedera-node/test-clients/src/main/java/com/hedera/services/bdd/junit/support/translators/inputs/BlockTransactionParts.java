@@ -47,13 +47,15 @@ import java.util.Set;
  * @param role the role of the transaction in the group
  * @param traces any traces associated with the transaction
  * @param outputs the output of processing the transaction
+ * @param isTopLevel
  */
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
         @NonNull TransactionGroupRole role,
         @Nullable List<TraceData> traces,
-        @Nullable List<TransactionOutput> outputs) {
+        @Nullable List<TransactionOutput> outputs,
+        boolean isTopLevel) {
 
     private static Set<TransactionGroupRole> TOP_LEVEL_ROLES =
             EnumSet.of(STANDALONE, STARTING_PARENT, PARENT, ENDING_PARENT);
@@ -190,7 +192,7 @@ public record BlockTransactionParts(
      * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
      */
     public BlockTransactionParts withTransactionParts(final TransactionParts transactionParts) {
-        return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs);
+        return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs, false);
     }
 
     /**
