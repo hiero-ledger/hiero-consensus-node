@@ -86,7 +86,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -148,7 +148,7 @@ jobs:
 
   tag-sdpt-passing:
     name: Tag SDPT Passing
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - run-single-day-performance-test
       - verify-tag
@@ -187,7 +187,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
@@ -235,7 +235,7 @@ jobs:
 
   report-success:
     name: Report SDPT execution success
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
       - tag-sdpt-passing
@@ -359,7 +359,7 @@ jobs:
 
   report-failure:
     name: Report SDPT execution failure
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
       - run-single-day-performance-test

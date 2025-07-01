@@ -85,7 +85,7 @@ env:
 jobs:
   performance-tests-start:
     name: Start
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-llinux-large
     env:
       run_namespace: ${{ inputs.test-asset }}
       RUN_HCN_VERSION: ${{ inputs.ref }}
@@ -616,7 +616,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-large
     needs:
       - performance-tests-start
     env:
@@ -815,7 +815,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-large
     needs:
       - performance-NftTransferLoadTest-watch1
     env:
@@ -1164,7 +1164,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-large
     if: ${{ always() }}
     needs:
       - performance-NftTransferLoadTest-report
@@ -1205,7 +1205,7 @@ jobs:
           echo "result=${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
 
   performance-report-to-Slack:
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-medium
     needs:
       - performance-NftTransferLoadTest-report
       - performance-HCSLoadTest

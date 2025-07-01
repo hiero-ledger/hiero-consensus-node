@@ -82,7 +82,7 @@ permissions:
 jobs:
   performance-test:
     name: ${{ inputs.custom-job-name || 'Run CITR Performance Test' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-large
 
     outputs:
       output: ${{ steps.benchmark_value.outputs.value }}
