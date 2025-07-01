@@ -71,7 +71,7 @@ on:
         required: false
         default: false
         type: boolean
-        description: "If true, the test will be executed, but not tag will be applied and slack notifications won't be sent."
+        description: "If true, skip tag and notifications"
 
 defaults:
   run:
