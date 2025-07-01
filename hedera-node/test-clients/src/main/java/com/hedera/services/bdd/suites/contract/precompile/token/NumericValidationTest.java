@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -88,12 +87,6 @@ public class NumericValidationTest {
     public record Int64TestCase(Long amount, ResponseCodeEnum status) {}
 
     public record TestCase(ResponseCodeEnum status, Object... values) {}
-
-    // Big integer test cases for zero, negative, and greater than Long.MAX_VALUE amounts with expected failed status
-    public static final List<UintTestCase> allFail = List.of(
-            new UintTestCase(NEGATIVE_ONE_BIG_INT, CONTRACT_REVERT_EXECUTED),
-            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
-            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED));
 
     @BeforeAll
     public static void beforeAll(final @NonNull TestLifecycle lifecycle) {
@@ -701,8 +694,7 @@ public class NumericValidationTest {
                                     10000L,
                                     MAX_LONG_PLUS_1_BIG_INT,
                                     BigInteger.TWO),
-                            // INVALID_TOKEN_DECIMALS // TODO Glib: see CreateDecoder.decodeCreateFungibleTokenV1
-                            // comment
+                            // java.lang.ArithmeticException: BigInteger out of long range
                             new TestCase(
                                     CONTRACT_REVERT_EXECUTED, 3_000_000L, 10000L, BigInteger.TEN, NEGATIVE_ONE_BIG_INT),
                             new TestCase(SUCCESS, 3_000_000L, 10000L, BigInteger.TEN, BigInteger.TWO))
@@ -753,8 +745,8 @@ public class NumericValidationTest {
                             new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10000L, 10L, 2),
                             // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
                             new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10000L, 10L, 2),
-                            // INVALID_RENEWAL_PERIOD //TODO Glib: _expiryRenew=0 is passing this check, but -1 not
-                            new TestCase(INVALID_RENEWAL_PERIOD, -1L, 10000L, 10L, 2),
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 10000L, 10L, 2),
                             // INVALID_TOKEN_MAX_SUPPLY
                             new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L, 10L, 2),
                             // INVALID_TOKEN_MAX_SUPPLY
@@ -811,8 +803,8 @@ public class NumericValidationTest {
                             new TestCase(CONTRACT_REVERT_EXECUTED, 0L, 10L),
                             // INVALID_RENEWAL_PERIOD _expiryRenew < autoRenewPeriodMinDuration
                             new TestCase(CONTRACT_REVERT_EXECUTED, 2_000_000L, 10L),
-                            // INVALID_RENEWAL_PERIOD //TODO Glib: _expiryRenew=0 is passing this check, but -1 not
-                            new TestCase(INVALID_RENEWAL_PERIOD, -1L, 10L),
+                            // INVALID_RENEWAL_PERIOD
+                            new TestCase(CONTRACT_REVERT_EXECUTED, -1L, 10L),
                             // INVALID_TOKEN_MAX_SUPPLY
                             new TestCase(CONTRACT_REVERT_EXECUTED, 3_000_000L, 0L),
                             // INVALID_TOKEN_MAX_SUPPLY

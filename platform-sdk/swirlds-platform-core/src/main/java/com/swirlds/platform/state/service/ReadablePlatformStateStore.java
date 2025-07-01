@@ -129,6 +129,11 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
         return fromPbjTimestamp(stateOrThrow().lastFrozenTime());
     }
 
+    @Override
+    public long getLatestFreezeRound() {
+        return stateOrThrow().latestFreezeRound();
+    }
+
     /**
      * {@inheritDoc}
      */

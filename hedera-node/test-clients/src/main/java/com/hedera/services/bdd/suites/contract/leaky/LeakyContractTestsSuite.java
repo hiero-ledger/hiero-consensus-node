@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
-import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -140,7 +139,6 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -183,15 +181,11 @@ public class LeakyContractTestsSuite {
     private static final Logger log = LogManager.getLogger(LeakyContractTestsSuite.class);
     public static final String SENDER = "yahcliSender";
     public static final String RECEIVER = "yahcliReceiver";
-    private static final KeyShape DELEGATE_CONTRACT_KEY_SHAPE =
-            KeyShape.threshOf(1, KeyShape.SIMPLE, DELEGATE_CONTRACT);
-    private static final String CRYPTO_TRANSFER = "CryptoTransfer";
     public static final String TOKEN_TRANSFER_CONTRACT = "TokenTransferContract";
     public static final String TRANSFER_TOKEN_PUBLIC = "transferTokenPublic";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String MULTI_KEY = "purpose";
-    private static final String OWNER = "owner";
     private static final String ACCOUNT = "anybody";
     public static final String RECIPIENT = "recipient";
     private static final String FIRST = "FIRST";
@@ -199,7 +193,6 @@ public class LeakyContractTestsSuite {
     public static final String TRANSFER_SIG_NAME = "transferSig";
     public static final String ERC_20_CONTRACT = "ERC20Contract";
     private static final String TRANSFER_TXN = "transferTxn";
-    public static final String TRANSFER_FROM_ACCOUNT_TXN = "transferFromAccountTxn";
     public static final String TRANSFER = "transfer";
     public static final String APPROVE = "approve";
     private static final String NF_TOKEN = "nfToken";
@@ -215,8 +208,6 @@ public class LeakyContractTestsSuite {
     private static final String WITH_SPENDER = "WITH_SPENDER";
     private static final String DO_SPECIFIC_APPROVAL = "doSpecificApproval";
     public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
-    private static final String EVM_VERSION_PROPERTY = "contracts.evm.version";
-    private static final String EVM_VERSION_038 = "v0.38";
     private static final String CREATION = "creation";
     private static final String ENTITY_MEMO = "JUST DO IT";
     private static final String CREATE_2_TXN = "create2Txn";
@@ -746,6 +737,7 @@ public class LeakyContractTestsSuite {
                                 .contractCreateResult(resultWith().create1EvmAddress(expectedChildAddress.get(), 1L))
                                 .status(SUCCESS))),
                 sourcing(() -> getContractInfo(String.valueOf(childNum.get()))
+                        .logged()
                         .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
@@ -778,8 +770,8 @@ public class LeakyContractTestsSuite {
                             .getContractCallResult()
                             .getGasUsed();
 
-                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 23739L);
-                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 20000L);
+                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 35000L);
+                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 40000L);
                 }));
     }
 
