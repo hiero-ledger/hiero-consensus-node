@@ -52,10 +52,6 @@ on:
     outputs:
       output:
         value: ${{ jobs.performance-test.outputs.output }}
-    secrets:
-      perf-analysis-access-token:
-        required: true
-        description: "GitHub token for performance-analysis-automation repo"
 
 env:
   LC_ALL: C.UTF-8
@@ -97,13 +93,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.ref }}
-
-      - name: Checkout performance-analysis-automation repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: swirldslabs/performance-analysis-automation
-          path: paa_scripts
-          token: ${{ secrets.perf-analysis-access-token }}
 
       - name: Validate Input Parameters
         run: |
@@ -337,7 +326,7 @@ jobs:
           fi
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ env.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
