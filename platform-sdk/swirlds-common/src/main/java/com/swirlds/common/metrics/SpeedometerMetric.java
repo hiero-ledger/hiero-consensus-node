@@ -134,8 +134,8 @@ public interface SpeedometerMetric extends Metric {
          */
         @NonNull
         public SpeedometerMetric.Config withHalfLife(final double halfLife) {
-            if (halfLife <= 0) {
-                throw new IllegalArgumentException("Half-life must be positive, but was: " + halfLife);
+            if (halfLife < 0) {
+                throw new IllegalArgumentException("Half-life must be non-negative, but was: " + halfLife);
             }
             this.halfLife = halfLife;
             return this;
