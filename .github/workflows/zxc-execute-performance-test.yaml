@@ -69,7 +69,6 @@ env:
   NLG_VERSION: 0.3.2
   #if needed to re-build NLG from branch:
   NLG_REBUILD: false
-  NLG_BRANCH: main
 
 defaults:
   run:
