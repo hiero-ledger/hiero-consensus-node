@@ -265,10 +265,10 @@ jobs:
           [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
           export PATH="${HOME}/:${PATH}"
           curdir=`pwd`
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get namespaces | grep "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ env.namespace }}"
           if [ ${?} -eq 0 ]
           then
-            sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt delete namespace "${{ env.namespace }}"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ env.namespace }}"
           fi
 
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
@@ -299,10 +299,10 @@ jobs:
 
           #task clean
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get namespaces | grep "${{ env.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep "${{ env.namespace }}"
           if [ ${?} -eq 0 ]
           then
-            sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt delete namespace "${{ env.namespace }}"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ env.namespace }}"
           fi
 
           task build
@@ -317,7 +317,7 @@ jobs:
           fi
 
           sleep 30
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods
           cd "${{ github.workspace }}"
 
           mkdir solo_deploy
@@ -343,9 +343,9 @@ jobs:
           set +e
           cd ${{ github.workspace }}/solo/examples/performance-tuning/latitude
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
 
           #Disable auto-start
@@ -366,20 +366,20 @@ jobs:
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
           helm upgrade --install nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ env.namespace }}"
           sleep 180
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
       - name: Update NLG code with local build
         if: ${{ env.NLG_REBUILD == 'true' }}
         run: |
           cd "${{ github.workspace }}"
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
 
       - name: Build swirlds-benchmark-CryptoBenchMerkleDb.transferPrefetch
         run: |
@@ -415,24 +415,24 @@ jobs:
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
           helm install --set name=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ env.namespace }}"
           sleep 180
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods
-          merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods
+          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
 
           # Copy run version
 
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
 
       - name: Start SwirldsMerkleDB test
         run: |
           set +x
           set +e
 
-          merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
 
           kubectl -n "${{ env.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
           --jvmArgs '${{ env.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ env.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
@@ -442,7 +442,7 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
           NLG_c=32
@@ -493,16 +493,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -513,13 +513,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -533,9 +533,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
           sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -585,7 +585,7 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
           n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
           NLG_c=32
@@ -749,16 +749,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -769,13 +769,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -789,9 +789,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
           sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -947,16 +947,16 @@ jobs:
 
           sleep 60
 
-          nlgpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
+          nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time=`date +%s`
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -967,13 +967,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -987,9 +987,9 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
           sh "${{ github.workspace }}"/paa_scripts/performance_analysis_scripts/getClusterErrors.sh "${{ env.namespace }}"
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
@@ -1045,11 +1045,11 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"
-          merklebenchpod=`sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
+          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
           rm -rf "${{ github.workspace }}"/report/*
           cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
-          sh "${{ github.workspace }}"/paa_scripts/node_control/kubectlt -n "${{ env.namespace }}" delete deployment merklebench-network-load-generator
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" delete deployment merklebench-network-load-generator
 
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
