@@ -12,7 +12,6 @@ import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
@@ -47,7 +46,7 @@ public final class DockerInit {
     /** Lazily initialised docker app; only set once. */
     private DockerApp app;
 
-    private final AtomicBoolean cancelled = new AtomicBoolean(false);
+    private volatile boolean cancelled = false;
 
     /**
      * Outbound queue used by the dispatcher thread to forward messages to the
@@ -122,7 +121,7 @@ public final class DockerInit {
                         ProtobufConverter.toPbj(request.getRoster()),
                         KeysAndCertsConverter.fromProto(request.getKeysAndCerts()),
                         request.getOverriddenPropertiesMap());
-                cancelled.set(false);
+                cancelled = false;
 
                 // Outbound queue and single-writer dispatcher thread. Both are stored
                 // in instance fields so they can be accessed from killImmediately().
@@ -130,13 +129,13 @@ public final class DockerInit {
                 dispatcher = new Thread(
                         () -> {
                             try {
-                                while (!cancelled.get()) {
+                                while (!cancelled) {
                                     final EventMessage msg = outbound.take();
                                     try {
                                         responseObserver.onNext(msg);
                                     } catch (final RuntimeException e) {
                                         // Any exception here means the stream is no longer writable
-                                        cancelled.set(true);
+                                        cancelled = true;
                                     }
                                 }
                             } catch (final InterruptedException ie) {
@@ -147,7 +146,7 @@ public final class DockerInit {
 
                 if (responseObserver instanceof ServerCallStreamObserver<?> serverObserver) {
                     serverObserver.setOnCancelHandler(() -> {
-                        cancelled.set(true);
+                        cancelled = true;
                         dispatcher.interrupt();
                         outbound.clear();
                     });
@@ -157,7 +156,7 @@ public final class DockerInit {
 
                 // Helper that enqueues messages if the stream is still open
                 final Consumer<EventMessage> enqueue = msg -> {
-                    if (!cancelled.get()) {
+                    if (!cancelled) {
                         outbound.offer(msg);
                     }
                 };
@@ -170,7 +169,7 @@ public final class DockerInit {
 
                 InMemoryAppender.subscribe(log -> {
                     enqueue.accept(EventMessageFactory.fromStructuredLog(log));
-                    return cancelled.get() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+                    return cancelled ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
                 });
 
                 app.start();
@@ -212,14 +211,16 @@ public final class DockerInit {
                 }
 
                 // Prevent any further outbound communication
-                cancelled.set(true);
+                cancelled = true;
 
                 if (dispatcher != null) {
                     dispatcher.interrupt();
+                    dispatcher = null;
                 }
 
                 if (outbound != null) {
                     outbound.clear();
+                    outbound = null;
                 }
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
