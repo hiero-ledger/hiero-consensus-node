@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -27,9 +28,20 @@ public interface Network {
     List<Node> addNodes(int count);
 
     /**
+     * Add regular nodes to the network with specific weights.
+     *
+     * @param count - the number of nodes to add
+     * @param weightGenerator - the generator to use for the weights of the nodes
+     * @return a list of the added nodes
+     */
+    @NonNull
+    List<Node> addNodes(int count, WeightGenerator weightGenerator);
+
+    /**
      * Start the network with the currently configured setup.
      *
-     * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
+     * <p>The method will wait until all nodes have become
+     * {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
      * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
@@ -73,9 +85,9 @@ public interface Network {
     void freeze() throws InterruptedException;
 
     /**
-     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks
-     * or preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the
-     * network with {@link #start()}.
+     * Shuts down the network. The nodes are killed immediately. No attempt is made to finish any outstanding tasks or
+     * preserve any state. Once shutdown, it is possible to change the configuration etc. before resuming the network
+     * with {@link #start()}.
      *
      * <p>The method will wait for an environment-specific timeout before throwing an exception if the nodes cannot be
      * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
@@ -99,14 +111,14 @@ public interface Network {
      * <p>This method sets the version of all nodes currently added to the network. Please note that the new version
      * will become effective only after a node is (re-)started.
      *
-     * @see Node#setVersion(SemanticVersion)
-     *
      * @param version the semantic version to set for the network
+     * @see Node#setVersion(SemanticVersion)
      */
     void setVersion(@NonNull SemanticVersion version);
 
     /**
-     * This method updates the version of all nodes in the network to trigger a "config only upgrade" on the next restart.
+     * This method updates the version of all nodes in the network to trigger a "config only upgrade" on the next
+     * restart.
      *
      * <p>Please note that the new version will become effective only after a node is (re-)started.
      *
