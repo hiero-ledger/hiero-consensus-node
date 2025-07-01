@@ -23,10 +23,10 @@ public class DefaultIntegerAccumulator extends AbstractMetric implements Integer
 
     public DefaultIntegerAccumulator(@NonNull final Config config) {
         super(config);
-        this.accumulator = config.getAccumulator();
-        final int initialValue = config.getInitialValue();
-        this.initializer = config.getInitializer() != null ? config.getInitializer() : () -> initialValue;
-        this.container = new AtomicInteger(this.initializer.getAsInt());
+
+        accumulator = config.getAccumulator();
+        initializer = config.getInitializer();
+        container = new AtomicInteger(this.initializer.getAsInt());
     }
 
     /**
@@ -74,10 +74,7 @@ public class DefaultIntegerAccumulator extends AbstractMetric implements Integer
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }

@@ -59,29 +59,20 @@ class FunctionGaugeConfigTest {
 
     @Test
     void testSetters() {
-        // given
-        final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, SUPPLIER);
-
         // when
-        final FunctionGauge.Config<String> result =
-                config.withDescription(DESCRIPTION).withUnit(UNIT).withFormat(FORMAT);
+        final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, SUPPLIER)
+                .withDescription(DESCRIPTION)
+                .withUnit(UNIT)
+                .withFormat(FORMAT);
 
         // then
         assertThat(config.getCategory()).isEqualTo(CATEGORY);
         assertThat(config.getName()).isEqualTo(NAME);
-        assertThat(config.getDescription()).isEqualTo(NAME);
-        assertThat(config.getUnit()).isEmpty();
-        assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
+        assertThat(config.getDescription()).isEqualTo(DESCRIPTION);
+        assertThat(config.getUnit()).isEqualTo(UNIT);
+        assertThat(config.getFormat()).isEqualTo(FORMAT);
         assertThat(config.getType()).isEqualTo(String.class);
         assertThat(config.getSupplier()).isEqualTo(SUPPLIER);
-
-        assertThat(result.getCategory()).isEqualTo(CATEGORY);
-        assertThat(result.getName()).isEqualTo(NAME);
-        assertThat(result.getDescription()).isEqualTo(DESCRIPTION);
-        assertThat(result.getUnit()).isEqualTo(UNIT);
-        assertThat(result.getFormat()).isEqualTo(FORMAT);
-        assertThat(result.getType()).isEqualTo(String.class);
-        assertThat(result.getSupplier()).isEqualTo(SUPPLIER);
     }
 
     @Test

@@ -3,7 +3,6 @@ package com.swirlds.metrics.api;
 
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
-import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -39,7 +38,7 @@ public interface Counter extends Metric {
     @Override
     @NonNull
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE);
+        return SINGLE_VALUE_TYPE_SET;
     }
 
     /**
@@ -83,7 +82,9 @@ public interface Counter extends Metric {
     final class Config extends MetricConfig<Counter, Counter.Config> {
 
         /**
-         * Constructor of {@code Counter.Config}
+         * Constructor of {@code Counter.Config}.
+         * <p>
+         * By default, the {@link Metric#getFormat() Metric.format} is set to {@value MetricConfig#NUMBER_FORMAT}.
          *
          * @param category the kind of metric (metrics are grouped or filtered by this)
          * @param name     a short name for the metric
@@ -91,43 +92,8 @@ public interface Counter extends Metric {
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
         public Config(@NonNull final String category, @NonNull final String name) {
-            super(category, name, "%d");
-        }
-
-        /**
-         * Constructor of {@code Counter.Config}
-         *
-         * @param category    the kind of metric (metrics are grouped or filtered by this)
-         * @param name        a short name for the metric
-         * @param description metric description
-         * @param unit        metric unit
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit) {
-            super(category, name, description, unit, "%d");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public Counter.Config withDescription(@NonNull final String description) {
-            return new Counter.Config(getCategory(), getName(), description, getUnit());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public Counter.Config withUnit(@NonNull final String unit) {
-            return new Counter.Config(getCategory(), getName(), getDescription(), unit);
+            super(category, name);
+            withNumberFormat();
         }
 
         /**
@@ -152,8 +118,8 @@ public interface Counter extends Metric {
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this).appendSuper(super.toString()).toString();
+        protected Config self() {
+            return this;
         }
     }
 }

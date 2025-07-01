@@ -38,7 +38,7 @@ public interface FunctionGauge<T> extends Metric {
     @NonNull
     @Override
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE);
+        return SINGLE_VALUE_TYPE_SET;
     }
 
     /**
@@ -90,73 +90,9 @@ public interface FunctionGauge<T> extends Metric {
                 @NonNull final String name,
                 @NonNull final Class<T> type,
                 @NonNull final Supplier<T> supplier) {
-            super(category, name, "%s");
+            super(category, name);
             this.type = Objects.requireNonNull(type, "type must not be null");
             this.supplier = Objects.requireNonNull(supplier, "supplier must not be null");
-        }
-
-        /**
-         * Constructor of {@code FunctionGauge.Config}
-         *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
-         * @param description metric description
-         * @param unit the unit for metric
-         * @param format the format for metric
-         * @param type
-         * 		the type of the values this {@code FunctionGauge} returns
-         * @param supplier the format for metric
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit,
-                @NonNull final String format,
-                @NonNull final Class<T> type,
-                @NonNull final Supplier<T> supplier) {
-            super(category, name, description, unit, format);
-            this.type = Objects.requireNonNull(type, "type must not be null");
-            this.supplier = Objects.requireNonNull(supplier, "supplier must not be null");
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public FunctionGauge.Config<T> withDescription(@NonNull final String description) {
-            return new FunctionGauge.Config<>(
-                    getCategory(), getName(), description, getUnit(), getFormat(), getType(), getSupplier());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public FunctionGauge.Config<T> withUnit(@NonNull final String unit) {
-            return new FunctionGauge.Config<>(
-                    getCategory(), getName(), getDescription(), unit, getFormat(), getType(), getSupplier());
-        }
-
-        /**
-         * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
-         *
-         * @param format
-         * 		the format-string
-         * @return a new configuration-object with updated {@code format}
-         * @throws IllegalArgumentException
-         * 		if {@code format} is {@code null} or consists only of whitespaces
-         */
-        @NonNull
-        public FunctionGauge.Config<T> withFormat(@NonNull final String format) {
-            return new FunctionGauge.Config<>(
-                    getCategory(), getName(), getDescription(), getUnit(), format, getType(), getSupplier());
         }
 
         /**
@@ -202,11 +138,18 @@ public interface FunctionGauge<T> extends Metric {
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this)
-                    .appendSuper(super.toString())
+        protected Config<T> self() {
+            return this;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        protected ToStringBuilder selfToString() {
+            return super.selfToString()
                     .append("type", type.getName())
-                    .toString();
+                    .append("supplier", supplier.getClass().getName());
         }
     }
 }

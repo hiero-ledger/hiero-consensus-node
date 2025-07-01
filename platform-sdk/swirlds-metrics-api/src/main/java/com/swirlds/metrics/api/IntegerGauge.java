@@ -39,7 +39,7 @@ public interface IntegerGauge extends Metric {
     @NonNull
     @Override
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE);
+        return SINGLE_VALUE_TYPE_SET;
     }
 
     /**
@@ -83,88 +83,22 @@ public interface IntegerGauge extends Metric {
      */
     final class Config extends MetricConfig<IntegerGauge, IntegerGauge.Config> {
 
-        private final int initialValue;
+        private int initialValue;
 
         /**
          * Constructor of {@code IntegerGauge.Config}
          *
          * The {@link #getInitialValue() initialValue} is by default set to {@code 0},
-         * the {@link #getFormat() format} is set to "%d".
+         * the {@link #getFormat() format} is set to {@value MetricConfig#NUMBER_FORMAT}.
          *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
+         * @param category the kind of metric (metrics are grouped or filtered by this)
+         * @param name a short name for the metric
          * @throws NullPointerException     if one of the parameters is {@code null}
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
         public Config(@NonNull final String category, @NonNull final String name) {
-
-            super(category, name, "%d");
-            this.initialValue = 0;
-        }
-
-        /**
-         * Constructor of {@code IntegerGauge.Config}
-         *
-         * The {@link #getInitialValue() initialValue} is by default set to {@code 0},
-         * the {@link #getFormat() format} is set to "%d".
-         *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
-         * @param description metric description
-         * @param unit        metric unit
-         * @param format format for metric
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit,
-                @NonNull final String format,
-                final int initialValue) {
-
-            super(category, name, description, unit, format);
-            this.initialValue = initialValue;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public IntegerGauge.Config withDescription(@NonNull final String description) {
-            return new IntegerGauge.Config(
-                    getCategory(), getName(), description, getUnit(), getFormat(), getInitialValue());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public IntegerGauge.Config withUnit(@NonNull final String unit) {
-            return new IntegerGauge.Config(
-                    getCategory(), getName(), getDescription(), unit, getFormat(), getInitialValue());
-        }
-
-        /**
-         * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
-         *
-         * @param format
-         * 		the format-string
-         * @return a new configuration-object with updated {@code format}
-         * @throws NullPointerException     if {@code format} is {@code null}
-         * @throws IllegalArgumentException if {@code format} consists only of whitespaces
-         */
-        @NonNull
-        public IntegerGauge.Config withFormat(@NonNull final String format) {
-            return new IntegerGauge.Config(
-                    getCategory(), getName(), getDescription(), getUnit(), format, getInitialValue());
+            super(category, name);
+            withNumberFormat();
         }
 
         /**
@@ -179,14 +113,13 @@ public interface IntegerGauge extends Metric {
         /**
          * Fluent-style setter of the initial value.
          *
-         * @param initialValue
-         * 		the initial value
-         * @return a new configuration-object with updated {@code initialValue}
+         * @param initialValue the initial value
+         * @return self-reference
          */
         @NonNull
         public IntegerGauge.Config withInitialValue(final int initialValue) {
-            return new IntegerGauge.Config(
-                    getCategory(), getName(), getDescription(), getUnit(), getFormat(), initialValue);
+            this.initialValue = initialValue;
+            return this;
         }
 
         /**
@@ -207,15 +140,17 @@ public interface IntegerGauge extends Metric {
             return factory.createIntegerGauge(this);
         }
 
+        @Override
+        protected Config self() {
+            return this;
+        }
+
         /**
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this)
-                    .appendSuper(super.toString())
-                    .append("initialValue", initialValue)
-                    .toString();
+        public ToStringBuilder selfToString() {
+            return super.selfToString().append("initialValue", initialValue);
         }
     }
 }

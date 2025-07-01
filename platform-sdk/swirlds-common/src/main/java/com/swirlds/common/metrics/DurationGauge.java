@@ -4,6 +4,7 @@ package com.swirlds.common.metrics;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.units.UnitConstants;
+import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricType;
@@ -42,7 +43,7 @@ public interface DurationGauge extends Metric {
     @NonNull
     @Override
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE);
+        return SINGLE_VALUE_TYPE_SET;
     }
 
     /**
@@ -96,47 +97,10 @@ public interface DurationGauge extends Metric {
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
         public Config(@NonNull final String category, @NonNull final String name, final @NonNull ChronoUnit timeUnit) {
-            super(category, name, name, getUnit(timeUnit), getFormat(timeUnit));
+            super(category, name);
             this.timeUnit = timeUnit;
-        }
-
-        /**
-         * Constructor of {@code DoubleGauge.Config}
-         *
-         * @param category the kind of metric (metrics are grouped or filtered by this)
-         * @param name     a short name for the metric
-         * @param description metric description
-         * @param timeUnit the time unit in which to display this duration
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                final @NonNull ChronoUnit timeUnit) {
-            super(category, name, description, getUnit(timeUnit), getFormat(timeUnit));
-            // at this point, timeUnit was checked for null in getUnit() and getFormat()
-            this.timeUnit = timeUnit;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public DurationGauge.Config withDescription(@NonNull final String description) {
-            return new DurationGauge.Config(getCategory(), getName(), description, getTimeUnit());
-        }
-
-        /**
-         * The unit of a {@link DurationGauge} depends on the configured {@link ChronoUnit}. Therefore, it is not
-         * possible to specify the unit and this method throws an {@link UnsupportedOperationException}
-         */
-        @NonNull
-        @Override
-        public DurationGauge.Config withUnit(@NonNull final String unit) {
-            throw new UnsupportedOperationException("a String unit is not compatible with this class");
+            withUnit(getUnit(timeUnit));
+            withFormat(getFormat(timeUnit));
         }
 
         /**
@@ -165,6 +129,19 @@ public interface DurationGauge extends Metric {
         @NonNull
         public DurationGauge create(@NonNull final PlatformMetricsFactory factory) {
             return factory.createDurationGauge(this);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        protected Config self() {
+            return this;
+        }
+
+        @Override
+        protected ToStringBuilder selfToString() {
+            return super.selfToString().append("timeUnit", getTimeUnit());
         }
 
         @NonNull

@@ -31,13 +31,14 @@ public class PlatformIntegerPairAccumulator<T> extends AbstractMetric implements
      */
     public PlatformIntegerPairAccumulator(@NonNull final Config<T> config) {
         super(config);
-        this.dataType = MetricConfig.mapDataType(config.getType());
-        this.container = new AtomicIntPair(config.getLeftAccumulator(), config.getRightAccumulator());
-        this.resultFunction = config.getResultFunction();
-        this.leftInitializer = config.getLeftInitializer();
-        this.rightInitializer = config.getRightInitializer();
 
-        this.container.set(leftInitializer.getAsInt(), rightInitializer.getAsInt());
+        dataType = MetricConfig.mapDataType(config.getType());
+        container = new AtomicIntPair(config.getLeftAccumulator(), config.getRightAccumulator());
+        resultFunction = config.getResultFunction();
+        leftInitializer = config.getLeftInitializer();
+        rightInitializer = config.getRightInitializer();
+
+        container.set(leftInitializer.getAsInt(), rightInitializer.getAsInt());
     }
 
     /**
@@ -105,10 +106,7 @@ public class PlatformIntegerPairAccumulator<T> extends AbstractMetric implements
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }

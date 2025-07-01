@@ -72,11 +72,11 @@ class IntegerPairAccumulatorConfigTest {
         final IntBinaryOperator leftAccumulator = mock(IntBinaryOperator.class);
         final IntBinaryOperator rightAccumulator = mock(IntBinaryOperator.class);
         final BiFunction<Integer, Integer, Integer> resultFunction = mock(BiFunction.class);
-        final IntegerPairAccumulator.Config<Integer> config =
-                new IntegerPairAccumulator.Config<>(CATEGORY, NAME, Integer.class, resultFunction);
 
         // when
-        final IntegerPairAccumulator.Config<Integer> result = config.withDescription(DESCRIPTION)
+        final IntegerPairAccumulator.Config<Integer> config = new IntegerPairAccumulator.Config<>(
+                        CATEGORY, NAME, Integer.class, resultFunction)
+                .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT)
                 .withLeftAccumulator(leftAccumulator)
@@ -85,23 +85,13 @@ class IntegerPairAccumulatorConfigTest {
         // then
         assertThat(config.getCategory()).isEqualTo(CATEGORY);
         assertThat(config.getName()).isEqualTo(NAME);
-        assertThat(config.getDescription()).isEqualTo(NAME);
-        assertThat(config.getUnit()).isEmpty();
-        assertThat(config.getFormat()).isEqualTo(DEFAULT_FORMAT);
+        assertThat(config.getDescription()).isEqualTo(DESCRIPTION);
+        assertThat(config.getUnit()).isEqualTo(UNIT);
+        assertThat(config.getFormat()).isEqualTo(FORMAT);
         assertThat(config.getType()).isEqualTo(Integer.class);
-        assertThat(config.getLeftAccumulator().applyAsInt(2, 3)).isEqualTo(2 + 3);
-        assertThat(config.getRightAccumulator().applyAsInt(5, 7)).isEqualTo(5 + 7);
+        assertThat(config.getLeftAccumulator()).isEqualTo(leftAccumulator);
+        assertThat(config.getRightAccumulator()).isEqualTo(rightAccumulator);
         assertThat(config.getResultFunction()).isEqualTo(resultFunction);
-
-        assertThat(result.getCategory()).isEqualTo(CATEGORY);
-        assertThat(result.getName()).isEqualTo(NAME);
-        assertThat(result.getDescription()).isEqualTo(DESCRIPTION);
-        assertThat(result.getUnit()).isEqualTo(UNIT);
-        assertThat(result.getFormat()).isEqualTo(FORMAT);
-        assertThat(result.getType()).isEqualTo(Integer.class);
-        assertThat(result.getLeftAccumulator()).isEqualTo(leftAccumulator);
-        assertThat(result.getRightAccumulator()).isEqualTo(rightAccumulator);
-        assertThat(result.getResultFunction()).isEqualTo(resultFunction);
     }
 
     @SuppressWarnings("unchecked")

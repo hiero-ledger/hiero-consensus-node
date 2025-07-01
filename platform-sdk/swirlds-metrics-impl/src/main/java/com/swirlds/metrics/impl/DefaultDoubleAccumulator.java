@@ -22,12 +22,10 @@ public class DefaultDoubleAccumulator extends AbstractMetric implements DoubleAc
 
     public DefaultDoubleAccumulator(@NonNull final Config config) {
         super(config);
-        final double initialValue = config.getInitialValue();
-        final DoubleSupplier configInitializer = config.getInitializer();
 
-        this.accumulator = config.getAccumulator();
-        this.initializer = configInitializer != null ? configInitializer : () -> initialValue;
-        this.container = new AtomicDouble(this.initializer.getAsDouble());
+        accumulator = config.getAccumulator();
+        initializer = config.getInitializer();
+        container = new AtomicDouble(initializer.getAsDouble());
     }
 
     /**
@@ -72,10 +70,7 @@ public class DefaultDoubleAccumulator extends AbstractMetric implements DoubleAc
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }

@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics;
 
-import static com.swirlds.metrics.api.Metric.ValueType.MAX;
-import static com.swirlds.metrics.api.Metric.ValueType.MIN;
-import static com.swirlds.metrics.api.Metric.ValueType.STD_DEV;
-import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
-
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.metrics.api.FloatFormats;
@@ -44,7 +39,7 @@ public interface RunningAverageMetric extends Metric {
      */
     @NonNull
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE, MAX, MIN, STD_DEV);
+        return ALL_VALUE_TYPES_SET;
     }
 
     /**
@@ -90,115 +85,22 @@ public interface RunningAverageMetric extends Metric {
      */
     final class Config extends PlatformMetricConfig<RunningAverageMetric, Config> {
 
-        private final double halfLife;
-        private final boolean useDefaultHalfLife;
+        private double halfLife;
 
         /**
          * Constructor of {@code RunningAverageMetric.Config}
          *
-         * The {@code useDefaultHalfLife} determines whether the default {@code halfLife} value
-         * (see {@link MetricsConfig#halfLife()}) should be used during the creation of a metric based on
-         * this configuration. If set to {@code false}, the specific {@code halfLife} defined in this configuration will
-         * be used instead.
+         * If no {@code halfLife} value specified, default value will be used during the creation of a metric based on
+         * this {@link MetricsConfig#halfLife()}.
          *
-         * @param category
-         * 		the kind of metric (stats are grouped or filtered by this)
-         * @param name
-         * 		a short name for the statistic
+         * @param category the kind of metric (stats are grouped or filtered by this)
+         * @param name a short name for the statistic
          * @throws NullPointerException     if one of the parameters is {@code null}
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
         public Config(@NonNull final String category, @NonNull final String name) {
-            super(category, name, FloatFormats.FORMAT_11_3);
-            this.halfLife = -1;
-            this.useDefaultHalfLife = true;
-        }
-
-        /**
-         * Constructor of {@code RunningAverageMetric.Config}
-         *
-         * The {@code useDefaultHalfLife} determines whether the default {@code halfLife} value
-         * (see {@link MetricsConfig#halfLife()}) should be used during the creation of a metric based on
-         * this configuration. If set to {@code false}, the specific {@code halfLife} defined in this configuration will
-         * be used instead.
-         *
-         * @param category
-         * 		the kind of metric (stats are grouped or filtered by this)
-         * @param name
-         * 		a short name for the statistic
-         * @param description metric description
-         * @param unit metric unit
-         * @param format metric format
-         * @param halfLife metric halfLife
-         * @param useDefaultHalfLife if a default should be used
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit,
-                @NonNull final String format,
-                final double halfLife,
-                final boolean useDefaultHalfLife) {
-
-            super(category, name, description, unit, format);
-            this.halfLife = halfLife;
-            this.useDefaultHalfLife = useDefaultHalfLife;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public RunningAverageMetric.Config withDescription(@NonNull final String description) {
-            return new RunningAverageMetric.Config(
-                    getCategory(),
-                    getName(),
-                    description,
-                    getUnit(),
-                    getFormat(),
-                    getHalfLife(),
-                    isUseDefaultHalfLife());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public RunningAverageMetric.Config withUnit(@NonNull final String unit) {
-            return new RunningAverageMetric.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    unit,
-                    getFormat(),
-                    getHalfLife(),
-                    isUseDefaultHalfLife());
-        }
-
-        /**
-         * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
-         *
-         * @param format
-         * 		the format-string
-         * @return a new configuration-object with updated {@code format}
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        @NonNull
-        public RunningAverageMetric.Config withFormat(@NonNull final String format) {
-            return new RunningAverageMetric.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    format,
-                    getHalfLife(),
-                    isUseDefaultHalfLife());
+            super(category, name);
+            withFormat(FloatFormats.FORMAT_11_3);
         }
 
         /**
@@ -211,15 +113,6 @@ public interface RunningAverageMetric extends Metric {
         }
 
         /**
-         * Getter of the {@code useDefaultHalfLife}.
-         *
-         * @return the {@code useDefaultHalfLife}
-         */
-        public boolean isUseDefaultHalfLife() {
-            return useDefaultHalfLife;
-        }
-
-        /**
          * Fluent-style setter of the {@code halfLife}.
          *
          * @param halfLife
@@ -228,8 +121,11 @@ public interface RunningAverageMetric extends Metric {
          */
         @NonNull
         public RunningAverageMetric.Config withHalfLife(final double halfLife) {
-            return new RunningAverageMetric.Config(
-                    getCategory(), getName(), getDescription(), getUnit(), getFormat(), halfLife, false);
+            if (halfLife <= 0) {
+                throw new IllegalArgumentException("Half-life must be positive, but was: " + halfLife);
+            }
+            this.halfLife = halfLife;
+            return this;
         }
 
         /**
@@ -254,11 +150,16 @@ public interface RunningAverageMetric extends Metric {
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this)
-                    .appendSuper(super.toString())
-                    .append("halfLife", halfLife)
-                    .toString();
+        protected Config self() {
+            return this;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public ToStringBuilder selfToString() {
+            return super.selfToString().append("halfLife", halfLife);
         }
     }
 }

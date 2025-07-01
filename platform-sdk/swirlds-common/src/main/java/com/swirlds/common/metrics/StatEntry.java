@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics;
 
-import static com.swirlds.metrics.api.Metric.ValueType.MAX;
-import static com.swirlds.metrics.api.Metric.ValueType.MIN;
-import static com.swirlds.metrics.api.Metric.ValueType.STD_DEV;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
@@ -42,7 +39,7 @@ public interface StatEntry extends Metric {
     @NonNull
     @Override
     default EnumSet<ValueType> getValueTypes() {
-        return getBuffered() == null ? EnumSet.of(VALUE) : EnumSet.of(VALUE, MAX, MIN, STD_DEV);
+        return getBuffered() == null ? SINGLE_VALUE_TYPE_SET : ALL_VALUE_TYPES_SET;
     }
 
     /**
@@ -109,12 +106,13 @@ public interface StatEntry extends Metric {
     final class Config<T> extends PlatformMetricConfig<StatEntry, Config<T>> {
 
         private final @NonNull Class<T> type;
-        private final @Nullable StatsBuffered buffered;
-        private final @Nullable Function<Double, StatsBuffered> init;
-        private final @Nullable Consumer<Double> reset;
         private final @NonNull Supplier<T> statsStringSupplier;
-        private final @NonNull Supplier<T> resetStatsStringSupplier;
-        private final double halfLife;
+
+        private @Nullable StatsBuffered buffered;
+        private @Nullable Function<Double, StatsBuffered> init;
+        private @Nullable Consumer<Double> reset;
+        private @Nullable Supplier<T> resetStatsStringSupplier;
+        private double halfLife;
 
         /**
          * stores all the parameters, which can be accessed directly
@@ -136,123 +134,13 @@ public interface StatEntry extends Metric {
                 @NonNull final Class<T> type,
                 @NonNull final Supplier<T> statsStringSupplier) {
 
-            super(category, name, FloatFormats.FORMAT_11_3);
+            super(category, name);
+            withFormat(FloatFormats.FORMAT_11_3);
             this.type = Objects.requireNonNull(type, "type must not be null");
-            this.buffered = null;
-            this.init = null;
-            this.reset = null;
             this.statsStringSupplier =
                     Objects.requireNonNull(statsStringSupplier, "statsStringSupplier must not be null");
             this.resetStatsStringSupplier = statsStringSupplier;
             this.halfLife = -1;
-        }
-
-        /**
-         * stores all the parameters, which can be accessed directly
-         *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
-         * @param type
-         * 		the type of the values this {@code StatEntry} returns
-         * @param statsStringSupplier
-         * 		a lambda that returns the metric string
-         * @throws IllegalArgumentException
-         * 		if one of the parameters is {@code null} or consists only of whitespaces
-         */
-        @SuppressWarnings("java:S107")
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit,
-                @NonNull final String format,
-                @NonNull final Class<T> type,
-                @Nullable final StatsBuffered buffered,
-                @Nullable final Function<Double, StatsBuffered> init,
-                @Nullable final Consumer<Double> reset,
-                @NonNull final Supplier<T> statsStringSupplier,
-                @NonNull final Supplier<T> resetStatsStringSupplier,
-                final double halfLife) {
-            super(category, name, description, unit, format);
-            this.type = Objects.requireNonNull(type, "type must not be null");
-            this.buffered = buffered;
-            this.init = init;
-            this.reset = reset;
-            this.statsStringSupplier =
-                    Objects.requireNonNull(statsStringSupplier, "statsStringSupplier must not be null");
-            this.resetStatsStringSupplier =
-                    Objects.requireNonNull(resetStatsStringSupplier, "resetStatsStringSupplier must not be null");
-            this.halfLife = halfLife;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public StatEntry.Config<T> withDescription(@NonNull final String description) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    description,
-                    getUnit(),
-                    getFormat(),
-                    getType(),
-                    getBuffered(),
-                    getInit(),
-                    getReset(),
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    getHalfLife());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public StatEntry.Config<T> withUnit(@NonNull final String unit) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    unit,
-                    getFormat(),
-                    getType(),
-                    getBuffered(),
-                    getInit(),
-                    getReset(),
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    getHalfLife());
-        }
-
-        /**
-         * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
-         *
-         * @param format
-         * 		the format-string
-         * @return a new configuration-object with updated {@code format}
-         * @throws IllegalArgumentException
-         * 		if {@code format} is {@code null} or consists only of whitespaces
-         */
-        @NonNull
-        public StatEntry.Config<T> withFormat(@NonNull final String format) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    format,
-                    getType(),
-                    getBuffered(),
-                    getInit(),
-                    getReset(),
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    getHalfLife());
         }
 
         /**
@@ -283,20 +171,9 @@ public interface StatEntry extends Metric {
          * @return a reference to {@code this}
          */
         @NonNull
-        public StatEntry.Config<T> withBuffered(@Nullable final StatsBuffered buffered) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getType(),
-                    buffered,
-                    getInit(),
-                    getReset(),
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    getHalfLife());
+        public StatEntry.Config<T> withBuffered(@NonNull final StatsBuffered buffered) {
+            this.buffered = Objects.requireNonNull(buffered, "buffer must not be null");
+            return this;
         }
 
         /**
@@ -318,19 +195,8 @@ public interface StatEntry extends Metric {
          */
         @NonNull
         public StatEntry.Config<T> withInit(@Nullable final Function<Double, StatsBuffered> init) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getType(),
-                    getBuffered(),
-                    init,
-                    getReset(),
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    getHalfLife());
+            this.init = init;
+            return this;
         }
 
         /**
@@ -352,19 +218,8 @@ public interface StatEntry extends Metric {
          */
         @NonNull
         public StatEntry.Config<T> withReset(@Nullable final Consumer<Double> reset) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getType(),
-                    getBuffered(),
-                    getInit(),
-                    reset,
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    getHalfLife());
+            this.reset = reset;
+            return this;
         }
 
         /**
@@ -396,19 +251,9 @@ public interface StatEntry extends Metric {
          */
         @NonNull
         public StatEntry.Config<T> withResetStatsStringSupplier(@NonNull final Supplier<T> resetStatsStringSupplier) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getType(),
-                    getBuffered(),
-                    getInit(),
-                    getReset(),
-                    getStatsStringSupplier(),
-                    resetStatsStringSupplier,
-                    getHalfLife());
+            this.resetStatsStringSupplier =
+                    Objects.requireNonNull(resetStatsStringSupplier, "resetStatsStringSupplier must not be null");
+            return this;
         }
 
         /**
@@ -429,19 +274,8 @@ public interface StatEntry extends Metric {
          */
         @NonNull
         public StatEntry.Config<T> withHalfLife(final double halfLife) {
-            return new StatEntry.Config<>(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getType(),
-                    getBuffered(),
-                    getInit(),
-                    getReset(),
-                    getStatsStringSupplier(),
-                    getResetStatsStringSupplier(),
-                    halfLife);
+            this.halfLife = halfLife;
+            return this;
         }
 
         /**
@@ -466,11 +300,16 @@ public interface StatEntry extends Metric {
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this)
-                    .appendSuper(super.toString())
-                    .append("type", type.getName())
-                    .toString();
+        protected Config<T> self() {
+            return this;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        protected ToStringBuilder selfToString() {
+            return super.selfToString().append("type", type.getName());
         }
     }
 }

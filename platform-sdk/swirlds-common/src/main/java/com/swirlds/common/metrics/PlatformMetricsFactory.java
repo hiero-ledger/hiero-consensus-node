@@ -2,10 +2,7 @@
 package com.swirlds.common.metrics;
 
 import com.swirlds.metrics.api.Metric;
-import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.MetricsFactory;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
 
 /**
  * Factory for all {@link Metric}-implementations
@@ -75,28 +72,4 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      */
     @SuppressWarnings("removal")
     StatEntry createStatEntry(final StatEntry.Config<?> config);
-
-    /**
-     * Creates a {@link Metric}.
-     * <p>
-     * The default implementation calls the appropriate method within this factory.
-     *
-     * @param config
-     * 		the configuration
-     * @return the new {@code Metric}
-     * @param <T> sub-interface of the generated {@code Metric}
-     */
-    default <T extends Metric> T createMetric(@NonNull final MetricConfig<T, ?> config) {
-        Objects.requireNonNull(config, "config");
-
-        // We use the double-dispatch pattern to create a Metric. This simplifies the API, because it allows us
-        // to have a single method for all types of metrics. (The alternative would have been a method like
-        // getOrCreateCounter() for each type of metric.)
-        //
-        // This method here call MetricConfig.create() providing the MetricsFactory. This method is overridden by
-        // each subclass of MetricConfig to call the specific method in MetricsFactory, i.e. Counter.Config
-        // calls MetricsFactory.createCounter().
-
-        return config.create(this);
-    }
 }

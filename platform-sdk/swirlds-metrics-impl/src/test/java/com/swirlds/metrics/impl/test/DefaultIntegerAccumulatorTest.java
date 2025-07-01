@@ -58,9 +58,9 @@ class DefaultIntegerAccumulatorTest {
         assertEquals(
                 DESCRIPTION, accumulator2.getDescription(), "The description was not set correctly in the constructor");
         assertEquals(FORMAT, accumulator2.getFormat(), "The format was not set correctly in the constructor");
-        assertEquals(3, accumulator2.getInitialValue(), "The initial value was not initialized correctly");
-        assertEquals(3, accumulator2.get(), "The value was not initialized correctly");
-        assertEquals(3, accumulator2.get(VALUE), "The value was not initialized correctly");
+        assertEquals(42, accumulator2.getInitialValue(), "The initial value was not initialized correctly");
+        assertEquals(42, accumulator2.get(), "The value was not initialized correctly");
+        assertEquals(42, accumulator2.get(VALUE), "The value was not initialized correctly");
         assertThat(accumulator2.getValueTypes()).containsExactly(VALUE);
     }
 

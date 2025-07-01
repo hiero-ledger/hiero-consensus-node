@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.function.IntBinaryOperator;
@@ -45,7 +44,7 @@ public interface IntegerAccumulator extends Metric {
     @NonNull
     @Override
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE);
+        return SINGLE_VALUE_TYPE_SET;
     }
 
     /**
@@ -92,119 +91,24 @@ public interface IntegerAccumulator extends Metric {
      */
     final class Config extends MetricConfig<IntegerAccumulator, IntegerAccumulator.Config> {
 
-        private final @NonNull IntBinaryOperator accumulator;
-        private final @Nullable IntSupplier initializer;
-
-        private final int initialValue;
+        private @NonNull IntBinaryOperator accumulator = Integer::max;
+        private @NonNull IntSupplier initializer = INT_DEFAULT_INITIALIZER;
 
         /**
          * Constructor of {@code IntegerGauge.Config}
          *
          * By default, the {@link #getAccumulator() accumulator} is set to {@code Integer::max},
          * the {@link #getInitialValue() initialValue} is set to {@code 0},
-         * and {@link #getFormat() format} is set to {@code "%d"}.
+         * and {@link #getFormat() format} is set to {@value NUMBER_FORMAT}.
          *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
+         * @param category the kind of metric (metrics are grouped or filtered by this)
+         * @param name a short name for the metric
          * @throws NullPointerException     if one of the parameters is {@code null}
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
         public Config(@NonNull final String category, @NonNull final String name) {
-            super(category, name, "%d");
-            this.accumulator = Integer::max;
-            this.initializer = null;
-            this.initialValue = 0;
-        }
-
-        /**
-         * Constructor of {@code IntegerGauge.Config}
-         *
-         * By default, the {@link #getAccumulator() accumulator} is set to {@code Integer::max},
-         * the {@link #getInitialValue() initialValue} is set to {@code 0},
-         * and {@link #getFormat() format} is set to {@code "%d"}.
-         *
-         * @param category
-         * 		the kind of metric (metrics are grouped or filtered by this)
-         * @param name
-         * 		a short name for the metric
-         * @param description metric description
-         * @param unit        metric unit
-         * @param accumulator accumulator for metric
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit,
-                @NonNull final String format,
-                @NonNull final IntBinaryOperator accumulator,
-                final IntSupplier initializer,
-                final int initialValue) {
-
-            super(category, name, description, unit, format);
-            this.accumulator = Objects.requireNonNull(accumulator, "accumulator must not be null");
-            this.initializer = initializer;
-            this.initialValue = initialValue;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public IntegerAccumulator.Config withDescription(@NonNull final String description) {
-            return new IntegerAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    description,
-                    getUnit(),
-                    getFormat(),
-                    getAccumulator(),
-                    getInitializer(),
-                    getInitialValue());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public IntegerAccumulator.Config withUnit(@NonNull final String unit) {
-            return new IntegerAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    unit,
-                    getFormat(),
-                    getAccumulator(),
-                    getInitializer(),
-                    getInitialValue());
-        }
-
-        /**
-         * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
-         *
-         * @param format
-         * 		the format-string
-         * @return a new configuration-object with updated {@code format}
-         * @throws NullPointerException     if {@code format} is {@code null}
-         * @throws IllegalArgumentException if {@code format} consists only of whitespaces
-         */
-        @NonNull
-        public IntegerAccumulator.Config withFormat(@NonNull final String format) {
-            return new IntegerAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    format,
-                    getAccumulator(),
-                    getInitializer(),
-                    getInitialValue());
+            super(category, name);
+            withNumberFormat();
         }
 
         /**
@@ -223,21 +127,13 @@ public interface IntegerAccumulator extends Metric {
          * The accumulator should be side-effect-free, since it may be re-applied when attempted updates fail
          * due to contention among threads.
          *
-         * @param accumulator
-         * 		The {@link IntBinaryOperator} that is used to accumulate the value.
-         * @return a new configuration-object with updated {@code initialValue}
+         * @param accumulator the {@link IntBinaryOperator} that is used to accumulate the value.
+         * @return self-reference
          */
         @NonNull
         public IntegerAccumulator.Config withAccumulator(@NonNull final IntBinaryOperator accumulator) {
-            return new IntegerAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    accumulator,
-                    getInitializer(),
-                    getInitialValue());
+            this.accumulator = Objects.requireNonNull(accumulator, "accumulator must not be null");
+            return this;
         }
 
         /**
@@ -245,59 +141,34 @@ public interface IntegerAccumulator extends Metric {
          *
          * @return the initializer
          */
-        @Nullable
+        @NonNull
         public IntSupplier getInitializer() {
             return initializer;
         }
 
         /**
-         * Fluent-style setter of the initial value.
-         * <p>
-         * If both {@code initializer} and {@code initialValue} are set, the {@code initialValue} is ignored
+         * Fluent-style setter of the initial value supplier
          *
-         * @param initializer
-         * 		the initializer
-         * @return a new configuration-object with updated {@code initializer}
+         * @param initializer the initial value supplier
+         * @return self-reference
          */
-        public IntegerAccumulator.Config withInitializer(final IntSupplier initializer) {
-            return new IntegerAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getAccumulator(),
-                    Objects.requireNonNull(initializer, "initializer"),
-                    getInitialValue());
+        public IntegerAccumulator.Config withInitializer(@NonNull final IntSupplier initializer) {
+            this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
+            return this;
         }
 
         /**
-         * Getter of the initial value
+         * Fluent-style setter of the initial value (converts to {@link IntSupplier} returning provided value).
          *
-         * @return the initial value
-         */
-        public int getInitialValue() {
-            return initialValue;
-        }
-
-        /**
-         * Fluent-style setter of the initial value.
-         *
-         * @param initialValue
-         * 		the initial value
-         * @return a new configuration-object with updated {@code initialValue}
+         * @param initialValue the initial value
+         * @return self-reference
          */
         @NonNull
         public IntegerAccumulator.Config withInitialValue(final int initialValue) {
-            return new IntegerAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getAccumulator(),
-                    getInitializer(),
-                    initialValue);
+            if (initialValue == 0) {
+                return withInitializer(INT_DEFAULT_INITIALIZER);
+            }
+            return withInitializer(() -> initialValue);
         }
 
         /**
@@ -318,15 +189,17 @@ public interface IntegerAccumulator extends Metric {
             return factory.createIntegerAccumulator(this);
         }
 
+        @Override
+        protected Config self() {
+            return this;
+        }
+
         /**
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this)
-                    .appendSuper(super.toString())
-                    .append("initialValue", initializer != null ? initializer.getAsInt() : initialValue)
-                    .toString();
+        public ToStringBuilder selfToString() {
+            return super.selfToString().append("initialValue", initializer.getAsInt());
         }
     }
 }

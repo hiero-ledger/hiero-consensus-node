@@ -55,7 +55,7 @@ public class PlatformMetricsFactoryImpl extends DefaultMetricsFactory implements
      */
     @Override
     public RunningAverageMetric createRunningAverageMetric(final RunningAverageMetric.Config config) {
-        if (config.isUseDefaultHalfLife()) {
+        if (config.getHalfLife() == 0.0) {
             return new PlatformRunningAverageMetric(config.withHalfLife(metricsConfig.halfLife()));
         }
         return new PlatformRunningAverageMetric(config);
@@ -66,7 +66,7 @@ public class PlatformMetricsFactoryImpl extends DefaultMetricsFactory implements
      */
     @Override
     public SpeedometerMetric createSpeedometerMetric(final SpeedometerMetric.Config config) {
-        if (config.isUseDefaultHalfLife()) {
+        if (config.getHalfLife() == 0.0) {
             return new PlatformSpeedometerMetric(config.withHalfLife(metricsConfig.halfLife()));
         }
         return new PlatformSpeedometerMetric(config);

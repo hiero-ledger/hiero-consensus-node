@@ -9,6 +9,9 @@ import java.util.EnumSet;
  */
 public interface Metric {
 
+    EnumSet<ValueType> SINGLE_VALUE_TYPE_SET = EnumSet.of(ValueType.VALUE);
+    EnumSet<ValueType> ALL_VALUE_TYPES_SET = EnumSet.allOf(ValueType.class);
+
     /**
      * A {@code Metric} can keep track of several values, which are distinguished via the {@code MetricType}
      */

@@ -26,8 +26,9 @@ public class PlatformFunctionGauge<T> extends AbstractMetric implements Function
      */
     public PlatformFunctionGauge(@NonNull final FunctionGauge.Config<T> config) {
         super(config);
-        this.dataType = MetricConfig.mapDataType(config.getType());
-        this.supplier = config.getSupplier();
+
+        dataType = MetricConfig.mapDataType(config.getType());
+        supplier = config.getSupplier();
     }
 
     /**
@@ -60,10 +61,7 @@ public class PlatformFunctionGauge<T> extends AbstractMetric implements Function
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", supplier.get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", get());
     }
 }

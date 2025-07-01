@@ -6,7 +6,6 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.function.DoubleBinaryOperator;
@@ -46,7 +45,7 @@ public interface DoubleAccumulator extends Metric {
     @NonNull
     @Override
     default EnumSet<ValueType> getValueTypes() {
-        return EnumSet.of(VALUE);
+        return SINGLE_VALUE_TYPE_SET;
     }
 
     /**
@@ -92,16 +91,15 @@ public interface DoubleAccumulator extends Metric {
      */
     final class Config extends MetricConfig<DoubleAccumulator, DoubleAccumulator.Config> {
 
-        private final @NonNull DoubleBinaryOperator accumulator;
-        private final @Nullable DoubleSupplier initializer;
-        private final double initialValue;
+        private @NonNull DoubleBinaryOperator accumulator = Double::max;
+        private @NonNull DoubleSupplier initializer = DOUBLE_DEFAULT_INITIALIZER;
 
         /**
          * Constructor of {@code DoubleAccumulator.Config}
          * <p>
          * By default, the {@link #getAccumulator() accumulator} is set to {@code Double::max}, the
          * {@link #getInitialValue() initialValue} is set to {@code 0.0}, and {@link #getFormat() format} is set to
-         * {@link FloatFormats#FORMAT_11_3}.
+         * {@value FloatFormats#FORMAT_11_3}.
          *
          * @param category the kind of metric (metrics are grouped or filtered by this)
          * @param name     a short name for the metric
@@ -109,95 +107,8 @@ public interface DoubleAccumulator extends Metric {
          * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
          */
         public Config(@NonNull final String category, @NonNull final String name) {
-            super(category, name, FORMAT_11_3);
-            this.accumulator = Double::max;
-            this.initializer = null;
-            this.initialValue = 0.0;
-        }
-
-        /**
-         * Constructor of {@code DoubleAccumulator.Config}
-         * <p>
-         * By default, the {@link #getAccumulator() accumulator} is set to {@code Double::max}, the
-         * {@link #getInitialValue() initialValue} is set to {@code 0.0}, and {@link #getFormat() format} is set to
-         * {@link FloatFormats#FORMAT_11_3}.
-         *
-         * @param category    the kind of metric (metrics are grouped or filtered by this)
-         * @param name        a short name for the metric
-         * @param description metric description
-         * @param unit        metric unit
-         * @param accumulator accumulator for metric
-         * @throws NullPointerException     if one of the parameters is {@code null}
-         * @throws IllegalArgumentException if one of the parameters consists only of whitespaces
-         */
-        private Config(
-                @NonNull final String category,
-                @NonNull final String name,
-                @NonNull final String description,
-                @NonNull final String unit,
-                @NonNull final String format,
-                @NonNull final DoubleBinaryOperator accumulator,
-                @Nullable final DoubleSupplier initializer,
-                final double initialValue) {
-
-            super(category, name, description, unit, format);
-            this.accumulator = Objects.requireNonNull(accumulator, "accumulator must not be null");
-            this.initializer = initializer;
-            this.initialValue = initialValue;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public DoubleAccumulator.Config withDescription(@NonNull final String description) {
-            return new DoubleAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    description,
-                    getUnit(),
-                    getFormat(),
-                    getAccumulator(),
-                    getInitializer(),
-                    getInitialValue());
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @NonNull
-        @Override
-        public DoubleAccumulator.Config withUnit(@NonNull final String unit) {
-            return new DoubleAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    unit,
-                    getFormat(),
-                    getAccumulator(),
-                    getInitializer(),
-                    getInitialValue());
-        }
-
-        /**
-         * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
-         *
-         * @param format the format-string
-         * @return a new configuration-object with updated {@code format}
-         * @throws NullPointerException     if {@code format} is {@code null}
-         * @throws IllegalArgumentException if {@code format} consists only of whitespaces
-         */
-        public DoubleAccumulator.Config withFormat(@NonNull final String format) {
-            return new DoubleAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    format,
-                    getAccumulator(),
-                    getInitializer(),
-                    getInitialValue());
+            super(category, name);
+            withFormat(FORMAT_11_3);
         }
 
         /**
@@ -215,7 +126,7 @@ public interface DoubleAccumulator extends Metric {
          *
          * @return the initializer
          */
-        @Nullable
+        @NonNull
         public DoubleSupplier getInitializer() {
             return initializer;
         }
@@ -227,47 +138,26 @@ public interface DoubleAccumulator extends Metric {
          * contention among threads.
          *
          * @param accumulator The {@link DoubleBinaryOperator} that is used to accumulate the value.
-         * @return a new configuration-object with updated {@code initialValue}
+         * @return self-reference
          */
         @NonNull
         public DoubleAccumulator.Config withAccumulator(@NonNull final DoubleBinaryOperator accumulator) {
-            return new DoubleAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    accumulator,
-                    getInitializer(),
-                    getInitialValue());
-        }
-
-        /**
-         * Getter of the initial value
-         *
-         * @return the initial value
-         */
-        public double getInitialValue() {
-            return initialValue;
+            this.accumulator = Objects.requireNonNull(accumulator, "accumulator must not be null");
+            return this;
         }
 
         /**
          * Fluent-style setter of the initial value.
          *
          * @param initialValue the initial value
-         * @return a new configuration-object with updated {@code initialValue}
+         * @return self-reference
          */
         @NonNull
         public DoubleAccumulator.Config withInitialValue(final double initialValue) {
-            return new DoubleAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getAccumulator(),
-                    getInitializer(),
-                    initialValue);
+            if (initialValue == 0.0) {
+                return withInitializer(DOUBLE_DEFAULT_INITIALIZER);
+            }
+            return withInitializer(() -> initialValue);
         }
 
         /**
@@ -276,19 +166,12 @@ public interface DoubleAccumulator extends Metric {
          * If both {@code initializer} and {@code initialValue} are set, the {@code initialValue} is ignored
          *
          * @param initializer the initializer
-         * @return a new configuration-object with updated {@code initializer}
+         * @return self-reference
          */
         @NonNull
         public DoubleAccumulator.Config withInitializer(@NonNull final DoubleSupplier initializer) {
-            return new DoubleAccumulator.Config(
-                    getCategory(),
-                    getName(),
-                    getDescription(),
-                    getUnit(),
-                    getFormat(),
-                    getAccumulator(),
-                    Objects.requireNonNull(initializer, "initializer"),
-                    getInitialValue());
+            this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
+            return this;
         }
 
         /**
@@ -313,11 +196,16 @@ public interface DoubleAccumulator extends Metric {
          * {@inheritDoc}
          */
         @Override
-        public String toString() {
-            return new ToStringBuilder(this)
-                    .appendSuper(super.toString())
-                    .append("initialValue", initialValue)
-                    .toString();
+        protected Config self() {
+            return this;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        protected ToStringBuilder selfToString() {
+            return super.selfToString().append("initialValue", initializer.getAsDouble());
         }
     }
 }

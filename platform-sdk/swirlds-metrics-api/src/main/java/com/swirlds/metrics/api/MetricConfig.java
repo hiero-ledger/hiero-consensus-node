@@ -4,7 +4,9 @@ package com.swirlds.metrics.api;
 import com.swirlds.base.ArgumentUtils;
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
+import java.util.function.DoubleSupplier;
+import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 
 /**
  * An instance of {@code MetricConfig} contains all configuration parameters needed to create a {@link Metric}.
@@ -14,62 +16,48 @@ import java.util.Objects;
  * <p>
  * A {@code MetricConfig} should be used with {@link Metrics#getOrCreate(MetricConfig)} to create a new {@code Metric}
  * <p>
- * This class is immutable, changing a parameter creates a new instance.
+ * This class is designed for fluent-style setters using <i>'with'</i> prefix and is <b>mutable</b> -
+ * when constructing a metric from the config, <b>avoid</b> saving and re-using the reference to {@code MetricConfig} object,
+ * but use it only for the creation of the metric.
  *
  * @param <T> the {@code Class} for which the configuration is
  */
-@SuppressWarnings("removal")
 public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C>> {
+
+    public static final IntSupplier INT_DEFAULT_INITIALIZER = () -> 0;
+    public static final LongSupplier LONG_DEFAULT_INITIALIZER = () -> 0L;
+    public static final DoubleSupplier DOUBLE_DEFAULT_INITIALIZER = () -> 0.0;
+
+    public static final String DEFAULT_FORMAT = "%s";
+    public static final String NUMBER_FORMAT = "%d";
 
     private static final int MAX_DESCRIPTION_LENGTH = 255;
 
     private final @NonNull String category;
     private final @NonNull String name;
 
-    private final @NonNull String description;
-    private final @NonNull String unit;
-    private final @NonNull String format;
+    private String description;
+    private String unit;
+    private String format;
 
     /**
-     * Constructor of {@code MetricConfig}
-     *
-     * @param category the kind of metric (metrics are grouped or filtered by this)
-     * @param name     a short name for the metric
-     * @param format   a string that can be passed to String.format() to format the metric
-     * @throws NullPointerException     if one of the parameters is {@code null}
-     * @throws IllegalArgumentException if one of the parameters is consists only of whitespaces
-     */
-    protected MetricConfig(
-            final @NonNull String category,
-            final @NonNull String name,
-            final @NonNull String description,
-            final @NonNull String unit,
-            final @NonNull String format) {
-
-        this.category = ArgumentUtils.throwArgBlank(category, "category");
-        this.name = ArgumentUtils.throwArgBlank(name, "name");
-        this.description = ArgumentUtils.throwArgBlank(description, "description");
-        if (description.length() > MAX_DESCRIPTION_LENGTH) {
-            throw new IllegalArgumentException(
-                    "Description has " + description.length() + " characters, must not be longer than "
-                            + MAX_DESCRIPTION_LENGTH + " characters: "
-                            + description);
-        }
-        this.unit = Objects.requireNonNull(unit, "unit must not be null");
-        this.format = ArgumentUtils.throwArgBlank(format, "format must not be null");
-    }
-
-    /**
-     * Constructor of {@code MetricConfig}
+     * Constructor of {@code MetricConfig}.
+     * <p>
+     * By default, the {@link Metric#getDescription() Metric.description} is set to the {@code name}.<br>
+     * By default, the {@link Metric#getUnit() Metric.unit} is set to the empty string.<br>
+     * By default, the {@link Metric#getFormat() Metric.format} is set to {@value #DEFAULT_FORMAT}.
      *
      * @param category      the kind of metric (metrics are grouped or filtered by this)
      * @param name          a short name for the metric
-     * @param defaultFormat a string that can be passed to String.format() to format the metric
-     * @throws IllegalArgumentException if one of the parameters is {@code null} or consists only of whitespaces
+     * @throws NullPointerException if one of the parameters is {@code null}
+     * @throws IllegalArgumentException if one of the parameters is blank
      */
-    protected MetricConfig(
-            final @NonNull String category, final @NonNull String name, final @NonNull String defaultFormat) {
-        this(category, name, name, "", defaultFormat);
+    protected MetricConfig(final @NonNull String category, final @NonNull String name) {
+        this.category = ArgumentUtils.throwArgBlank(category, "category");
+        this.name = ArgumentUtils.throwArgBlank(name, "name");
+        description = name;
+        unit = "";
+        format = DEFAULT_FORMAT;
     }
 
     /**
@@ -105,17 +93,26 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
     /**
      * Sets the {@link Metric#getDescription() Metric.description} in fluent style.
      *
-     * @param description the description
-     * @return a new configuration-object with updated {@code description}
-     * @throws IllegalArgumentException if {@code description} is {@code null}, too long or consists only of
-     *                                  whitespaces
+     * @param description the description of the metric
+     * @return self-reference
+     * @throws NullPointerException if {@code description} is {@code null}
+     * @throws IllegalArgumentException if {@code description} is blank or too long
      */
-    public abstract @NonNull C withDescription(final String description);
+    public @NonNull C withDescription(final String description) {
+        this.description = ArgumentUtils.throwArgBlank(description, "description");
+        if (description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Description has " + description.length() + " characters, must not be longer than "
+                            + MAX_DESCRIPTION_LENGTH + " characters: "
+                            + description);
+        }
+        return self();
+    }
 
     /**
      * Getter of the {@link Metric#getUnit() Metric.unit}
      *
-     * @return the {@code unit}
+     * @return the {@code unit} of the metric
      */
     public @NonNull String getUnit() {
         return unit;
@@ -125,18 +122,44 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
      * Sets the {@link Metric#getUnit() Metric.unit} in fluent style.
      *
      * @param unit the unit
-     * @return a new configuration-object with updated {@code unit}
-     * @throws IllegalArgumentException if {@code unit} is {@code null}
+     * @return self-reference
+     * @throws NullPointerException if {@code unit} is {@code null}
+     * @throws IllegalArgumentException if {@code unit} is blank
      */
-    public abstract @NonNull C withUnit(final String unit);
+    public @NonNull C withUnit(final String unit) {
+        this.unit = ArgumentUtils.throwArgBlank(unit, "unit");
+        return self();
+    }
 
     /**
      * Getter of the {@link Metric#getFormat() Metric.format}
      *
-     * @return the format-{@code String}
+     * @return the format {@code String} used to format metric values
      */
     public @NonNull String getFormat() {
         return format;
+    }
+
+    /**
+     * Sets the {@link Metric#getFormat() Metric.format} in fluent style.
+     *
+     * @param format format string used to format metric values
+     * @return self-reference
+     * @throws NullPointerException if {@code format} is {@code null}
+     * @throws IllegalArgumentException if {@code format} is blank
+     */
+    public @NonNull C withFormat(final String format) {
+        this.format = ArgumentUtils.throwArgBlank(format, "format");
+        return self();
+    }
+
+    /**
+     * Sets the {@link Metric#getFormat() Metric.format} as defined by {@link #NUMBER_FORMAT}.
+     *
+     * @return self-reference
+     */
+    public @NonNull C withNumberFormat() {
+        return withFormat(NUMBER_FORMAT);
     }
 
     /**
@@ -159,18 +182,29 @@ public abstract class MetricConfig<T extends Metric, C extends MetricConfig<T, C
     public abstract T create(final MetricsFactory factory);
 
     /**
+     * @return returns the self-reference of this configuration object.
+     */
+    protected abstract C self();
+
+    /**
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
+    public final String toString() {
+        return selfToString().toString();
+    }
+
+    /**
+     * @return {@link ToStringBuilder} that contains the configuration parameters of this {@code MetricConfig}
+     */
+    protected ToStringBuilder selfToString() {
         return new ToStringBuilder(this)
                 .append("category", category)
                 .append("name", name)
                 .append("description", description)
                 .append("unit", unit)
                 .append("format", format)
-                .append("resultClass", getResultClass())
-                .toString();
+                .append("resultClass", getResultClass());
     }
 
     public static Metric.DataType mapDataType(final Class<?> type) {
