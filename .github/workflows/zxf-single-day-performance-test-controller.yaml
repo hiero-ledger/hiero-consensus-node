@@ -127,6 +127,7 @@ jobs:
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
