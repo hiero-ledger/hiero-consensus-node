@@ -127,7 +127,7 @@ public interface Network {
     void bumpConfigVersion();
 
     /**
-     * Gets the consensus rounds of all nodes.
+     * Gets the consensus rounds of all nodes that are currently in the network.
      *
      * @return the consensus rounds of the filtered nodes
      */
@@ -135,7 +135,7 @@ public interface Network {
     MultipleNodeConsensusResults getConsensusResults();
 
     /**
-     * Gets the log results of all nodes.
+     * Gets the log results of all nodes that are currently in the network.
      *
      * @return the log results of the nodes
      */
@@ -143,7 +143,7 @@ public interface Network {
     MultipleNodeLogResults getLogResults();
 
     /**
-     * Gets the status progression results of all nodes in the network.
+     * Gets the status progression results of all nodes that are currently in the network.
      *
      * @return the status progression results of the nodes
      */
@@ -151,7 +151,7 @@ public interface Network {
     MultipleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
-     * Gets the results related to PCES files.
+     * Gets the results related to PCES files of all nodes that are currently in the network.
      *
      * @return the PCES files created by the nodes
      */

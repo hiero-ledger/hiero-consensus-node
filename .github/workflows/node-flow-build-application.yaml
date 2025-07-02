@@ -172,7 +172,7 @@ jobs:
 
   deploy-ci-trigger:
     name: Trigger CI Flows
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - mats-unit-tests
       - mats-gradle-determinism
@@ -202,7 +202,7 @@ jobs:
 
   report-failure:
     name: Report MATS execution failure
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - code
       - dependency-check
