@@ -206,7 +206,7 @@ public interface BinaryState {
      * @return An iterator for the elements of the queue.
      */
     @NonNull
-    <T> Iterator<T> iterateOnQueue(int id, Codec<T> codec);
+    <T> Iterator<T> createQueueIterator(int id, Codec<T> codec);
 
     /**
      * Returns a calculated hash of the state or calculates in a blocking manner
