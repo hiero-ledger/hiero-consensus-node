@@ -71,6 +71,34 @@ Consumes Roster via different utility classes:
 * `RosterRetriever`: Provides access to active, previous, and candidate rosters, also allows to modify the state. It's mostly used by services but is owned by platform.
   ![img_2.png](img_2.png)
 
+## Where rosters are used in platform code
+
+- ReconnectStateLoader: Converts a roster (current roster) to json and logs it
+- SignedStateFileWriter: Converts a roster to json and writes it in a file, The roster used is read directly from the state
+- IssMetrics: Requires iterating over the list of nodes in the roster. Requires each node's weight. Requires the roster total weight.
+- DefaultEventSignatureValidator: Needs a Certificate from a round and Roster
+- ReconnectStateLoader, ReconnectLearner, ReconnectLearnerFactory: use the current roster to send it to the DefaultSignedStateValidator
+- DefaultSignedStateValidator: Requires each node's gossip certificate
+- ConsensusRound/StreamedRound: holds the roster of that particular consensus round
+  - used by UptimeTracker to iterates over all entries and adds their weight and the total weight of the roster to update metrics
+  - used by ISSTestingToolConsensusStateEventHandler to iterates over all entries and adds their weight and the total weight of the roster
+- SyncGossipModular: creates a PeerInfo object out of each RosterEntry. The used roster is the current roster.
+- IssDetector: Requires the node's weight. Requires the roster's total weight. receives the current roster
+- DefaultBranchReporter: Requires the node's weight. Requires iterating over the list of nodes in the roster. The used roster is the current roster.
+- ConsensusImpl: Number of participants and each participant's weight. stronglySeeP uses an index instead of nodeId's to retrieve the paticipant's weight. The used roster is the current roster.
+- Platform#getCurrentRoster() a method that is only used in tests and test applications and should be removed
+  - SwirldsStateManagerTests: number of entries in the roster
+  - WinTabAddresses: iterate over the roster entries, needs id, host, name, port.
+  - SwirldsGui: number of entries in the roster
+  - StressTestingToolMain: number of entries in the roster
+  - StatsSigningTestingToolMain: number of entries in the roster
+  - StatsDemoMain: number of entries in the roster
+  - PlatformTestingToolMain: number of entries in the roster
+  - PlatformTestingToolConsensusStateEventHandler: Heavily uses the roster to index transformation
+  - MigrationTestingToolMain: number of entries in the roster.
+  - CryptocurrencyDemoState: iterate over the entries in the roster, retrieve node id, number of entries in the roster.
+  - TransactionGenerator: number of entries in the roster.
+
 ## Identified Problems
 
 * Too many abstractions and entry points with repeated operations
@@ -80,60 +108,47 @@ Consumes Roster via different utility classes:
 
 ## Proposed changes
 
-### Misc
-
 - unify naming: activeRoster and currentRoster are used interchangeably.
 - unify nullability criteria in all methods (some return null other exception)
-- includes some missing operations in ReadableRosterStore (e.g.: getPreviousRoster).
-- All uses in services code of RosterHistory and RosterRetriever are replaced with ReadableRosterStore
-- Remove RosterHistory and RosterRetriever
+- Remove RosterRetriever
+- `RosterHistory` becomes a mutable class. Its responsibility is to hold all the roster history provided to us by updates from the app, tracks which roster applies to each round.
+  It offers a new operation to add a roster round relationship to the tracked elements.
+- Platform code does not use `Roster` or `RosterHistory` directly, all components and code will use a specific instance of an object implementing `RosterDataMap`
+- `RosterDataMap` is a generic interface. Exposes an operation that returns the specific data types translations (e.g.: Certificates or PeerInfo) from a Roster object given a round and a nodeId.
+- Implement 3 subtypes of `RosterDataMap`:
+  - PeerInfoMap: return all the information related to gossip endpoints
+  - CertificateMap: return the certificate associated to the public gossip key
+  - WeightInfoMap: return the weight of each node in the roster
+  - IndexMap: return the index of a particular node in the roster. The index is
+- `RosterDataMap` Implementation details:
+  - it doesn't need to hold every roster for every round, it can register the first round and assume that every round after that until the next element applies the same roster.
+  - Every instance will hold a reference to a `RosterHistory` to retrieve the right roster for a round.
+  - Roster data map wraps `RosterHistory`'s operation that allows to add a roster-round relationship.
+- `RosterUtils` become deprecated
+- Platform does not receive a `currentRoster` or a `previousRoster` anymore, it receives a list of Round Roster pairs that every component will apply to its own reference of a `RosterDataMap` by injecting a value through the wiring framework.
+- Platform does not use `ReadableRosterStore` anymore.
+- neither `RosterHistory` nor any of the `RosterDataMap` instances are thread safe.
+- IssMetrics: use the weightMap
+- DefaultEventSignatureValidator: use the certificate map
+- DefaultSignedStateValidator: use the peerInfoMap
+- ConsensusRound/StreamedRound: Don't expose the roster anymore.
+- UptimeTracker / ISSTestingToolConsensusStateEventHandler use the weight map
+- SyncGossipModular: use the peerInfoMap
+- IssDetector: use the weight map
+- DefaultBranchReporter: use the weight map
+- ConsensusImpl: the most challenging component. requires the index map, do we need to have a map per round?
+- About replacing the current roster, Ideally all the usages of rosters provide the round that applies, but some parts of the code don't have access to the current round.
+  - we can achieve this by injecting the event-window in each component, and include additional logic in the RosterHistory to determine which roster should be the current roster.
+  - as it's done currently: assume that the current roster is the newest recorded roster in the history.
 
-### Immutable approach
-
-- Create `RosterSnapshot` as an immutable class, which is a pojo roster with better per node lookup capabilities (internally uses a NodeId -> Roster entry),
-  and it can be created out of a pbj Roster. All translations to better data types are performed in the constructor of this class (i.e.: Certificates or Address instead of bytes)
-- Platform code does not use `Roster` anymore, all components and code use a `RosterSnapshot`
-- Methods in `RosterUtils` become either a property or a method in `RosterSnapshot` (or a possible RosterSnapshotEntry)
-- Introduce a `PlatformRosterStore`, a class that uses `ReadableRosterStore` but instead of returning `Roster` returns `RosterSnapshot`
-- `PlatformRosterStore` is a singleton (java pattern) in platform code. Only one instance is shared, all components and code that need to receive a roster receives instead a `PlatformRosterStore`
-- platform does not receive anymore a `currentRoster` or a `previousRoster` it receives a `readableRosterStore` which is internally used to create a `PlatformRosterStore`
-- When a `PlatformRosterStore` is created, it uses `ReadableRosterStore` and retrieves the active roster and the previous roster and their hashes, creates a `RosterSnapshot` per each, and caches them internally.
-- Optional, when `PlatformRosterStore` is required to provide `activeRoster`, `previousRoster` or `rosterForRound`, it first retrieves the hash of the applicable roster from the state,
-  and tries to get the corresponding `RosterSnapshot` from its internal cache if existed. This is in case we need to provide support for future use cases where the rosters can be modified in the state in any circumstances and not only upgrade boundaries.
-
-#### Note
-
-```
-Given that components will interact with a PlatformRosterStore (that has a ReadableRosterStore internally and because of that a reference to the state)
-a reference to the state will be mantained in the platform code.
-While Service code still use Roster, we wont be able to completelly remove the class, but it will become simpler
-```
-
-#### Pros & Cons
-
-+ (+) Solves all the mentioned problems at minimum runtime cost.
-+ (+) Scales better: In case that, for dab, we need to retrieve newest roster versions from the state
-+ (+) Most of the transformation cost is paid upfront during start-up time
-- (-) High Impact
-- (-) Breaks the boundary between platform and state. Today no other component uses or access the state directly.
-
-### Mutable approach (or Wrapper)
-
-- Create `RosterView` as a mutable class, which uses a lazy loading internal cache to provide better lookup capabilities (Internally uses a NodeId -> Roster Entry).
-  it wraps a pbj Roster (which is maintained as an internal reference). All translations to better data types are performed when that property is requested for the first time.
-- All methods in `RosterUtils` become either a property or a method in `RosterView` (or a possible RosterViewEntry)
-- platform does not receive anymore a `currentRoster` or a `previousRoster` it receives a `readableRosterStore`.
-- each component that needs to access a roster, uses the `readableRosterStore` and wraps the result in a RosterView.
-  If it makes sense for the particular component to save the transformation cost, it can cache the result locally. The component must guard the access and protect that no the same `RosterView` is accessed in different threads.
-- Platform code that sporadically uses the Roster object can continue doing so.
+![roster.png](roster.png)
 
 #### Pros & Cons
 
-+ (+) Minimum impact
-+ (+) Enables a gradual approach, allows to convert critical logic and leave non-critical paths unchanged
-+ (+) Allows for multiple types of wrapper. we can use that to for example allow caching `Signature` instances only in the component that so requires it.
-- (-) The cost of transformation from Roster to RosterView needs to be cover in each component doing the translation
-- (-) Duplicate code
-- (-) Duplicate memory cost, as each component needs to duplicate the cache (if they include one)
-- (-) Open to concurrency issues if not handled externally
-- (-) The first access to the information pays the cost of the transformations during runtime
++ (+) Solves all the mentioned problems at minimum runtime execution cost.
++ (+) Respects platform/state boundaries
++ (+) Eliminate intermediate classes and clutter code by making each component cache only the instance they will be working with.
++ (-) Include an event window injection in components that use the roster-history could create a link from consensus to other components that would violate our future module relationships
+- (-) High Memory footprint as `RosterHistory` and `RosterDataMap` are holding caches and every component will need their own instance of them.
+- (-) The logic of the `ReadableRosterStore` is duplicated in `RosterHistory`
+- (-) potential need to include more wires to inject the event-window.
