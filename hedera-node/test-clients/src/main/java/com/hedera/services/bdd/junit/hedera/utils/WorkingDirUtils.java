@@ -415,7 +415,7 @@ public class WorkingDirUtils {
                                 nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
-                                List.of(),
+                                List.of(endpointFrom(parts[5], parts[6])),
                                 cert,
                                 // The gRPC certificate hash is irrelevant for PR checks
                                 Bytes.EMPTY,
