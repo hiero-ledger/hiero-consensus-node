@@ -154,6 +154,7 @@ jobs:
             COMMIT_SHA="${REF_CHECK}"
           fi
           
+          echo "COMMIT SHA is: ${COMMIT_SHA}"
           BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
