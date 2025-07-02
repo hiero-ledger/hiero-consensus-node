@@ -71,8 +71,9 @@ public interface BinaryState {
      * Removes a singleton value by its id.
      *
      * @param id an id of the singleton type
+     * @return removed value bytes
      */
-    void removeSingleton(int id);
+    Bytes removeSingleton(int id);
 
     /**
      * Removes a singleton value by its id.
@@ -109,8 +110,9 @@ public interface BinaryState {
      *
      * @param id  an id of the key/value type
      * @param key key bytes
+     * @return removed value bytes            
      */
-    void removeKeyValuePair(int id, Bytes key);
+    Bytes removeKeyValuePair(int id, Bytes key);
 
     /**
      * Removes the given key and its associated value from the map. Subsequent calls to {@link
@@ -129,6 +131,17 @@ public interface BinaryState {
      * @param key key bytes
      */
     Bytes getValueByKey(int id, Bytes key);
+
+    /**
+     * Gets the value associated with the given key. The
+     * returned value will be null if the key does not exist in the state.
+     *
+     * @param id         an id of the key/value type
+     * @param keyCodec   a codec to convert keys into bytes
+     * @param key        key bytes
+     * @param valueCodec a codec to convert value bytes into an object
+     */
+    <K, V> V getValueByKey(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec);
 
     /**
      * Adds a value represented as {@code Bytes} object to the queue
@@ -155,17 +168,6 @@ public interface BinaryState {
      * @return The element at the head of the queue, or null if the queue is empty.
      */
     Bytes queuePeek(int id);
-
-    /**
-     * * Gets the value associated with the given key. The
-     * returned value will be null if the key does not exist in the state.
-     *
-     * @param id         an id of the key/value type
-     * @param keyCodec   a codec to convert keys into bytes
-     * @param key        key bytes
-     * @param valueCodec a codec to convert value bytes into an object
-     */
-    <K, V> V getValueByKey(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec);
 
     /**
      * Adds a value to the queue
