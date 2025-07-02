@@ -84,7 +84,7 @@ public class ConsensusNodeManager {
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
-        final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
+        final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
         final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
         if (overriddenProperties != null) {
             overriddenProperties.forEach(configurationBuilder::withValue);
@@ -96,7 +96,7 @@ public class ConsensusNodeManager {
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
@@ -104,7 +104,7 @@ public class ConsensusNodeManager {
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
         final ConsensusStateEventHandler<TurtleAppState> consensusStateEventHandler = new DockerStateEventHandler();
 
@@ -117,7 +117,7 @@ public class ConsensusNodeManager {
                 () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                oldSelfId,
+                legacySelfId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -131,7 +131,7 @@ public class ConsensusNodeManager {
                         version,
                         initialState,
                         consensusStateEventHandler,
-                        oldSelfId,
+                        legacySelfId,
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade)
