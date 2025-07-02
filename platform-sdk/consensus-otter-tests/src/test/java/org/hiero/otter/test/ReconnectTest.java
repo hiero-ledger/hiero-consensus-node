@@ -22,8 +22,8 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
- * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds.
- * The test ensures that the node can successfully reconnect and catch up with the rest of the network.
+ * Tests the reconnect functionality of a node that has fallen behind in the consensus rounds. The test ensures that the
+ * node can successfully reconnect and catch up with the rest of the network.
  */
 public class ReconnectTest {
 
@@ -57,11 +57,14 @@ public class ReconnectTest {
         final Node nodeToReconnect = network.getNodes().getLast();
         nodeToReconnect.killImmediately();
 
-        // Continue running the remaining nodes until this node is far enough
-        // that it cannot catch up via gossip and must reconnect (i.e. it has fallen behind).
-        do {
-            timeManager.waitFor(Duration.ofSeconds(1L));
-        } while (nodeCanCatchUp(network, nodeToReconnect));
+        // Verify that the node was healthy prior to being killed
+        assertThat(nodeToReconnect.getPlatformStatusResults())
+                .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+        nodeToReconnect.getPlatformStatusResults().clear();
+
+        // Wait for the node we just killed to fall behind
+        timeManager.waitForCondition(
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(30));
 
         // Restart the node that was killed
         nodeToReconnect.start();
@@ -80,53 +83,9 @@ public class ReconnectTest {
         assertThat(network.getPlatformStatusResults().suppressingNode(nodeToReconnect))
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
-        // The reconnected node should have gone through the reconnect status progression
+        // The reconnected node should have gone through the reconnect status progression since restarting
         assertThat(nodeToReconnect.getPlatformStatusResults())
                 .hasSteps(target(ACTIVE)
-                        .requiringInterim(
-                                REPLAYING_EVENTS,
-                                OBSERVING,
-                                CHECKING,
-                                ACTIVE,
-                                REPLAYING_EVENTS,
-                                OBSERVING,
-                                BEHIND,
-                                RECONNECT_COMPLETE,
-                                CHECKING));
-    }
-
-    /**
-     * For a node to fall behind, its minimum non-ancient round must be less than the minimum non-expired round of its
-     * peers. Only a certain threshold of peers must meet this condition for the node to be considered behind, but it's
-     * easier to just wait for all nodes.
-     *
-     * @param network         the network of this test
-     * @param nodeToCheck the node to check if it can catch up via gossip
-     * @return true if the {@code nodeToCheck} would still be able to gossip with at least one peer
-     */
-    private boolean nodeCanCatchUp(final Network network, final Node nodeToCheck) {
-        // Get the minimum judge birth round of the latest consensus round reached on the node we want to check
-        final long minNonAncientRound = nodeToCheck
-                .getConsensusResult()
-                .consensusRounds()
-                .getLast()
-                .getSnapshot()
-                .minimumJudgeInfoList()
-                .getFirst()
-                .minimumJudgeAncientThreshold();
-
-        for (final Node node : network.getNodes()) {
-            if (node.selfId().equals(nodeToCheck.selfId())) {
-                // Skip the node that is being checked
-                continue;
-            }
-            final long minNonExpiredRound =
-                    node.getConsensusResult().consensusRounds().getLast().getRoundNum() - ROUNDS_EXPIRED;
-            if (minNonAncientRound >= minNonExpiredRound) {
-                // The node to check is not yet behind compared to this node and is able to gossip with it
-                return true;
-            }
-        }
-        return false;
+                        .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
     }
 }

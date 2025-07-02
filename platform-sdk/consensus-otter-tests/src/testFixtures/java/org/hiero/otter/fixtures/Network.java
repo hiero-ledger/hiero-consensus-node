@@ -41,9 +41,9 @@ public interface Network {
      * Start the network with the currently configured setup.
      *
      * <p>The method will wait until all nodes have become
-     * {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
-     * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
-     * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
+     * {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}. It will wait for a environment-specific timeout
+     * before throwing an exception if the nodes do not reach the {@code ACTIVE} state. The default can be overridden by
+     * calling {@link #withTimeout(Duration)}.
      */
     void start();
 
@@ -69,6 +69,13 @@ public interface Network {
      */
     @NonNull
     List<Node> getNodes();
+
+    /**
+     * Gets the total weight of the network. Always non-negative.
+     *
+     * @return the network weight
+     */
+    long getNetworkWeight();
 
     /**
      * Freezes the network.
@@ -157,4 +164,23 @@ public interface Network {
      */
     @NonNull
     MultipleNodePcesResults getPcesResults();
+
+    /**
+     * Checks if a node is behind compared to a strong minority of the network. A node is considered behind a peer when
+     * its minimum non-ancient round is older than the peer's minimum non-expired round.
+     *
+     * @param maybeBehindNode the node to check behind status for
+     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     */
+    boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
+
+    /**
+     * Checks if a node is behind compared to a fraction of peers in the network. A node is considered behind a peer
+     * when its minimum non-ancient round is older than the peer's minimum non-expired round.
+     *
+     * @param maybeBehindNode the node to check behind status for
+     * @param fraction the fraction of peers to consider for the behind check
+     * @see com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus
+     */
+    boolean nodeIsBehindByNodeCount(@NonNull Node maybeBehindNode, double fraction);
 }

@@ -26,6 +26,7 @@ public abstract class AbstractNode implements Node {
     }
 
     protected final NodeId selfId;
+    protected final long weight;
 
     protected LifeCycle lifeCycle = LifeCycle.INIT;
     protected SemanticVersion version = Node.DEFAULT_VERSION;
@@ -38,8 +39,9 @@ public abstract class AbstractNode implements Node {
      *
      * @param selfId the unique identifier for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId) {
+    protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
         this.selfId = selfId;
+        this.weight = weight;
     }
 
     /**
@@ -58,6 +60,14 @@ public abstract class AbstractNode implements Node {
     @Override
     public NodeId selfId() {
         return selfId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getWeight() {
+        return weight;
     }
 
     /**

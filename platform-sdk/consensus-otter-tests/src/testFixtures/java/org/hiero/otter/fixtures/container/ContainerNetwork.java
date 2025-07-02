@@ -110,7 +110,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     public List<Node> addNodes(final int count) {
-        return addNodes(count, WeightGenerators.BALANCED);
+        return addNodes(count, WeightGenerators.GAUSSIAN);
     }
 
     /**
