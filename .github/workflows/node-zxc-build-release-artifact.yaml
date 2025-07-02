@@ -144,9 +144,11 @@ jobs:
 
       - name: Verify Workflow Parameters
         id: parameters
+        env:
+          REF_CHECK: ${{ inputs.ref }}
         run: |
-          if [[ "${{ inputs.ref }}" == refs/*  ]] || [[ "${{ inputs.ref }}" == remotes/* ]]; then
-            COMMIT_SHA=$( git log -1 --format="%H" "${{ inputs.ref }}" )
+          if git rev-parse --verify "${REF_CHECK}^{commit}" >/dev/null 2>&1; then
+            COMMIT_SHA=$( git log -1 --format="%H" "${REF_CHECK}^{commit}" )
           else
             COMMIT_SHA="${{ inputs.ref }}"
           fi
