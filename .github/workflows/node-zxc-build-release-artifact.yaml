@@ -147,11 +147,7 @@ jobs:
         env:
           REF_CHECK: ${{ inputs.ref }}
         run: |
-          if git rev-parse --verify "${REF_CHECK}^{commit}" >/dev/null 2>&1; then
-            COMMIT_SHA=$(git rev-parse "${REF_CHECK}^{commit}")
-          else
-            echo "could not resolve commit sha.
-          fi
+          COMMIT_SHA=$(git rev-parse "${REF_CHECK}^{commit}")
           BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
