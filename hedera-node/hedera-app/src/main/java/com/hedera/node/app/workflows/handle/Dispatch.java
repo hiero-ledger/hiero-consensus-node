@@ -25,6 +25,7 @@ import com.swirlds.state.lifecycle.info.NodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.ObjLongConsumer;
 
@@ -244,6 +245,12 @@ public interface Dispatch extends FeeCharging.Context {
         requireNonNull(fees);
         requireNonNull(nodeAccountId);
         feeAccumulator().refundFees(payerId, fees, nodeAccountId);
+    }
+
+    @Override
+    default void replayNonceIncrement(@NonNull final Map<AccountID, Long> nonceIncrements) {
+        requireNonNull(nonceIncrements);
+        feeAccumulator().replayNonceIncrement(nonceIncrements);
     }
 
     @Override

@@ -13,6 +13,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -53,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -164,6 +166,12 @@ public class AtomicBatchHandler implements TransactionHandler {
             final var dispatchMetadata = new HandleContext.DispatchMetadata(INNER_TRANSACTION_BYTES, txnBytes);
             final var dispatchOptions = atomicBatchDispatch(
                     payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
+            final Map<AccountID, Long> nonceAdjustments = new TreeMap<>(ACCOUNT_ID_COMPARATOR);
+            if (innerTxnBody.hasEthereumTransaction()) {
+                // record nonce updates for Ethereum transactions, so we can replay them after failure
+                final BiConsumer<AccountID, Long> nonceUpdateCallback = nonceAdjustments::put;
+                dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
+            }
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
@@ -172,8 +180,10 @@ public class AtomicBatchHandler implements TransactionHandler {
                         INNER_TRANSACTION_FAILED,
                         ctx -> recordedFeeCharging.forEachRecorded((builder, charges) -> {
                             final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
-                            charges.forEach(charge ->
-                                    charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
+                            charges.forEach(charge -> {
+                                charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum));
+                                charge.replayNonceIncrement(ctx, nonceAdjustments);
+                            });
                             builder.setReplayedFees(asTransferList(adjustments));
                         }));
             }
@@ -227,6 +237,11 @@ public class AtomicBatchHandler implements TransactionHandler {
                 } else {
                     ctx.charge(payerId, fees, nodeAccountId, cb);
                 }
+            }
+
+            public void replayNonceIncrement(
+                    @NonNull final Context ctx, @NonNull Map<AccountID, Long> nonceIncrements) {
+                ctx.replayNonceIncrement(nonceIncrements);
             }
         }
 
@@ -286,6 +301,11 @@ public class AtomicBatchHandler implements TransactionHandler {
         public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
             final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
             return delegate.charge(recordingContext, validation, fees);
+        }
+
+        @Override
+        public void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements) {
+            delegate.replayNonceIncrement(nonceIncrements);
         }
 
         @Override
@@ -352,6 +372,11 @@ public class AtomicBatchHandler implements TransactionHandler {
             @Override
             public TransactionCategory category() {
                 return delegate.category();
+            }
+
+            @Override
+            public void replayNonceIncrement(Map<AccountID, Long> nonceIncrements) {
+                delegate.replayNonceIncrement(nonceIncrements);
             }
         }
     }

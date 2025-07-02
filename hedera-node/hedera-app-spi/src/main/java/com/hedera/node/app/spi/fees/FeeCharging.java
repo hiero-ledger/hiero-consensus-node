@@ -11,6 +11,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Map;
 import java.util.function.ObjLongConsumer;
 
 /**
@@ -128,6 +129,11 @@ public interface FeeCharging {
          */
         @Deprecated
         HandleContext.TransactionCategory category();
+
+        /**
+         * Replays the nonce increment for the given accounts after ethCall failures.
+         */
+        void replayNonceIncrement(Map<AccountID, Long> nonceIncrements);
     }
 
     /**
@@ -139,6 +145,14 @@ public interface FeeCharging {
      * @return the total fees charged
      */
     Fees charge(@NonNull Context ctx, @NonNull Validation validation, @NonNull Fees fees);
+
+    /**
+     * Increments the nonce for the given accounts in the replay context.
+     * This is used to ensure that the nonce is incremented for accounts that are charged fees.
+     *
+     * @param nonceIncrements a map of account IDs to their nonce values
+     */
+    void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements);
 
     /**
      * Refunds the fees for the given validation in the given context.
