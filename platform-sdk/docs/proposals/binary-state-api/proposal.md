@@ -110,7 +110,7 @@ public interface BinaryState {
      *
      * @param id  an id of the key/value type
      * @param key key bytes
-     * @return removed value bytes            
+     * @return removed value bytes
      */
     Bytes removeKeyValuePair(int id, Bytes key);
 
@@ -237,86 +237,6 @@ public interface BinaryState {
      */
     boolean release();
 
-    /**
-     * Determines if an object has been fully released and garbage collected.
-     *
-     * @return Whether is has been released or not
-     */
-    boolean isDestroyed();
-
-    /**
-     * Throws an exception if {@link #isDestroyed()}} returns {@code true}
-     *
-     * @throws ReferenceCountException
-     * 		if this object is destroyed
-     */
-    default void throwIfDestroyed() {
-        throwIfDestroyed("This operation is not permitted on a destroyed object.");
-    }
-
-    /**
-     * Throws an exception if {@link #isDestroyed()}} returns {@code true}
-     *
-     * @param errorMessage
-     * 		an error message for the exception
-     * @throws ReferenceCountException
-     * 		if this object is destroyed
-     */
-    default void throwIfDestroyed(final String errorMessage) {
-        if (this.isDestroyed()) {
-            throw new ReferenceCountException(errorMessage);
-        }
-    }
-
-    /**
-     * Determines if an object is immutable or not.
-     *
-     * @return Whether is immutable or not
-     */
-    boolean isImmutable();
-
-    /**
-     * Determines if an object is mutable or not.
-     *
-     * @return Whether the object is immutable or not
-     */
-    default boolean isMutable() {
-        return !isImmutable();
-    }
-
-    /**
-     * @throws MutabilityException if {@link #isImmutable()}} returns {@code true}
-     */
-    default void throwIfImmutable() {
-        throwIfImmutable("This operation is not permitted on an immutable object.");
-    }
-
-    /**
-     * @param errorMessage an error message for the exception
-     * @throws MutabilityException if {@link #isImmutable()}} returns {@code true}
-     */
-    default void throwIfImmutable(@NonNull final String errorMessage) {
-        if (isImmutable()) {
-            throw new MutabilityException(errorMessage);
-        }
-    }
-
-    /**
-     * @throws MutabilityException if {@link #isMutable()} returns {@code true}
-     */
-    default void throwIfMutable() {
-        throwIfMutable("This operation is not permitted on a mutable object.");
-    }
-
-    /**
-     * @param errorMessage an error message for the exception
-     * @throws MutabilityException if {@link #isMutable()}} returns {@code true}
-     */
-    default void throwIfMutable(@NonNull final String errorMessage) {
-        if (isMutable()) {
-            throw new MutabilityException(errorMessage);
-        }
-    }
 }
 ```
 
