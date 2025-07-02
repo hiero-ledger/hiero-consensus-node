@@ -312,8 +312,9 @@ public class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
+        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -398,8 +399,8 @@ public class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -443,8 +444,9 @@ public class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
+        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -515,8 +517,9 @@ public class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
+        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
@@ -648,8 +651,9 @@ public class AtomicBatchConsensusServiceTest {
                                 .batchKey("batchOperator"))
                         .payingWith("batchOperator")
                         .via("batchTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
-                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
+                        .hasPrecheck(INVALID_SIGNATURE));
+        // Batch will fail on ingest, so no record is generated
+        //                validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION));
     }
 
     @HapiTest
