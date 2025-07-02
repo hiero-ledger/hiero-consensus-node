@@ -5,6 +5,8 @@ module org.hiero.consensus.otter.docker.app {
     requires transitive com.swirlds.platform.core;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.otter.fixtures;
+    requires transitive com.google.protobuf;
+    requires transitive io.grpc.stub;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base;
     requires com.swirlds.component.framework;
@@ -14,8 +16,6 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.api;
     requires org.hiero.consensus.utility;
-    requires com.google.protobuf;
-    requires io.grpc.stub;
     requires io.grpc;
     requires org.apache.logging.log4j;
     requires org.slf4j;
