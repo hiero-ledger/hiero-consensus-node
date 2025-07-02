@@ -149,7 +149,7 @@ jobs:
           REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
           if git ls-remote "${REPO_URL}" "${REF_CHECK}" --exit-code >/dev/null; then
-            COMMIT_SHA="$(git ls-remote origin "${REF_CHECK}" | awk '{print $1}')"
+            COMMIT_SHA="$(git ls-remote "${REPO_URL}" "${REF_CHECK}" | awk '{print $1}')"
           else
             COMMIT_SHA="${REF_CHECK}"
           fi
