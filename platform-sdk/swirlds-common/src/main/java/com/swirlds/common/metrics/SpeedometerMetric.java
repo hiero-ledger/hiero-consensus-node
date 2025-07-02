@@ -7,7 +7,7 @@ import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * This class measures how many times per second the cycle() method is called. It is recalculated every
@@ -40,7 +40,7 @@ public interface SpeedometerMetric extends Metric {
      * {@inheritDoc}
      */
     @NonNull
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return ALL_VALUE_TYPES_SET;
     }
 

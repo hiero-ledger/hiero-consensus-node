@@ -6,8 +6,8 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleSupplier;
 
@@ -44,7 +44,7 @@ public interface DoubleAccumulator extends Metric {
      */
     @NonNull
     @Override
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return SINGLE_VALUE_TYPE_SET;
     }
 

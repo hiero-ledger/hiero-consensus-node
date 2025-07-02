@@ -11,8 +11,8 @@ import com.swirlds.metrics.api.MetricType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Stores a single duration. The output unit is determined by configuration
@@ -42,7 +42,7 @@ public interface DurationGauge extends Metric {
      */
     @NonNull
     @Override
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return SINGLE_VALUE_TYPE_SET;
     }
 

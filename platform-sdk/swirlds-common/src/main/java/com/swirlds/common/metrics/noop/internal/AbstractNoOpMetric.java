@@ -5,8 +5,9 @@ import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.api.snapshot.SnapshotableMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Boilerplate for a no-op metric.
@@ -69,8 +70,8 @@ public abstract class AbstractNoOpMetric implements SnapshotableMetric {
      */
     @NonNull
     @Override
-    public EnumSet<ValueType> getValueTypes() {
-        return EnumSet.noneOf(ValueType.class);
+    public Set<ValueType> getValueTypes() {
+        return Collections.emptySet();
     }
 
     /**

@@ -10,8 +10,8 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -38,7 +38,7 @@ public interface StatEntry extends Metric {
      */
     @NonNull
     @Override
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return getBuffered() == null ? SINGLE_VALUE_TYPE_SET : ALL_VALUE_TYPES_SET;
     }
 

@@ -2,15 +2,17 @@
 package com.swirlds.metrics.api;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * A single metric that is monitored here.
  */
 public interface Metric {
 
-    EnumSet<ValueType> SINGLE_VALUE_TYPE_SET = EnumSet.of(ValueType.VALUE);
-    EnumSet<ValueType> ALL_VALUE_TYPES_SET = EnumSet.allOf(ValueType.class);
+    Set<ValueType> SINGLE_VALUE_TYPE_SET = Collections.singleton(ValueType.VALUE);
+    Set<ValueType> ALL_VALUE_TYPES_SET = Collections.unmodifiableSet(EnumSet.allOf(ValueType.class));
 
     /**
      * A {@code Metric} can keep track of several values, which are distinguished via the {@code MetricType}
@@ -105,7 +107,7 @@ public interface Metric {
      * @return the list of {@code ValueTypes}
      */
     @NonNull
-    EnumSet<ValueType> getValueTypes();
+    Set<ValueType> getValueTypes();
 
     /**
      * Returns the current value of the given {@link ValueType}.

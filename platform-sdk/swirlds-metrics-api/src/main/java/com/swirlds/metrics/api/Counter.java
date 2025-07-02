@@ -4,8 +4,8 @@ package com.swirlds.metrics.api;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A {@code Counter} can be used to count events and similar things.
@@ -37,7 +37,7 @@ public interface Counter extends Metric {
      */
     @Override
     @NonNull
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return SINGLE_VALUE_TYPE_SET;
     }
 

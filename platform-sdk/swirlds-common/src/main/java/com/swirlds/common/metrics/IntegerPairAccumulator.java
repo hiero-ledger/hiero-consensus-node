@@ -7,8 +7,8 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.IntBinaryOperator;
 import java.util.function.IntSupplier;
@@ -43,7 +43,7 @@ public interface IntegerPairAccumulator<T> extends Metric {
      */
     @NonNull
     @Override
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return SINGLE_VALUE_TYPE_SET;
     }
 

@@ -7,7 +7,7 @@ import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
+import java.util.Set;
 
 /**
  * This class maintains a running average of some numeric value. It is exponentially weighted in time, with
@@ -38,7 +38,7 @@ public interface RunningAverageMetric extends Metric {
      * {@inheritDoc}
      */
     @NonNull
-    default EnumSet<ValueType> getValueTypes() {
+    default Set<ValueType> getValueTypes() {
         return ALL_VALUE_TYPES_SET;
     }
 
