@@ -11,7 +11,11 @@ import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
 import org.hiero.consensus.otter.docker.app.platform.DockerApp;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
@@ -23,6 +27,8 @@ import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 import org.hiero.otter.fixtures.result.SubscriberAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Boots a {@link DockerApp} inside a minimal gRPC wrapper.
@@ -34,6 +40,9 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
  */
 public final class DockerInit {
 
+    /** Logger */
+    private static final Logger LOGGER = LoggerFactory.getLogger(DockerInit.class);
+
     /** Singleton instance exposed for the gRPC service. */
     static final DockerInit INSTANCE = new DockerInit();
 
@@ -42,6 +51,9 @@ public final class DockerInit {
 
     /** Underlying gRPC server. */
     private final Server grpcServer;
+
+    /** Executor responsible for running background tasks */
+    private final ExecutorService executor;
 
     /** Lazily initialised docker app; only set once. */
     private DockerApp app;
@@ -56,17 +68,27 @@ public final class DockerInit {
      */
     private BlockingQueue<EventMessage> outbound;
 
-    /**
-     * Dispatcher thread that drains {@link #outbound}. Must be interrupted on
-     * forced shutdown so that it terminates promptly even if blocked on
-     * {@code take()}.
-     */
-    private Thread dispatcher;
+    /** Handle to the running dispatcher task so it can be cancelled. */
+    private Future<?> dispatcherFuture;
 
     private DockerInit() {
+        this(createDefaultExecutor());
+    }
+
+    public DockerInit(@NonNull final ExecutorService executor) {
+        this.executor = executor;
         grpcServer = ServerBuilder.forPort(GRPC_PORT)
                 .addService(new TestControlImpl())
                 .build();
+    }
+
+    private static ExecutorService createDefaultExecutor() {
+        final ThreadFactory factory = r -> {
+            final Thread t = new Thread(r, "grpc-outbound-dispatcher");
+            t.setDaemon(true);
+            return t;
+        };
+        return Executors.newSingleThreadExecutor(factory);
     }
 
     public static void main(final String[] args) throws IOException, InterruptedException {
@@ -126,33 +148,35 @@ public final class DockerInit {
                 // Outbound queue and single-writer dispatcher thread. Both are stored
                 // in instance fields so they can be accessed from killImmediately().
                 outbound = new LinkedBlockingQueue<>();
-                dispatcher = new Thread(
-                        () -> {
+
+                final Runnable dispatcherTask = () -> {
+                    try {
+                        while (!cancelled) {
+                            final EventMessage msg = outbound.take();
                             try {
-                                while (!cancelled) {
-                                    final EventMessage msg = outbound.take();
-                                    try {
-                                        responseObserver.onNext(msg);
-                                    } catch (final RuntimeException e) {
-                                        // Any exception here means the stream is no longer writable
-                                        cancelled = true;
-                                    }
-                                }
-                            } catch (final InterruptedException ie) {
-                                Thread.currentThread().interrupt();
+                                responseObserver.onNext(msg);
+                            } catch (final RuntimeException e) {
+                                // Any exception here means the stream is no longer writable
+                                LOGGER.error("Unexpected error while processing event", e);
+                                cancelled = true;
                             }
-                        },
-                        "grpc-outbound-dispatcher");
+                        }
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                };
 
                 if (responseObserver instanceof ServerCallStreamObserver<?> serverObserver) {
                     serverObserver.setOnCancelHandler(() -> {
                         cancelled = true;
-                        dispatcher.interrupt();
+                        if (dispatcherFuture != null) {
+                            dispatcherFuture.cancel(true);
+                        }
                         outbound.clear();
                     });
                 }
 
-                dispatcher.start();
+                dispatcherFuture = executor.submit(dispatcherTask);
 
                 // Helper that enqueues messages if the stream is still open
                 final Consumer<EventMessage> enqueue = msg -> {
@@ -174,8 +198,8 @@ public final class DockerInit {
 
                 app.start();
             } catch (final Exception e) {
-                System.err.println(e.getMessage());
-                e.printStackTrace(System.err);
+                LOGGER.error("Unexpected error while starting grpc server", e);
+                cancelled = true;
                 responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
             }
         }
@@ -193,11 +217,12 @@ public final class DockerInit {
 
             try {
                 app.submitTransaction(request.getPayload().toByteArray());
-            } catch (final Exception e) {
-                responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
-            } finally {
+
+                // Since in the test is waiting for completion of this request, we'll need to send an "empty" answer.
                 responseObserver.onNext(Empty.getDefaultInstance());
                 responseObserver.onCompleted();
+            } catch (final Exception e) {
+                responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
             }
         }
 
@@ -213,20 +238,21 @@ public final class DockerInit {
                 // Prevent any further outbound communication
                 cancelled = true;
 
-                if (dispatcher != null) {
-                    dispatcher.interrupt();
-                    dispatcher = null;
+                if (dispatcherFuture != null) {
+                    dispatcherFuture.cancel(true);
+                    dispatcherFuture = null;
                 }
 
                 if (outbound != null) {
                     outbound.clear();
                     outbound = null;
                 }
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            } finally {
+
+                // Since in the test is waiting for completion of this request, we'll need to send an "empty" answer.
                 responseObserver.onNext(Empty.getDefaultInstance());
                 responseObserver.onCompleted();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
     }

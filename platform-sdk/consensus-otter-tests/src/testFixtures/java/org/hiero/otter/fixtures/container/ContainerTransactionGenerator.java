@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -26,15 +27,37 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
     /** Duration between two transaction submissions to a single node. */
     private static final Duration CYCLE_DURATION = Duration.ofSeconds(1).dividedBy(TPS);
 
-    /** Secure random instance used to create pseudo-random payloads. */
-    private final SecureRandom random = new SecureRandom();
+    /** Random instance */
+    private final Random random = new Random();
 
     /** Supplies the current list of nodes to which transactions should be sent. */
     private Supplier<List<Node>> nodesSupplier = List::of;
 
-    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    /** The scheduler used to run the periodic generation job. */
+    private final ScheduledExecutorService scheduler;
 
+    /** The handle of the scheduled generation job returned by the scheduler. */
+    private ScheduledFuture<?> generationTask;
+
+    /** Indicating if the generator is still running */
     private volatile boolean running = false;
+
+    /**
+     * Creates a new generator with a default single-threaded scheduler.
+     */
+    public ContainerTransactionGenerator() {
+        this(Executors.newSingleThreadScheduledExecutor());
+    }
+
+    /**
+     * Creates a new generator using the provided scheduler. This constructor is primarily intended
+     * for unit tests where a deterministic or mocked scheduler is desirable.
+     *
+     * @param scheduler the scheduler to use for running the generation task
+     */
+    public ContainerTransactionGenerator(final ScheduledExecutorService scheduler) {
+        this.scheduler = scheduler;
+    }
 
     /**
      * Sets the supplier that provides the up-to-date list of nodes. Must be called by the network once
@@ -55,17 +78,10 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
             return;
         }
 
-        /*
-         * If the generator was stopped previously, the scheduler may have been shut down. In that case
-         * create a fresh scheduler instance so the generator can be restarted safely.
-         */
-        if (scheduler.isShutdown()) {
-            scheduler = Executors.newSingleThreadScheduledExecutor();
-        }
-
         running = true;
 
-        scheduler.scheduleAtFixedRate(this::generateAndSubmit, 0, CYCLE_DURATION.toMillis(), TimeUnit.MILLISECONDS);
+        generationTask = scheduler.scheduleAtFixedRate(
+                this::generateAndSubmit, 0, CYCLE_DURATION.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -74,7 +90,11 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
     @Override
     public void stop() {
         running = false;
-        scheduler.shutdownNow();
+
+        if (generationTask != null) {
+            generationTask.cancel(true);
+            generationTask = null;
+        }
     }
 
     /**
@@ -86,22 +106,16 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
         }
 
         final List<Node> nodes;
-        try {
-            nodes = nodesSupplier.get();
-        } catch (final Exception e) {
-            log.warn("Unable to obtain nodes for transaction generation", e);
-            return;
-        }
+        nodes = nodesSupplier.get();
 
         if (nodes == null || nodes.isEmpty()) {
             return;
         }
 
-        final byte[] transaction =
-                TransactionFactory.createEmptyTransaction(random.nextInt()).toByteArray();
-
         for (final Node node : nodes) {
             if (node.platformStatus() == PlatformStatus.ACTIVE) {
+                final byte[] transaction =
+                        TransactionFactory.createEmptyTransaction(random.nextInt()).toByteArray();
                 try {
                     node.submitTransaction(transaction);
                 } catch (final Exception e) {
