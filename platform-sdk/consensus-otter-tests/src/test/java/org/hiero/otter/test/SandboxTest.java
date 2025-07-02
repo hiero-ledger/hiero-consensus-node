@@ -12,6 +12,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.Level;
@@ -25,15 +26,24 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.junit.jupiter.api.Disabled;
 
+/**
+ * Collection of tests to try out the API. The tests are not meant to be run and most likely fail.
+ */
 public class SandboxTest {
 
     private static final Duration TEN_SECONDS = Duration.ofSeconds(10);
     private static final Duration ONE_MINUTE = Duration.ofMinutes(1);
     private static final Duration TWO_MINUTES = Duration.ofMinutes(2);
 
+    /**
+     * Example of a migrated JRS test.
+     *
+     * @param env the test environment for this test
+     * @throws InterruptedException if an operation times out
+     */
     @OtterTest
-    @Disabled
-    void testConsistencyNDReconnect(TestEnvironment env) throws InterruptedException {
+    @Disabled("Sandbox test, not meant to be run")
+    void testConsistencyNDReconnect(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -64,9 +74,15 @@ public class SandboxTest {
                 .haveNoMessagesWithLevelHigherThan(Level.INFO);
     }
 
+    /**
+     * Example of a migrated {@code ConsensusTest}.
+     *
+     * @param env the test environment for this test
+     * @throws InterruptedException if an operation times out
+     */
     @OtterTest
-    @Disabled
-    void testBranching(TestEnvironment env) throws InterruptedException {
+    @Disabled("Sandbox test, not meant to be run")
+    void testBranching(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -85,15 +101,28 @@ public class SandboxTest {
         timeManager.waitFor(ONE_MINUTE);
     }
 
-    @Disabled
+    /**
+     * A catch-all test to try out the API.
+     *
+     * @param env the test environment for this test
+     * @throws InterruptedException if an operation times out
+     */
+    @Disabled("Sandbox test, not meant to be run")
     @OtterTest
-    void testHappyPath(TestEnvironment env) throws InterruptedException {
+    void testApi(@NonNull final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
         network.addNodes(4);
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
+        assertContinuouslyThat(network.getLogResults())
+                .haveNoMessageWithMarkers(STARTUP)
+                .haveNoMessageWithLevelHigherThan(Level.INFO)
+                .haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.getPlatformStatusResults())
+                .doNotEnterAnyStatusesOf(CHECKING)
+                .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING);
         network.start();
 
         // Wait for two minutes

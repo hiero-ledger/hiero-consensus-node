@@ -24,7 +24,7 @@ import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 public class SingleNodeLogResultContinuousAssert
         extends AbstractContinuousAssertion<SingleNodeLogResultContinuousAssert, SingleNodeLogResult> {
 
-    protected final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
+    private final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a continuous assertion for the given {@link SingleNodeLogResult}.
