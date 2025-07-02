@@ -71,17 +71,17 @@ sequenceDiagram
 
 ### Consensus Node Behavior on EndOfStream Response Codes
 
-| Code                            | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                                          Special Behaviour                                          |
-|:--------------------------------|-----------------------|:----------------------------|---------------------|-----------------|-----------------------------------------------------------------------------------------------------|
-| `SUCCESS`                       | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
-| `BEHIND` with block in buffer   | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
-| `BEHIND` w/o block in buffer    | Yes                   | 30 seconds                  | No                  | 10 seconds      | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN to look for the block from other Block Nodes |
-| `INTERNAL_ERROR`                | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
-| `PERSISTENCE_FAILED`            | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
-| `TIMEOUT`                       | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
-| `DUPLICATE_BLOCK`               | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
-| `BAD_BLOCK_PROOF`               | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
-| `UNKNOWN`                       | Yes                   | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| Code                          | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                                          Special Behaviour                                          |
+|:------------------------------|-----------------------|:----------------------------|---------------------|-----------------|-----------------------------------------------------------------------------------------------------|
+| `SUCCESS`                     | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| `BEHIND` with block in buffer | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `BEHIND` w/o block in buffer  | Yes                   | 30 seconds                  | No                  | 10 seconds      | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN to look for the block from other Block Nodes |
+| `INTERNAL_ERROR`              | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| `PERSISTENCE_FAILED`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| `TIMEOUT`                     | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `DUPLICATE_BLOCK`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `BAD_BLOCK_PROOF`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `UNKNOWN`                     | Yes                   | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
 
 ### EndOfStream Rate Limiting
 
