@@ -44,7 +44,6 @@ import java.util.Set;
  *
  * @param transactionParts the parts of the transaction.
  * @param transactionResult the result of processing the transaction
- * @param role the role of the transaction in the group
  * @param traces any traces associated with the transaction
  * @param outputs the output of processing the transaction
  * @param isTopLevel
@@ -65,7 +64,7 @@ public record BlockTransactionParts(
      * @return true if it is a top-level transaction, false otherwise
      */
     public boolean isTopLevel() {
-        return TOP_LEVEL_ROLES.contains(role);
+        return isTopLevel || TOP_LEVEL_ROLES.contains(role);
     }
 
     /**

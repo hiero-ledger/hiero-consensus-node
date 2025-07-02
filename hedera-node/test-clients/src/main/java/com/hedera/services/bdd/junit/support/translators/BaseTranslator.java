@@ -99,16 +99,10 @@ import org.hyperledger.besu.evm.log.Log;
 public class BaseTranslator {
     private static final Logger log = LogManager.getLogger(BaseTranslator.class);
 
-    private static final org.apache.tuweni.bytes.Bytes EIP_1014_PREFIX =
-            org.apache.tuweni.bytes.Bytes.fromHexString("0xFF");
-
     private static final Comparator<ContractID> CONTRACT_ID_NUM_COMPARATOR =
             Comparator.comparingLong(ContractID::contractNumOrThrow);
     private static final Comparator<ContractNonceInfo> NONCE_INFO_CONTRACT_ID_COMPARATOR =
             Comparator.comparing(ContractNonceInfo::contractIdOrThrow, CONTRACT_ID_NUM_COMPARATOR);
-
-    public static final Set<TransactionGroupRole> PARENT_ROLES =
-            EnumSet.of(STANDALONE, PARENT, ENDING_PARENT, STARTING_PARENT);
 
     /**
      * These fields are context maintained for the full lifetime of the translator.
@@ -876,7 +870,7 @@ public class BaseTranslator {
         });
         userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
-            if (PARENT_ROLES.contains(parts.role())) {
+            if (parts.isTopLevel()) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
             if (parts.functionality() == HederaFunctionality.TOKEN_MINT) {

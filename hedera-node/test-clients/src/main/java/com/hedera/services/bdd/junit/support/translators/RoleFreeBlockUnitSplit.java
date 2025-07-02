@@ -91,7 +91,9 @@ public class RoleFreeBlockUnitSplit {
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
-                stateChangeIndexes.add(i);
+                if (hasKvChanges(item.stateChangesOrThrow())) {
+                    stateChangeIndexes.add(i);
+                }
             } else if (item.hasEventTransaction()) {
                 txIndexes.add(i);
             } else if (item.hasTransactionResult()) {
@@ -104,9 +106,6 @@ public class RoleFreeBlockUnitSplit {
         // Insert logical tx indexes for atomic batch inners
         final Set<Integer> batchInnerIdxs = new HashSet<>();
         resultIndexes.forEach(i -> {
-            if (txIndexes.lower(i) == null) {
-                System.out.println("BOOP");
-            }
             final var prevTxIndex = requireNonNull(txIndexes.lower(i));
             final var prevResultIndex = resultIndexes.lower(i);
             if (prevResultIndex != null && prevResultIndex > prevTxIndex) {
@@ -119,11 +118,18 @@ public class RoleFreeBlockUnitSplit {
         // themselves and the next state change
         final List<List<BlockItem>> partItems = new ArrayList<>(txIndexes.size());
         txIndexes.forEach(i -> {
-            // Check if a non-batch inner transaction is top-level (i.e., is the first
-            // transaction preceding the next state changes item in the stream)
+            // Check if a non-inner transaction is top-level (i.e., is the first
+            // transaction preceding the next state changes item in the stream,
+            // or the only non-inner transaction in a block)
             if (!batchInnerIdxs.contains(i)) {
                 final var nextStateChangeIndex = stateChangeIndexes.higher(i);
-                if (nextStateChangeIndex != null) {
+                if (nextStateChangeIndex == null) {
+                    final int resultIndex = requireNonNull(resultIndexes.higher(i));
+                    if (!items.get(resultIndex).transactionResultOrThrow().hasParentConsensusTimestamp()) {
+                        final var txId = getParts.apply(i).transactionIdOrThrow();
+                        topLevelIds.put(i, txId);
+                    }
+                } else {
                     final int j = requireNonNull(txIndexes.lower(nextStateChangeIndex));
                     if (i == j) {
                         final var txId = getParts.apply(i).transactionIdOrThrow();
@@ -133,7 +139,16 @@ public class RoleFreeBlockUnitSplit {
             }
             final var nextTxIndex = txIndexes.higher(i);
             final int j = nextTxIndex == null ? n : nextTxIndex;
-            partItems.add(new ArrayList<>(items.subList(i, j)));
+            final List<BlockItem> txItems = new ArrayList<>();
+            boolean done = false;
+            for (int k = i; k < j && !done; k++) {
+                final var item = items.get(k);
+                switch (item.item().kind()) {
+                    case EVENT_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES -> txItems.add(item);
+                    default -> done = true;
+                }
+            }
+            partItems.add(txItems);
         });
         // And now we can assign unit ids to each tx's index
         final AtomicInteger unitIdx = new AtomicInteger(0);
@@ -205,9 +220,6 @@ public class RoleFreeBlockUnitSplit {
                     }
                 }
             }
-            if (unitParts == null) {
-                System.out.println("BOOP");
-            }
             requireNonNull(unitParts).add(pending.toBlockTransactionParts(topLevelIds.containsKey(idx)));
         }
         if (unitParts != null) {
@@ -222,6 +234,11 @@ public class RoleFreeBlockUnitSplit {
         resultIndexes.clear();
         topLevelIds.clear();
         txIndexes.clear();
+    }
+
+    private static boolean hasKvChanges(@NonNull final StateChanges stateChanges) {
+        return stateChanges.stateChanges().stream()
+                .anyMatch(change -> change.hasMapUpdate() || change.hasMapDelete());
     }
 
     /**

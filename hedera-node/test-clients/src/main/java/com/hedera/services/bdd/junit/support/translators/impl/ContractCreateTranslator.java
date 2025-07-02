@@ -66,8 +66,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                     final var createdId = createContractOutput
                                             .evmTransactionResultOrThrow()
                                             .contractIdOrThrow();
-                                    baseTranslator.addCreatedEvmAddressTo(
-                                            derivedBuilder, createdId, remainingStateChanges);
+                                    baseTranslator.addCreatedEvmAddressTo(derivedBuilder, createdId, remainingStateChanges);
                                 }
                                 recordBuilder.contractCreateResult(derivedBuilder.build());
                             });
