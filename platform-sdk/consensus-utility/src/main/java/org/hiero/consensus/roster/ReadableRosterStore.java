@@ -91,4 +91,10 @@ public interface ReadableRosterStore {
      */
     @Nullable
     Bytes getCandidateRosterHash();
+
+    /**
+     * If the transplant updates are in progress
+     * @return true if the transplant updates are in progress
+     */
+    boolean isTransplantInProgress();
 }
