@@ -103,7 +103,11 @@ public interface ConsensusEventCreator {
      * @return this {@link ConsensusEventCreator} instance
      */
     @NonNull
-    ConsensusEventCreator initialize(@NonNull Configuration configuration, @NonNull Metrics metrics, @NonNull Time time, @NonNull WiringModel model);
+    ConsensusEventCreator initialize(
+            @NonNull Configuration configuration,
+            @NonNull Metrics metrics,
+            @NonNull Time time,
+            @NonNull WiringModel model);
 
     /**
      * Destroys the component.

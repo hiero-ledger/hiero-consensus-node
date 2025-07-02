@@ -31,8 +31,7 @@ public class BackpressureRule implements EventCreationRule {
     public BackpressureRule(
             @NonNull final Configuration configuration, @NonNull final LongSupplier eventIntakeQueueSize) {
 
-        final EventCreationConfig eventCreationConfig =
-                configuration.getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         eventIntakeThrottle = eventCreationConfig.eventIntakeThrottle();
 

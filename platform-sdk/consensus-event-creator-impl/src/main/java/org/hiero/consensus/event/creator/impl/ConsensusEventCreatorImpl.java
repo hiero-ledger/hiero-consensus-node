@@ -100,7 +100,10 @@ public class ConsensusEventCreatorImpl implements ConsensusEventCreator {
     @Override
     @NonNull
     public ConsensusEventCreator initialize(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final WiringModel model) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final WiringModel model) {
         throw new UnsupportedOperationException("Not implemented");
     }
 

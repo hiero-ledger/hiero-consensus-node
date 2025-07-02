@@ -44,7 +44,8 @@ class EventCreationManagerTests {
                 .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        manager = new DefaultEventCreationManager(configuration, metrics, time, mock(TransactionPoolNexus.class), creator);
+        manager = new DefaultEventCreationManager(
+                configuration, metrics, time, mock(TransactionPoolNexus.class), creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

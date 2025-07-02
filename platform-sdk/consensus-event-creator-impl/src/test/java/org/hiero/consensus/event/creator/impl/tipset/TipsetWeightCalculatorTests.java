@@ -140,7 +140,8 @@ class TipsetWeightCalculatorTests {
         final NodeId selfId =
                 NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
         final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
@@ -283,7 +284,8 @@ class TipsetWeightCalculatorTests {
         final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
         final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
@@ -509,7 +511,8 @@ class TipsetWeightCalculatorTests {
                         .toList())
                 .build();
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
         final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
@@ -593,7 +596,8 @@ class TipsetWeightCalculatorTests {
         final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
         final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);

@@ -197,10 +197,10 @@ class OrphanBufferTests {
                 })
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
-        final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
 
         long latestConsensusRound = ConsensusConstants.ROUND_FIRST;
 
@@ -249,11 +249,11 @@ class OrphanBufferTests {
     @Test
     @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
     void topologicalOrderByNGen() {
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
-        final DefaultOrphanBuffer orphanBuffer =
-                new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(configuration, metrics, intakeEventCounter);
 
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
         for (final PlatformEvent intakeEvent : intakeEvents) {
@@ -335,7 +335,8 @@ class OrphanBufferTests {
         final PlatformEvent genesisEvent =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(0)).build();
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
@@ -374,7 +375,8 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
@@ -427,7 +429,8 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
@@ -508,7 +511,8 @@ class OrphanBufferTests {
                 .setBirthRound(minimumBirthRoundNonAncient)
                 .build();
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
         final DefaultOrphanBuffer orphanBuffer =
                 new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));

@@ -25,8 +25,7 @@ public class MaximumRateRule implements EventCreationRule {
      */
     public MaximumRateRule(@NonNull final Configuration configuration, @NonNull final Time time) {
 
-        final EventCreationConfig eventCreationConfig =
-                configuration.getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         final double maxCreationRate = eventCreationConfig.maxCreationRate();
         if (maxCreationRate > 0) {

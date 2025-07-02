@@ -61,8 +61,7 @@ class PhaseTimerTests {
 
         final FakeTime time = new FakeTime();
 
-        final PhaseTimer<TestPhases> timer =
-                new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class).build();
+        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class).build();
 
         // No metrics should have been registered
         assertEquals(0, registeredConfigs.size());

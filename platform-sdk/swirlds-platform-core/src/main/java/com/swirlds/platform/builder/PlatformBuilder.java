@@ -474,10 +474,7 @@ public final class PlatformBuilder {
                 platformContext, model, callbacks, initialState.get().isGenesisState());
 
         final TransactionPoolNexus transactionPoolNexus = new TransactionPoolNexus(
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getTime()
-        );
+                platformContext.getConfiguration(), platformContext.getMetrics(), platformContext.getTime());
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,

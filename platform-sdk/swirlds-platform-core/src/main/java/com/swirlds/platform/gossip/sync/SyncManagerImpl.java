@@ -25,23 +25,17 @@ public class SyncManagerImpl implements FallenBehindManager {
      * @param metrics             the metrics to use
      * @param fallenBehindManager the fallen behind manager
      */
-    public SyncManagerImpl(
-            @NonNull final Metrics metrics, @NonNull final FallenBehindManager fallenBehindManager) {
+    public SyncManagerImpl(@NonNull final Metrics metrics, @NonNull final FallenBehindManager fallenBehindManager) {
 
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
 
-        metrics
-                .getOrCreate(new FunctionGauge.Config<>(
-                                INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
+        metrics.getOrCreate(
+                new FunctionGauge.Config<>(INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
                         .withDescription("has this node fallen behind?"));
-        metrics
-                .getOrCreate(new FunctionGauge.Config<>(
-                                INTERNAL_CATEGORY,
-                                "numReportFallenBehind",
-                                Integer.class,
-                                this::numReportedFallenBehind)
-                        .withDescription("the number of nodes that have fallen behind")
-                        .withUnit("count"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::numReportedFallenBehind)
+                .withDescription("the number of nodes that have fallen behind")
+                .withUnit("count"));
     }
 
     /**

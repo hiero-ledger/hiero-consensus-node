@@ -164,7 +164,8 @@ class EventCreationRulesTests {
 
     @Test
     void noRateLimitTest() {
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = new FakeTime();
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);

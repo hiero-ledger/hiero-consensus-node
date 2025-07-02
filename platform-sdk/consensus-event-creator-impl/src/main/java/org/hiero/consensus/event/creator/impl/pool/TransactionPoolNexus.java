@@ -92,12 +92,12 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * @param metrics       the metrics to use
      * @param time          the time source to use
      */
-    public TransactionPoolNexus(@NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+    public TransactionPoolNexus(
+            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
 
         illegalTransactionLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(10));
 
-        final TransactionConfig transactionConfig =
-                configuration.getConfigData(TransactionConfig.class);
+        final TransactionConfig transactionConfig = configuration.getConfigData(TransactionConfig.class);
         maxTransactionBytesPerEvent = transactionConfig.maxTransactionBytesPerEvent();
         throttleTransactionQueueSize = transactionConfig.throttleTransactionQueueSize();
 
@@ -106,8 +106,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
 
         maximumTransactionSize = transactionConfig.transactionMaxBytes();
 
-        final EventCreationConfig eventCreationConfig =
-                configuration.getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
         maximumPermissibleUnhealthyDuration = eventCreationConfig.maximumPermissibleUnhealthyDuration();
     }
 

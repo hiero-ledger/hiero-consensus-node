@@ -121,8 +121,8 @@ public class TipsetEventCreator implements EventCreator {
         tipsetMetrics = new TipsetMetrics(metrics, roster);
         tipsetTracker = new TipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
-        tipsetWeightCalculator =
-                new TipsetWeightCalculator(configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
+        tipsetWeightCalculator = new TipsetWeightCalculator(
+                configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
         networkSize = roster.rosterEntries().size();
 
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));

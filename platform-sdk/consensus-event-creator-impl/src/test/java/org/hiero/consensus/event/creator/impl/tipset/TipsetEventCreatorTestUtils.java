@@ -60,13 +60,15 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final NodeId nodeId,
             @NonNull final TransactionSupplier transactionSupplier) {
 
-        final Configuration configuration = ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Metrics metrics = new NoOpMetrics();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        return new TipsetEventCreator(configuration, metrics, random, signer, roster, nodeId, transactionSupplier);
+        return new TipsetEventCreator(
+                configuration, metrics, time, random, signer, roster, nodeId, transactionSupplier);
     }
 
     /**
@@ -96,7 +98,8 @@ public class TipsetEventCreatorTestUtils {
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
                     configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
-            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
+            final OrphanBuffer orphanBuffer =
+                    new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
