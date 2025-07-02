@@ -147,7 +147,12 @@ jobs:
         env:
           REF_CHECK: ${{ inputs.ref }}
         run: |
-          COMMIT_SHA=$(git rev-parse "${REF_CHECK}^{commit}")
+          if git ls-remote origin "${REF_CHECK}" --exit-code >/dev/null; then
+            COMMIT_SHA="$(git ls-remote origin "${REF_CHECK}" | awk '{print $1}')"
+          else
+            COMMIT_SHA="${REF_CHECK}"
+          fi
+          
           BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
