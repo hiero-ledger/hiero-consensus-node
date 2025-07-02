@@ -68,6 +68,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.services.bdd.junit.support.translators.impl.AtomicBatchTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractDeleteTranslator;
@@ -169,7 +170,7 @@ public class BlockTransactionalUnitTranslator {
                     put(TOKEN_UNPAUSE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(TOKEN_UPDATE, new TokenUpdateTranslator());
                     put(UTIL_PRNG, new UtilPrngTranslator());
-                    put(ATOMIC_BATCH, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(ATOMIC_BATCH, new AtomicBatchTranslator());
                     put(HINTS_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CRS_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HINTS_PARTIAL_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
@@ -207,21 +208,27 @@ public class BlockTransactionalUnitTranslator {
         final List<TraceData> followingTraces = new LinkedList<>(unit.allTraces());
         final List<StateChange> remainingStateChanges = new LinkedList<>(unit.stateChanges());
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
+        List<TraceData> tracesSoFar = null;
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
             final var translator = translators.get(blockTransactionParts.functionality());
             if (translator == null) {
                 log.warn("No translator found for functionality {}, skipping", blockTransactionParts.functionality());
             } else {
                 if (blockTransactionParts.hasTraces()) {
+                    if (tracesSoFar == null) {
+                        tracesSoFar = new ArrayList<>();
+                    }
+                    tracesSoFar.addAll(blockTransactionParts.tracesOrThrow());
                     // Remove the traces that are part of this transaction from the following traces
                     followingTraces.removeAll(blockTransactionParts.tracesOrThrow());
                 }
                 final var translation = translator.translate(
-                        blockTransactionParts, baseTranslator, remainingStateChanges, followingTraces);
+                        blockTransactionParts, baseTranslator, remainingStateChanges, tracesSoFar, followingTraces);
                 translatedRecords.add(translation);
             }
         }
         baseTranslator.finishLastUnit();
+        baseTranslator.updateNoncesAfter(unit);
         return translatedRecords;
     }
 }

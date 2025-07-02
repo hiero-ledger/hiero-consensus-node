@@ -25,7 +25,7 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -57,7 +57,6 @@ public class BlockStreamBuilderTest {
             .build();
     private @Mock TransactionID transactionID;
     private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
-    private @Mock ContractFunctionResult contractCallResult;
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
@@ -121,9 +120,10 @@ public class BlockStreamBuilderTest {
     void testBlockItemsWithTraceAndOutput() {
         final var usages =
                 List.of(new ContractSlotUsage(ContractID.DEFAULT, List.of(Bytes.EMPTY), List.of(SlotRead.DEFAULT)));
+        final var evmTxResult = EvmTransactionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)
-                .contractCallResult(contractCallResult)
+                .evmCallTransactionResult(evmTxResult)
                 .addContractSlotUsages(usages);
 
         List<BlockItem> blockItems = itemsBuilder.build().blockItems();

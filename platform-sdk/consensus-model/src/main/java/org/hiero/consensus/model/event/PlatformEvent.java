@@ -156,6 +156,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getTimeCreated();
     }
 
+    @Deprecated(forRemoval = true)
     @NonNull
     @Override
     public SemanticVersion getSoftwareVersion() {
@@ -182,6 +183,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      *
      * @return the generation of the event
      */
+    @Deprecated(forRemoval = true)
     public long getGeneration() {
         return metadata.getGeneration();
     }

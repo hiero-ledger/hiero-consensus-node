@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.SIGNED_STATE;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -23,7 +22,6 @@ import com.swirlds.platform.state.iss.internal.RoundHashValidator;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.util.MarkerFileWriter;
-import com.swirlds.state.lifecycle.HapiUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -58,14 +56,9 @@ public class DefaultIssDetector implements IssDetector {
     private long previousRound = -1;
 
     /**
-     * The roster of this network.
+     * The current roster.
      */
     private final Roster roster;
-
-    /**
-     * The current software version
-     */
-    private final SemanticVersion currentSoftwareVersion;
 
     /**
      * Prevent log messages about a lack of signatures from spamming the logs.
@@ -108,11 +101,16 @@ public class DefaultIssDetector implements IssDetector {
     private final MarkerFileWriter markerFileWriter;
 
     /**
+     * The last round that was frozen. This is used to ignore signatures from previous software versions.
+     * If null, then no signatures are ignored.
+     */
+    private final long latestFreezeRound;
+
+    /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
      * @param platformContext              the platform context
-     * @param roster                       the roster for the network
-     * @param currentSoftwareVersion       the current software version
+     * @param roster                the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      *                                     validate them like normal.
      * @param ignoredRound                 a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if
@@ -121,9 +119,9 @@ public class DefaultIssDetector implements IssDetector {
     public DefaultIssDetector(
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
-            @NonNull final SemanticVersion currentSoftwareVersion,
             final boolean ignorePreconsensusSignatures,
-            final long ignoredRound) {
+            final long ignoredRound,
+            final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
         markerFileWriter = new MarkerFileWriter(platformContext);
 
@@ -137,7 +135,6 @@ public class DefaultIssDetector implements IssDetector {
         catastrophicIssRateLimiter = new RateLimiter(platformContext.getTime(), timeBetweenIssLogs);
 
         this.roster = Objects.requireNonNull(roster);
-        this.currentSoftwareVersion = Objects.requireNonNull(currentSoftwareVersion);
 
         this.roundData = new StandardSequenceMap<>(
                 -consensusConfig.roundsNonAncient(), consensusConfig.roundsNonAncient(), x -> x);
@@ -154,6 +151,7 @@ public class DefaultIssDetector implements IssDetector {
             logger.warn(STARTUP.getMarker(), "No ISS detection will be performed for round {}", ignoredRound);
         }
         this.issMetrics = new IssMetrics(platformContext.getMetrics(), roster);
+        this.latestFreezeRound = latestFreezeRound;
     }
 
     /**
@@ -209,7 +207,6 @@ public class DefaultIssDetector implements IssDetector {
         }
 
         previousRound = roundNumber;
-
         roundData.put(
                 roundNumber, new RoundHashValidator(roundNumber, RosterUtils.computeTotalWeight(roster), issMetrics));
 
@@ -367,19 +364,13 @@ public class DefaultIssDetector implements IssDetector {
             @NonNull final ScopedSystemTransaction<StateSignatureTransaction> transaction) {
         final NodeId signerId = transaction.submitterId();
         final StateSignatureTransaction signaturePayload = transaction.transaction();
-        final SemanticVersion eventVersion = transaction.softwareVersion();
-
-        if (eventVersion == null) {
-            // Illegal event version, ignore.
-            return null;
-        }
 
         if (ignorePreconsensusSignatures && replayingPreconsensusStream) {
             // We are still replaying preconsensus events, and we are configured to ignore signatures during replay
             return null;
         }
 
-        if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(currentSoftwareVersion, eventVersion) != 0) {
+        if (transaction.eventBirthRound() <= latestFreezeRound) {
             // this is a signature from a different software version, ignore it
             return null;
         }

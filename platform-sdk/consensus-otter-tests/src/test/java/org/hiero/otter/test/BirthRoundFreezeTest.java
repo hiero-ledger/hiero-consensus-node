@@ -4,8 +4,8 @@ package org.hiero.otter.test;
 import static org.apache.logging.log4j.Level.WARN;
 import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
-import static org.hiero.otter.test.BirthRoundFreezeTestUtils.assertBirthRoundsBeforeAndAfterFreeze;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.otter.fixtures.Network;
@@ -34,7 +34,7 @@ public class BirthRoundFreezeTest {
      * @throws InterruptedException if an operation times out
      */
     @OtterTest
-    void testFreezeInBirthRoundMode(final TestEnvironment env) throws InterruptedException {
+    void testFreezeInBirthRoundMode(@NonNull final TestEnvironment env) throws InterruptedException {
 
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
@@ -57,7 +57,7 @@ public class BirthRoundFreezeTest {
         final long freezeRound =
                 network.getNodes().getFirst().getConsensusResult().lastRoundNum();
 
-        assertThat(network.getPcesResults()).hasMaxBirthRoundLessThanOrEqualTo(freezeRound);
+        assertThat(network.getPcesResults()).haveMaxBirthRoundLessThanOrEqualTo(freezeRound);
 
         // Restart the network. The version before and after this freeze have birth rounds enabled.
         network.bumpConfigVersion();
@@ -67,15 +67,14 @@ public class BirthRoundFreezeTest {
         timeManager.waitFor(THIRTY_SECONDS);
 
         // Validations
-        assertThat(network.getLogResults()).noMessageWithLevelHigherThan(WARN);
+        assertThat(network.getLogResults()).haveNoMessagesWithLevelHigherThan(WARN);
 
         assertThat(network.getConsensusResults())
                 .haveAdvancedSinceRound(freezeRound)
-                .haveEqualRoundsIgnoringLast(withPercentage(5));
+                .haveEqualCommonRounds()
+                .haveMaxDifferenceInLastRoundNum(withPercentage(5))
+                .haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
 
-        assertBirthRoundsBeforeAndAfterFreeze(
-                network.getNodes().getFirst().getConsensusResult().consensusRounds(),
-                postFreezeShutdownTime,
-                freezeRound);
+        assertThat(network.getPcesResults()).haveBirthRoundSplit(postFreezeShutdownTime, freezeRound);
     }
 }

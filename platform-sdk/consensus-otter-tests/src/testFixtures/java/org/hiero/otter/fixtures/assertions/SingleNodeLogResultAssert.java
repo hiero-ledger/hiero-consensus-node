@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
+import static org.hiero.otter.fixtures.internal.helpers.Utils.collectMarkers;
+
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
 import org.assertj.core.api.AbstractAssert;
@@ -51,14 +51,11 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeLogResultAssert noMessageWithMarkers(
+    public SingleNodeLogResultAssert hasNoMessagesWithMarkers(
             @NonNull final LogMarker first, @Nullable final LogMarker... rest) {
         isNotNull();
 
-        final Stream<LogMarker> restStream = rest == null ? Stream.empty() : Arrays.stream(rest);
-        final Set<Marker> markers = Stream.concat(Stream.of(first), restStream).toList().stream()
-                .map(LogMarker::getMarker)
-                .collect(Collectors.toSet());
+        final Set<Marker> markers = collectMarkers(first, rest);
 
         final List<StructuredLog> foundLogs = actual.logs().stream()
                 .filter(log -> markers.contains(log.marker()))
@@ -87,7 +84,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @return this assertion object for method chaining
      */
     @NonNull
-    public SingleNodeLogResultAssert noMessageWithLevelHigherThan(@NonNull final Level level) {
+    public SingleNodeLogResultAssert hasNoMessagesWithLevelHigherThan(@NonNull final Level level) {
         isNotNull();
         final List<StructuredLog> logs = actual.logs().stream()
                 .filter(log -> log.level().intLevel() < level.intLevel())
@@ -105,7 +102,7 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
      * @return this assertion object for method chaining
      */
     public SingleNodeLogResultAssert hasNoErrorLevelMessages() {
-        return noMessageWithLevelHigherThan(Level.WARN);
+        return hasNoMessagesWithLevelHigherThan(Level.WARN);
     }
 
     /**

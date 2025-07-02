@@ -22,8 +22,8 @@ public class SyncManagerImpl implements FallenBehindManager {
     /**
      * Creates a new SyncManager
      *
-     * @param metrics                 the metrics to use
-     * @param fallenBehindManager     the fallen behind manager
+     * @param metrics             the metrics to use
+     * @param fallenBehindManager the fallen behind manager
      */
     public SyncManagerImpl(
             @NonNull final Metrics metrics, @NonNull final FallenBehindManager fallenBehindManager) {
@@ -50,6 +50,14 @@ public class SyncManagerImpl implements FallenBehindManager {
     @Override
     public void reportFallenBehind(@NonNull final NodeId id) {
         fallenBehindManager.reportFallenBehind(id);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void clearFallenBehind(@NonNull final NodeId id) {
+        fallenBehindManager.clearFallenBehind(id);
     }
 
     /**

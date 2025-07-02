@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.result;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.otter.fixtures.Node;
@@ -24,9 +25,20 @@ public interface MultipleNodePcesResults {
     /**
      * Excludes the results of a specific node from the current results.
      *
-     * @param node the node which result is to be excluded
+     * @param nodeId the {@link NodeId} of the node whose result is to be excluded
      * @return a new instance of {@link MultipleNodePcesResults} with the specified node's result excluded
      */
     @NonNull
-    MultipleNodePcesResults ignoring(@NonNull Node node);
+    MultipleNodePcesResults suppressingNode(@NonNull NodeId nodeId);
+
+    /**
+     * Excludes the results of a specific node from the current results.
+     *
+     * @param node the node whose result is to be excluded
+     * @return a new instance of {@link MultipleNodePcesResults} with the specified node's result excluded
+     */
+    @NonNull
+    default MultipleNodePcesResults suppressingNode(@NonNull final Node node) {
+        return suppressingNode(node.selfId());
+    }
 }

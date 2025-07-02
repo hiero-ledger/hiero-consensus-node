@@ -31,12 +31,15 @@ public class PausesDecoder {
      */
     public TransactionBody decodePause(@NonNull final HtsCallAttempt attempt) {
         final var call = PausesTranslator.PAUSE.decodeCall(attempt.inputBytes());
-        return TransactionBody.newBuilder().tokenPause(pause(call.get(0))).build();
+        return TransactionBody.newBuilder()
+                .tokenPause(pause(attempt, call.get(0)))
+                .build();
     }
 
-    private TokenPauseTransactionBody pause(@NonNull final Address tokenAddress) {
+    private TokenPauseTransactionBody pause(
+            @NonNull final HtsCallAttempt attempt, @NonNull final Address tokenAddress) {
         return TokenPauseTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
                 .build();
     }
 
@@ -48,12 +51,15 @@ public class PausesDecoder {
      */
     public TransactionBody decodeUnpause(@NonNull final HtsCallAttempt attempt) {
         final var call = PausesTranslator.UNPAUSE.decodeCall(attempt.inputBytes());
-        return TransactionBody.newBuilder().tokenUnpause(unpause(call.get(0))).build();
+        return TransactionBody.newBuilder()
+                .tokenUnpause(unpause(attempt, call.get(0)))
+                .build();
     }
 
-    private TokenUnpauseTransactionBody unpause(@NonNull final Address tokenAddress) {
+    private TokenUnpauseTransactionBody unpause(
+            @NonNull final HtsCallAttempt attempt, @NonNull final Address tokenAddress) {
         return TokenUnpauseTransactionBody.newBuilder()
-                .token(asTokenId(tokenAddress))
+                .token(asTokenId(attempt.nativeOperations().entityIdFactory(), tokenAddress))
                 .build();
     }
 }

@@ -193,7 +193,15 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // from the contract account.
         final var evmAddress = contract.alias();
         accountStore.removeAlias(evmAddress);
-        accountStore.put(contract.copyBuilder().alias(Bytes.EMPTY).deleted(true).build());
+        final var builder = contract.copyBuilder().deleted(true);
+        final var originalContract = accountStore.getOriginalValue(contract.accountIdOrThrow());
+        // If this contract was just created in the same EVM transaction, we need to externalize its alias in the
+        // block stream state changes for parity with with legacy record streams
+        if (originalContract != null && originalContract.smartContract()) {
+            builder.alias(Bytes.EMPTY);
+        }
+        System.out.println("Putting " + builder.build());
+        accountStore.put(builder.build());
 
         // It may be (but should never happen) that the alias in the given contractId does not match the alias on the
         // contract account itself. This shouldn't happen because it means that somehow we were able to look up the

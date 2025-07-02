@@ -11,7 +11,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -93,10 +92,7 @@ class InternalEventValidatorTests {
         assertEquals(2, exitedIntakePipelineCount.get());
 
         final GossipEvent noTimeCreated = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated((Timestamp) null)
-                        .version(wholeEvent.eventCore().version())
-                        .build())
+                .eventCore(EventCore.newBuilder().timeCreated((Timestamp) null).build())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
                 .build();
@@ -104,19 +100,6 @@ class InternalEventValidatorTests {
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
         assertEquals(4, exitedIntakePipelineCount.get());
-
-        final GossipEvent noVersion = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated(wholeEvent.eventCore().timeCreated())
-                        .version((SemanticVersion) null)
-                        .build())
-                .signature(wholeEvent.signature())
-                .transactions(wholeEvent.transactions())
-                .build();
-        when(platformEvent.getGossipEvent()).thenReturn(noVersion);
-        assertNull(multinodeValidator.validateEvent(platformEvent));
-        assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(6, exitedIntakePipelineCount.get());
 
         final GossipEvent nullTransaction = GossipEvent.newBuilder()
                 .eventCore(wholeEvent.eventCore())
@@ -127,7 +110,7 @@ class InternalEventValidatorTests {
 
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(8, exitedIntakePipelineCount.get());
+        assertEquals(6, exitedIntakePipelineCount.get());
 
         final ArrayList<EventDescriptor> parents = new ArrayList<>();
         parents.add(null);
@@ -140,7 +123,7 @@ class InternalEventValidatorTests {
         when(platformEvent.getGossipEvent()).thenReturn(nullParent);
         assertNull(multinodeValidator.validateEvent(platformEvent));
         assertNull(singleNodeValidator.validateEvent(platformEvent));
-        assertEquals(10, exitedIntakePipelineCount.get());
+        assertEquals(8, exitedIntakePipelineCount.get());
     }
 
     @Test

@@ -45,6 +45,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
@@ -80,10 +81,9 @@ class HederaEvmTransactionResultTest {
         givenFrameWithoutSidecars();
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(SELF_DESTRUCT_TO_SELF));
-        final var subject =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var subject = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         assertEquals(OBTAINER_SAME_CONTRACT_ID, subject.finalStatus());
-        final var protoResult = subject.asProtoResultOf(rootProxyWorldUpdater);
+        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
         assertEquals(SELF_DESTRUCT_TO_SELF.toString(), protoResult.errorMessage());
     }
 
@@ -92,10 +92,9 @@ class HederaEvmTransactionResultTest {
         givenFrameWithAllSidecarsEnabled();
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
-        final var subject =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var subject = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         assertEquals(INSUFFICIENT_GAS, subject.finalStatus());
-        final var protoResult = subject.asProtoResultOf(rootProxyWorldUpdater);
+        final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
         assertEquals(ExceptionalHaltReason.INSUFFICIENT_GAS.toString(), protoResult.errorMessage());
     }
 
@@ -104,8 +103,7 @@ class HederaEvmTransactionResultTest {
         givenFrameWithoutSidecars();
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS));
-        final var subject =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var subject = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         assertEquals(ResponseCodeEnum.INSUFFICIENT_GAS, subject.finalStatus());
         verifyNoInteractions(tracer);
     }
@@ -116,8 +114,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getExceptionalHaltReason())
                 .willReturn(Optional.of(CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS));
-        final var subject =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var subject = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         assertEquals(ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS, subject.finalStatus());
     }
 
@@ -164,13 +161,13 @@ class HederaEvmTransactionResultTest {
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2,
-                GAS_LIMIT / 2,
                 SENDER_ID,
                 CALLED_CONTRACT_ID,
                 CALLED_CONTRACT_EVM_ADDRESS,
                 frame,
-                tracer);
-        final var protoResult = result.asProtoResultOf(rootProxyWorldUpdater);
+                tracer,
+                entityIdFactory);
+        final var protoResult = result.asProtoResultOf(null, rootProxyWorldUpdater, null);
         assertEquals(GAS_LIMIT / 2, protoResult.gasUsed());
         assertEquals(bloomForAll(BESU_LOGS), protoResult.bloom());
         assertEquals(OUTPUT_DATA, protoResult.contractCallResult());
@@ -204,13 +201,14 @@ class HederaEvmTransactionResultTest {
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2,
-                GAS_LIMIT / 2,
                 SENDER_ID,
                 CALLED_CONTRACT_ID,
                 CALLED_CONTRACT_EVM_ADDRESS,
                 frame,
-                tracer);
-        final var protoResult = result.asProtoResultOf(ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater);
+                tracer,
+                entityIdFactory);
+        final var protoResult = result.asProtoResultOf(
+                ETH_DATA_WITH_TO_ADDRESS, rootProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()));
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.gasLimit(), protoResult.gas());
         assertEquals(ETH_DATA_WITH_TO_ADDRESS.getAmount(), protoResult.amount());
         assertArrayEquals(
@@ -238,8 +236,7 @@ class HederaEvmTransactionResultTest {
         given(accessTracker.getJustReads()).willReturn(SOME_STORAGE_ACCESSES);
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
 
-        final var result =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
 
         final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
         assertEquals(expectedChanges, result.stateChanges());
@@ -253,12 +250,12 @@ class HederaEvmTransactionResultTest {
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2,
-                GAS_LIMIT / 2,
                 SENDER_ID,
                 CALLED_CONTRACT_ID,
                 CALLED_CONTRACT_EVM_ADDRESS,
                 frame,
-                tracer);
+                tracer,
+                entityIdFactory);
 
         assertNull(result.stateChanges());
     }
@@ -273,12 +270,12 @@ class HederaEvmTransactionResultTest {
 
         final var result = HederaEvmTransactionResult.successFrom(
                 GAS_LIMIT / 2,
-                GAS_LIMIT / 2,
                 SENDER_ID,
                 CALLED_CONTRACT_ID,
                 CALLED_CONTRACT_EVM_ADDRESS,
                 frame,
-                tracer);
+                tracer,
+                entityIdFactory);
         final var queryResult = result.asQueryResult(proxyWorldUpdater);
         assertEquals(GAS_LIMIT / 2, queryResult.gasUsed());
         assertEquals(bloomForAll(BESU_LOGS), queryResult.bloom());
@@ -295,8 +292,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.INVALID_OPERATION));
 
-        final var result =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         final var protoResult = result.asQueryResult(proxyWorldUpdater);
         assertEquals(ExceptionalHaltReason.INVALID_OPERATION.toString(), protoResult.errorMessage());
     }
@@ -307,8 +303,7 @@ class HederaEvmTransactionResultTest {
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getRevertReason()).willReturn(Optional.of(SOME_REVERT_REASON));
 
-        final var result =
-                HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+        final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
         final var protoResult = result.asQueryResult(proxyWorldUpdater);
         assertEquals(SOME_REVERT_REASON.toString(), protoResult.errorMessage());
     }

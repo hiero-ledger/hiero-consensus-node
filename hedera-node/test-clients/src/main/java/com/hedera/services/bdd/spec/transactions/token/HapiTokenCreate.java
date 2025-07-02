@@ -68,7 +68,6 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     private boolean advertiseCreation = false;
     private boolean asCallableContract = false;
-    private boolean skipAutoRenewPeriod = false;
     private Optional<TokenType> tokenType = Optional.empty();
     private Optional<SubType> tokenSubType = Optional.empty();
     private Optional<TokenSupplyType> supplyType = Optional.empty();
@@ -101,6 +100,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
     private Optional<Function<HapiSpec, String>> nameFn = Optional.empty();
     private final List<Function<HapiSpec, CustomFee>> feeScheduleSuppliers = new ArrayList<>();
     private Optional<String> metadataKey = Optional.empty();
+    private boolean omitAutoRenewPeriod = false;
 
     @Override
     public HederaFunctionality type() {
@@ -157,11 +157,6 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
 
     public HapiTokenCreate asCallableContract() {
         asCallableContract = true;
-        return this;
-    }
-
-    public HapiTokenCreate skipAutoRenewPeriod() {
-        skipAutoRenewPeriod = true;
         return this;
     }
 
@@ -271,6 +266,11 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         return this;
     }
 
+    public HapiTokenCreate omitAutoRenewPeriod() {
+        this.omitAutoRenewPeriod = true;
+        return this;
+    }
+
     @Override
     protected HapiTokenCreate self() {
         return this;
@@ -353,8 +353,13 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                             if (autoRenewAccount.isPresent()) {
                                 final var id = TxnUtils.asId(autoRenewAccount.get(), spec);
                                 b.setAutoRenewAccount(id);
-                                if (autoRenewPeriod.isEmpty() && !skipAutoRenewPeriod) {
-                                    b.setAutoRenewPeriod(spec.setup().defaultAutoRenewPeriod());
+                                if (!omitAutoRenewPeriod) {
+                                    final long secs = autoRenewPeriod.orElse(spec.setup()
+                                            .defaultAutoRenewPeriod()
+                                            .getSeconds());
+                                    b.setAutoRenewPeriod(Duration.newBuilder()
+                                            .setSeconds(secs)
+                                            .build());
                                 }
                             }
                             autoRenewPeriod.ifPresent(p -> b.setAutoRenewPeriod(

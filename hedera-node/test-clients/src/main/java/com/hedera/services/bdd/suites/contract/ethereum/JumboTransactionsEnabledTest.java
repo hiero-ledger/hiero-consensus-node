@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -11,6 +12,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -393,6 +395,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         }
 
         @HapiTest
+        @Tag(ADHOC)
         @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
         // JUMBO_N_17
         public Stream<DynamicTest> jumboTxnWithCorruptedPayloadShouldFail() {
@@ -538,6 +541,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                                     .markAsJumboTxn()
                                     .gasLimit(1_000_000L)
                                     .noLogging())));
+        }
+
+        @HapiTest
+        @DisplayName("Can't put jumbo transaction inside of batch")
+        public Stream<DynamicTest> canNotPutJumboInsideOfBatch() {
+            final var payloadSize = 127 * 1024;
+            final var payload = new byte[payloadSize];
+            return hapiTest(atomicBatch(jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload))
+                    .hasPrecheck(TRANSACTION_OVERSIZE)
+                    // If we use subprocess network, the transaction should fail at gRPC level
+                    .orUnavailableStatus());
         }
     }
 }

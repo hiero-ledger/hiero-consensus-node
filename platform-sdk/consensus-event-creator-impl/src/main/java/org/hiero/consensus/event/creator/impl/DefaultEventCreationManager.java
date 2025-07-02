@@ -17,7 +17,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -27,7 +26,6 @@ import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformHealthRule;
 import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -62,7 +60,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration unhealthyDuration = Duration.ZERO;
 
-    private final AncientMode ancientMode;
     private final FutureEventBuffer futureEventBuffer;
 
     /**
@@ -90,9 +87,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
-        ancientMode = configuration.getConfigData(EventConfig.class).getAncientMode();
         eventCreationRules = AggregateEventCreationRules.of(rules);
-        futureEventBuffer = new FutureEventBuffer(configuration, metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND);
+        futureEventBuffer = new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
         phase = new PhaseTimerBuilder<>(metrics, time, "platform", EventCreationStatus.class)
                 .enableFractionalMetrics()
@@ -156,7 +152,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
         creator.clear();
         phase.activatePhase(IDLE);
         futureEventBuffer.clear();
-        final EventWindow eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
+        final EventWindow eventWindow = EventWindow.getGenesisEventWindow();
         futureEventBuffer.updateEventWindow(eventWindow);
     }
 
