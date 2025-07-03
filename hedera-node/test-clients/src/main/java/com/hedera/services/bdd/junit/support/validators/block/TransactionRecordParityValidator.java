@@ -17,7 +17,6 @@ import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
-import com.hedera.services.bdd.junit.support.translators.BlockUnitSplit;
 import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -42,7 +41,6 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
     private static final int DIFF_INTERVAL_SECONDS = 300;
     private static final Logger logger = LogManager.getLogger(TransactionRecordParityValidator.class);
 
-    private final BlockUnitSplit blockUnitSplit = new BlockUnitSplit();
     private final BlockTransactionalUnitTranslator translator;
 
     public static final Factory FACTORY = new Factory() {
@@ -110,36 +108,23 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .map(RecordStreamEntry::from)
                 .toList();
         final var numStateChanges = new AtomicInteger();
-        final var actualUnits = blocks.stream()
-                .flatMap(block ->
-                        blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
-                .toList();
-        final List<SingleTransactionRecord> actualSingleTransactionRecords = blocks.stream()
-                .flatMap(block ->
-                        blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
-                .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
-                .flatMap(unit -> translator.translate(unit).stream())
-                .toList();
-        final List<RecordStreamEntry> actualEntries =
-                actualSingleTransactionRecords.stream().map(this::asEntry).toList();
-
-        // <NEW>
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
         final var roleFreeRecords = blocks.stream()
                 .flatMap(block ->
                         roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
+                .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
                 .flatMap(unit -> rfTranslator.translate(unit).stream())
                 .toList();
-        final var roleFreeEntries = roleFreeRecords.stream().map(this::asEntry).toList();
+        final var actualEntries = roleFreeRecords.stream().map(this::asEntry).toList();
         final var roleFreeDiff = new RcDiff(
-                MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, actualEntries, roleFreeEntries, null, System.out);
+                MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, expectedEntries, actualEntries, null, System.out);
         final var roleFreeDiffs = roleFreeDiff.summarizeDiffs();
         final var rfValidatorSummary = new SummaryBuilder(
                         MAX_DIFFS_TO_REPORT,
                         DIFF_INTERVAL_SECONDS,
                         blocks.size(),
+                        expectedEntries.size(),
                         actualEntries.size(),
-                        roleFreeEntries.size(),
                         numStateChanges.get(),
                         roleFreeDiffs)
                 .build();
@@ -153,36 +138,12 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
             Assertions.fail(errorMsg.toString());
         }
-        // </NEW>
-
-        final var rcDiff = new RcDiff(
-                MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, expectedEntries, actualEntries, null, System.out);
-        final var diffs = rcDiff.summarizeDiffs();
-        final var validatorSummary = new SummaryBuilder(
-                        MAX_DIFFS_TO_REPORT,
-                        DIFF_INTERVAL_SECONDS,
-                        blocks.size(),
-                        expectedEntries.size(),
-                        actualEntries.size(),
-                        numStateChanges.get(),
-                        diffs)
-                .build();
-        if (diffs.isEmpty()) {
-            logger.info("Validation complete. Summary: {}", validatorSummary);
-        } else {
-            final var diffOutput = rcDiff.buildDiffOutput(diffs);
-            final var errorMsg = new StringBuilder()
-                    .append(diffOutput.size())
-                    .append(" differences found between translated and expected records");
-            diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
-            Assertions.fail(errorMsg.toString());
-        }
 
         final List<TransactionSidecarRecord> expectedSidecars = data.records().stream()
                 .flatMap(recordWithSidecars ->
                         recordWithSidecars.sidecarFiles().stream().flatMap(f -> f.getSidecarRecordsList().stream()))
                 .toList();
-        final List<TransactionSidecarRecord> actualSidecars = actualSingleTransactionRecords.stream()
+        final List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
                 .flatMap(r -> r.transactionSidecarRecords().stream())
                 .map(r -> pbjToProto(
                         r, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class))

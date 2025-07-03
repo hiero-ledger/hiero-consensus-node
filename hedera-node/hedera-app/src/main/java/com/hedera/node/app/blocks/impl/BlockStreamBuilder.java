@@ -55,7 +55,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -411,11 +410,6 @@ public class BlockStreamBuilder
     private final TransactionCustomizer customizer;
 
     /**
-     * The builder {@link EventTransaction}'s role in a state changes "group".
-     */
-    private TransactionGroupRole role = TransactionGroupRole.STANDALONE;
-
-    /**
      * the total duration of contract operations as calculated using the Hedera ops duration schedule
      */
     private long opsDuration;
@@ -566,7 +560,6 @@ public class BlockStreamBuilder
             blockItems.add(BlockItem.newBuilder()
                     .eventTransaction(EventTransaction.newBuilder()
                             .applicationTransaction(getSerializedTransaction())
-                            .transactionGroupRole(role)
                             .build())
                     .build());
         }
@@ -599,11 +592,6 @@ public class BlockStreamBuilder
                     .build());
         }
         return new Output(blockItems, translationContext);
-    }
-
-    @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        this.role = requireNonNull(role);
     }
 
     @Override

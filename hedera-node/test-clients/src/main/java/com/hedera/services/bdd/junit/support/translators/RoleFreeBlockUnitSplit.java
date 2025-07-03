@@ -30,6 +30,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
+import org.junit.jupiter.api.Assertions;
 
 /**
  * Splits a block into transactional units (that is, a set of Merkle state changes
@@ -71,10 +72,23 @@ public class RoleFreeBlockUnitSplit {
      */
     private final Map<Integer, Integer> unitAssignments = new HashMap<>();
 
+    /**
+     * Splits a block into transactional units.
+     * @param block the block to split
+     * @return the transactional units, each with its logical tx parts that explain that unit's state changes
+     */
     public List<BlockTransactionalUnit> split(@NonNull final Block block) {
+        return split(block.items());
+    }
+
+    /**
+     * Splits a list of block items into transactional units.
+     * @param items the list of block items to split
+     * @return the transactional units, each with its logical tx parts that explain that unit's state changes
+     */
+    public List<BlockTransactionalUnit> split(@NonNull final List<BlockItem> items) {
         clear();
 
-        final var items = block.items();
         final int n = items.size();
         final Map<Integer, TransactionParts> parsedParts = new HashMap<>();
         final IntFunction<TransactionParts> getParts = i -> parsedParts.computeIfAbsent(i, k -> {
@@ -202,10 +216,10 @@ public class RoleFreeBlockUnitSplit {
             final var pending = new PendingBlockTransactionParts();
             for (final var item : nextPartItems) {
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION -> pending.parts = getParts.apply(idx);
-                    case TRANSACTION_RESULT -> pending.result = item.transactionResultOrThrow();
-                    case TRANSACTION_OUTPUT -> pending.addOutput(item.transactionOutputOrThrow());
-                    case TRACE_DATA -> pending.addTrace(item.traceDataOrThrow());
+                    case EVENT_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
+                    case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
+                    case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
+                    case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());
                     case STATE_CHANGES ->
                         requireNonNull(stateChanges)
                                 .addAll(item.stateChangesOrThrow().stateChanges());
@@ -251,21 +265,57 @@ public class RoleFreeBlockUnitSplit {
         @Nullable
         private List<TransactionOutput> outputs;
 
-        void addOutput(@NonNull final TransactionOutput output) {
+        void addPartsEnforcingOrder(@NonNull final TransactionParts parts) {
+            if (this.parts != null) {
+                Assertions.fail("Logical tx already has parts " + this.parts + ", cannot update to parts " + parts);
+            }
+            if (result != null) {
+                Assertions.fail("Logical tx already has a result " + result + ", cannot add parts " + parts);
+            }
+            if (traces != null) {
+                Assertions.fail("Logical tx already has traces " + traces + ", cannot add parts " + parts);
+            }
+            if (outputs != null) {
+                Assertions.fail("Logical tx already has outputs " + outputs + ", cannot add parts " + parts);
+            }
+            this.parts = parts;
+        }
+
+        void addResultEnforcingOrder(@NonNull final TransactionResult result) {
+            if (this.result != null) {
+                Assertions.fail("Logical tx already has a result " + this.result + ", cannot add result " + result);
+            }
+            if (traces != null) {
+                Assertions.fail("Logical tx already has traces " + traces + ", cannot add result " + result);
+            }
+            if (outputs != null) {
+                Assertions.fail("Logical tx already has outputs " + outputs + ", cannot add result " + result);
+            }
+            this.result = result;
+        }
+
+        void addOutputEnforcingOrder(@NonNull final TransactionOutput output) {
+            if (result == null) {
+                Assertions.fail("Logical tx has no result, cannot add output " + output);
+            }
             if (outputs == null) {
                 outputs = new ArrayList<>();
             }
             outputs.add(output);
         }
 
-        void addTrace(@NonNull final TraceData trace) {
+        void addTraceEnforcingOrder(@NonNull final TraceData trace) {
+            if (result == null) {
+                Assertions.fail("Logical tx has no result, cannot add trace " + trace);
+            }
             if (traces == null) {
                 traces = new ArrayList<>();
             }
             traces.add(trace);
         }
 
-        BlockTransactionParts toBlockTransactionParts(boolean isTopLevel) {
+        BlockTransactionParts toBlockTransactionParts(final boolean isTopLevel) {
+            // The only absolute requirement is the result is not null
             requireNonNull(result);
             return new BlockTransactionParts(parts, result, null, traces, outputs, isTopLevel);
         }

@@ -37,7 +37,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -302,11 +301,6 @@ public class RecordStreamBuilder
 
         return new SingleTransactionRecord(
                 transaction, transactionRecord, transactionSidecarRecords, new TransactionOutputs(tokenType));
-    }
-
-    @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        // No-op
     }
 
     @Override
