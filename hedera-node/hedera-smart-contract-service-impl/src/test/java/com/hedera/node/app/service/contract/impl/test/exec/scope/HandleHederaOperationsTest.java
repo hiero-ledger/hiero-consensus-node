@@ -40,7 +40,6 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.state.token.Account;
@@ -444,14 +443,13 @@ class HandleHederaOperationsTest {
                 .tokenCreation(TokenCreateTransactionBody.DEFAULT)
                 .build();
         final var nonCryptoCreateInput = SignedTransaction.newBuilder()
-                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(nonCryptoCreateBody))
-                        .build();
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(nonCryptoCreateBody))
+                .build();
         assertThrows(IllegalArgumentException.class, () -> internalFinisher.apply(nonCryptoCreateInput));
 
         // The finisher should propagate any IOExceptions (which should never happen, as only HandleContext is client)
-        final var nonsenseInput = SignedTransaction.newBuilder()
-                .bodyBytes(Bytes.wrap("NONSENSE"))
-                .build();
+        final var nonsenseInput =
+                SignedTransaction.newBuilder().bodyBytes(Bytes.wrap("NONSENSE")).build();
         assertThrows(UncheckedParseException.class, () -> internalFinisher.apply(nonsenseInput));
     }
 
@@ -585,7 +583,8 @@ class HandleHederaOperationsTest {
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.createdContractID(contractId)).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status(any())).willReturn(contractCreateRecordBuilder);
-        given(contractCreateRecordBuilder.signedTx(any(SignedTransaction.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.signedTx(any(SignedTransaction.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);

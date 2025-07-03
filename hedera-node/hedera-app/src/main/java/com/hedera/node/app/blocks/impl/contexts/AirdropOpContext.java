@@ -10,7 +10,6 @@ import com.hedera.node.app.blocks.impl.TranslationContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
 
 /**

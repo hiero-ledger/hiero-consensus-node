@@ -83,7 +83,8 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
         for (final var block : blocks) {
             for (final var item : block.items()) {
                 if (item.hasSignedTransaction()) {
-                    final var txnBody = TransactionParts.from(item.signedTransactionOrThrow()).body();
+                    final var txnBody = TransactionParts.from(item.signedTransactionOrThrow())
+                            .body();
                     if (txnBody.hasFreeze()) {
                         return true;
                     }

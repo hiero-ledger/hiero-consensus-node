@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.support.translators.inputs;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;

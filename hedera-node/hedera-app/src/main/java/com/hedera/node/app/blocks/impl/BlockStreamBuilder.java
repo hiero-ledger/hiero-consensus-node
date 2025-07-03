@@ -559,9 +559,7 @@ public class BlockStreamBuilder
             if (customizer != null) {
                 signedTx = customizer.apply(signedTx);
             }
-            blockItems.add(BlockItem.newBuilder()
-                            .signedTransaction(signedTx)
-                    .build());
+            blockItems.add(BlockItem.newBuilder().signedTransaction(signedTx).build());
         }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
@@ -1340,13 +1338,31 @@ public class BlockStreamBuilder
                         signedTxBytes);
             case FILE_CREATE ->
                 new FileOpContext(
-                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, fileId, signedTxBytes);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        fileId,
+                        signedTxBytes);
             case NODE_CREATE ->
                 new NodeOpContext(
-                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, nodeId, signedTxBytes);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        nodeId,
+                        signedTxBytes);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(
-                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, scheduleId, signedTxBytes);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        scheduleId,
+                        signedTxBytes);
             case CONSENSUS_SUBMIT_MESSAGE ->
                 new SubmitOpContext(
                         memo,
@@ -1392,12 +1408,25 @@ public class BlockStreamBuilder
                         signedTxBytes);
             case TOKEN_CREATE ->
                 new TokenOpContext(
-                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, tokenId, signedTxBytes);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        tokenId,
+                        signedTxBytes);
             case CONSENSUS_CREATE_TOPIC ->
                 new TopicOpContext(
-                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, topicId, signedTxBytes);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        topicId,
+                        signedTxBytes);
             default ->
-                new BaseOpContext(memo, translationContextExchangeRates, transactionId, signedTx, functionality, signedTxBytes);
+                new BaseOpContext(
+                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, signedTxBytes);
         };
     }
 }

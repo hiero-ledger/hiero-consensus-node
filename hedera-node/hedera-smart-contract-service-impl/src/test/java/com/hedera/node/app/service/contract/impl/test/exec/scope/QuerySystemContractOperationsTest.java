@@ -85,8 +85,7 @@ class QuerySystemContractOperationsTest {
     void externalizingResultsAreNoop() {
         assertDoesNotThrow(() -> subject.externalizeResult(
                 ContractFunctionResult.DEFAULT, SUCCESS, SignedTransaction.DEFAULT, EvmTransactionResult.DEFAULT));
-        assertSame(
-                Transaction.DEFAULT, subject.syntheticSignedTxForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
+        assertSame(Transaction.DEFAULT, subject.syntheticSignedTxForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
     }
 
     @Test

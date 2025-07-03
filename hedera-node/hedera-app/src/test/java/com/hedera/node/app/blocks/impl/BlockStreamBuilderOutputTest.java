@@ -22,7 +22,6 @@ import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.BlockItemsTranslator;
 import com.hedera.node.app.spi.records.RecordSource;
-
 import java.util.List;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -42,8 +41,8 @@ class BlockStreamBuilderOutputTest {
             ContractFunctionResult.newBuilder().amount(666L).build();
     private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
             EvmTransactionResult.newBuilder().build();
-    private static final BlockItem SIGNED_TRANSACTION = BlockItem.newBuilder()
-            .signedTransaction(SignedTransaction.DEFAULT).build();
+    private static final BlockItem SIGNED_TRANSACTION =
+            BlockItem.newBuilder().signedTransaction(SignedTransaction.DEFAULT).build();
     private static final BlockItem TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(
                     TransactionResult.newBuilder().transactionFeeCharged(123L).build())

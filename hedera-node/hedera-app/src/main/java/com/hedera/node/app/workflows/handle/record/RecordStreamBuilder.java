@@ -300,7 +300,12 @@ public class RecordStreamBuilder
         logEndTransactionRecord(transactionID, transactionRecord);
 
         return new SingleTransactionRecord(
-                Transaction.newBuilder().signedTransactionBytes(serializedSignedTx).build(), transactionRecord, transactionSidecarRecords, new TransactionOutputs(tokenType));
+                Transaction.newBuilder()
+                        .signedTransactionBytes(serializedSignedTx)
+                        .build(),
+                transactionRecord,
+                transactionSidecarRecords,
+                new TransactionOutputs(tokenType));
     }
 
     @Override

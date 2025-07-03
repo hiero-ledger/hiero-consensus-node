@@ -559,12 +559,10 @@ public class TransactionChecker {
     }
 
     private TransactionInfo check(
-            @NonNull SignedTransaction signedTx,
-            @NonNull SignatureMap signatureMap,
-            @Nullable Bytes serializedSignedTx)
+            @NonNull SignedTransaction signedTx, @NonNull SignatureMap signatureMap, @Nullable Bytes serializedSignedTx)
             throws PreCheckException {
-        final var txBody =
-                parseStrict(signedTx.bodyBytes().toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
+        final var txBody = parseStrict(
+                signedTx.bodyBytes().toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -579,7 +577,8 @@ public class TransactionChecker {
                 throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
             }
         }
-        return checkParsed(new TransactionInfo(signedTx, txBody, signatureMap, signedTx.bodyBytes(), functionality, serializedSignedTx));
+        return checkParsed(new TransactionInfo(
+                signedTx, txBody, signatureMap, signedTx.bodyBytes(), functionality, serializedSignedTx));
     }
 
     /**

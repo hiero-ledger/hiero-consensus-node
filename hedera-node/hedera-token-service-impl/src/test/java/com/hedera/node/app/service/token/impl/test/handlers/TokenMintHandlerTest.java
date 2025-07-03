@@ -23,9 +23,9 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenMintHandler;
@@ -270,7 +270,9 @@ class TokenMintHandlerTest extends CryptoTokenHandlerTestBase {
                 .tokenMint(builder.build())
                 .build();
 
-        final var txn = Transaction.newBuilder().body(txnBody).build();
+        final var txn = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(txnBody))
+                .build();
         recordBuilder.signedTx(txn);
 
         given(handleContext.body()).willReturn(txnBody);

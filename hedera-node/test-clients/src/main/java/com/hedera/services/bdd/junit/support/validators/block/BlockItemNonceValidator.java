@@ -3,18 +3,15 @@ package com.hedera.services.bdd.junit.support.validators.block;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -36,7 +33,8 @@ public class BlockItemNonceValidator implements BlockStreamValidator {
 
     private TransactionID getTransactionIdFromBlockItem(BlockItem item) throws ParseException {
         if (item.hasSignedTransaction()) {
-            TransactionBody body = TransactionBody.PROTOBUF.parse(item.signedTransactionOrThrow().bodyBytes());
+            TransactionBody body = TransactionBody.PROTOBUF.parse(
+                    item.signedTransactionOrThrow().bodyBytes());
             return body.hasTransactionID() ? body.transactionIDOrThrow() : null;
         }
         return null;

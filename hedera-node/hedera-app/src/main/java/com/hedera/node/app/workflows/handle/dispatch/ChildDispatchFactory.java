@@ -19,7 +19,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -485,8 +484,7 @@ public class ChildDispatchFactory {
         requireNonNull(payerId);
         requireNonNull(txBody);
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(txBody);
-        final var signedTx =
-                SignedTransaction.newBuilder().bodyBytes(bodyBytes).build();
+        final var signedTx = SignedTransaction.newBuilder().bodyBytes(bodyBytes).build();
         return new TransactionInfo(
                 signedTx,
                 txBody,

@@ -392,8 +392,8 @@ final class TransactionCheckerTest extends AppTestBase {
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
             when(txInfo.signedTx())
-                    .thenReturn(Transaction.newBuilder()
-                            .signedTransactionBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
                             .build());
             when(txInfo.functionality()).thenReturn(HederaFunctionality.ETHEREUM_TRANSACTION);
 
@@ -422,8 +422,8 @@ final class TransactionCheckerTest extends AppTestBase {
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
             when(txInfo.signedTx())
-                    .thenReturn(Transaction.newBuilder()
-                            .signedTransactionBytes(Bytes.wrap(new byte[1024 * 7]))
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 7]))
                             .build()); // 7 KB
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 

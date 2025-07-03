@@ -57,6 +57,10 @@ public interface TransactionFactory {
         return asByteArray(Transaction.PROTOBUF, tx);
     }
 
+    default byte[] asByteArray(@NonNull final SignedTransaction tx) {
+        return asByteArray(SignedTransaction.PROTOBUF, tx);
+    }
+
     default <R> byte[] asByteArray(@NonNull final Codec<R> codec, @NonNull final R r) {
         try {
             final var byteStream = new ByteArrayOutputStream();

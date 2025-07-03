@@ -20,9 +20,9 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -196,7 +196,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.signedTx()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.payerKey()).willReturn(AN_ED25519_KEY);
@@ -230,7 +230,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.signedTx()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);

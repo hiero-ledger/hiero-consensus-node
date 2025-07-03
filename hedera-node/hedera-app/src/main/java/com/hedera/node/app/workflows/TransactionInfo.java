@@ -47,7 +47,7 @@ public record TransactionInfo(
             @NonNull SignatureMap signatureMap,
             @NonNull Bytes signedBytes,
             @NonNull HederaFunctionality functionality,
-            @Nullable Bytes serializedTransaction) {
+            @Nullable Bytes serializedSignedTx) {
         this(
                 signedTx,
                 txBody,
@@ -56,6 +56,6 @@ public record TransactionInfo(
                 signatureMap,
                 signedBytes,
                 functionality,
-                serializedTransaction);
+                serializedSignedTx);
     }
 }

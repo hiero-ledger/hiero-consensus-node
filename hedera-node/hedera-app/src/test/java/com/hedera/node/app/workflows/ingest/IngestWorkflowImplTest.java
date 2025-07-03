@@ -25,8 +25,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -74,7 +74,7 @@ class IngestWorkflowImplTest extends AppTestBase {
     private final BufferedData responseBuffer = BufferedData.allocate(1024 * 6);
 
     /** The request transaction */
-    private Transaction transaction;
+    private SignedTransaction signedTx;
 
     /** The request transaction body */
     private TransactionBody transactionBody;
@@ -118,9 +118,11 @@ class IngestWorkflowImplTest extends AppTestBase {
         // TODO Mock out the metrics to return objects we can inspect later
 
         // Mock out the onset to always return a valid parsed object
-        transaction = Transaction.newBuilder().body(transactionBody).build();
+        signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(transactionBody))
+                .build();
         final var transactionInfo = new TransactionInfo(
-                transaction,
+                signedTx,
                 transactionBody,
                 SignatureMap.newBuilder().build(),
                 randomBytes(100), // Not used in this test, so random bytes is OK
