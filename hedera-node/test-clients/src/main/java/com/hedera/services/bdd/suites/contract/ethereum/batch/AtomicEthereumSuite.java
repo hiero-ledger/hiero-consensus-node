@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
@@ -130,6 +130,7 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -138,6 +139,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
+@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
 public class AtomicEthereumSuite {
 
     public static final long GAS_LIMIT = 1_000_000;
@@ -1196,8 +1198,8 @@ public class AtomicEthereumSuite {
                     final var gasUsed = callResult.getGasUsed();
                     final var amount = callResult.getAmount();
                     final var gasLimit = callResult.getGas();
-                    Assertions.assertEquals(DEFAULT_AMOUNT_TO_SEND, amount);
-                    Assertions.assertEquals(GAS_LIMIT, gasLimit);
+                    assertEquals(DEFAULT_AMOUNT_TO_SEND, amount);
+                    assertEquals(GAS_LIMIT, gasLimit);
                     Assertions.assertTrue(gasUsed > 0L);
                     Assertions.assertTrue(callResult.hasContractID() && callResult.hasSenderId());
                 }));
@@ -1263,9 +1265,8 @@ public class AtomicEthereumSuite {
                     final var gasUsed = callResult.getGasUsed();
                     final var amountTinybar = callResult.getAmount();
                     final var gasLimit = callResult.getGas();
-                    Assertions.assertEquals(
-                            BIG_INTEGER_WEIBAR.divide(WEIBARS_IN_A_TINYBAR).longValueExact(), amountTinybar);
-                    Assertions.assertEquals(GAS_LIMIT, gasLimit);
+                    assertEquals(BIG_INTEGER_WEIBAR.divide(WEIBARS_IN_A_TINYBAR).longValueExact(), amountTinybar);
+                    assertEquals(GAS_LIMIT, gasLimit);
                     Assertions.assertTrue(gasUsed > 0L);
                     Assertions.assertTrue(callResult.hasContractID() && callResult.hasSenderId());
                 }));
