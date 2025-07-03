@@ -235,6 +235,8 @@ jobs:
           COLOR="#FF0000"
           if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
             COLOR="#00FF00"
+          elif [[ "${{ needs.tck-regression.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
           fi
           cat <<EOF > slack_payload.json
           {
