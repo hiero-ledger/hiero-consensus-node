@@ -10,7 +10,7 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.StatEntry;
 import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.metrics.api.MetricConfig;
-import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
+import com.swirlds.metrics.api.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.AbstractMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

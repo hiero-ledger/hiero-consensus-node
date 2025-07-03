@@ -9,7 +9,7 @@ import static org.assertj.core.data.Offset.offset;
 
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
-import com.swirlds.metrics.api.snapshot.Snapshot;
+import com.swirlds.metrics.api.Snapshot;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;

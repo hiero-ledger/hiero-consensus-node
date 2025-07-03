@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform.prometheus;
 
-import com.swirlds.metrics.api.snapshot.Snapshot;
+import com.swirlds.metrics.api.Snapshot;
 import io.prometheus.client.CollectorRegistry;
 import org.hiero.consensus.model.node.NodeId;
 

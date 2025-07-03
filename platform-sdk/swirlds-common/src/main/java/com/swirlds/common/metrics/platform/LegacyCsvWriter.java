@@ -18,7 +18,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.metrics.api.snapshot.Snapshot;
+import com.swirlds.metrics.api.Snapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
