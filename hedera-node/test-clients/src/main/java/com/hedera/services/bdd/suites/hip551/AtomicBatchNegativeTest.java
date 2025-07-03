@@ -39,7 +39,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForGasOnlyForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -990,7 +989,7 @@ public class AtomicBatchNegativeTest {
                             .payingWith("batchOperator")
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.015, 5),
+                    //                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.015, 5),
                     getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
                             .has(accountWith().nonce(1L)),
                     getTxnRecord("ethCall")

@@ -10,6 +10,7 @@ module com.hedera.node.app.service.util.impl {
     requires transitive javax.inject;
     requires com.hedera.node.config;
     requires com.github.benmanes.caffeine;
+    requires org.apache.commons.lang3;
     requires org.apache.logging.log4j;
 
     exports com.hedera.node.app.service.util.impl.handlers;

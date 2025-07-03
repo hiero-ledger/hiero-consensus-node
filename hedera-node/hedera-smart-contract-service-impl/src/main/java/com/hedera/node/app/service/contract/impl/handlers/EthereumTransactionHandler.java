@@ -44,10 +44,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
+import org.apache.commons.lang3.function.TriConsumer;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
@@ -156,9 +156,10 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
         if (outcome.hasNewSenderNonce()) {
             final var nonceCallback =
-                    context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class);
+                    context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, TriConsumer.class);
             final var newNonce = outcome.newSenderNonceOrThrow();
-            nonceCallback.ifPresent(cb -> cb.accept(outcome.txResult().senderId(), newNonce));
+            nonceCallback.ifPresent(
+                    cb -> cb.accept(ethStreamBuilder, outcome.txResult().senderId(), newNonce));
             ethStreamBuilder.newSenderNonce(newNonce);
         }
         if (ethTxData.hasToAddress()) {
