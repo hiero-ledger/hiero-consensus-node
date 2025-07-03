@@ -1,34 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
-import java.io.IOException;
-import java.util.Objects;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Contains state for a {@link VirtualMap}. This state is stored in memory in the merkle tree as
- * the first (left) child of the VFCMap / {@link VirtualMap}.
+ * Contains state for a {@link VirtualMap}. This state is stored in memory. When an instance of {@link VirtualMap}
+ * is serialized, it's stored as one of the key-value pairs.
  */
-public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
-    public static final long CLASS_ID = 0x9e698c13a408250dL;
-    private static final int CLASS_VERSION = 1;
+public class VirtualMapState {
 
     public static final int MAX_LABEL_CHARS = 512;
-    public static final int MAX_LABEL_LENGTH = MAX_LABEL_CHARS * 3;
 
     /**
-     * The path of the very first leaf in the tree. Can be null if there are no leaves.
+     * The path of the very first leaf in the tree. Can be -1 if there are no leaves.
      */
     private long firstLeafPath;
 
     /**
-     * The path of the very last leaf in the tree. Can be null if there are no leaves.
+     * The path of the very last leaf in the tree. Can be -1 if there are no leaves.
      */
     private long lastLeafPath;
 
@@ -40,30 +34,52 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     /**
      * Create a new {@link VirtualMapState}.
      */
-    public VirtualMapState() {
-        // Only use this constructor for serialization
-        this((String) null);
-    }
-
-    /**
-     * Create a new {@link VirtualMapState}.
-     */
-    public VirtualMapState(String label) {
+    public VirtualMapState(@NonNull final String label) {
+        requireNonNull(label);
         firstLeafPath = -1;
         lastLeafPath = -1;
         this.label = label;
     }
 
     /**
-     * Create a copy of the {@link VirtualMapState}.
-     *
-     * @param source
-     * 		The map state to copy. Cannot be null.
+     * Create a new {@link VirtualMapState}.
      */
-    private VirtualMapState(final VirtualMapState source) {
-        this.firstLeafPath = source.firstLeafPath;
-        this.lastLeafPath = source.lastLeafPath;
-        this.label = source.label;
+    public VirtualMapState(@NonNull final String label, final long stateSize) {
+        requireNonNull(label);
+        if (stateSize == 0) {
+            firstLeafPath = -1;
+            lastLeafPath = -1;
+        } else if (stateSize == 1) {
+            firstLeafPath = 1;
+            lastLeafPath = 1;
+        } else {
+            firstLeafPath = stateSize - 1;
+            lastLeafPath = firstLeafPath + stateSize - 1;
+        }
+        this.label = label;
+    }
+
+    /**
+     * Create a new {@link VirtualMapState} base on an {@link ExternalVirtualMapState} instance.
+     * To be removed with ExternalVirtualMapState.
+     *
+     * @param virtualMapState The map state to copy. Cannot be null.
+     */
+    @Deprecated(forRemoval = true)
+    public VirtualMapState(@NonNull final ExternalVirtualMapState virtualMapState) {
+        requireNonNull(virtualMapState);
+        firstLeafPath = virtualMapState.getFirstLeafPath();
+        lastLeafPath = virtualMapState.getLastLeafPath();
+        label = virtualMapState.getLabel();
+    }
+
+    /**
+     * Copy constructor.
+     */
+    private VirtualMapState(final VirtualMapState virtualMapState) {
+        firstLeafPath = virtualMapState.getFirstLeafPath();
+        lastLeafPath = virtualMapState.getLastLeafPath();
+        label = virtualMapState.getLabel();
     }
 
     /**
@@ -78,10 +94,8 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     /**
      * Set the first leaf path.
      *
-     * @param path
-     * 		The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
-     * @throws IllegalArgumentException
-     * 		If the path is not valid
+     * @param path The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+     * @throws IllegalArgumentException If the path is not valid
      */
     public void setFirstLeafPath(final long path) {
         if (path < 1 && path != Path.INVALID_PATH) {
@@ -105,22 +119,23 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
     /**
      * Set the last leaf path.
      *
-     * @param path
-     * 		The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
-     * @throws IllegalArgumentException
-     * 		If the path is not valid
+     * @param path The new path. Can be {@link Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+     * @throws IllegalArgumentException If the path is not valid
      */
     public void setLastLeafPath(final long path) {
         if (path < 1 && path != Path.INVALID_PATH) {
             throw new IllegalArgumentException("The path must be positive, or INVALID_PATH, but was " + path);
         }
-        if (path < firstLeafPath) {
+        if (path < firstLeafPath && path != Path.INVALID_PATH) {
             throw new IllegalArgumentException("The lastLeafPath must be greater than or equal to the firstLeafPath");
         }
         this.lastLeafPath = path;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
+    /**
+     * Gets the size of the virtual map. The size is defined as the number of leaves in the tree.
+     * @return The size of the virtual map.
+     */
     public long getSize() {
         if (firstLeafPath == -1) {
             return 0;
@@ -129,61 +144,27 @@ public class VirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
         return lastLeafPath - firstLeafPath + 1;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
+    /**
+     * Gets the label for the virtual tree.
+     *
+     * @return The label.
+     */
     public String getLabel() {
         return label;
     }
 
-    // needs to be callable from VirtualMap.java, which is in the parent package.
-    public void setLabel(final String label) {
-        Objects.requireNonNull(label);
+    /**
+     * Sets the label for the virtual tree.  Needed to differentiate between different VirtualMaps.
+     * @param label The new label. Cannot be null or empty. Cannot be longer than 512 characters.
+     */
+    public void setLabel(@NonNull final String label) {
+        requireNonNull(label);
         if (label.length() > MAX_LABEL_CHARS) {
             throw new IllegalArgumentException("Label cannot be greater than 512 characters");
         }
         this.label = label;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return CLASS_VERSION;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        out.writeLong(firstLeafPath);
-        out.writeLong(lastLeafPath);
-
-        out.writeNormalisedString(label);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(final SerializableDataInputStream in, final int version) throws IOException {
-        firstLeafPath = in.readLong();
-        lastLeafPath = in.readLong();
-        label = in.readNormalisedString(MAX_LABEL_LENGTH);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public VirtualMapState copy() {
         return new VirtualMapState(this);
     }

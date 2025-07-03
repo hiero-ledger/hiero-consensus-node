@@ -43,7 +43,6 @@ import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -86,7 +85,7 @@ class SerializationTest extends MerkleTestBase {
         this.config = new TestConfigBuilder()
                 .withSource(new SimpleConfigSource()
                         .withValue(VirtualMapConfig_.FLUSH_INTERVAL, 1 + "")
-                        .withValue(VirtualMapConfig_.COPY_FLUSH_THRESHOLD, 1 + ""))
+                        .withValue(VirtualMapConfig_.COPY_FLUSH_CANDIDATE_THRESHOLD, 1 + ""))
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(CryptoConfig.class)
@@ -150,13 +149,12 @@ class SerializationTest extends MerkleTestBase {
             try {
                 Field vmField = OnDiskReadableKVState.class.getDeclaredField("virtualMap");
                 vmField.setAccessible(true);
-                VirtualMap<?, ?> vm = (VirtualMap<?, ?>) vmField.get(state);
+                VirtualMap vm = (VirtualMap) vmField.get(state);
 
-                final VirtualRootNode<?, ?> root = vm.getRight();
-                if (!vm.isEmpty()) {
-                    root.enableFlush();
+                if (vm.size() > 1) {
+                    vm.enableFlush();
                     vm.release();
-                    root.waitUntilFlushed();
+                    vm.waitUntilFlushed();
                 }
             } catch (IllegalAccessException | NoSuchFieldException | InterruptedException e) {
                 throw new RuntimeException(e);

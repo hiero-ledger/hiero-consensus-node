@@ -130,6 +130,9 @@ class SignedStateFileReadWriteTest {
 
         State state = signedState.getState();
         state.copy().release();
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
+        TestMerkleCryptoFactory.getInstance()
+                .digestTreeSync(signedState.getState().getRoot());
         state.createSnapshot(testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
@@ -182,6 +185,9 @@ class SignedStateFileReadWriteTest {
 
         // make immutable
         signedState.getState().copy().release();
+        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
+        TestMerkleCryptoFactory.getInstance()
+                .digestTreeSync(signedState.getState().getRoot());
 
         writeSignedStateToDisk(
                 platformContext,

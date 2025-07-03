@@ -49,12 +49,14 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.state.tss.TssEncryptionKeys;
 import com.hedera.hapi.node.state.tss.TssMessageMapKey;
 import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
+import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -125,52 +127,50 @@ public class KVStateChangeListener implements StateChangeListener {
     private static <K> MapChangeKey mapChangeKeyFor(@NonNull final K key) {
         return switch (key) {
             case AccountID accountID ->
-                MapChangeKey.newBuilder().accountIdKey(accountID).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.ACCOUNT_ID_KEY, accountID));
             case EntityIDPair entityIDPair ->
-                MapChangeKey.newBuilder()
-                        .tokenRelationshipKey(new TokenAssociation(entityIDPair.tokenId(), entityIDPair.accountId()))
-                        .build();
+                new MapChangeKey(new OneOf<>(
+                        MapChangeKey.KeyChoiceOneOfType.TOKEN_RELATIONSHIP_KEY,
+                        new TokenAssociation(entityIDPair.tokenId(), entityIDPair.accountId())));
             case EntityNumber entityNumber ->
-                MapChangeKey.newBuilder().entityNumberKey(entityNumber.number()).build();
-            case FileID fileID -> MapChangeKey.newBuilder().fileIdKey(fileID).build();
-            case NftID nftID -> MapChangeKey.newBuilder().nftIdKey(nftID).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.ENTITY_NUMBER_KEY, entityNumber.number()));
+            case FileID fileID -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.FILE_ID_KEY, fileID));
+            case NftID nftID -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.NFT_ID_KEY, nftID));
             case ProtoBytes protoBytes ->
-                MapChangeKey.newBuilder().protoBytesKey(protoBytes.value()).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.PROTO_BYTES_KEY, protoBytes.value()));
             case ProtoLong protoLong ->
-                MapChangeKey.newBuilder().protoLongKey(protoLong.value()).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.PROTO_LONG_KEY, protoLong.value()));
             case ProtoString protoString ->
-                MapChangeKey.newBuilder().protoStringKey(protoString.value()).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.PROTO_STRING_KEY, protoString.value()));
             case ScheduleID scheduleID ->
-                MapChangeKey.newBuilder().scheduleIdKey(scheduleID).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.SCHEDULE_ID_KEY, scheduleID));
             case SlotKey slotKey ->
-                MapChangeKey.newBuilder().slotKeyKey(slotKey).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.SLOT_KEY_KEY, slotKey));
             case TokenID tokenID ->
-                MapChangeKey.newBuilder().tokenIdKey(tokenID).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.TOKEN_ID_KEY, tokenID));
             case TopicID topicID ->
-                MapChangeKey.newBuilder().topicIdKey(topicID).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.TOPIC_ID_KEY, topicID));
             case ContractID contractID ->
-                MapChangeKey.newBuilder().contractIdKey(contractID).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CONTRACT_ID_KEY, contractID));
             case PendingAirdropId pendingAirdropId ->
-                MapChangeKey.newBuilder().pendingAirdropIdKey(pendingAirdropId).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.PENDING_AIRDROP_ID_KEY, pendingAirdropId));
             case TimestampSeconds timestampSeconds ->
-                MapChangeKey.newBuilder().timestampSecondsKey(timestampSeconds).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.TIMESTAMP_SECONDS_KEY, timestampSeconds));
             case ScheduledOrder scheduledOrder ->
-                MapChangeKey.newBuilder().scheduledOrderKey(scheduledOrder).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.SCHEDULED_ORDER_KEY, scheduledOrder));
             case TssMessageMapKey tssMessageMapKey ->
-                MapChangeKey.newBuilder().tssMessageMapKey(tssMessageMapKey).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.TSS_MESSAGE_MAP_KEY, tssMessageMapKey));
             case TssVoteMapKey tssVoteMapKey ->
-                MapChangeKey.newBuilder().tssVoteMapKey(tssVoteMapKey).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.TSS_VOTE_MAP_KEY, tssVoteMapKey));
             case HintsPartyId hintsPartyId ->
-                MapChangeKey.newBuilder().hintsPartyIdKey(hintsPartyId).build();
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HINTS_PARTY_ID_KEY, hintsPartyId));
             case PreprocessingVoteId preprocessingVoteId ->
-                MapChangeKey.newBuilder()
-                        .preprocessingVoteIdKey(preprocessingVoteId)
-                        .build();
-            case NodeId nodeId -> MapChangeKey.newBuilder().nodeIdKey(nodeId).build();
+                new MapChangeKey(
+                        new OneOf<>(MapChangeKey.KeyChoiceOneOfType.PREPROCESSING_VOTE_ID_KEY, preprocessingVoteId));
+            case NodeId nodeId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.NODE_ID_KEY, nodeId));
             case ConstructionNodeId constructionNodeId ->
-                MapChangeKey.newBuilder()
-                        .constructionNodeIdKey(constructionNodeId)
-                        .build();
+                new MapChangeKey(
+                        new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CONSTRUCTION_NODE_ID_KEY, constructionNodeId));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());
@@ -179,75 +179,69 @@ public class KVStateChangeListener implements StateChangeListener {
 
     private static <V> MapChangeValue mapChangeValueFor(@NonNull final V value) {
         return switch (value) {
-            case Node node -> MapChangeValue.newBuilder().nodeValue(node).build();
+            case Node node -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_VALUE, node));
             case Account account ->
-                MapChangeValue.newBuilder().accountValue(account).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.ACCOUNT_VALUE, account));
             case AccountID accountID ->
-                MapChangeValue.newBuilder().accountIdValue(accountID).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.ACCOUNT_ID_VALUE, accountID));
             case Bytecode bytecode ->
-                MapChangeValue.newBuilder().bytecodeValue(bytecode).build();
-            case File file -> MapChangeValue.newBuilder().fileValue(file).build();
-            case Nft nft -> MapChangeValue.newBuilder().nftValue(nft).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.BYTECODE_VALUE, bytecode));
+            case File file -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.FILE_VALUE, file));
+            case Nft nft -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NFT_VALUE, nft));
             case ProtoString protoString ->
-                MapChangeValue.newBuilder()
-                        .protoStringValue(protoString.value())
-                        .build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROTO_STRING_VALUE, protoString));
             case Roster roster ->
-                MapChangeValue.newBuilder().rosterValue(roster).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.ROSTER_VALUE, roster));
             case Schedule schedule ->
-                MapChangeValue.newBuilder().scheduleValue(schedule).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.SCHEDULE_VALUE, schedule));
             case ScheduleID scheduleID ->
-                MapChangeValue.newBuilder().scheduleIdValue(scheduleID).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.SCHEDULE_ID_VALUE, scheduleID));
             case ScheduleList scheduleList ->
-                MapChangeValue.newBuilder().scheduleListValue(scheduleList).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.SCHEDULE_LIST_VALUE, scheduleList));
             case SlotValue slotValue ->
-                MapChangeValue.newBuilder().slotValueValue(slotValue).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.SLOT_VALUE_VALUE, slotValue));
             case StakingNodeInfo stakingNodeInfo ->
-                MapChangeValue.newBuilder()
-                        .stakingNodeInfoValue(stakingNodeInfo)
-                        .build();
-            case Token token -> MapChangeValue.newBuilder().tokenValue(token).build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.STAKING_NODE_INFO_VALUE, stakingNodeInfo));
+            case Token token -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.TOKEN_VALUE, token));
             case TokenRelation tokenRelation ->
-                MapChangeValue.newBuilder().tokenRelationValue(tokenRelation).build();
-            case Topic topic -> MapChangeValue.newBuilder().topicValue(topic).build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.TOKEN_RELATION_VALUE, tokenRelation));
+            case Topic topic -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.TOPIC_VALUE, topic));
             case AccountPendingAirdrop accountPendingAirdrop ->
-                MapChangeValue.newBuilder()
-                        .accountPendingAirdropValue(accountPendingAirdrop)
-                        .build();
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.ACCOUNT_PENDING_AIRDROP_VALUE, accountPendingAirdrop));
             case ScheduledCounts scheduledCounts ->
-                MapChangeValue.newBuilder()
-                        .scheduledCountsValue(scheduledCounts)
-                        .build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.SCHEDULED_COUNTS_VALUE, scheduledCounts));
             case ThrottleUsageSnapshots throttleUsageSnapshots ->
-                MapChangeValue.newBuilder()
-                        .throttleUsageSnapshotsValue(throttleUsageSnapshots)
-                        .build();
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.THROTTLE_USAGE_SNAPSHOTS_VALUE, throttleUsageSnapshots));
             case TssMessageTransactionBody tssMessageTransactionBody ->
-                MapChangeValue.newBuilder()
-                        .tssMessageValue(tssMessageTransactionBody)
-                        .build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.TSS_MESSAGE_VALUE, tssMessageTransactionBody));
             case TssVoteTransactionBody tssVoteTransactionBody ->
-                MapChangeValue.newBuilder().tssVoteValue(tssVoteTransactionBody).build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.TSS_VOTE_VALUE, tssVoteTransactionBody));
+            case TssEncryptionKeys tssEncryptionKeys ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.TSS_ENCRYPTION_KEYS_VALUE, tssEncryptionKeys));
             case HintsKeySet hintsKeySet ->
-                MapChangeValue.newBuilder().hintsKeySetValue(hintsKeySet).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.HINTS_KEY_SET_VALUE, hintsKeySet));
             case PreprocessingVote preprocessingVote ->
-                MapChangeValue.newBuilder()
-                        .preprocessingVoteValue(preprocessingVote)
-                        .build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PREPROCESSING_VOTE_VALUE, preprocessingVote));
             case RecordedHistorySignature recordedHistorySignature ->
-                MapChangeValue.newBuilder()
-                        .historySignatureValue(recordedHistorySignature)
-                        .build();
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.HISTORY_SIGNATURE_VALUE, recordedHistorySignature));
             case HistoryProofVote historyProofVote ->
-                MapChangeValue.newBuilder()
-                        .historyProofVoteValue(historyProofVote)
-                        .build();
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.HISTORY_PROOF_VOTE_VALUE, historyProofVote));
             case ProofKeySet proofKeySet ->
-                MapChangeValue.newBuilder().proofKeySetValue(proofKeySet).build();
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROOF_KEY_SET_VALUE, proofKeySet));
             case CrsPublicationTransactionBody crsPublicationTransactionBody ->
-                MapChangeValue.newBuilder()
-                        .crsPublicationValue(crsPublicationTransactionBody)
-                        .build();
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.CRS_PUBLICATION_VALUE, crsPublicationTransactionBody));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());

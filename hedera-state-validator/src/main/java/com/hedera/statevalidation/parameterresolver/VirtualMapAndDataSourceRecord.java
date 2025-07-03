@@ -11,7 +11,7 @@ import com.swirlds.virtualmap.serialize.ValueSerializer;
 public record VirtualMapAndDataSourceRecord<K extends VirtualKey, V extends VirtualValue>(
         String name,
         MerkleDbDataSource dataSource,
-        VirtualMap<K, V> map,
+        VirtualMap map,
         KeySerializer<K> keySerializer,
         ValueSerializer<V> valueSerializer) {
 
