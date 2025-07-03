@@ -602,12 +602,13 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().transactionIDOrThrow(),
                             nextRecord.transactionRecord().receiptOrThrow()));
                 }
-                case BLOCKS -> requireNonNull(outputs).add(((BlockStreamBuilder) builder).build());
+                case BLOCKS ->
+                    requireNonNull(outputs).add(((BlockStreamBuilder) builder).build(builder == baseBuilder));
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
                     records.add(pairedBuilder.recordStreamBuilder().build());
                     requireNonNull(outputs)
-                            .add(pairedBuilder.blockStreamBuilder().build());
+                            .add(pairedBuilder.blockStreamBuilder().build(builder == baseBuilder));
                 }
             }
         }

@@ -6,7 +6,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.transaction.TransactionRecord;
@@ -66,6 +65,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
     /**
      * A main method to run a standalone validation of the block stream against the record stream in this project.
+     *
      * @param args unused
      * @throws IOException if there is an error reading the block or record streams
      */
@@ -123,53 +123,37 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final List<RecordStreamEntry> actualEntries =
                 actualSingleTransactionRecords.stream().map(this::asEntry).toList();
 
-        // <TEMP>
+        // <NEW>
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
-//        final var rfUnits = blocks.stream()
-//                .flatMap(block ->
-//                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
-//                .toList();
-        for (int i = 0, n = blocks.size(); i < n; i++) {
-            final var block = blocks.get(i);
-            final var units = roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts).toList();
-            for (int j = 0, m = units.size(); j < m; j++) {
-                final var unit = units.get(j);
-                try {
-                    rfTranslator.translate(unit);
-                } catch (Exception e) {
-                    System.out.println("BOOP");
-                }
-            }
+        final var roleFreeRecords = blocks.stream()
+                .flatMap(block ->
+                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
+                .flatMap(unit -> rfTranslator.translate(unit).stream())
+                .toList();
+        final var roleFreeEntries = roleFreeRecords.stream().map(this::asEntry).toList();
+        final var roleFreeDiff = new RcDiff(
+                MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, actualEntries, roleFreeEntries, null, System.out);
+        final var roleFreeDiffs = roleFreeDiff.summarizeDiffs();
+        final var rfValidatorSummary = new SummaryBuilder(
+                        MAX_DIFFS_TO_REPORT,
+                        DIFF_INTERVAL_SECONDS,
+                        blocks.size(),
+                        actualEntries.size(),
+                        roleFreeEntries.size(),
+                        numStateChanges.get(),
+                        roleFreeDiffs)
+                .build();
+        if (roleFreeDiffs.isEmpty()) {
+            logger.info("Role-free validation complete. Summary: {}", rfValidatorSummary);
+        } else {
+            final var diffOutput = roleFreeDiff.buildDiffOutput(roleFreeDiffs);
+            final var errorMsg = new StringBuilder()
+                    .append(diffOutput.size())
+                    .append(" differences found between role-based and role-free records");
+            diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
+            Assertions.fail(errorMsg.toString());
         }
-//        final var roleFreeRecords = blocks.stream()
-//                .flatMap(block ->
-//                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
-//                .flatMap(unit -> rfTranslator.translate(unit).stream())
-//                .toList();
-//        final var roleFreeEntries = roleFreeRecords.stream().map(this::asEntry).toList();
-//        final var roleFreeDiff = new RcDiff(
-//                MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, actualEntries, roleFreeEntries, null, System.out);
-//        final var roleFreeDiffs = roleFreeDiff.summarizeDiffs();
-//        final var rfValidatorSummary = new SummaryBuilder(
-//                        MAX_DIFFS_TO_REPORT,
-//                        DIFF_INTERVAL_SECONDS,
-//                        blocks.size(),
-//                        expectedEntries.size(),
-//                        actualEntries.size(),
-//                        numStateChanges.get(),
-//                        roleFreeDiffs)
-//                .build();
-//        if (roleFreeDiffs.isEmpty()) {
-//            logger.info("Validation complete. Summary: {}", rfValidatorSummary);
-//        } else {
-//            final var diffOutput = roleFreeDiff.buildDiffOutput(roleFreeDiffs);
-//            final var errorMsg = new StringBuilder()
-//                    .append(diffOutput.size())
-//                    .append(" differences found between role-based and role-free records");
-//            diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
-//            Assertions.fail(errorMsg.toString());
-//        }
-        // </TEMP>
+        // </NEW>
 
         final var rcDiff = new RcDiff(
                 MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, expectedEntries, actualEntries, null, System.out);

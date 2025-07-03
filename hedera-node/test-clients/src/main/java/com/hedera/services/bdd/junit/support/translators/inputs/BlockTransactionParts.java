@@ -51,7 +51,7 @@ import java.util.Set;
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
-        @NonNull TransactionGroupRole role,
+        @Nullable TransactionGroupRole role,
         @Nullable List<TraceData> traces,
         @Nullable List<TransactionOutput> outputs,
         boolean isTopLevel) {
@@ -64,7 +64,7 @@ public record BlockTransactionParts(
      * @return true if it is a top-level transaction, false otherwise
      */
     public boolean isTopLevel() {
-        return isTopLevel || TOP_LEVEL_ROLES.contains(role);
+        return isTopLevel || (role != null && TOP_LEVEL_ROLES.contains(role));
     }
 
     /**

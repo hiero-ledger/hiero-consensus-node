@@ -552,10 +552,10 @@ public class BlockStreamBuilder
 
     /**
      * Builds the list of block items with their translation contexts.
-     *
+     * @param topLevel if true, indicates the output should always include a following {@link StateChanges} item
      * @return the list of block items
      */
-    public Output build() {
+    public Output build(final boolean topLevel) {
         final var blockItems = new ArrayList<BlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
@@ -590,7 +590,7 @@ public class BlockStreamBuilder
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
                     .build());
         }
-        if (!stateChanges.isEmpty()) {
+        if (!stateChanges.isEmpty() || topLevel) {
             blockItems.add(BlockItem.newBuilder()
                     .stateChanges(StateChanges.newBuilder()
                             .consensusTimestamp(asTimestamp(consensusNow))

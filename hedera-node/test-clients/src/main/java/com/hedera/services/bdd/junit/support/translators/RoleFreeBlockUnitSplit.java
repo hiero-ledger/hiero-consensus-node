@@ -12,7 +12,6 @@ import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
@@ -91,7 +90,7 @@ public class RoleFreeBlockUnitSplit {
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
-                if (hasKvChanges(item.stateChangesOrThrow())) {
+                if (hasKvOrEmptyChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
             } else if (item.hasEventTransaction()) {
@@ -123,13 +122,7 @@ public class RoleFreeBlockUnitSplit {
             // or the only non-inner transaction in a block)
             if (!batchInnerIdxs.contains(i)) {
                 final var nextStateChangeIndex = stateChangeIndexes.higher(i);
-                if (nextStateChangeIndex == null) {
-                    final int resultIndex = requireNonNull(resultIndexes.higher(i));
-                    if (!items.get(resultIndex).transactionResultOrThrow().hasParentConsensusTimestamp()) {
-                        final var txId = getParts.apply(i).transactionIdOrThrow();
-                        topLevelIds.put(i, txId);
-                    }
-                } else {
+                if (nextStateChangeIndex != null) {
                     final int j = requireNonNull(txIndexes.lower(nextStateChangeIndex));
                     if (i == j) {
                         final var txId = getParts.apply(i).transactionIdOrThrow();
@@ -144,7 +137,8 @@ public class RoleFreeBlockUnitSplit {
             for (int k = i; k < j && !done; k++) {
                 final var item = items.get(k);
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES -> txItems.add(item);
+                    case EVENT_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
+                        txItems.add(item);
                     default -> done = true;
                 }
             }
@@ -236,9 +230,9 @@ public class RoleFreeBlockUnitSplit {
         txIndexes.clear();
     }
 
-    private static boolean hasKvChanges(@NonNull final StateChanges stateChanges) {
-        return stateChanges.stateChanges().stream()
-                .anyMatch(change -> change.hasMapUpdate() || change.hasMapDelete());
+    private static boolean hasKvOrEmptyChanges(@NonNull final StateChanges stateChanges) {
+        final var changes = stateChanges.stateChanges();
+        return changes.isEmpty() || changes.stream().anyMatch(change -> change.hasMapUpdate() || change.hasMapDelete());
     }
 
     /**
@@ -273,9 +267,7 @@ public class RoleFreeBlockUnitSplit {
 
         BlockTransactionParts toBlockTransactionParts(boolean isTopLevel) {
             requireNonNull(result);
-            // TODO - remove role
-            return new BlockTransactionParts(
-                    parts, result, TransactionGroupRole.STANDALONE, traces, outputs, isTopLevel);
+            return new BlockTransactionParts(parts, result, null, traces, outputs, isTopLevel);
         }
     }
 }

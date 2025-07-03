@@ -47,7 +47,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 final var derivedBuilder =
                                         resultBuilderFrom(createContractOutput.evmTransactionResultOrThrow());
                                 if (parts.status() == SUCCESS) {
-                                    if (parts.isTopLevel()) {
+                                    if (parts.isTopLevel() || parts.inBatch()) {
                                         // If all sidecars are disabled and there were no logs for a top-level creation,
                                         // for parity we still need to fill in the result with empty logs and implied
                                         // bloom
@@ -66,7 +66,8 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                     final var createdId = createContractOutput
                                             .evmTransactionResultOrThrow()
                                             .contractIdOrThrow();
-                                    baseTranslator.addCreatedEvmAddressTo(derivedBuilder, createdId, remainingStateChanges);
+                                    baseTranslator.addCreatedEvmAddressTo(
+                                            derivedBuilder, createdId, remainingStateChanges);
                                 }
                                 recordBuilder.contractCreateResult(derivedBuilder.build());
                             });
