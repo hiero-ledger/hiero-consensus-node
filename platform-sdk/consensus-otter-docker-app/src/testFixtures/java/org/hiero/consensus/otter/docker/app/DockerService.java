@@ -137,7 +137,8 @@ public final class DockerService extends TestControlGrpc.TestControlImplBase {
     }
 
     @Override
-    public synchronized void killImmediately(final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void killImmediately(
+            final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
         try {
             if (app != null) {
                 app.destroy();
