@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
-import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static java.util.Objects.requireNonNull;
 
@@ -25,14 +21,11 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Groups the block items used to represent a single logical HAPI transaction, which itself may be part of a larger
@@ -51,20 +44,16 @@ import java.util.Set;
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
-        @Nullable TransactionGroupRole role,
         @Nullable List<TraceData> traces,
         @Nullable List<TransactionOutput> outputs,
         boolean isTopLevel) {
-
-    private static Set<TransactionGroupRole> TOP_LEVEL_ROLES =
-            EnumSet.of(STANDALONE, STARTING_PARENT, PARENT, ENDING_PARENT);
 
     /**
      * Returns whether this transaction is a top-level transaction in its group.
      * @return true if it is a top-level transaction, false otherwise
      */
     public boolean isTopLevel() {
-        return isTopLevel || (role != null && TOP_LEVEL_ROLES.contains(role));
+        return isTopLevel;
     }
 
     /**
@@ -191,7 +180,7 @@ public record BlockTransactionParts(
      * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
      */
     public BlockTransactionParts withTransactionParts(final TransactionParts transactionParts) {
-        return new BlockTransactionParts(transactionParts, transactionResult, role, traces, outputs, false);
+        return new BlockTransactionParts(transactionParts, transactionResult, traces, outputs, false);
     }
 
     /**

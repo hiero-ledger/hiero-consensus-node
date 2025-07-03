@@ -317,7 +317,7 @@ public class RoleFreeBlockUnitSplit {
         BlockTransactionParts toBlockTransactionParts(final boolean isTopLevel) {
             // The only absolute requirement is the result is not null
             requireNonNull(result);
-            return new BlockTransactionParts(parts, result, null, traces, outputs, isTopLevel);
+            return new BlockTransactionParts(parts, result, traces, outputs, isTopLevel);
         }
     }
 }
