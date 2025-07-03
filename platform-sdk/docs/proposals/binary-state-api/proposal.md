@@ -23,7 +23,7 @@ Previously, before the [typeless Virtual Map](https://github.com/hiero-ledger/hi
 
 ### Proposed class diagram
 
-![Proposed](state-api-proposed.svg)
+![Proposed](state-api-proposed.png)
 
 ### Java classes
 
