@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import static com.swirlds.virtualmap.internal.merkle.VirtualMapState.MAX_LABEL_CHARS;
+import static com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata.MAX_LABEL_CHARS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,24 +11,24 @@ import com.swirlds.virtualmap.internal.Path;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
 
-class VirtualMapStateTest {
+class VirtualMapMetadataTest {
 
     public static final Random RANDOM = new Random();
 
     @Test
     void testDefaultConstructor() {
-        VirtualMapState state = new VirtualMapState("test");
+        VirtualMapMetadata state = new VirtualMapMetadata("test");
         assertEquals(-1, state.getFirstLeafPath(), "Default firstLeafPath should be -1");
         assertEquals(-1, state.getLastLeafPath(), "Default lastLeafPath should be -1");
         assertEquals(0, state.getSize(), "Size should be 0 when no leaves");
 
-        assertThrows(NullPointerException.class, () -> new VirtualMapState((String) null));
+        assertThrows(NullPointerException.class, () -> new VirtualMapMetadata((String) null));
     }
 
     @Test
     void testConstructorWithLabel() {
         String label = "TestLabel";
-        VirtualMapState state = new VirtualMapState(label);
+        VirtualMapMetadata state = new VirtualMapMetadata(label);
         assertEquals(-1, state.getFirstLeafPath(), "Expected firstLeafPath to be -1 by default");
         assertEquals(-1, state.getLastLeafPath(), "Expected lastLeafPath to be -1 by default");
         assertEquals(label, state.getLabel(), "Expected label to match constructor argument");
@@ -37,7 +37,7 @@ class VirtualMapStateTest {
 
     @Test
     void testValidPaths() {
-        VirtualMapState state = new VirtualMapState("test");
+        VirtualMapMetadata state = new VirtualMapMetadata("test");
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = nextInt(firstLeafPath + 1, firstLeafPath * 2);
         state.setLastLeafPath(lastLeafPath);
@@ -48,7 +48,7 @@ class VirtualMapStateTest {
 
     @Test
     void testInvalidFirstLeafPath() {
-        VirtualMapState state = new VirtualMapState("test");
+        VirtualMapMetadata state = new VirtualMapMetadata("test");
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
         state.setLastLeafPath(lastLeafPath);
@@ -73,7 +73,7 @@ class VirtualMapStateTest {
 
     @Test
     void testInvalidLastLeafPath() {
-        VirtualMapState state = new VirtualMapState("test");
+        VirtualMapMetadata state = new VirtualMapMetadata("test");
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;
         state.setLastLeafPath(lastLeafPath);
@@ -99,7 +99,7 @@ class VirtualMapStateTest {
     @Test
     void testSetLabel() {
         final String initLabel = randomString(RANDOM, 7);
-        VirtualMapState state = new VirtualMapState(initLabel);
+        VirtualMapMetadata state = new VirtualMapMetadata(initLabel);
 
         assertEquals(initLabel, state.getLabel());
 
@@ -118,7 +118,7 @@ class VirtualMapStateTest {
 
     @Test
     void testGetSize() {
-        VirtualMapState state = new VirtualMapState("test");
+        VirtualMapMetadata state = new VirtualMapMetadata("test");
 
         int firstLeafPath = nextInt(1, 100);
         int lastLeafPath = firstLeafPath * 2;

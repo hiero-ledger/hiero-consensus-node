@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
+import static com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema.AIRDROPS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AirDropTransferType.NFT_AIRDROP;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AirDropTransferType.TOKEN_AIRDROP;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AirDropTransferType.TOKEN_AND_NFT_AIRDROP;
@@ -610,7 +611,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         writableAirdropState = emptyWritableAirdropStateBuilder()
                 .value(airdropId, accountAirdrop)
                 .build();
-        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
+        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_KEY))
                 .willReturn(writableAirdropState);
         writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);
@@ -643,7 +644,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         writableAirdropState = emptyWritableAirdropStateBuilder()
                 .value(airdropId, accountAirdrop)
                 .build();
-        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS))
+        given(writableStates.<PendingAirdropId, AccountPendingAirdrop>get(AIRDROPS_KEY))
                 .willReturn(writableAirdropState);
         writableAirdropStore = new WritableAirdropStore(writableStates, writableEntityCounters);
         tokenAirdropHandler = new TokenAirdropHandler(tokenAirdropValidator, validator);

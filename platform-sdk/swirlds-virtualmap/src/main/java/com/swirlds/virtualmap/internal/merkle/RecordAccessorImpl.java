@@ -23,7 +23,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 @SuppressWarnings("rawtypes")
 public class RecordAccessorImpl implements RecordAccessor {
 
-    private final VirtualMapState state;
+    private final VirtualMapMetadata state;
     private final VirtualNodeCache cache;
     private final VirtualDataSource dataSource;
 
@@ -38,7 +38,7 @@ public class RecordAccessorImpl implements RecordAccessor {
      * 		The data source. Can be null.
      */
     public RecordAccessorImpl(
-            @NonNull final VirtualMapState state,
+            @NonNull final VirtualMapMetadata state,
             @NonNull final VirtualNodeCache cache,
             @NonNull final VirtualDataSource dataSource) {
         this.state = Objects.requireNonNull(state);
@@ -50,7 +50,7 @@ public class RecordAccessorImpl implements RecordAccessor {
      * {@inheritDoc}
      */
     @Override
-    public VirtualMapState getState() {
+    public VirtualMapMetadata getState() {
         return state;
     }
 

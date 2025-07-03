@@ -89,7 +89,7 @@ class CompactionInterruptTest {
      * Both are acceptable.
      */
     @ParameterizedTest
-    @ValueSource(ints = {0, 50})
+    @ValueSource(ints = {1, 50})
     void startMergeWhileSnapshottingThenInterrupt(int delayMs) throws Exception {
         runTaskAndCleanThreadLocals(() -> startMergeWhileSnapshottingThenInterruptImpl(delayMs));
     }

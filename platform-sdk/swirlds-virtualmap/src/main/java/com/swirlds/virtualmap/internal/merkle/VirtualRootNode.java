@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.merkle;
 
-import static com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapState.CLASS_ID;
+import static com.swirlds.virtualmap.internal.merkle.ExternalVirtualMapMetadata.CLASS_ID;
 
 import com.swirlds.common.io.ExternalSelfSerializable;
 import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;

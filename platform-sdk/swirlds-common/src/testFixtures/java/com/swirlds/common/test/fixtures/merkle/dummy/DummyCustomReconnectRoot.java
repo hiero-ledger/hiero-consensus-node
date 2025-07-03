@@ -58,7 +58,7 @@ public class DummyCustomReconnectRoot extends DummyMerkleInternal
      * {@inheritDoc}
      */
     @Override
-    public TeacherTreeView<NodeToSend> buildTeacherView(final ReconnectConfig reconnectConfig) {
+    public TeacherTreeView<NodeToSend> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final DummyTeacherPushMerkleTreeView view =

@@ -8,7 +8,6 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
-import com.hedera.node.app.workflows.handle.TransactionType;
 import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
@@ -20,7 +19,6 @@ import java.time.Instant;
 import java.util.function.Consumer;
 
 public record ParentTxn(
-        @NonNull TransactionType type,
         @NonNull HederaFunctionality functionality,
         @NonNull Instant consensusNow,
         @NonNull State state,

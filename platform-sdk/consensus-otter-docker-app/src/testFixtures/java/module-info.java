@@ -12,6 +12,7 @@ module org.hiero.consensus.otter.docker.app {
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.metrics.api;
     requires com.swirlds.state.api;
+    requires com.swirlds.virtualmap;
     requires org.hiero.consensus.utility;
     requires io.grpc.stub;
     requires io.grpc;

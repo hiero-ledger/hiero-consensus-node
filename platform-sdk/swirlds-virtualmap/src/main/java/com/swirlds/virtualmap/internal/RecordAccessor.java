@@ -5,7 +5,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -97,7 +97,7 @@ public interface RecordAccessor {
      *
      * @return The state. This will never be null.
      */
-    VirtualMapState getState();
+    VirtualMapMetadata getState();
 
     /**
      * Gets the cache.

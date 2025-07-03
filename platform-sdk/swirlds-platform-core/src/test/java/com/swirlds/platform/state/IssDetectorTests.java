@@ -48,6 +48,7 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +56,16 @@ import org.junit.jupiter.api.Test;
 class IssDetectorTests extends PlatformTest {
     private static final WeightGenerator WEIGHT_GENERATOR = new GaussianWeightGenerator(100, 50);
     private static final long GENESIS_LAST_FREEZE_ROUND = 0L;
+
+    private SwirldStateManager swirldStateManager;
+
+    @BeforeEach
+    void setUp() {
+        swirldStateManager = mock(SwirldStateManager.class);
+        final MerkleNodeState consensusState = mock(MerkleNodeState.class);
+        when(swirldStateManager.getConsensusState()).thenReturn(consensusState);
+        when(consensusState.getInfoJson()).thenReturn("");
+    }
 
     @Test
     @DisplayName("State reservation is released")
@@ -72,7 +83,12 @@ class IssDetectorTests extends PlatformTest {
 
         final PlatformContext platformContext = createDefaultPlatformContext();
         final IssDetector issDetector = new DefaultIssDetector(
-                platformContext, mock(Roster.class), false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+                platformContext,
+                mock(Roster.class),
+                false,
+                DO_NOT_IGNORE_ROUNDS,
+                GENESIS_LAST_FREEZE_ROUND,
+                swirldStateManager);
 
         issDetector.handleState(stateWrapperForIssDetector);
         assertTrue(stateWrapperForIssDetector.isClosed(), "State passed to the ISS Detector should be closed");
@@ -95,8 +111,8 @@ class IssDetectorTests extends PlatformTest {
 
         final PlatformContext platformContext = createDefaultPlatformContext();
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -223,8 +239,8 @@ class IssDetectorTests extends PlatformTest {
             }
         }
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -320,8 +336,8 @@ class IssDetectorTests extends PlatformTest {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -436,8 +452,8 @@ class IssDetectorTests extends PlatformTest {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -522,8 +538,8 @@ class IssDetectorTests extends PlatformTest {
                 .build();
         final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, roster, false, DO_NOT_IGNORE_ROUNDS, GENESIS_LAST_FREEZE_ROUND, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -601,8 +617,8 @@ class IssDetectorTests extends PlatformTest {
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
 
-        final IssDetector issDetector =
-                new DefaultIssDetector(platformContext, roster, false, 1, GENESIS_LAST_FREEZE_ROUND);
+        final IssDetector issDetector = new DefaultIssDetector(
+                platformContext, roster, false, 1, GENESIS_LAST_FREEZE_ROUND, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 0;
@@ -659,7 +675,8 @@ class IssDetectorTests extends PlatformTest {
                 .roundsNonAncient();
 
         final long latestFreezeRound = 5L;
-        final IssDetector issDetector = new DefaultIssDetector(platformContext, roster, false, 1, latestFreezeRound);
+        final IssDetector issDetector =
+                new DefaultIssDetector(platformContext, roster, false, 1, latestFreezeRound, swirldStateManager);
         final IssDetectorTestHelper issDetectorTestHelper = new IssDetectorTestHelper(issDetector);
 
         long currentRound = 5;
