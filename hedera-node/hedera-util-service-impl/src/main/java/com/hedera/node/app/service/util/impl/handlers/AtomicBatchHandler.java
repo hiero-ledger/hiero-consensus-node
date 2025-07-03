@@ -159,6 +159,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
+        final Map<StreamBuilder, Map<AccountID, Long>> nonceAdjustments = new HashMap<>();
         for (final var txnBytes : txns) {
             // Use the unchecked get because if the transaction is correct, it should be in the cache by now
             final TransactionBody innerTxnBody;
@@ -168,13 +169,11 @@ public class AtomicBatchHandler implements TransactionHandler {
             final var dispatchMetadata = new HandleContext.DispatchMetadata(INNER_TRANSACTION_BYTES, txnBytes);
             final var dispatchOptions = atomicBatchDispatch(
                     payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
-            final Map<StreamBuilder, Map<AccountID, Long>> nonceAdjustments = new HashMap<>();
             if (innerTxnBody.hasEthereumTransaction()) {
                 // record nonce updates for Ethereum transactions, so we can replay them after failure
                 final TriConsumer<StreamBuilder, AccountID, Long> nonceUpdateCallback =
-                        (streamBuilder, accountId, nonce) -> nonceAdjustments
-                                .computeIfAbsent(streamBuilder, k -> new HashMap<>())
-                                .put(accountId, nonce);
+                        (streamBuilder, accountId, nonce) ->
+                                nonceAdjustments.computeIfAbsent(streamBuilder, k -> Map.of(accountId, nonce));
                 dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
                 dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
             }
@@ -235,7 +234,7 @@ public class AtomicBatchHandler implements TransactionHandler {
     /**
      * A {@link FeeCharging} strategy that records all balance adjustments made by the delegate.
      */
-    static class RecordedFeeCharging implements FeeCharging {
+    public static class RecordedFeeCharging implements FeeCharging {
         /**
          * Represents a charge that can be replayed on a {@link Context}.
          */
@@ -254,7 +253,8 @@ public class AtomicBatchHandler implements TransactionHandler {
                 }
             }
 
-            public void replayNonceIncrement(@NonNull final Context ctx, @NonNull AccountID accountID, Long nonce) {
+            public void replayNonceIncrement(
+                    @NonNull final Context ctx, @NonNull final AccountID accountID, final Long nonce) {
                 ctx.replayNonceIncrement(accountID, nonce);
             }
         }
@@ -315,11 +315,6 @@ public class AtomicBatchHandler implements TransactionHandler {
         public Fees charge(@NonNull final Context ctx, @NonNull final Validation validation, @NonNull final Fees fees) {
             final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
             return delegate.charge(recordingContext, validation, fees);
-        }
-
-        @Override
-        public void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements) {
-            delegate.replayNonceIncrement(nonceIncrements);
         }
 
         @Override
@@ -389,7 +384,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             }
 
             @Override
-            public void replayNonceIncrement(AccountID accountID, Long nonce) {
+            public void replayNonceIncrement(final AccountID accountID, final Long nonce) {
                 delegate.replayNonceIncrement(accountID, nonce);
             }
         }

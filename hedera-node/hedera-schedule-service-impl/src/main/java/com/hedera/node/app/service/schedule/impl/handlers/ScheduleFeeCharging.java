@@ -12,7 +12,6 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -54,11 +53,6 @@ public class ScheduleFeeCharging implements FeeCharging {
         requireNonNull(validation);
         requireNonNull(fees);
         return service.baseFeeCharging().charge(ctx, validation, fees.onlyServiceComponent());
-    }
-
-    @Override
-    public void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements) {
-        // No-op, as the schedule service does not handle nonce increments
     }
 
     @Override

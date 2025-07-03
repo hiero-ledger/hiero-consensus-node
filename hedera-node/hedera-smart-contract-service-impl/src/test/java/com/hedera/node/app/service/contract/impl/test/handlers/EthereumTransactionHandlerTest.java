@@ -68,7 +68,7 @@ import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiConsumer;
+import org.apache.commons.lang3.function.TriConsumer;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -441,18 +441,18 @@ class EthereumTransactionHandlerTest {
         givenSenderAccountWithNonce(SIGNER_NONCE);
 
         // Mock the dispatch metadata with a callback
-        final var nonceCallback = mock(BiConsumer.class);
+        final var nonceCallback = mock(TriConsumer.class);
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
         final var optionalCallback = Optional.of(nonceCallback);
         given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
-        given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
+        given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, TriConsumer.class))
                 .willReturn(optionalCallback);
 
         // Execute the handler
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         // Verify the callback was called with the expected arguments
-        verify(nonceCallback).accept(SENDER_ID, SIGNER_NONCE);
+        verify(nonceCallback).accept(recordBuilder, SENDER_ID, SIGNER_NONCE);
         // Verify the stream builder was updated with the new nonce
         verify(recordBuilder).newSenderNonce(SIGNER_NONCE);
     }

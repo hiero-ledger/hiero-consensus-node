@@ -11,7 +11,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Map;
 
 /**
  * A fee charging strategy that validates all scenarios and charges no fees.
@@ -43,11 +42,6 @@ public enum NoopFeeCharging implements FeeCharging {
         requireNonNull(validation);
         requireNonNull(fees);
         return Fees.FREE;
-    }
-
-    @Override
-    public void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements) {
-        // No-op
     }
 
     @Override

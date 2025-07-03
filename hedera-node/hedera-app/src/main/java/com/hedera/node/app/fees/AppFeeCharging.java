@@ -28,7 +28,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.handle.dispatch.ValidationResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -97,11 +96,6 @@ public class AppFeeCharging implements FeeCharging {
             case USER, NODE -> ctx.charge(ctx.payerId(), feesToCharge, ctx.nodeAccountId(), null);
             default -> ctx.charge(ctx.payerId(), feesToCharge, null);
         };
-    }
-
-    @Override
-    public void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements) {
-        // No-op, as the app does not support nonce increments.
     }
 
     @Override

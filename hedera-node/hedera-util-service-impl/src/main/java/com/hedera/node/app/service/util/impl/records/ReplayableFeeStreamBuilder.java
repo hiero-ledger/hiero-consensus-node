@@ -16,5 +16,10 @@ public interface ReplayableFeeStreamBuilder extends StreamBuilder {
      */
     void setReplayedFees(TransferList transferList);
 
-    void setReplayedSenderNonce(long senderNonce);
+    /**
+     * Sets the sender nonce to the value used in the replayed transaction.
+     * @param senderNonce the sender nonce to set
+     * @throws IllegalStateException if the builder has not been rolled back
+     */
+    void setReplayedSenderNonce(final long senderNonce);
 }

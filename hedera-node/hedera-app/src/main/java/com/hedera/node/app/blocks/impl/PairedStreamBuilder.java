@@ -538,7 +538,7 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public CryptoTransferStreamBuilder transferList(@NonNull TransferList hbarTransfers) {
+    public CryptoTransferStreamBuilder transferList(@NonNull final TransferList hbarTransfers) {
         recordStreamBuilder.transferList(hbarTransfers);
         blockStreamBuilder.transferList(hbarTransfers);
         return this;
@@ -551,7 +551,7 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public void setReplayedSenderNonce(long senderNonce) {
+    public void setReplayedSenderNonce(final long senderNonce) {
         newSenderNonce(senderNonce);
     }
 

@@ -108,7 +108,7 @@ public class FeeAccumulator {
      * @param accountID The account whose nonce to set
      * @param nonce The nonce to be set
      */
-    public void replayNonceIncrement(@NonNull AccountID accountID, Long nonce) {
+    public void replayNonceIncrement(@NonNull final AccountID accountID, final Long nonce) {
         requireNonNull(accountID);
         tokenApi.setNonce(accountID, nonce);
     }
