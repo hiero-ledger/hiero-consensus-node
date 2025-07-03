@@ -315,7 +315,7 @@ jobs:
       - name: Report Status to TCK Working Group
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.slack-report-webhook }}
+          webhook: ${{ secrets.slack-tck-report-webhook }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -323,7 +323,7 @@ jobs:
       - name: Report Status to TCK Working Group
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.slack-report-webhook }}
+          webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
