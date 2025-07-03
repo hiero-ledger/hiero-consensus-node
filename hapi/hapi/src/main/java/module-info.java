@@ -56,6 +56,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.node.state.throttles;
     exports com.hedera.hapi.node.state.congestion;
     exports com.hedera.hapi.platform.event;
+    exports com.hedera.hapi.platform.message;
     exports com.hedera.services.stream.proto;
     exports com.hederahashgraph.api.proto.java;
     exports com.hederahashgraph.service.proto.java;
@@ -76,6 +77,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.services.auxiliary.hints;
     exports com.hedera.hapi.services.auxiliary.history;
     exports com.hedera.hapi.platform.event.legacy;
+    exports com.hedera.hapi.platform.message.legacy;
     exports com.hedera.hapi.node.state.entity;
     exports org.hiero.block.api;
     exports org.hiero.block.api.codec;

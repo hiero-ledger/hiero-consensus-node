@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+
+package com.hedera.hapi.platform.message;
+
+option java_package = "com.hedera.hapi.platform.message.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.platform.message">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Information about which tips are known to the peer node.
+ */
+message GossipKnownTips {
+
+  /**
+   * Indicates if given tip from corresponding GossipSyncData is known to the peer<br/>
+   * <br/>
+   * Amount of booleans in that list SHALL be the same as amount of tips sent in GossipSyncData by other node.
+   */
+  repeated bool knownTips = 1;
+
+}
