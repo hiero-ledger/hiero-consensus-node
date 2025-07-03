@@ -32,30 +32,23 @@ import java.util.Optional;
  * transactional unit with parent/child relationships.
  * <p>
  * The transactionParts will be null for the batch inner transaction parts initially, because each batch inner
- * transaction will not be associated with an event transaction. It will be set using {@link #withTransactionParts(TransactionParts)}
+ * transaction will not be associated with an event transaction. It will be set using {@link #withPartsFromBatchParent(TransactionParts)}
  * when the inner transaction is processed.
  *
  * @param transactionParts the parts of the transaction.
  * @param transactionResult the result of processing the transaction
  * @param traces any traces associated with the transaction
  * @param outputs the output of processing the transaction
- * @param isTopLevel
+ * @param isTopLevel whether the transaction is a top-level transaction in its unit
+ * @param hasEnrichedLegacyRecord whether the transaction has an enriched legacy record
  */
 public record BlockTransactionParts(
         @Nullable TransactionParts transactionParts,
         @NonNull TransactionResult transactionResult,
         @Nullable List<TraceData> traces,
         @Nullable List<TransactionOutput> outputs,
-        boolean isTopLevel) {
-
-    /**
-     * Returns whether this transaction is a top-level transaction in its group.
-     * @return true if it is a top-level transaction, false otherwise
-     */
-    public boolean isTopLevel() {
-        return isTopLevel;
-    }
-
+        boolean isTopLevel,
+        boolean hasEnrichedLegacyRecord) {
     /**
      * Returns whether this transaction is part of a batch.
      * @return true if it is part of a batch, false otherwise
@@ -179,8 +172,8 @@ public record BlockTransactionParts(
      * @param transactionParts the transaction parts to set
      * @return a new instance of {@link BlockTransactionParts} with the updated transaction parts
      */
-    public BlockTransactionParts withTransactionParts(final TransactionParts transactionParts) {
-        return new BlockTransactionParts(transactionParts, transactionResult, traces, outputs, false);
+    public BlockTransactionParts withPartsFromBatchParent(@NonNull final TransactionParts transactionParts) {
+        return new BlockTransactionParts(transactionParts, transactionResult, traces, outputs, false, true);
     }
 
     /**

@@ -385,6 +385,13 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        blockStreamBuilder.createdContractIds(contractIds);
+        return this;
+    }
+
+    @NonNull
+    @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
         return this;

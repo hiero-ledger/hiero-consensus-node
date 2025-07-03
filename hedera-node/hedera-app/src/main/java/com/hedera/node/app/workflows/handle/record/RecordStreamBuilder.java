@@ -530,6 +530,12 @@ public class RecordStreamBuilder
         throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
     /**
      * Sets the body to contractCreateResult result.
      *

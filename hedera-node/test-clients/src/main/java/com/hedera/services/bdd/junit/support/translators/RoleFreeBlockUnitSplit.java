@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
+import static com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager.CONTRACT_OPERATIONS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -11,6 +14,7 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
@@ -18,6 +22,7 @@ import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -51,6 +56,8 @@ import org.junit.jupiter.api.Assertions;
  * {@code N+1} top-level transaction, achieving uniqueness via nonce only.
  */
 public class RoleFreeBlockUnitSplit {
+    private static final Set<HederaFunctionality> TRIGGERING_OPS = EnumSet.of(SCHEDULE_CREATE, SCHEDULE_SIGN);
+
     /**
      * Indexes of transactions in the block.
      */
@@ -228,12 +235,43 @@ public class RoleFreeBlockUnitSplit {
                     }
                 }
             }
-            requireNonNull(unitParts).add(pending.toBlockTransactionParts(topLevelIds.containsKey(idx)));
+            requireNonNull(unitParts);
+            final boolean isTopLevel = topLevelIds.containsKey(idx);
+            final boolean usesEnrichedLegacyRecord =
+                    isTopLevel || nextContractOpUsesEnrichedLegacyRecord(unitParts, pending);
+            unitParts.add(pending.toBlockTransactionParts(topLevelIds.containsKey(idx), usesEnrichedLegacyRecord));
         }
         if (unitParts != null) {
             units.add(new BlockTransactionalUnit(unitParts, stateChanges));
         }
         return units;
+    }
+
+    /**
+     * Checks if this is the first contract operation in a unit whose parent was top-level schedule operation.
+     * @param unitSoFar the unit so far, which is a list of {@link BlockTransactionParts}
+     * @param pendingParts the pending parts of the next transaction
+     * @return true if the next contract operation uses enriched legacy record, false otherwise
+     */
+    private boolean nextContractOpUsesEnrichedLegacyRecord(
+            @NonNull final List<BlockTransactionParts> unitSoFar,
+            @NonNull final PendingBlockTransactionParts pendingParts) {
+        if (unitSoFar.isEmpty()) {
+            return false;
+        } else {
+            BlockTransactionParts topLevelParts = null;
+            for (final var parts : unitSoFar) {
+                if (parts.isTopLevel()) {
+                    topLevelParts = parts;
+                    break;
+                }
+            }
+            return topLevelParts != null
+                    && TRIGGERING_OPS.contains(topLevelParts.functionality())
+                    && CONTRACT_OPERATIONS.contains(
+                            requireNonNull(pendingParts.parts).function())
+                    && unitSoFar.stream().noneMatch(parts -> CONTRACT_OPERATIONS.contains(parts.functionality()));
+        }
     }
 
     private void clear() {
@@ -314,10 +352,10 @@ public class RoleFreeBlockUnitSplit {
             traces.add(trace);
         }
 
-        BlockTransactionParts toBlockTransactionParts(final boolean isTopLevel) {
+        BlockTransactionParts toBlockTransactionParts(final boolean isTopLevel, final boolean hasEnrichedLegacyRecord) {
             // The only absolute requirement is the result is not null
             requireNonNull(result);
-            return new BlockTransactionParts(parts, result, traces, outputs, isTopLevel);
+            return new BlockTransactionParts(parts, result, traces, outputs, isTopLevel, hasEnrichedLegacyRecord);
         }
     }
 }
