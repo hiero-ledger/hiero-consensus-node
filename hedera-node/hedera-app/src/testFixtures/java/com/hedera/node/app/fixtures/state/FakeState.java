@@ -6,6 +6,8 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.HederaStateRoot;
+import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
@@ -65,6 +67,11 @@ public class FakeState implements MerkleNodeState {
      */
     public Map<String, Map<String, Object>> getStates() {
         return states;
+    }
+
+    @Override
+    public MerkleNode getRoot() {
+        return new HederaStateRoot().getRoot();
     }
 
     /**
@@ -219,6 +226,10 @@ public class FakeState implements MerkleNodeState {
             @NonNull final String serviceName,
             @NonNull final WritableQueueStateBase<V> queueState,
             @NonNull final StateChangeListener listener) {
+        if (serviceName.equals(RecordCacheService.NAME)
+                && queueState.getStateKey().equals("TransactionRecordQueue")) {
+            return;
+        }
         final var stateId = listener.stateIdFor(serviceName, queueState.getStateKey());
         queueState.registerListener(new QueueChangeListener<>() {
             @Override

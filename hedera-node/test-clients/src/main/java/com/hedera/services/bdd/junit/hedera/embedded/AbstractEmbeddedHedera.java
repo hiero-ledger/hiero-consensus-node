@@ -87,8 +87,6 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected static final PlatformStatusChangeNotification FREEZE_COMPLETE_NOTIFICATION =
             new PlatformStatusChangeNotification(FREEZE_COMPLETE);
 
-    private final boolean blockStreamEnabled;
-
     protected final Map<AccountID, NodeId> nodeIds;
     protected final Map<NodeId, com.hedera.hapi.node.base.AccountID> accountIds;
     protected final AccountID defaultNodeAccountId;
@@ -98,14 +96,21 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final NodeId defaultNodeId;
     protected final AtomicInteger nextNano = new AtomicInteger(0);
     protected final Metrics metrics;
-    protected final Hedera hedera;
-    protected final SemanticVersion version;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     /**
-     * Non-final because a "saved state" may be provided via {@link EmbeddedHedera#restart(FakeState)}.
+     * A trigger for the Hedera platform to use when initializing the state.
+     */
+    protected InitTrigger trigger = GENESIS;
+
+    /**
+     * Non-final because we may re-create state via {@link EmbeddedHedera#restart(FakeState)}.
      */
     protected FakeState state;
+
+    protected Hedera hedera;
+    protected SemanticVersion version;
+    protected boolean blockStreamEnabled;
 
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.HintsServiceFactory} lambda we give the
@@ -151,41 +156,22 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 executorService,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
-        hedera = new Hedera(
-                ConstructableRegistry.getInstance(),
-                FakeServicesRegistry.FACTORY,
-                new FakeServiceMigrator(),
-                this::now,
-                DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
-                (appContext, bootstrapConfig) ->
-                        this.historyService = new FakeHistoryService(appContext, bootstrapConfig),
-                (hints, history, configProvider) ->
-                        this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
-                metrics,
-                new PlatformStateFacade());
-        version = hedera.getSemanticVersion();
-        blockStreamEnabled = hedera.isBlockStreamEnabled();
+        state = new FakeState();
+        rebuildHedera();
         Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
     }
 
     @Override
     public void restart(@NonNull final FakeState state) {
         this.state = requireNonNull(state);
+        rebuildHedera();
+        this.trigger = RESTART;
         start();
     }
 
     @Override
     public void start() {
-        final InitTrigger trigger;
-        if (state == null) {
-            trigger = GENESIS;
-            state = new FakeState();
-        } else {
-            trigger = RESTART;
-        }
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
-
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), GENESIS);
         hedera.init(fakePlatform(), defaultNodeId);
@@ -294,6 +280,30 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
      * @return the fake platform
      */
     protected abstract AbstractFakePlatform fakePlatform();
+
+    /**
+     * Rebuilds the Hedera instance with the current state and configuration.
+     * <p>
+     * <b>Important:</b> Has the side effect of registering commit listeners on the current fake state.
+     */
+    private void rebuildHedera() {
+        hedera = new Hedera(
+                ConstructableRegistry.getInstance(),
+                FakeServicesRegistry.FACTORY,
+                new FakeServiceMigrator(),
+                this::now,
+                DiskStartupNetworks::new,
+                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
+                (appContext, bootstrapConfig) ->
+                        this.historyService = new FakeHistoryService(appContext, bootstrapConfig),
+                (hints, history, configProvider) ->
+                        this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
+                metrics,
+                new PlatformStateFacade(),
+                () -> this.state);
+        version = hedera.getSemanticVersion();
+        blockStreamEnabled = hedera.isBlockStreamEnabled();
+    }
 
     /**
      * Gives a pretend state signature transaction.

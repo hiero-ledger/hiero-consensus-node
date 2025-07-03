@@ -433,7 +433,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
                 metrics,
-                platformStateFacade);
+                platformStateFacade,
+                HederaStateRoot::new);
     }
 
     /**
