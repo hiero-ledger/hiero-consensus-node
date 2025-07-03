@@ -373,6 +373,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                     jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)
                             .noLogging()
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
                             .orUnavailableStatus()));
         }
 
