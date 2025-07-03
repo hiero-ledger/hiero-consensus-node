@@ -96,7 +96,7 @@ public class RoleFreeBlockUnitSplit {
             if (item.hasTransactionResult()) {
                 return null;
             } else {
-                return TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                return TransactionParts.from(item.signedTransactionOrThrow());
             }
         });
 
@@ -107,7 +107,7 @@ public class RoleFreeBlockUnitSplit {
                 if (hasKvOrEmptyChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
-            } else if (item.hasEventTransaction()) {
+            } else if (item.hasSignedTransaction()) {
                 txIndexes.add(i);
             } else if (item.hasTransactionResult()) {
                 resultIndexes.add(i);

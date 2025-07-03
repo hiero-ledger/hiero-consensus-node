@@ -35,14 +35,8 @@ public class BlockItemNonceValidator implements BlockStreamValidator {
     };
 
     private TransactionID getTransactionIdFromBlockItem(BlockItem item) throws ParseException {
-        if (item.hasEventTransaction()) {
-            Bytes txnBytes = Objects.requireNonNull(item.eventTransaction()).applicationTransactionOrThrow();
-            Transaction txn = Transaction.PROTOBUF.parse(txnBytes);
-            // Skip if no transaction body, but still fail on parse errors
-            if (!txn.hasBody()) {
-                return null;
-            }
-            TransactionBody body = txn.bodyOrThrow();
+        if (item.hasSignedTransaction()) {
+            TransactionBody body = TransactionBody.PROTOBUF.parse(item.signedTransactionOrThrow().bodyBytes());
             return body.hasTransactionID() ? body.transactionIDOrThrow() : null;
         }
         return null;

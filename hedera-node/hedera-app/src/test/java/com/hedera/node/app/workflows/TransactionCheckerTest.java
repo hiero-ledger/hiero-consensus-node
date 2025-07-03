@@ -241,7 +241,7 @@ final class TransactionCheckerTest extends AppTestBase {
             final var info = checker.check(transaction, null);
 
             // Then the parsed data is as we expected
-            assertThat(info.transaction()).isEqualTo(tx);
+            assertThat(info.signedTx()).isEqualTo(tx);
             assertThat(info.txBody()).isEqualTo(txBody);
             assertThat(info.signatureMap()).isEqualTo(signatureMap);
             assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -271,7 +271,7 @@ final class TransactionCheckerTest extends AppTestBase {
             final var info = checker.check(transaction, null);
 
             // Then everything works because the deprecated fields are supported
-            assertThat(info.transaction()).isEqualTo(localTx);
+            assertThat(info.signedTx()).isEqualTo(localTx);
             assertThat(info.txBody()).isEqualTo(txBody);
             assertThat(info.signatureMap()).isEqualTo(signatureMap);
             assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -391,7 +391,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .ethereumMaxCallDataSize();
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.transaction())
+            when(txInfo.signedTx())
                     .thenReturn(Transaction.newBuilder()
                             .signedTransactionBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
                             .build());
@@ -421,7 +421,7 @@ final class TransactionCheckerTest extends AppTestBase {
             checker = new TransactionChecker(nodeSelfAccountId, props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.transaction())
+            when(txInfo.signedTx())
                     .thenReturn(Transaction.newBuilder()
                             .signedTransactionBytes(Bytes.wrap(new byte[1024 * 7]))
                             .build()); // 7 KB
@@ -461,7 +461,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var info = checker.check(tx, null);
 
                 // Then the parsed data is as we expected
-                assertThat(info.transaction()).isEqualTo(tx);
+                assertThat(info.signedTx()).isEqualTo(tx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -488,7 +488,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var info = checker.check(localTx, null);
 
                 // Then everything works because the deprecated fields are supported
-                assertThat(info.transaction()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(localTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -537,7 +537,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check
                 final var info = checker.check(localTx, null);
                 // Then the parsed data is as we expected
-                assertThat(info.transaction()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(localTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -563,7 +563,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check
                 final var info = checker.check(localTx, null);
                 // Then the parsed data is as we expected
-                assertThat(info.transaction()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(localTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);

@@ -17,12 +17,12 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.node.app.blocks.BlockItemsTranslator;
 import com.hedera.node.app.spi.records.RecordSource;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+
 import java.util.List;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
@@ -42,11 +42,8 @@ class BlockStreamBuilderOutputTest {
             ContractFunctionResult.newBuilder().amount(666L).build();
     private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
             EvmTransactionResult.newBuilder().build();
-    private static final BlockItem EVENT_TRANSACTION = BlockItem.newBuilder()
-            .eventTransaction(EventTransaction.newBuilder()
-                    .applicationTransaction(Bytes.wrap("MOCK"))
-                    .build())
-            .build();
+    private static final BlockItem SIGNED_TRANSACTION = BlockItem.newBuilder()
+            .signedTransaction(SignedTransaction.DEFAULT).build();
     private static final BlockItem TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(
                     TransactionResult.newBuilder().transactionFeeCharged(123L).build())
@@ -65,9 +62,9 @@ class BlockStreamBuilderOutputTest {
             .stateChanges(new StateChanges(CONSENSUS_TIME, List.of()))
             .build();
     private static final List<BlockItem> ITEMS_NO_OUTPUTS =
-            List.of(EVENT_TRANSACTION, TRANSACTION_RESULT, STATE_CHANGES);
+            List.of(SIGNED_TRANSACTION, TRANSACTION_RESULT, STATE_CHANGES);
     private static final List<BlockItem> ITEMS_WITH_OUTPUTS =
-            List.of(EVENT_TRANSACTION, TRANSACTION_RESULT, FIRST_OUTPUT, SECOND_OUTPUT, STATE_CHANGES);
+            List.of(SIGNED_TRANSACTION, TRANSACTION_RESULT, FIRST_OUTPUT, SECOND_OUTPUT, STATE_CHANGES);
 
     @Mock
     private Consumer<BlockItem> action;

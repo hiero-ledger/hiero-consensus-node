@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -26,6 +26,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.streams.ContractActions;
@@ -60,7 +61,7 @@ public class StreamBuilderTest {
     public static final long TOPIC_RUNNING_HASH_VERSION = 153513L;
     public static final long NEW_TOTAL_SUPPLY = 34134546L;
     public static final String MEMO = "Yo Memo";
-    private @Mock Transaction transaction;
+    private @Mock SignedTransaction signedTx;
     private @Mock TransactionID transactionID;
     private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock ContractFunctionResult contractCallResult;
@@ -70,7 +71,6 @@ public class StreamBuilderTest {
     private @Mock ScheduleID scheduleRef;
     private @Mock AssessedCustomFee assessedCustomFee;
     private @Mock TokenAssociation tokenAssociation;
-    private @Mock Bytes alias;
     private @Mock Bytes ethereumHash;
     private @Mock Bytes prngBytes;
     private @Mock AccountAmount accountAmount;
@@ -103,12 +103,11 @@ public class StreamBuilderTest {
         final List<Long> serialNumbers = List.of(1L, 2L, 3L);
 
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
         singleTransactionRecordBuilder
                 .parentConsensus(PARENT_CONSENSUS_TIME)
-                .transaction(transaction)
-                .transactionBytes(transactionBytes)
+                .signedTx(signedTx)
                 .transactionID(transactionID)
                 .memo(MEMO)
                 .transactionFee(TRANSACTION_FEE)
@@ -152,7 +151,7 @@ public class StreamBuilderTest {
         assertEquals(
                 HapiUtils.asTimestamp(PARENT_CONSENSUS_TIME),
                 singleTransactionRecord.transactionRecord().parentConsensusTimestamp());
-        assertEquals(transaction, singleTransactionRecord.transaction());
+        assertEquals(signedTx, singleTransactionRecord.transaction());
 
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             assertTrue(singleTransactionRecord.transactionRecord().hasPrngBytes());
@@ -235,16 +234,16 @@ public class StreamBuilderTest {
     @Test
     void testTopLevelRecordBuilder() {
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
-        singleTransactionRecordBuilder.transaction(transaction);
+        singleTransactionRecordBuilder.signedTx(signedTx);
 
         assertNull(singleTransactionRecordBuilder.parentConsensusTimestamp());
         assertEquals(ResponseCodeEnum.OK, singleTransactionRecordBuilder.status());
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder.build();
 
-        assertEquals(transaction, singleTransactionRecord.transaction());
+        assertEquals(signedTx, singleTransactionRecord.transaction());
         // Consensus timestamp will be set at end of handle workflow
         assertEquals(
                 Timestamp.DEFAULT, singleTransactionRecord.transactionRecord().consensusTimestamp());
@@ -257,10 +256,10 @@ public class StreamBuilderTest {
     @Test
     void testBuilderWithAddMethods() {
         RecordStreamBuilder singleTransactionRecordBuilder =
-                new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+                new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder
-                .transaction(transaction)
+                .signedTx(signedTx)
                 .addTokenTransferList(tokenTransfer)
                 .addAssessedCustomFee(assessedCustomFee)
                 .addAutomaticTokenAssociation(tokenAssociation)
@@ -271,7 +270,7 @@ public class StreamBuilderTest {
                 .addContractBytecode(contractBytecode, false)
                 .build();
 
-        assertEquals(transaction, singleTransactionRecord.transaction());
+        assertEquals(signedTx, singleTransactionRecord.transaction());
         // Consensus timestamp will be set at end of handle workflow
         assertEquals(
                 Timestamp.DEFAULT, singleTransactionRecord.transactionRecord().consensusTimestamp());

@@ -43,10 +43,11 @@ public interface StreamBuilder {
 
     /**
      * Sets the transaction for this stream item builder.
-     * @param transaction the transaction
+     *
+     * @param signedTx the transaction
      * @return this builder
      */
-    StreamBuilder transaction(@NonNull Transaction transaction);
+    StreamBuilder signedTx(@NonNull SignedTransaction signedTx);
 
     /**
      * Sets the functionality for this stream item builder.
@@ -60,13 +61,7 @@ public interface StreamBuilder {
      * @param serializedTransaction if non-null, the serialized transaction
      * @return this builder
      */
-    StreamBuilder serializedTransaction(@Nullable Bytes serializedTransaction);
-
-    /**
-     * Returns the transaction for this stream item builder.
-     * @return the transaction
-     */
-    Transaction transaction();
+    StreamBuilder serializedSignedTx(@Nullable Bytes serializedTransaction);
 
     /**
      * Returns any ids recorded as having explicit reward situations during the construction of this builder so far.
@@ -187,13 +182,6 @@ public interface StreamBuilder {
     StreamBuilder parentConsensus(@NonNull Instant parentConsensus);
 
     /**
-     * Sets the transaction bytes of this builder.
-     * @param transactionBytes the transaction bytes
-     * @return this builder
-     */
-    StreamBuilder transactionBytes(@NonNull Bytes transactionBytes);
-
-    /**
      * Sets the exchange rate of this builder.
      * @param exchangeRate the exchange rate
      * @return this builder
@@ -207,6 +195,9 @@ public interface StreamBuilder {
      */
     int getNumAutoAssociations();
 
+    /**
+     * @return the functionality of this transaction.
+     */
     HederaFunctionality functionality();
 
     /**
@@ -235,25 +226,27 @@ public interface StreamBuilder {
     }
 
     /**
-     * Convenience method to package as {@link TransactionBody} as a {@link Transaction} whose
+     * Convenience method to package as {@link TransactionBody} as a {@link SignedTransaction} whose
      * {@link SignedTransaction} has an unset {@link SignatureMap}.
+     *
      * @param body the transaction body
      * @return the transaction
      */
-    static Transaction transactionWith(@NonNull final TransactionBody body) {
+    static SignedTransaction signedTxWith(@NonNull final TransactionBody body) {
         requireNonNull(body);
-        return transactionWith(body, null);
+        return signedTxWith(body, null);
     }
 
     /**
      * Convenience method to package a {@link TransactionBody} as a {@link Transaction} whose
      * {@link SignedTransaction} has an empty {@link SignatureMap}.
+     *
      * @param body the transaction body
      * @return the transaction
      */
-    static Transaction nodeTransactionWith(@NonNull final TransactionBody body) {
+    static SignedTransaction nodeSignedTxWith(@NonNull final TransactionBody body) {
         requireNonNull(body);
-        return transactionWith(body, SignatureMap.DEFAULT);
+        return signedTxWith(body, SignatureMap.DEFAULT);
     }
 
     /**
@@ -286,17 +279,10 @@ public interface StreamBuilder {
         IRREVERSIBLE
     }
 
-    private static Transaction transactionWith(
+    private static SignedTransaction signedTxWith(
             @NonNull final TransactionBody body, @Nullable final SignatureMap sigMap) {
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(body);
-        final var signedTransaction = SignedTransaction.newBuilder()
-                .sigMap(sigMap)
-                .bodyBytes(bodyBytes)
-                .build();
-        final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
-        return Transaction.newBuilder()
-                .signedTransactionBytes(signedTransactionBytes)
-                .build();
+        return new SignedTransaction(bodyBytes, sigMap, false);
     }
 
     /**
@@ -312,16 +298,16 @@ public interface StreamBuilder {
      * </ul>
      *
      * <b>IMPORTANT:</b> implementations that suppress the record should throw if they nonetheless receive an
-     * {@link TransactionCustomizer#apply(Object)} call. (With the current scope of this interface, the
-     * provided {@link #SUPPRESSING_TRANSACTION_CUSTOMIZER} can simply be used.)
+     * {@link SignedTxCustomizer#apply(Object)} call. (With the current scope of this interface, the
+     * provided {@link #SUPPRESSING_SIGNED_TX_CUSTOMIZER} can simply be used.)
      */
     @FunctionalInterface
-    interface TransactionCustomizer extends UnaryOperator<Transaction> {
-        TransactionCustomizer NOOP_TRANSACTION_CUSTOMIZER = t -> t;
+    interface SignedTxCustomizer extends UnaryOperator<SignedTransaction> {
+        SignedTxCustomizer NOOP_SIGNED_TX_CUSTOMIZER = t -> t;
 
-        TransactionCustomizer SUPPRESSING_TRANSACTION_CUSTOMIZER = new TransactionCustomizer() {
+        SignedTxCustomizer SUPPRESSING_SIGNED_TX_CUSTOMIZER = new SignedTxCustomizer() {
             @Override
-            public Transaction apply(@NonNull final Transaction transaction) {
+            public SignedTransaction apply(@NonNull final SignedTransaction signedTx) {
                 throw new UnsupportedOperationException(
                         "Will not customize a transaction that should have been suppressed");
             }

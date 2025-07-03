@@ -54,7 +54,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -160,13 +159,13 @@ public class BlockStreamBuilder
     /**
      * The transaction "owning" the stream items we are building.
      */
-    private Transaction transaction;
+    private SignedTransaction signedTx;
     /**
-     * If set, the serialized form of the transaction; if not set, it will be serialized from the transaction.
+     * If set, the serialized form of the SignedTransaction; if not set, it will be serialized from the signedTx.
      * (We already have this pre-serialized when the transaction came from an event.)
      */
     @Nullable
-    private Bytes serializedTransaction;
+    private Bytes signedTxBytes;
 
     // --- Fields used to build the TranslationContext ---
     /**
@@ -407,7 +406,7 @@ public class BlockStreamBuilder
     /**
      * How the transaction should be customized before externalization to the stream.
      */
-    private final TransactionCustomizer customizer;
+    private final SignedTxCustomizer customizer;
 
     /**
      * the total duration of contract operations as calculated using the Hedera ops duration schedule
@@ -424,7 +423,7 @@ public class BlockStreamBuilder
      */
     public BlockStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
         this.reversingBehavior = requireNonNull(reversingBehavior);
         this.customizer = requireNonNull(customizer);
@@ -557,10 +556,11 @@ public class BlockStreamBuilder
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
         if (category != HandleContext.TransactionCategory.BATCH_INNER) {
+            if (customizer != null) {
+                signedTx = customizer.apply(signedTx);
+            }
             blockItems.add(BlockItem.newBuilder()
-                    .eventTransaction(EventTransaction.newBuilder()
-                            .applicationTransaction(getSerializedTransaction())
-                            .build())
+                            .signedTransaction(signedTx)
                     .build());
         }
         blockItems.add(transactionResultBlockItem());
@@ -650,20 +650,14 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public BlockStreamBuilder transaction(@NonNull final Transaction transaction) {
-        this.transaction = requireNonNull(transaction);
+    public BlockStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        this.signedTx = requireNonNull(signedTx);
         return this;
     }
 
     @Override
-    public StreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        this.serializedTransaction = serializedTransaction;
-        return this;
-    }
-
-    @Override
-    @NonNull
-    public BlockStreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
+    public StreamBuilder serializedSignedTx(@Nullable final Bytes signedTxBytes) {
+        this.signedTxBytes = signedTxBytes;
         return this;
     }
 
@@ -683,7 +677,7 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder syncBodyIdFromRecordId() {
-        this.transaction = StreamBuilder.transactionWith(
+        this.signedTx = StreamBuilder.signedTxWith(
                 inProgressBody().copyBuilder().transactionID(transactionId).build());
         return this;
     }
@@ -693,12 +687,6 @@ public class BlockStreamBuilder
     public BlockStreamBuilder memo(@NonNull final String memo) {
         this.memo = requireNonNull(memo);
         return this;
-    }
-
-    @Override
-    @NonNull
-    public Transaction transaction() {
-        return transaction;
     }
 
     @Override
@@ -1226,8 +1214,7 @@ public class BlockStreamBuilder
 
     private TransactionBody inProgressBody() {
         try {
-            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(
-                    transaction.signedTransactionBytes().toReadableSequentialData());
+            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(signedTxBytes);
             return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
@@ -1315,14 +1302,6 @@ public class BlockStreamBuilder
         return builder;
     }
 
-    private Bytes getSerializedTransaction() {
-        if (customizer != null) {
-            transaction = customizer.apply(transaction);
-            return Transaction.PROTOBUF.toBytes(transaction);
-        }
-        return serializedTransaction != null ? serializedTransaction : Transaction.PROTOBUF.toBytes(transaction);
-    }
-
     private BlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
         return BlockItem.newBuilder().transactionOutput(output).build();
     }
@@ -1339,7 +1318,7 @@ public class BlockStreamBuilder
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         contractId,
                         evmAddress.length() > 0 ? evmAddress : null,
@@ -1347,35 +1326,38 @@ public class BlockStreamBuilder
                         stateChanges,
                         senderNonce,
                         evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
-                        ethereumHash);
+                        ethereumHash,
+                        signedTxBytes);
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         accountId,
-                        evmAddress);
+                        evmAddress,
+                        signedTxBytes);
             case FILE_CREATE ->
                 new FileOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, fileId);
+                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, fileId, signedTxBytes);
             case NODE_CREATE ->
                 new NodeOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, nodeId);
+                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, nodeId, signedTxBytes);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, scheduleId);
+                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, scheduleId, signedTxBytes);
             case CONSENSUS_SUBMIT_MESSAGE ->
                 new SubmitOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         runningHash,
                         runningHashVersion,
-                        sequenceNumber);
+                        sequenceNumber,
+                        signedTxBytes);
             case TOKEN_AIRDROP -> {
                 if (!pendingAirdropRecords.isEmpty()) {
                     pendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
@@ -1384,35 +1366,38 @@ public class BlockStreamBuilder
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
-                        pendingAirdropRecords);
+                        pendingAirdropRecords,
+                        signedTxBytes);
             }
             case TOKEN_MINT ->
                 new MintOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         serialNumbers,
-                        newTotalSupply);
+                        newTotalSupply,
+                        signedTxBytes);
             case TOKEN_BURN, TOKEN_ACCOUNT_WIPE ->
                 new SupplyChangeOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
-                        newTotalSupply);
+                        newTotalSupply,
+                        signedTxBytes);
             case TOKEN_CREATE ->
                 new TokenOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, tokenId);
+                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, tokenId, signedTxBytes);
             case CONSENSUS_CREATE_TOPIC ->
                 new TopicOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, topicId);
+                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, topicId, signedTxBytes);
             default ->
-                new BaseOpContext(memo, translationContextExchangeRates, transactionId, transaction, functionality);
+                new BaseOpContext(memo, translationContextExchangeRates, transactionId, signedTx, functionality, signedTxBytes);
         };
     }
 }

@@ -234,23 +234,19 @@ public class TransactionChecker {
         // also verifies that the transaction is not too large.
         checkTransactionDeprecation(tx);
 
-        final Bytes bodyBytes;
-        final SignatureMap signatureMap;
+        final SignedTransaction signedTx;
         if (tx.signedTransactionBytes().length() > 0) {
-            final var signedTransaction = parseStrict(
+            signedTx = parseStrict(
                     tx.signedTransactionBytes().toReadableSequentialData(),
                     SignedTransaction.PROTOBUF,
                     INVALID_TRANSACTION);
-            bodyBytes = signedTransaction.bodyBytes();
-            signatureMap = signedTransaction.sigMap();
         } else {
-            bodyBytes = tx.bodyBytes();
-            signatureMap = tx.sigMap();
+            signedTx = new SignedTransaction(tx.bodyBytes(), tx.sigMap(), true);
         }
-        if (signatureMap == null) {
+        if (!signedTx.hasSigMap()) {
             throw new PreCheckException(INVALID_TRANSACTION_BODY);
         }
-        return check(tx, bodyBytes, signatureMap, serializedTx);
+        return check(signedTx, signedTx.sigMapOrThrow(), serializedTx);
     }
 
     /**
@@ -289,10 +285,7 @@ public class TransactionChecker {
     @NonNull
     public TransactionInfo checkSigned(@NonNull final SignedTransaction signedTx, @NonNull Bytes serializedSignedTx)
             throws PreCheckException {
-        final var tx = Transaction.newBuilder()
-                .signedTransactionBytes(serializedSignedTx)
-                .build();
-        return check(tx, signedTx.bodyBytes(), signedTx.sigMap(), null);
+        return check(signedTx, signedTx.sigMapOrThrow(), serializedSignedTx);
     }
 
     public TransactionInfo checkParsed(@NonNull final TransactionInfo txInfo) throws PreCheckException {
@@ -379,7 +372,7 @@ public class TransactionChecker {
         final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
 
         if (jumboTxnEnabled
-                && txInfo.transaction().protobufSize() > hederaConfig.transactionMaxBytes()
+                && txInfo.signedTx().protobufSize() > hederaConfig.transactionMaxBytes()
                 && !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
                 && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality())) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
@@ -566,13 +559,12 @@ public class TransactionChecker {
     }
 
     private TransactionInfo check(
-            @NonNull Transaction tx,
-            @NonNull Bytes bodyBytes,
+            @NonNull SignedTransaction signedTx,
             @NonNull SignatureMap signatureMap,
-            @Nullable Bytes serializedTx)
+            @Nullable Bytes serializedSignedTx)
             throws PreCheckException {
         final var txBody =
-                parseStrict(bodyBytes.toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
+                parseStrict(signedTx.bodyBytes().toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -587,7 +579,7 @@ public class TransactionChecker {
                 throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
             }
         }
-        return checkParsed(new TransactionInfo(tx, txBody, signatureMap, bodyBytes, functionality, serializedTx));
+        return checkParsed(new TransactionInfo(signedTx, txBody, signatureMap, signedTx.bodyBytes(), functionality, serializedSignedTx));
     }
 
     /**

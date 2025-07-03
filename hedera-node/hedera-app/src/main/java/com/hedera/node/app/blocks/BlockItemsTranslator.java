@@ -138,7 +138,7 @@ public class BlockItemsTranslator {
         final var recordBuilder = TransactionRecord.newBuilder()
                 .transactionID(context.txnId())
                 .memo(context.memo())
-                .transactionHash(context.transactionHash())
+                .transactionHash(context.serializedSignedTx())
                 .consensusTimestamp(result.consensusTimestamp())
                 .parentConsensusTimestamp(result.parentConsensusTimestamp())
                 .scheduleRef(result.scheduleRef())

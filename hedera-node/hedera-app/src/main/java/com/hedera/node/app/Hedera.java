@@ -15,7 +15,7 @@ import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_ST
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeTransactionWith;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -43,6 +43,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -817,7 +818,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             if (!allowList.contains(function)) {
                 throw new IllegalArgumentException("" + NOT_SUPPORTED);
             }
-            final var payload = com.hedera.hapi.node.base.Transaction.PROTOBUF.toBytes(nodeTransactionWith(body));
+            final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             requireNonNull(daggerApp).submissionManager().submit(body, payload);
         } catch (PreCheckException e) {
             final var reason = e.responseCode();

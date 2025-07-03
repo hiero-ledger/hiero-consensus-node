@@ -6,11 +6,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Base interface for objects that have extra context needed to easily translate a {@link TransactionResult} and,
@@ -37,9 +38,10 @@ public interface TranslationContext {
 
     /**
      * Returns the transaction itself.
+     *
      * @return the transaction
      */
-    Transaction transaction();
+    SignedTransaction signedTx();
 
     /**
      * Returns the functionality of the transaction.
@@ -51,14 +53,6 @@ public interface TranslationContext {
      * Returns the hash of the transaction.
      * @return the hash
      */
-    default Bytes transactionHash() {
-        final Bytes transactionBytes;
-        final var txn = transaction();
-        if (txn.signedTransactionBytes().length() > 0) {
-            transactionBytes = txn.signedTransactionBytes();
-        } else {
-            transactionBytes = Transaction.PROTOBUF.toBytes(txn);
-        }
-        return Bytes.wrap(noThrowSha384HashOf(transactionBytes.toByteArray()));
-    }
+    @Nullable
+    Bytes serializedSignedTx();
 }

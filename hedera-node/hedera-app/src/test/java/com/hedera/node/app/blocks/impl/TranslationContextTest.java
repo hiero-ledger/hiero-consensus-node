@@ -26,9 +26,9 @@ class TranslationContextTest {
                 Transaction.newBuilder()
                         .signedTransactionBytes(signedTransactionBytes)
                         .build(),
-                HederaFunctionality.NONE);
+                HederaFunctionality.NONE, );
 
-        assertEquals(Bytes.wrap(noThrowSha384HashOf(signedTransactionBytes.toByteArray())), subject.transactionHash());
+        assertEquals(Bytes.wrap(noThrowSha384HashOf(signedTransactionBytes.toByteArray())), subject.serializedSignedTx());
     }
 
     @Test
@@ -36,8 +36,8 @@ class TranslationContextTest {
         final var transactionBytes = Transaction.PROTOBUF.toBytes(Transaction.DEFAULT);
 
         final var subject = new BaseOpContext(
-                "", ExchangeRateSet.DEFAULT, TransactionID.DEFAULT, Transaction.DEFAULT, HederaFunctionality.NONE);
+                "", ExchangeRateSet.DEFAULT, TransactionID.DEFAULT, Transaction.DEFAULT, HederaFunctionality.NONE, );
 
-        assertEquals(Bytes.wrap(noThrowSha384HashOf(transactionBytes.toByteArray())), subject.transactionHash());
+        assertEquals(Bytes.wrap(noThrowSha384HashOf(transactionBytes.toByteArray())), subject.serializedSignedTx());
     }
 }

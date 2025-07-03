@@ -2410,9 +2410,8 @@ public class UtilVerbs {
             final var items = block.items();
             for (int i = 0, n = items.size(); i < n; i++) {
                 final var item = items.get(i);
-                if (item.hasEventTransaction()) {
-                    final var parts =
-                            TransactionParts.from(item.eventTransactionOrThrow().applicationTransactionOrThrow());
+                if (item.hasSignedTransaction()) {
+                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
                     if (parts.transactionIdOrThrow().equals(executionTxnId)) {
                         for (int j = i + 1; j < n; j++) {
                             final var followingItem = items.get(j);

@@ -13,7 +13,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.IRREVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -134,7 +134,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final SavepointStackImpl root,
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final TransactionCategory category,
-            @NonNull final StreamBuilder.TransactionCustomizer customizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer,
             @NonNull final StreamMode streamMode) {
         return new SavepointStackImpl(root, reversingBehavior, category, customizer, streamMode);
     }
@@ -163,7 +163,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         presetIdsAllowed = true;
         noncesToSkipPerPresetId = maxBuildersBeforeUser + maxBuildersAfterUser;
         setupFirstSavepoint(USER);
-        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_TRANSACTION_CUSTOMIZER, streamMode, true);
+        baseBuilder = peek().createBuilder(REVERSIBLE, USER, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, true);
         this.streamMode = requireNonNull(streamMode);
     }
 
@@ -181,7 +181,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final SavepointStackImpl parent,
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final TransactionCategory category,
-            @NonNull final StreamBuilder.TransactionCustomizer customizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer,
             @NonNull final StreamMode streamMode) {
         requireNonNull(reversingBehavior);
         requireNonNull(customizer);
@@ -461,7 +461,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createRemovableChildBuilder() {
-        return peek().createBuilder(REMOVABLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
+        return peek().createBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -470,7 +470,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createReversibleChildBuilder() {
-        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
+        return peek().createBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
     }
 
     /**
@@ -479,7 +479,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
-        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_TRANSACTION_CUSTOMIZER, streamMode, false);
+        return peek().createBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode, false);
     }
 
     /**

@@ -18,7 +18,7 @@ import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletionsTest.asTxn;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -274,7 +274,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     private static final TransactionBody txBody = asTxn(transferBody, payerId, CONSENSUS_NOW);
     private final Configuration configuration = HederaTestConfigBuilder.createConfig();
     private final RecordStreamBuilder childRecordBuilder =
-            new RecordStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER);
+            new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
     private final TransactionBody txnBodyWithoutId = TransactionBody.newBuilder()
             .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.DEFAULT)
             .build();

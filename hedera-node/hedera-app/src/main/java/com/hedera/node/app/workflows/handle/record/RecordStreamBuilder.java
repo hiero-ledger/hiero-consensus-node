@@ -3,7 +3,7 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTransactionRecord;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -141,9 +141,9 @@ public class RecordStreamBuilder
     private static final Comparator<PendingAirdropRecord> PENDING_AIRDROP_RECORD_COMPARATOR =
             Comparator.comparing(PendingAirdropRecord::pendingAirdropIdOrThrow, PENDING_AIRDROP_ID_COMPARATOR);
     // base transaction data
-    private Transaction transaction;
+    private SignedTransaction signedTx;
 
-    private Bytes transactionBytes = Bytes.EMPTY;
+    private Bytes serializedSignedTx = Bytes.EMPTY;
     // fields needed for TransactionRecord
     // Mutable because the provisional consensus timestamp assigned on dispatch could
     // change when removable records appear "between" this record and the parent record
@@ -195,7 +195,7 @@ public class RecordStreamBuilder
     // Used to customize the externalized form of a dispatched child transaction, right before
     // its record stream item is built; lets the contract service externalize certain dispatched
     // CryptoCreate transactions as ContractCreate synthetic transactions
-    private final TransactionCustomizer customizer;
+    private final SignedTxCustomizer customizer;
 
     private TokenID tokenID;
     private ScheduleID scheduleID;
@@ -211,7 +211,7 @@ public class RecordStreamBuilder
 
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final TransactionCategory category) {
         this.consensusNow = Instant.EPOCH;
         this.reversingBehavior = requireNonNull(reversingBehavior, "reversingBehavior must not be null");
@@ -225,9 +225,9 @@ public class RecordStreamBuilder
      * @return the transaction record
      */
     public SingleTransactionRecord build() {
-        if (customizer != NOOP_TRANSACTION_CUSTOMIZER) {
-            transaction = customizer.apply(transaction);
-            transactionBytes = transaction.signedTransactionBytes();
+        if (customizer != NOOP_SIGNED_TX_CUSTOMIZER) {
+            signedTx = customizer.apply(signedTx);
+            serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
         }
         final var builder = transactionReceiptBuilder.serialNumbers(serialNumbers);
         // FUTURE : In mono-service exchange rate is not set in preceding child records.
@@ -240,7 +240,7 @@ public class RecordStreamBuilder
         final Bytes transactionHash;
         try {
             final MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            transactionHash = Bytes.wrap(digest.digest(transactionBytes.toByteArray()));
+            transactionHash = Bytes.wrap(digest.digest(serializedSignedTx.toByteArray()));
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -300,7 +300,7 @@ public class RecordStreamBuilder
         logEndTransactionRecord(transactionID, transactionRecord);
 
         return new SingleTransactionRecord(
-                transaction, transactionRecord, transactionSidecarRecords, new TransactionOutputs(tokenType));
+                Transaction.newBuilder().signedTransactionBytes(serializedSignedTx).build(), transactionRecord, transactionSidecarRecords, new TransactionOutputs(tokenType));
     }
 
     @Override
@@ -360,30 +360,19 @@ public class RecordStreamBuilder
     /**
      * Sets the transaction.
      *
-     * @param transaction the transaction
+     * @param signedTx the transaction
      * @return the builder
      */
     @Override
     @NonNull
-    public RecordStreamBuilder transaction(@NonNull final Transaction transaction) {
-        this.transaction = requireNonNull(transaction, "transaction must not be null");
+    public RecordStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        this.signedTx = requireNonNull(signedTx, "transaction must not be null");
         return this;
     }
 
     @Override
-    public StreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        return this;
-    }
-
-    /**
-     * Sets the transaction bytes that will be used to compute the transaction hash.
-     *
-     * @param transactionBytes the transaction bytes
-     * @return the builder
-     */
-    @NonNull
-    public RecordStreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
-        this.transactionBytes = requireNonNull(transactionBytes, "transactionBytes must not be null");
+    public StreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        this.serializedSignedTx = serializedSignedTx;
         return this;
     }
 
@@ -419,8 +408,8 @@ public class RecordStreamBuilder
         final var newTransactionID = transactionID;
         final var body =
                 inProgressBody().copyBuilder().transactionID(newTransactionID).build();
-        this.transaction = StreamBuilder.transactionWith(body);
-        this.transactionBytes = transaction.signedTransactionBytes();
+        this.signedTx = StreamBuilder.signedTxWith(body);
+        this.serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(this.signedTx);
         return this;
     }
 
@@ -439,16 +428,6 @@ public class RecordStreamBuilder
 
     // ------------------------------------------------------------------------------------------------------------------------
     // fields needed for TransactionRecord
-
-    /**
-     * Gets the transaction object.
-     *
-     * @return the transaction object
-     */
-    @NonNull
-    public Transaction transaction() {
-        return transaction;
-    }
 
     /**
      * Gets the parent consensus instant.
@@ -713,7 +692,7 @@ public class RecordStreamBuilder
      * Sets the ethereum hash.
      *
      * @param ethereumHash the ethereum hash
-     * @param hydratedFromFile
+     * @param hydratedFromFile if the ethereum hash was hydrated from file
      * @return the builder
      */
     @NonNull
@@ -1233,9 +1212,7 @@ public class RecordStreamBuilder
      */
     private TransactionBody inProgressBody() {
         try {
-            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(
-                    transaction.signedTransactionBytes().toReadableSequentialData());
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }

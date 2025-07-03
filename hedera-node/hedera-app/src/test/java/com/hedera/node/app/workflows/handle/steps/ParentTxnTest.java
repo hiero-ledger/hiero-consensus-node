@@ -196,7 +196,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(Transaction.DEFAULT);
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.payerKey()).willReturn(AN_ED25519_KEY);
@@ -230,7 +230,7 @@ class ParentTxnTest {
                 .willReturn(TransactionBody.newBuilder()
                         .transactionID(TransactionID.DEFAULT)
                         .build());
-        given(txnInfo.transaction()).willReturn(Transaction.DEFAULT);
+        given(txnInfo.signedTx()).willReturn(Transaction.DEFAULT);
         given(txnInfo.signatureMap()).willReturn(SignatureMap.DEFAULT);
         given(preHandleResult.getVerificationResults()).willReturn(emptyMap());
         given(preHandleResult.txnInfoOrThrow()).willReturn(txnInfo);
