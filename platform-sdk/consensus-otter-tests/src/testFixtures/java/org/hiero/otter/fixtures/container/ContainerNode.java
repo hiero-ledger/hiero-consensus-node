@@ -38,6 +38,7 @@ import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
+import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
@@ -136,7 +137,6 @@ public class ContainerNode extends AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from submitTransaction
     public void submitTransaction(@NonNull final byte[] transaction) {
         throwIfIn(INIT, "Node has not been started yet.");
         throwIfIn(SHUTDOWN, "Node has been shut down.");
@@ -147,7 +147,10 @@ public class ContainerNode extends AbstractNode implements Node {
                     .setPayload(ByteString.copyFrom(transaction))
                     .build();
 
-            blockingStub.submitTransaction(request);
+            final TransactionRequestAnswer answer = blockingStub.submitTransaction(request);
+            if (!answer.getResult()) {
+                fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
+            }
         } catch (final Exception e) {
             log.error("Failed to submit transaction to node {}", selfId, e);
         }
