@@ -41,7 +41,7 @@ jobs:
   # Execute TCK Regression Tests using specified version of hiero-consensus-node
   tck-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
@@ -217,7 +217,7 @@ jobs:
 
   report-tck-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-citr-linux-medium
     needs: tck-regression
     if: ${{ always() }}
     steps:

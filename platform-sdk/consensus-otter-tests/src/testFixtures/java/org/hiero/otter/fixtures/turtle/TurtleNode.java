@@ -31,7 +31,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -83,7 +82,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final PlatformStatusChangeListener platformStatusChangeListener;
     private final AsyncNodeActions asyncNodeActions = new TurtleAcyncNodeActions();
 
     private PlatformContext platformContext;
@@ -130,11 +128,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(outputDirectory);
             this.resultsCollector = new NodeResultsCollector(selfId);
-            this.platformStatusChangeListener = data -> {
-                final PlatformStatus newStatus = data.getNewStatus();
-                TurtleNode.this.platformStatus = newStatus;
-                resultsCollector.addPlatformStatus(newStatus);
-            };
 
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
@@ -372,14 +365,22 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
         platformWiring
                 .getConsensusEngineOutputWire()
-                .solderTo("nodeResultCollector", "consensusRounds", resultsCollector::addConsensusRounds);
+                .solderTo("nodeConsensusRoundsCollector", "consensusRounds", resultsCollector::addConsensusRounds);
+
+        platformWiring
+                .getStatusStateMachineOutputWire()
+                .solderTo("nodePlatformStatusCollector", "platformStatus", this::handlePlatformStatusChange);
 
         platform = platformComponentBuilder.build();
         platformStatus = PlatformStatus.STARTING_UP;
-        platform.getNotificationEngine().register(PlatformStatusChangeListener.class, platformStatusChangeListener);
         platform.start();
 
         lifeCycle = RUNNING;
+    }
+
+    private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
+        this.platformStatus = requireNonNull(platformStatus);
+        resultsCollector.addPlatformStatus(platformStatus);
     }
 
     /**

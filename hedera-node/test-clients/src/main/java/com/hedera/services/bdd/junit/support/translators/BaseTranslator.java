@@ -847,11 +847,9 @@ public class BaseTranslator {
                     final var value = mapUpdate.valueOrThrow();
                     if (value.hasNodeValue()) {
                         final long nodeId = key.entityNumberKeyOrThrow();
-                        if (nodeId > highestKnownNodeId) {
-                            nextCreatedNums
-                                    .computeIfAbsent(NODE, ignore -> new LinkedList<>())
-                                    .add(nodeId);
-                        }
+                        nextCreatedNums
+                                .computeIfAbsent(NODE, ignore -> new LinkedList<>())
+                                .add(nodeId);
                     }
                 } else if (key.hasNftIdKey()) {
                     final var nftId = key.nftIdKeyOrThrow();
