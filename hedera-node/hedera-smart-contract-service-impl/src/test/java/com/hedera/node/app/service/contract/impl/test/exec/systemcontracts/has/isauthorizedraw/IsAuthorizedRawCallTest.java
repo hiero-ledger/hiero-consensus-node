@@ -16,15 +16,19 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.signature;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall;
@@ -32,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauth
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
@@ -133,6 +138,147 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         final var v = subject.reverseV(ecSig);
         if (expectedV == null) assertTrue(v.isEmpty());
         else assertEquals(expectedV, v.get());
+    }
+
+    @Test
+    void formatEcrecoverInputHandlesInvalidInput() {
+        subject = getSubject(mock(Address.class));
+
+        assertFalse(subject.formatEcrecoverInput(new byte[31], new byte[65]).isPresent());
+        assertFalse(subject.formatEcrecoverInput(new byte[33], new byte[65]).isPresent());
+
+        assertFalse(subject.formatEcrecoverInput(new byte[32], new byte[63]).isPresent());
+        assertFalse(subject.formatEcrecoverInput(new byte[32], new byte[64]).isPresent());
+
+        assertTrue(subject.formatEcrecoverInput(new byte[32], new byte[65]).isPresent());
+    }
+
+    @Test
+    void reverseVHandlesValidAndInvalidValues() {
+        subject = getSubject(mock(Address.class));
+
+        final var sig = new byte[65];
+        sig[64] = 27;
+        assertEquals((byte) 27, subject.reverseV(sig).orElseThrow());
+
+        sig[64] = 28;
+        assertEquals((byte) 28, subject.reverseV(sig).orElseThrow());
+
+        sig[64] = 30;
+        assertTrue(subject.reverseV(sig).isEmpty());
+    }
+
+    @Test
+    void validateEdSignatureSucceedsForValidSignature() {
+        final var account = mock(Account.class);
+        final var key = mock(Key.class);
+
+        subject = getSubject(mock(Address.class));
+
+        given(key.ed25519OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+        given(signatureVerifier.verifySignature(
+                eq(key),
+                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                eq(SignatureVerifier.MessageType.RAW),
+                any(),
+                any()))
+                .willReturn(true);
+
+        final var result = subject.validateEdSignature(account, key);
+
+        assertTrue(result, "Expected ED25519 signature validation to succeed");
+    }
+
+    @Test
+    void validateEdSignatureFailsForInvalidSignature() {
+        final var account = mock(Account.class);
+        final var key = mock(Key.class);
+
+        subject = getSubject(mock(Address.class));
+
+        given(key.ed25519OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+        given(signatureVerifier.verifySignature(
+                eq(key),
+                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                eq(SignatureVerifier.MessageType.RAW),
+                any(),
+                any()))
+                .willReturn(false);
+
+        final var result = subject.validateEdSignature(account, key);
+
+        assertFalse(result, "Expected ED25519 signature validation to fail");
+    }
+
+    @Test
+    void validateEdSignatureThrowsExceptionForMissingKey() {
+        final var account = mock(Account.class);
+
+        assertThrows(NullPointerException.class, () -> subject.validateEdSignature(account, null));
+    }
+
+    @Test
+    void validateEcSignatureSucceedsForValidSignature() {
+        final var account = mock(Account.class);
+        final var key = mock(Key.class);
+
+        subject = getSubject(mock(Address.class));
+
+        given(account.key()).willReturn(key);
+        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+
+        given(signatureVerifier.verifySignature(
+                eq(key),
+                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
+                any(),
+                any()))
+                .willReturn(true);
+
+        final var result = subject.validateEcSignature(account);
+
+        assertTrue(result, "Expected ECDSA signature validation to succeed");
+    }
+
+    @Test
+    void validateEcSignatureFailsForInvalidSignature() {
+        final var account = mock(Account.class);
+        final var key = mock(Key.class);
+
+        subject = getSubject(mock(Address.class));
+
+        given(account.key()).willReturn(key);
+        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+
+        given(signatureVerifier.verifySignature(
+                eq(key),
+                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
+                any(),
+                any()))
+                .willReturn(false);
+
+        final var result = subject.validateEcSignature(account);
+
+        assertFalse(result, "Expected ECDSA signature validation to fail due to invalid signature");
+    }
+
+    @Test
+    void validateEcSignatureThrowsExceptionForNullAccount() {
+        subject = getSubject(mock(Address.class));
+
+        assertThrows(NullPointerException.class, () -> subject.validateEcSignature(null));
+    }
+
+    @Test
+    void validateEcSignatureThrowsExceptionForNullKey() {
+        final var account = mock(Account.class);
+
+        subject = getSubject(mock(Address.class));
+
+        given(account.key()).willReturn(null);
+
+        assertThrows(NullPointerException.class, () -> subject.validateEcSignature(account), "Account is null");
     }
 
     @NonNull

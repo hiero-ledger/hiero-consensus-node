@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.accountNumberForEvmReference;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
+import static com.hedera.node.app.service.contract.impl.utils.SignatureMapUtils.fixEcSignaturesInMap;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -23,24 +24,16 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
-import com.hedera.pbj.runtime.OneOf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.CryptographyProvider;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.precompile.ECRECPrecompiledContract;
 
 /** HIP-632 method: `isAuthorizedRaw` */
 public class IsAuthorizedRawCall extends AbstractCall {
-    private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
 
     private static final int EIP_155_V_MIN_LENGTH = 1;
     private static final int EIP_155_V_MAX_LENGTH = 8; // we limit chainId to fit in a `long`
@@ -53,12 +46,6 @@ public class IsAuthorizedRawCall extends AbstractCall {
     private final byte[] messageHash;
     private final byte[] signature;
 
-    private static final GasCalculator noCalculationGasCalculator = new CustomGasCalculator();
-
-    // Besu's ECRECOVER precompile class will be used _directly_ (no need to execute bytecodes):
-    private static final ECRECPrecompiledContract ecPrecompile =
-            new ECRECPrecompiledContract(noCalculationGasCalculator);
-
     private final CustomGasCalculator customGasCalculator;
 
     private final SignatureVerifier signatureVerifier;
@@ -68,10 +55,6 @@ public class IsAuthorizedRawCall extends AbstractCall {
         EC,
         ED
     }
-
-    // From Ethereum yellow paper (for reference only):
-    private static final BigInteger secp256k1n =
-            new BigInteger("115792089237316195423570985008687907852837564279074904382605163141518161494337");
 
     public IsAuthorizedRawCall(
             @NonNull final HasCallAttempt attempt,
@@ -172,8 +155,7 @@ public class IsAuthorizedRawCall extends AbstractCall {
 
         // Call the ECRECOVER precompile directly (meaning, not by executing EVM bytecode, just by
         // using the class provided by Besu).
-        final var input = formatEcrecoverInput(messageHash, signature);
-        if (input.isEmpty()) return false;
+        if (formatEcrecoverInput(messageHash, signature).isEmpty()) return false;
 
         var signatureMap = SignatureMap.newBuilder()
                 .sigPair(SignaturePair.newBuilder()
@@ -233,6 +215,9 @@ public class IsAuthorizedRawCall extends AbstractCall {
         //   [32;  63]  v == recovery identifier ∈ {27,28}
         //   [64;  95]  r == x-value ∈ (0, secp256k1n);
         //   [96; 127]  s ∈ (0; sep256k1n ÷ 2 + 1)
+
+        //   From Ethereum yellow paper (for reference only):
+        //   secp256k1n = 2²⁵⁶ − 2³² − 977
 
         if (messageHash.length != 32 || signature.length <= 64) return Optional.empty();
         final var ov = reverseV(signature);
@@ -300,33 +285,5 @@ public class IsAuthorizedRawCall extends AbstractCall {
         else if (ED_SIGNATURE_LENGTH == len) return SignatureType.ED;
 
         return SignatureType.INVALID;
-    }
-
-    /**
-     * The Ethereum world uses 65+ byte EC signatures, our cryptography library uses 64 byte EC signatures.  The
-     * difference is the addition of an extra "parity" field at the end of the 64 byte signature (used so that
-     * `ECRECOVER` can recover the public key (== Ethereum address) from the signature.  And, the chain id can
-     * be encoded in that field (per EIP-155) and if the chain id is large enough (like Hedera mainnet/testnet
-     * chain ids) that last field can be more than one byte.
-     * <p>
-     * This method is a shim for that mismatch. It strips the extra bytes off any 65+ byte EC signatures it finds.
-     *
-     * @param sigMap Signature map from user - possibly contains 65+ byte EC signatures
-     * @return Signature map with only 64 byte EC signatures (and all else unchanged)
-     */
-    public @NonNull SignatureMap fixEcSignaturesInMap(@NonNull final SignatureMap sigMap) {
-        final List<SignaturePair> newPairs = new ArrayList<>();
-        for (var spair : sigMap.sigPair()) {
-            if (spair.hasEcdsaSecp256k1()) {
-                final var ecSig = requireNonNull(spair.ecdsaSecp256k1());
-                if (ecSig.length() > 64) {
-                    spair = new SignaturePair(
-                            spair.pubKeyPrefix(),
-                            new OneOf<>(SignaturePair.SignatureOneOfType.ECDSA_SECP256K1, ecSig.slice(0, 64)));
-                }
-            }
-            newPairs.add(spair);
-        }
-        return new SignatureMap(newPairs);
     }
 }
