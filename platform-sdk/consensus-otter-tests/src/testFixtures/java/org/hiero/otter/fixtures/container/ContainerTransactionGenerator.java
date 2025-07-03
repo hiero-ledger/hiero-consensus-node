@@ -105,8 +105,7 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
             return;
         }
 
-        final List<Node> nodes;
-        nodes = nodesSupplier.get();
+        final List<Node> nodes = nodesSupplier.get();
 
         if (nodes == null || nodes.isEmpty()) {
             return;

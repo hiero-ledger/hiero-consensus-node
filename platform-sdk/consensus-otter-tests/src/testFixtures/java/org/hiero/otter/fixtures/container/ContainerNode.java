@@ -136,7 +136,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    @SuppressWarnings("ResultOfMethodCallIgnored")
+    @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from submitTransaction
     public void submitTransaction(@NonNull final byte[] transaction) {
         throwIfIn(INIT, "Node has not been started yet.");
         throwIfIn(SHUTDOWN, "Node has been shut down.");
@@ -305,7 +305,7 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
-        @SuppressWarnings("ResultOfMethodCallIgnored")
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void killImmediately() {
             log.info("Killing node {} immediately...", selfId);
             try {
