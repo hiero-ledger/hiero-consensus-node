@@ -28,6 +28,7 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "services/transaction_contents.proto";
 import "platform/event/event_transaction.proto";
 import "block/stream/block_proof.proto";
 import "block/stream/record_file_item.proto";
@@ -49,7 +50,7 @@ import "block/stream/trace/trace_data.proto";
  * - A `block_header` SHALL be followed by an `event_header`.
  * - An `event_header` SHALL be followed by one or more
  *   `event_transaction` items.
- * - An `event_transaction` SHALL be followed by a `transaction_result`.
+ * - An `signed_transaction` SHALL be followed by a `transaction_result`.
  * - A `transaction_result` MAY be followed by a `transaction_output`.
  * - A `transaction_result` (or a `transaction_output`, if present) MAY be
  *     followed by one or more `state_changes`.
@@ -65,7 +66,7 @@ import "block/stream/trace/trace_data.proto";
  *   repeated {
  *     start_event
  *     repeated {
- *       event_transaction
+ *       signed_transaction
  *       transaction_result
  *       (optional) transaction_output
  *       (optional) repeated state_changes
@@ -110,7 +111,7 @@ import "block/stream/trace/trace_data.proto";
  * - Inputs
  *    - `event_header`
  *    - `round_header`
- *    - `event_transaction`
+ *    - `signed_transaction`
  * - Outputs
  *    - `block_header`
  *    - `transaction_result`
@@ -165,7 +166,7 @@ message BlockItem {
          * The result of running a transaction.
          * <p>
          * This item SHALL be present immediately after an
-         * `event_transaction` item.<br/>
+         * `signed_transaction` item.<br/>
          * This item MAY be redacted in some circumstances, and SHALL be
          * replaced with a `filtered_item` if removed.
          */
@@ -247,6 +248,16 @@ message BlockItem {
          * stream items of this type.<br/>
          */
         com.hedera.hapi.block.stream.trace.TraceData trace_data = 16;
+
+        /**
+         * A single transaction.
+         * <p>
+         * This item SHALL contain the serialized bytes of a
+         * single transaction.<br/>
+         * This item MUST NOT contain data for more than one
+         * `SignedTransaction` or system-generated transaction.
+         */
+        proto.SignedTransaction signed_transaction = 17;
     }
 }
 

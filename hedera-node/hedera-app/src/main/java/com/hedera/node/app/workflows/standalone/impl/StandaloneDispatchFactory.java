@@ -213,7 +213,7 @@ public class StandaloneDispatchFactory {
 
     private ConsensusTransaction consensusTransactionFor(@NonNull final TransactionBody transactionBody) {
         final var signedTransaction =
-                new SignedTransaction(TransactionBody.PROTOBUF.toBytes(transactionBody), SignatureMap.DEFAULT);
+                new SignedTransaction(TransactionBody.PROTOBUF.toBytes(transactionBody), SignatureMap.DEFAULT, false);
         final var transaction = Transaction.newBuilder()
                 .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
                 .build();
