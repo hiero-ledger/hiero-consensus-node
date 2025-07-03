@@ -183,7 +183,8 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}",
+            "build-tag": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
             }'
 
   report-promotion:

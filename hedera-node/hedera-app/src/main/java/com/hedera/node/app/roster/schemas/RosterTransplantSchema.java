@@ -57,6 +57,7 @@ public interface RosterTransplantSchema {
                     ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
                     : overrideRoster;
             rosterStore.putActiveRoster(roster, activeRoundNumber);
+            rosterStore.updateTransplantInProgress(true);
             onAdopt.accept(outgoingRoster, roster);
             startupNetworks.setOverrideRound(roundNumber);
         });
