@@ -8,11 +8,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.base.time.internal.OSTime;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.config.TransactionConfig;
@@ -38,14 +39,12 @@ class TransactionPoolNexusTest {
         final EventCreationConfig eventCreationConfig =
                 new EventCreationConfig(20, 100, 10, 10, 1024, Duration.ofSeconds(1));
         final Configuration configuration = mock(Configuration.class);
-        final PlatformContext platformContext = mock(PlatformContext.class);
-        when(platformContext.getMetrics()).thenReturn(new NoOpMetrics());
-        when(platformContext.getTime()).thenReturn(OSTime.getInstance());
-        when(platformContext.getConfiguration()).thenReturn(configuration);
         when(configuration.getConfigData(TransactionConfig.class)).thenReturn(txConfig);
         when(configuration.getConfigData(EventCreationConfig.class)).thenReturn(eventCreationConfig);
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = OSTime.getInstance();
 
-        nexus = new TransactionPoolNexus(platformContext);
+        nexus = new TransactionPoolNexus(configuration, metrics, time);
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
