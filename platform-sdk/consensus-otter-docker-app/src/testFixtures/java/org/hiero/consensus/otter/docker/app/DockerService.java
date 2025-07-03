@@ -33,10 +33,10 @@ public final class DockerService extends TestControlGrpc.TestControlImplBase {
     private final ExecutorService executor;
 
     /** App that contains the Platform */
-    private DockerApp app;
+    private volatile DockerApp app;
 
     /** Dispatcher for handling outgoing messages */
-    private OutboundDispatcher dispatcher;
+    private volatile OutboundDispatcher dispatcher;
 
     /**
      * Creates a DockerService with the provided executor
@@ -55,7 +55,7 @@ public final class DockerService extends TestControlGrpc.TestControlImplBase {
      * @param responseObserver The observer to send msgs back to the test
      */
     @Override
-    public void start(
+    public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
         if (app != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
@@ -118,7 +118,7 @@ public final class DockerService extends TestControlGrpc.TestControlImplBase {
     }
 
     @Override
-    public void submitTransaction(
+    public synchronized void submitTransaction(
             @NonNull final TransactionRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         if (app == null) {
             responseObserver.onError(Status.FAILED_PRECONDITION
@@ -137,7 +137,7 @@ public final class DockerService extends TestControlGrpc.TestControlImplBase {
     }
 
     @Override
-    public void killImmediately(final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void killImmediately(final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
         try {
             if (app != null) {
                 app.destroy();
