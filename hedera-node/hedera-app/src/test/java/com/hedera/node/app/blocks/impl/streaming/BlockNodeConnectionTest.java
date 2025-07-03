@@ -259,7 +259,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @ParameterizedTest
     @EnumSource(
             value = EndOfStream.Code.class,
-            names = {"TIMEOUT", "OUT_OF_ORDER", "BAD_STATE_PROOF"})
+            names = {"TIMEOUT", "DUPLICATE_BLOCK", "BAD_BLOCK_PROOF"})
     void testOnNext_endOfStream_clientFailures(final EndOfStream.Code responseCode) {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);

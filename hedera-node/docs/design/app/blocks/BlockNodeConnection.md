@@ -71,14 +71,14 @@ sequenceDiagram
 
 ### Consensus Node Behavior on EndOfStream Response Codes
 
-| Code                      | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                         EndOfStream limit within timespan                          |
-|:--------------------------|-----------------------|:----------------------------|---------------------|-----------------|------------------------------------------------------------------------------------|
-| `SUCCESS`                 | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `BEHIND` with block state | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `BEHIND` with block state | Yes                   | 1 second                    | Yes                 | 10 seconds      | CN sends EndStream to indicate the BN to look for the block from other Block Nodes |
-| `INTERNAL_ERROR`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `PERSISTENCE_FAILED`      | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `TIMEOUT`                 | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `OUT_OF_ORDER`            | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `BAD_STATE_PROOF`         | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `UNKOWN`                  | Only log statement    |                             |                     |                 |                                                                                    |
+| Code                         | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                         EndOfStream limit within timespan                          |
+|:-----------------------------|-----------------------|:----------------------------|---------------------|-----------------|------------------------------------------------------------------------------------|
+| `SUCCESS`                    | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
+| `BEHIND` with block state    | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `BEHIND` without block state | Yes                   | 1 second                    | Yes                 | 10 seconds      | CN sends EndStream to indicate the BN to look for the block from other Block Nodes |
+| `INTERNAL_ERROR`             | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
+| `PERSISTENCE_FAILED`         | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
+| `TIMEOUT`                    | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `DUPLICATE_BLOCK`            | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `BAD_BLOCK_PROOF`            | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
+| `UNKOWN`                     | Only log statement    |                             |                     |                 |                                                                                    |
