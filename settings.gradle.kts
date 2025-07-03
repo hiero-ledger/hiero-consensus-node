@@ -1,16 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pluginManagement {
-    repositories {
-        gradlePluginPortal()
-        maven("https://central.sonatype.com/repository/maven-snapshots")
-    }
-}
-
-buildscript {
-    configurations.classpath { resolutionStrategy.cacheDynamicVersionsFor(0, "seconds") }
-}
-
-plugins { id("org.hiero.gradle.build") version "0.4.7-SNAPSHOT" }
+plugins { id("org.hiero.gradle.build") version "0.4.7" }
 
 javaModules {
     // This "intermediate parent project" should be removed
