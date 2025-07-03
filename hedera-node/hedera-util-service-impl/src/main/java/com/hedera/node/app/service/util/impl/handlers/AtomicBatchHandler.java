@@ -52,6 +52,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,6 +65,7 @@ import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.commons.lang3.function.TriConsumer;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#ATOMIC_BATCH}.
@@ -166,10 +168,14 @@ public class AtomicBatchHandler implements TransactionHandler {
             final var dispatchMetadata = new HandleContext.DispatchMetadata(INNER_TRANSACTION_BYTES, txnBytes);
             final var dispatchOptions = atomicBatchDispatch(
                     payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
-            final Map<AccountID, Long> nonceAdjustments = new TreeMap<>(ACCOUNT_ID_COMPARATOR);
+            final Map<StreamBuilder, Map<AccountID, Long>> nonceAdjustments = new HashMap<>();
             if (innerTxnBody.hasEthereumTransaction()) {
                 // record nonce updates for Ethereum transactions, so we can replay them after failure
-                final BiConsumer<AccountID, Long> nonceUpdateCallback = nonceAdjustments::put;
+                final TriConsumer<StreamBuilder, AccountID, Long> nonceUpdateCallback =
+                        (streamBuilder, accountId, nonce) -> nonceAdjustments
+                                .computeIfAbsent(streamBuilder, k -> new HashMap<>())
+                                .put(accountId, nonce);
+                dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
                 dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
             }
             recordedFeeCharging.startRecording();
@@ -182,7 +188,16 @@ public class AtomicBatchHandler implements TransactionHandler {
                             final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
                             charges.forEach(charge -> {
                                 charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum));
-                                charge.replayNonceIncrement(ctx, nonceAdjustments);
+                                // Handle all nonce adjustments for this builder
+                                final Map<AccountID, Long> builderNonces = nonceAdjustments.get(builder);
+
+                                if (builderNonces != null) {
+
+                                    builderNonces.forEach((accountId, nonce) -> {
+                                        builder.setReplayedSenderNonce(nonce);
+                                        charge.replayNonceIncrement(ctx, accountId, nonce);
+                                    });
+                                }
                             });
                             builder.setReplayedFees(asTransferList(adjustments));
                         }));
@@ -239,9 +254,8 @@ public class AtomicBatchHandler implements TransactionHandler {
                 }
             }
 
-            public void replayNonceIncrement(
-                    @NonNull final Context ctx, @NonNull Map<AccountID, Long> nonceIncrements) {
-                ctx.replayNonceIncrement(nonceIncrements);
+            public void replayNonceIncrement(@NonNull final Context ctx, @NonNull AccountID accountID, Long nonce) {
+                ctx.replayNonceIncrement(accountID, nonce);
             }
         }
 
@@ -375,8 +389,8 @@ public class AtomicBatchHandler implements TransactionHandler {
             }
 
             @Override
-            public void replayNonceIncrement(Map<AccountID, Long> nonceIncrements) {
-                delegate.replayNonceIncrement(nonceIncrements);
+            public void replayNonceIncrement(AccountID accountID, Long nonce) {
+                delegate.replayNonceIncrement(accountID, nonce);
             }
         }
     }

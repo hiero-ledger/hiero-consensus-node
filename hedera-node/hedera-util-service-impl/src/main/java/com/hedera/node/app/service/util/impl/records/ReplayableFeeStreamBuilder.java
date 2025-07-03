@@ -15,4 +15,6 @@ public interface ReplayableFeeStreamBuilder extends StreamBuilder {
      * @throws IllegalStateException if the builder has not been rolled back
      */
     void setReplayedFees(TransferList transferList);
+
+    void setReplayedSenderNonce(long senderNonce);
 }

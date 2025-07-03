@@ -11,7 +11,6 @@ module com.hedera.node.app.service.util.impl {
     requires com.hedera.node.config;
     requires com.github.benmanes.caffeine;
     requires org.apache.logging.log4j;
-    requires static transitive com.github.spotbugs.annotations;
 
     exports com.hedera.node.app.service.util.impl.handlers;
     exports com.hedera.node.app.service.util.impl.records;

@@ -133,7 +133,7 @@ public interface FeeCharging {
         /**
          * Replays the nonce increment for the given accounts after ethCall failures.
          */
-        void replayNonceIncrement(Map<AccountID, Long> nonceIncrements);
+        void replayNonceIncrement(AccountID accountID, Long nonce);
     }
 
     /**

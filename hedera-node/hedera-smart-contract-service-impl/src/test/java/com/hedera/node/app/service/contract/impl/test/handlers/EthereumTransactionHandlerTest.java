@@ -9,10 +9,13 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DAT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +43,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
-import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
@@ -65,7 +67,8 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.Optional;
+import java.util.function.BiConsumer;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -125,9 +128,6 @@ class EthereumTransactionHandlerTest {
 
     @Mock
     private EvmActionTracer tracer;
-
-    @Mock
-    private Supplier<HederaWorldUpdater> feesOnlyUpdater;
 
     @Mock
     private TransactionProcessor transactionProcessor;
@@ -195,6 +195,7 @@ class EthereumTransactionHandlerTest {
                 .build();
         given(handleContext.body()).willReturn(body);
         given(handleContext.payer()).willReturn(AccountID.DEFAULT);
+        given(handleContext.dispatchMetadata()).willReturn(EMPTY_METADATA);
         given(hevmTransactionFactory.fromHapiTransaction(handleContext.body(), handleContext.payer()))
                 .willReturn(HEVM_CREATION);
 
@@ -212,7 +213,7 @@ class EthereumTransactionHandlerTest {
         given(handleContext.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
-        givenSenderAccount();
+        givenSenderAccountWithNonce(SIGNER_NONCE);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
         final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
@@ -286,7 +287,7 @@ class EthereumTransactionHandlerTest {
         given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
-        givenSenderAccount();
+        givenSenderAccountWithNonce(SIGNER_NONCE);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
     }
@@ -402,6 +403,60 @@ class EthereumTransactionHandlerTest {
         }
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void handleSetsNewSenderNonceWhenPresent() {
+        given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(component.hydratedEthTxData())
+                .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        setUpTransactionProcessing();
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
+        given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
+        given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        final var expectedResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
+                ETH_DATA_WITHOUT_TO_ADDRESS, baseProxyWorldUpdater, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()));
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.finalStatus(),
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                null,
+                null,
+                List.of(),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
+                        ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater));
+
+        given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
+        given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
+                .willReturn(recordBuilder);
+        givenSenderAccountWithNonce(SIGNER_NONCE);
+
+        // Mock the dispatch metadata with a callback
+        final var nonceCallback = mock(BiConsumer.class);
+        final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
+        final var optionalCallback = Optional.of(nonceCallback);
+        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+        given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
+                .willReturn(optionalCallback);
+
+        // Execute the handler
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        // Verify the callback was called with the expected arguments
+        verify(nonceCallback).accept(SENDER_ID, SIGNER_NONCE);
+        // Verify the stream builder was updated with the new nonce
+        verify(recordBuilder).newSenderNonce(SIGNER_NONCE);
+    }
+
     private TransactionBody ethTxWithNoTx() {
         return TransactionBody.newBuilder()
                 .ethereumTransaction(EthereumTransactionBody.newBuilder().build())
@@ -416,8 +471,8 @@ class EthereumTransactionHandlerTest {
                 .build();
     }
 
-    void givenSenderAccount() {
+    void givenSenderAccountWithNonce(final long nonce) {
         given(baseProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
-        given(senderAccount.getNonce()).willReturn(1L);
+        given(senderAccount.getNonce()).willReturn(nonce);
     }
 }

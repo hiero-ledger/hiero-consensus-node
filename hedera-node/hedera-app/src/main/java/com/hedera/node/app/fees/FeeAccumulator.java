@@ -11,7 +11,6 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Map;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 
@@ -106,10 +105,11 @@ public class FeeAccumulator {
     /**
      * Sets the nonce of a given account to the given value, effectively replaying a nonce increment after failure.
      *
-     * @param nonceIncrements A map of account IDs to their respective nonce value.
+     * @param accountID The account whose nonce to set
+     * @param nonce The nonce to be set
      */
-    public void replayNonceIncrement(@NonNull Map<AccountID, Long> nonceIncrements) {
-        requireNonNull(nonceIncrements);
-        nonceIncrements.forEach(tokenApi::setNonce);
+    public void replayNonceIncrement(@NonNull AccountID accountID, Long nonce) {
+        requireNonNull(accountID);
+        tokenApi.setNonce(accountID, nonce);
     }
 }

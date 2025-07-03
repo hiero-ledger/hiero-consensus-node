@@ -577,6 +577,11 @@ public class RecordStreamBuilder
         }
     }
 
+    @Override
+    public void setReplayedSenderNonce(long senderNonce) {
+        newSenderNonce(senderNonce);
+    }
+
     /**
      * Sets the transferList.
      *
