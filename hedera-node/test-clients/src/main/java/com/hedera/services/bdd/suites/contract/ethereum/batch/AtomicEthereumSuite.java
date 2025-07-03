@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
@@ -89,6 +90,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_NONCE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.base.utility.CommonUtils.unhex;
+import static org.hyperledger.besu.datatypes.Address.contractAddress;
+import static org.hyperledger.besu.datatypes.Address.fromHexString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.io.Files;
@@ -116,14 +120,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -132,6 +139,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
+@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
 public class AtomicEthereumSuite {
 
     public static final long GAS_LIMIT = 1_000_000;
@@ -719,6 +727,78 @@ public class AtomicEthereumSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> etx008ContractCreateExecutesWithExpectedRecord() {
+        final var txn = "creation";
+        final var contract = "Fuse";
+
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS))
+                        .via(AUTO_ACCOUNT_TRANSACTION_NAME),
+                uploadInitCode(contract),
+                atomicBatch(ethereumContractCreate(contract)
+                                .type(EthTransactionType.EIP1559)
+                                .gasLimit(GAS_LIMIT)
+                                .via(txn)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                getContractInfo(contract).has(contractWith().defaultAdminKey()),
+                withOpContext((spec, opLog) -> {
+                    final var op = getTxnRecord(txn);
+                    allRunFor(spec, op);
+                    final var record = op.getResponseRecord();
+                    final var creationResult = record.getContractCreateResult();
+                    final var createdIds = creationResult.getCreatedContractIDsList().stream()
+                            .sorted(Comparator.comparing(ContractID::getContractNum))
+                            .toList();
+                    assertEquals(4, createdIds.size(), "Expected four creations but got " + createdIds);
+
+                    final var ecdsaKey = spec.registry()
+                            .getKey(SECP_256K1_SOURCE_KEY)
+                            .getECDSASecp256K1()
+                            .toByteArray();
+                    final var senderAddress = CommonUtils.hex(recoverAddressFromPubKey(ecdsaKey));
+                    final var senderNonce = 0;
+
+                    final var expectedParentContractAddress =
+                            contractAddress(fromHexString(senderAddress), senderNonce);
+                    final var expectedFirstChildContractAddress = contractAddress(expectedParentContractAddress, 1);
+                    final var expectedSecondChildContractAddress = contractAddress(expectedParentContractAddress, 2);
+                    final var expectedThirdChildContractAddress = contractAddress(expectedParentContractAddress, 3);
+
+                    final var parentId = createdIds.get(0);
+                    final var parentContractId = CommonUtils.hex(asEvmAddress(parentId.getContractNum()));
+                    final var firstChildId = createdIds.get(1);
+                    final var firstChildContractId = CommonUtils.hex(asEvmAddress(firstChildId.getContractNum()));
+                    final var secondChildId = createdIds.get(2);
+                    final var secondChildContractId = CommonUtils.hex(asEvmAddress(secondChildId.getContractNum()));
+                    final var thirdChildId = createdIds.get(3);
+                    final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
+
+                    final var parentContractInfo = getContractInfo(parentContractId)
+                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+                    final var firstChildContractInfo = getContractInfo(firstChildContractId)
+                            .has(contractWith()
+                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+                    final var secondChildContractInfo = getContractInfo(secondChildContractId)
+                            .has(contractWith()
+                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+                    final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
+                            .has(contractWith()
+                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
+                            .logged();
+
+                    allRunFor(
+                            spec,
+                            parentContractInfo,
+                            firstChildContractInfo,
+                            secondChildContractInfo,
+                            thirdChildContractInfo);
+                }));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> etxSvc003ContractGetBytecodeQueryReturnsDeployedCode() {
         final var txn = "creation";
         final var contract = "EmptyConstructor";
@@ -1118,8 +1198,8 @@ public class AtomicEthereumSuite {
                     final var gasUsed = callResult.getGasUsed();
                     final var amount = callResult.getAmount();
                     final var gasLimit = callResult.getGas();
-                    Assertions.assertEquals(DEFAULT_AMOUNT_TO_SEND, amount);
-                    Assertions.assertEquals(GAS_LIMIT, gasLimit);
+                    assertEquals(DEFAULT_AMOUNT_TO_SEND, amount);
+                    assertEquals(GAS_LIMIT, gasLimit);
                     Assertions.assertTrue(gasUsed > 0L);
                     Assertions.assertTrue(callResult.hasContractID() && callResult.hasSenderId());
                 }));
@@ -1185,9 +1265,8 @@ public class AtomicEthereumSuite {
                     final var gasUsed = callResult.getGasUsed();
                     final var amountTinybar = callResult.getAmount();
                     final var gasLimit = callResult.getGas();
-                    Assertions.assertEquals(
-                            BIG_INTEGER_WEIBAR.divide(WEIBARS_IN_A_TINYBAR).longValueExact(), amountTinybar);
-                    Assertions.assertEquals(GAS_LIMIT, gasLimit);
+                    assertEquals(BIG_INTEGER_WEIBAR.divide(WEIBARS_IN_A_TINYBAR).longValueExact(), amountTinybar);
+                    assertEquals(GAS_LIMIT, gasLimit);
                     Assertions.assertTrue(gasUsed > 0L);
                     Assertions.assertTrue(callResult.hasContractID() && callResult.hasSenderId());
                 }));
