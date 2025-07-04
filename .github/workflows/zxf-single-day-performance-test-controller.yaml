@@ -5,7 +5,7 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "Latitude3"
+        default: "Latitude4"
         description: "Performance test on given namespace"
         type: choice
         options:
@@ -64,12 +64,12 @@ on:
         type: string
       crypto-bench-merkle-db-test-params:
         required: true
-        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=60"
         description: "Test params"
         type: string
       disable-notifications:
         required: false
-        default: false
+        default: true
         type: boolean
         description: "If true, skip tag and notifications"
 

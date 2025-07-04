@@ -15,7 +15,10 @@ on:
       access-token:
         description: "GitHub Access Token with write permissions to the repository."
         required: true
-      slack-report-webhook:
+      slack-tck-report-webhook:
+        description: "Slack Webhook URL for TCK Group Monitoring."
+        required: true
+      slack-detailed-report-webhook:
         description: "Slack Webhook URL for TCK Monitoring."
         required: true
 
@@ -232,6 +235,8 @@ jobs:
           COLOR="#FF0000"
           if [[ "${{ needs.tck-regression.result }}" == "success" ]]; then
             COLOR="#00FF00"
+          elif [[ "${{ needs.tck-regression.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
           fi
           cat <<EOF > slack_payload.json
           {
@@ -312,7 +317,15 @@ jobs:
       - name: Report Status to TCK Working Group
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.slack-report-webhook }}
+          webhook: ${{ secrets.slack-tck-report-webhook }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Report Status to TCK Working Group
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.slack-detailed-report-webhook }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
