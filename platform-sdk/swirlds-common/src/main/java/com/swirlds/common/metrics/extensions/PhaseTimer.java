@@ -63,7 +63,7 @@ public class PhaseTimer<T extends Enum<T>> {
         absoluteTimeUnit = builder.getAbsoluteUnit();
 
         registerMetrics(
-                builder.getPlatformContext().getMetrics(),
+                builder.getMetrics(),
                 builder.getMetricsCategory(),
                 builder.getMetricsNamePrefix(),
                 builder.getPhases());

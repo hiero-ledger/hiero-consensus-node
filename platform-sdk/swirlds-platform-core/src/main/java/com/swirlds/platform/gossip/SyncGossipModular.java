@@ -129,7 +129,7 @@ public class SyncGossipModular implements Gossip {
         this.network = new PeerCommunication(platformContext, peers, selfPeer, ownKeysAndCerts);
 
         this.syncManager = new SyncManagerImpl(
-                platformContext,
+                platformContext.getMetrics(),
                 new FallenBehindManagerImpl(
                         selfId,
                         peers.size(),
