@@ -29,7 +29,7 @@ env:
 jobs:
   tag-for-xts:
     name: Tag for XTS promotion
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1

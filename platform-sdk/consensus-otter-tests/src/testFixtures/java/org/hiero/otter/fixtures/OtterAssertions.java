@@ -7,13 +7,17 @@ import org.assertj.core.api.Assertions;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeConsensusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeLogResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinuousAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -88,6 +92,18 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
+     * Creates a continuous assertion for the given {@link SingleNodeLogResult}.
+     *
+     * @param actual the {@link SingleNodeLogResult} to assert
+     * @return an assertion for the given {@link SingleNodeLogResult}
+     */
+    @NonNull
+    public static SingleNodeLogResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodeLogResult actual) {
+        return SingleNodeLogResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
      * Creates an assertion for the given {@link MultipleNodeLogResults}.
      *
      * @param actual the {@link MultipleNodeLogResults} to assert
@@ -96,6 +112,18 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodeLogResultsAssert assertThat(@Nullable final MultipleNodeLogResults actual) {
         return MultipleNodeLogResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodeLogResults}.
+     *
+     * @param actual the {@link MultipleNodeLogResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodeLogResults}
+     */
+    @NonNull
+    public static MultipleNodeLogResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodeLogResults actual) {
+        return MultipleNodeLogResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
@@ -111,6 +139,18 @@ public class OtterAssertions extends Assertions {
     }
 
     /**
+     * Creates a continuous assertion for the given {@link SingleNodePlatformStatusResults}.
+     *
+     * @param actual the {@link SingleNodePlatformStatusResults} to assert
+     * @return a continuous assertion for the given {@link SingleNodePlatformStatusResults}
+     */
+    @NonNull
+    public static SingleNodePlatformStatusResultContinuousAssert assertContinuouslyThat(
+            @Nullable final SingleNodePlatformStatusResults actual) {
+        return SingleNodePlatformStatusResultContinuousAssert.assertContinuouslyThat(actual);
+    }
+
+    /**
      * Creates an assertion for the given {@link MultipleNodePlatformStatusResults}.
      *
      * @param actual the {@link MultipleNodePlatformStatusResults} to assert
@@ -120,6 +160,18 @@ public class OtterAssertions extends Assertions {
     public static MultipleNodePlatformStatusResultsAssert assertThat(
             @Nullable final MultipleNodePlatformStatusResults actual) {
         return MultipleNodePlatformStatusResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates a continuous assertion for the given {@link MultipleNodePlatformStatusResults}.
+     *
+     * @param actual the {@link MultipleNodePlatformStatusResults} to assert
+     * @return a continuous assertion for the given {@link MultipleNodePlatformStatusResults}
+     */
+    @NonNull
+    public static MultipleNodePlatformStatusResultsContinuousAssert assertContinuouslyThat(
+            @Nullable final MultipleNodePlatformStatusResults actual) {
+        return MultipleNodePlatformStatusResultsContinuousAssert.assertContinuouslyThat(actual);
     }
 
     /**
