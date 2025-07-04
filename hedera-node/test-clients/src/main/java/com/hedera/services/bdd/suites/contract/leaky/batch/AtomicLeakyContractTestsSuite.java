@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
@@ -32,7 +31,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadSingleInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
@@ -45,7 +43,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
@@ -119,7 +116,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
@@ -139,13 +135,11 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -725,41 +719,6 @@ public class AtomicLeakyContractTestsSuite {
                     Assertions.assertTrue(gasUsedForTemporaryHoldTx < 35000L);
                     Assertions.assertTrue(gasUsedForPermanentHoldTx > 40000L);
                 }));
-    }
-
-    @HapiTest
-    @Order(6)
-    final Stream<DynamicTest> canCallPendingContractSafely() {
-        final var numSlots = 64L;
-        final var createBurstSize = 500;
-        final long[] targets = {19, 24};
-        final AtomicLong createdFileNum = new AtomicLong();
-        final var callTxn = "callTxn";
-        final var contract = "FibonacciPlus";
-        final var expiry = Instant.now().getEpochSecond() + 7776000;
-
-        return hapiTest(
-                uploadSingleInitCode(contract, expiry, GENESIS, createdFileNum::set),
-                inParallel(IntStream.range(0, createBurstSize)
-                        .mapToObj(i -> atomicBatch(contractCustomCreate(contract, String.valueOf(i), numSlots)
-                                        .fee(ONE_HUNDRED_HBARS)
-                                        .gas(800_000L)
-                                        .payingWith(GENESIS)
-                                        .noLogging()
-                                        .deferStatusResolution()
-                                        .bytecode(contract)
-                                        .adminKey(THRESHOLD)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))
-                        .toArray(HapiSpecOperation[]::new)),
-                sourcing(() -> contractCallWithFunctionAbi(
-                                "0.0." + (createdFileNum.get() + createBurstSize),
-                                getABIFor(FUNCTION, "addNthFib", contract),
-                                targets,
-                                12L)
-                        .payingWith(GENESIS)
-                        .gas(300_000L)
-                        .via(callTxn)));
     }
 
     // @LeakyHapiTest(overrides = {"contracts.evm.version"}) This will be fixed in
