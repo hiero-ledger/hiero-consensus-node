@@ -18,6 +18,5 @@ module org.hiero.consensus.otter.docker.app {
     requires org.hiero.consensus.utility;
     requires io.grpc;
     requires org.apache.logging.log4j;
-    requires org.slf4j;
     requires static transitive com.github.spotbugs.annotations;
 }

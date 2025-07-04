@@ -12,6 +12,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.util.function.Consumer;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -20,15 +22,13 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.turtle.app.TransactionHandlers;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * An implementation of {@link ConsensusStateEventHandler} for container-based consensus nodes.
  */
 public class DockerStateEventHandler implements ConsensusStateEventHandler<TurtleAppState> {
 
-    private static Logger log = LoggerFactory.getLogger(DockerStateEventHandler.class);
+    private static final Logger LOGGER = LogManager.getLogger(DockerStateEventHandler.class);
 
     /**
      * {@inheritDoc}
@@ -56,7 +56,7 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
                     final TurtleTransaction transaction = TurtleTransaction.parseFrom(payload.toInputStream());
                     TransactionHandlers.handleTransaction(state, event, transaction, callback);
                 } catch (IOException ex) {
-                    log.warn("Failed to parse transaction", ex);
+                    LOGGER.warn("Failed to parse transaction", ex);
                 }
             });
         }

@@ -37,10 +37,7 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
     private final ScheduledExecutorService scheduler;
 
     /** The handle of the scheduled generation job returned by the scheduler. */
-    private ScheduledFuture<?> generationTask;
-
-    /** Indicating if the generator is still running */
-    private volatile boolean running = false;
+    private volatile ScheduledFuture<?> generationTask;
 
     /**
      * Creates a new generator with a default single-threaded scheduler.
@@ -73,12 +70,10 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
      * {@inheritDoc}
      */
     @Override
-    public void start() {
-        if (running) {
+    public synchronized void start() {
+        if (generationTask != null && !generationTask.isCancelled()) {
             return;
         }
-
-        running = true;
 
         generationTask = scheduler.scheduleAtFixedRate(
                 this::generateAndSubmit, 0, CYCLE_DURATION.toMillis(), TimeUnit.MILLISECONDS);
@@ -88,9 +83,7 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
      * {@inheritDoc}
      */
     @Override
-    public void stop() {
-        running = false;
-
+    public synchronized void stop() {
         if (generationTask != null) {
             generationTask.cancel(true);
             generationTask = null;
@@ -101,7 +94,7 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
      * Generates a random transaction payload and submits it to all active nodes.
      */
     private void generateAndSubmit() {
-        if (!running) {
+        if (generationTask == null || generationTask.isCancelled()) {
             return;
         }
 

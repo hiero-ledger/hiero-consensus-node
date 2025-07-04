@@ -152,7 +152,7 @@ public class ContainerNode extends AbstractNode implements Node {
                 fail("Failed to submit transaction for node %d.".formatted(selfId.id()));
             }
         } catch (final Exception e) {
-            log.error("Failed to submit transaction to node {}", selfId, e);
+            fail("Failed to submit transaction to node %d".formatted(selfId.id()), e);
         }
     }
 
@@ -205,7 +205,7 @@ public class ContainerNode extends AbstractNode implements Node {
      * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
      * method is idempotent and can be called multiple times without any side effects.
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         if (lifeCycle == RUNNING) {
             channel.shutdownNow();
             container.stop();
@@ -320,7 +320,7 @@ public class ContainerNode extends AbstractNode implements Node {
                 // Unary call – will throw if server returns an error.
                 blockingStub.killImmediately(request);
             } catch (final Exception e) {
-                log.error("Failed to kill node {} immediately", selfId, e);
+                fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
         }
     }

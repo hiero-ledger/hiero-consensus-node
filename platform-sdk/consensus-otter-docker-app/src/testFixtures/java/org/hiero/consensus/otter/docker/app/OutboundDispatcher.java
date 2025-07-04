@@ -9,18 +9,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Handles queuing {@link EventMessage}s and delivering them to a gRPC {@link StreamObserver} on a
- * single background thread. This keeps {@code DockerInit} slim and separates concerns between
- * application initialisation and outbound message handling.
+ * single background thread.
  */
 public final class OutboundDispatcher {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(OutboundDispatcher.class);
+    private static final Logger LOGGER = LogManager.getLogger(OutboundDispatcher.class);
 
     /** Queue used to hand over messages from the platform threads to the dispatcher thread. */
     private final BlockingQueue<EventMessage> outboundQueue = new LinkedBlockingQueue<>();

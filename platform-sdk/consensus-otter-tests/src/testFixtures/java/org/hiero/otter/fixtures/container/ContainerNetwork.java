@@ -58,8 +58,6 @@ public class ContainerNetwork extends AbstractNetwork {
     private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
     private final ImageFromDockerfile dockerImage;
 
-    private long nextNodeId = 1L;
-
     /**
      * Constructor for {@link ContainerNetwork}.
      *
@@ -197,7 +195,7 @@ public class ContainerNetwork extends AbstractNetwork {
      * Shuts down the network and cleans up resources. Once this method is called, the network cannot be started again.
      * This method is idempotent and can be called multiple times without any side effects.
      */
-    void destroy() throws InterruptedException {
+    void destroy() {
         log.info("Destroying network...");
         transactionGenerator.stop();
         for (final ContainerNode node : nodes) {
