@@ -19,9 +19,6 @@ import java.time.Duration;
  * @param roundsPerBlock the number of rounds per block
  * @param blockPeriod the block period
  * @param blockItemBatchSize the number of items to send in a batch to block nodes
- * @param blockBufferTtl the TTL for entries in the block buffer
- * @param blockBufferPruneInterval interval to prune block buffer and check for whether backpressure is needed; if set
- *                                 to 0 then pruning is effectively disabled
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -31,9 +28,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "32") @NetworkProperty int hashCombineBatchSize,
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
-        @ConfigProperty(defaultValue = "256") @Min(0) @NetworkProperty int blockItemBatchSize,
-        @ConfigProperty(defaultValue = "5m") @Min(0) @NetworkProperty Duration blockBufferTtl,
-        @ConfigProperty(defaultValue = "1s") @Min(0) @NetworkProperty Duration blockBufferPruneInterval) {
+        @ConfigProperty(defaultValue = "256") @Min(0) @NetworkProperty int blockItemBatchSize) {
 
     /**
      * Whether to stream to block nodes.
