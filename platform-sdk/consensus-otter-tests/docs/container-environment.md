@@ -195,9 +195,9 @@ sequenceDiagram
     participant DockerManager
     participant ConsensusNodeManager
     participant Platform
-    
+
     Test->>ContainerNetwork: addNodes(4)
-    
+
     loop For each node
         ContainerNetwork->>ContainerNode: new ContainerNode()
         activate ContainerNode
@@ -212,9 +212,9 @@ sequenceDiagram
         activate DockerManager
         ContainerNode->>DockerManager: Establish gRPC connection
     end
-    
+
     Test->>ContainerNetwork: start()
-    
+
     loop For each node
         ContainerNetwork->>ContainerNode: start()
         ContainerNode->>DockerManager: Send StartRequest
@@ -232,7 +232,7 @@ This process ensures each container runs an independent consensus node with real
 
 ### gRPC Protocol
 
-Container nodes use gRPC for control and monitoring. 
+Container nodes use gRPC for control and monitoring.
 
 ```protobuf
 // Service definition for controlling tests.
@@ -284,13 +284,13 @@ sequenceDiagram
     participant DockerManager
     participant ConsensusNodeManager
     participant Platform
-    
+
     ContainerNode->>DockerManager: StartRequest via gRPC
     DockerManager->>ConsensusNodeManager: new ConsensusNodeManager()
     activate ConsensusNodeManager
     ConsensusNodeManager->>Platform: Initialize Platform
     activate Platform
-    
+
     loop Event Streaming
         Platform->>ConsensusNodeManager: Event via OutputWire
         ConsensusNodeManager->>DockerManager: Notify event
