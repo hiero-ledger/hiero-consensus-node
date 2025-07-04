@@ -247,12 +247,6 @@ public interface Dispatch extends FeeCharging.Context {
     }
 
     @Override
-    default void replayNonceIncrement(@NonNull final AccountID accountID, final Long nonce) {
-        requireNonNull(accountID);
-        feeAccumulator().replayNonceIncrement(accountID, nonce);
-    }
-
-    @Override
     default AccountID nodeAccountId() {
         return creatorInfo().accountId();
     }

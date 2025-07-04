@@ -101,15 +101,4 @@ public class FeeAccumulator {
         requireNonNull(fees);
         tokenApi.refundFees(payerId, nodeAccountId, fees, feeStreamBuilder, onNodeFeeRefunded);
     }
-
-    /**
-     * Sets the nonce of a given account to the given value, effectively replaying a nonce increment after failure.
-     *
-     * @param accountID The account whose nonce to set
-     * @param nonce The nonce to be set
-     */
-    public void replayNonceIncrement(@NonNull final AccountID accountID, final Long nonce) {
-        requireNonNull(accountID);
-        tokenApi.setNonce(accountID, nonce);
-    }
 }

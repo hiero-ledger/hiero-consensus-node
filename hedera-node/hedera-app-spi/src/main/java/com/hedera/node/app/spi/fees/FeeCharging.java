@@ -128,11 +128,6 @@ public interface FeeCharging {
          */
         @Deprecated
         HandleContext.TransactionCategory category();
-
-        /**
-         * Replays the nonce increment for the given accounts after ethCall failures.
-         */
-        void replayNonceIncrement(AccountID accountID, Long nonce);
     }
 
     /**

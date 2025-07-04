@@ -824,11 +824,6 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public void setReplayedSenderNonce(long senderNonce) {
-        newSenderNonce(senderNonce);
-    }
-
-    @Override
     @NonNull
     public BlockStreamBuilder tokenTransferLists(@NonNull final List<TokenTransferList> tokenTransferLists) {
         this.tokenTransferLists = requireNonNull(tokenTransferLists);

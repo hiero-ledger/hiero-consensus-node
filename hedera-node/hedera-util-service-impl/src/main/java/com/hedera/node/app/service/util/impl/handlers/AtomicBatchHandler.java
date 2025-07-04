@@ -31,6 +31,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.util.impl.cache.InnerTxnCache;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
@@ -65,7 +66,6 @@ import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.commons.lang3.function.TriConsumer;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#ATOMIC_BATCH}.
@@ -159,7 +159,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         final var recordedFeeCharging = new RecordedFeeCharging(appFeeCharging.get());
-        final Map<StreamBuilder, Map<AccountID, Long>> nonceAdjustments = new HashMap<>();
+        final Map<AccountID, Long> nonceAdjustments = new HashMap<>();
         for (final var txnBytes : txns) {
             // Use the unchecked get because if the transaction is correct, it should be in the cache by now
             final TransactionBody innerTxnBody;
@@ -171,35 +171,24 @@ public class AtomicBatchHandler implements TransactionHandler {
                     payerId, innerTxnBody, ReplayableFeeStreamBuilder.class, recordedFeeCharging, dispatchMetadata);
             if (innerTxnBody.hasEthereumTransaction()) {
                 // record nonce updates for Ethereum transactions, so we can replay them after failure
-                final TriConsumer<StreamBuilder, AccountID, Long> nonceUpdateCallback =
-                        (streamBuilder, accountId, nonce) ->
-                                nonceAdjustments.computeIfAbsent(streamBuilder, k -> Map.of(accountId, nonce));
-                dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
+                final BiConsumer<AccountID, Long> nonceUpdateCallback = nonceAdjustments::put;
                 dispatchMetadata.putMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, nonceUpdateCallback);
             }
             recordedFeeCharging.startRecording();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
             if (streamBuilder.status() != SUCCESS) {
-                throw new HandleException(
-                        INNER_TRANSACTION_FAILED,
-                        ctx -> recordedFeeCharging.forEachRecorded((builder, charges) -> {
-                            final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
-                            charges.forEach(charge -> {
-                                charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum));
-                                // Handle all nonce adjustments for this builder
-                                final Map<AccountID, Long> builderNonces = nonceAdjustments.get(builder);
-
-                                if (builderNonces != null) {
-
-                                    builderNonces.forEach((accountId, nonce) -> {
-                                        builder.setReplayedSenderNonce(nonce);
-                                        charge.replayNonceIncrement(ctx, accountId, nonce);
-                                    });
-                                }
-                            });
-                            builder.setReplayedFees(asTransferList(adjustments));
-                        }));
+                final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
+                throw new HandleException(INNER_TRANSACTION_FAILED, ctx -> {
+                    recordedFeeCharging.forEachRecorded((builder, charges) -> {
+                        final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
+                        charges.forEach(
+                                charge -> charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
+                        builder.setReplayedFees(asTransferList(adjustments));
+                    });
+                    // replay nonce increments for Ethereum transactions
+                    nonceAdjustments.forEach(tokenServiceApi::setNonce);
+                });
             }
         }
     }
@@ -251,11 +240,6 @@ public class AtomicBatchHandler implements TransactionHandler {
                 } else {
                     ctx.charge(payerId, fees, nodeAccountId, cb);
                 }
-            }
-
-            public void replayNonceIncrement(
-                    @NonNull final Context ctx, @NonNull final AccountID accountID, final Long nonce) {
-                ctx.replayNonceIncrement(accountID, nonce);
             }
         }
 
@@ -381,11 +365,6 @@ public class AtomicBatchHandler implements TransactionHandler {
             @Override
             public TransactionCategory category() {
                 return delegate.category();
-            }
-
-            @Override
-            public void replayNonceIncrement(final AccountID accountID, final Long nonce) {
-                delegate.replayNonceIncrement(accountID, nonce);
             }
         }
     }

@@ -550,11 +550,6 @@ public class PairedStreamBuilder
         blockStreamBuilder.setReplayedFees(transferList);
     }
 
-    @Override
-    public void setReplayedSenderNonce(final long senderNonce) {
-        newSenderNonce(senderNonce);
-    }
-
     @NonNull
     @Override
     public CryptoTransferStreamBuilder tokenTransferLists(@NonNull List<TokenTransferList> tokenTransferLists) {
