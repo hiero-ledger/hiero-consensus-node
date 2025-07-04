@@ -5,7 +5,7 @@ import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.metrics.api.Counter;
-import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
+import com.swirlds.metrics.api.Snapshot.SnapshotEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
