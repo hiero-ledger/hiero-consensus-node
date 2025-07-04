@@ -48,6 +48,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -414,7 +415,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext {
                     batchInnerTxnBytes,
                     maybeReusablePreHandleResult,
                     (s) -> {},
-                    PreHandleWorkflow.InnerTransaction.YES);
+                    InnerTransaction.YES);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(
