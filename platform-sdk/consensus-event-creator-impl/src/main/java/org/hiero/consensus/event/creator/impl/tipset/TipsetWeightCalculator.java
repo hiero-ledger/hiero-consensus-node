@@ -6,8 +6,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -96,14 +97,16 @@ public class TipsetWeightCalculator {
     /**
      * Create a new tipset weight calculator.
      *
-     * @param platformContext       the platform context
+     * @param configuration         the configuration for the weight calculator
+     * @param time                  the time source for the weight calculator
      * @param roster                the current roster
      * @param selfId                the ID of the node tracked by this object
      * @param tipsetTracker         builds tipsets for individual events
      * @param childlessEventTracker tracks non-ancient events without children
      */
     public TipsetWeightCalculator(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final TipsetTracker tipsetTracker,
@@ -117,17 +120,15 @@ public class TipsetWeightCalculator {
         totalWeight = RosterUtils.computeTotalWeight(roster);
         selfWeight = RosterUtils.getRosterEntry(roster, selfId.id()).weight();
         maximumPossibleAdvancementWeight = totalWeight - selfWeight;
-        maxSnapshotHistorySize = platformContext
-                .getConfiguration()
-                .getConfigData(EventCreationConfig.class)
-                .tipsetSnapshotHistorySize();
+        maxSnapshotHistorySize =
+                configuration.getConfigData(EventCreationConfig.class).tipsetSnapshotHistorySize();
 
         snapshot = new Tipset(roster);
         latestSelfEventTipset = snapshot;
         snapshotHistory.add(snapshot);
 
-        ancientParentLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
-        allParentsAreAncientLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
+        ancientParentLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
+        allParentsAreAncientLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
     }
 
     /**
