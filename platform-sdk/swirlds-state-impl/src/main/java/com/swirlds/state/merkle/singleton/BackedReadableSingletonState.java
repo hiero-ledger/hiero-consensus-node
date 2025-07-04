@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.singleton;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.BinaryStateUtils.computeLabel;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
 
 import com.swirlds.state.merkle.MerkleStateRoot;

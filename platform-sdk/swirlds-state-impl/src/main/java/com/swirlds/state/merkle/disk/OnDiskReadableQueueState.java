@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.BinaryStateUtils.computeLabel;
+import static com.swirlds.state.BinaryStateUtils.getValidatedStateId;
 import static com.swirlds.state.merkle.logging.StateLogger.logQueuePeek;
 
 import com.hedera.pbj.runtime.Codec;
-import com.swirlds.state.merkle.queue.QueueState;
+import com.swirlds.state.BinaryState;
 import com.swirlds.state.spi.ReadableQueueState;
 import com.swirlds.state.spi.ReadableQueueStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
-import java.util.Objects;
 
 /**
  * An implementation of {@link ReadableQueueState} backed by a {@link VirtualMap}, resulting in a state
@@ -23,7 +23,13 @@ import java.util.Objects;
 public class OnDiskReadableQueueState<E> extends ReadableQueueStateBase<E> {
 
     @NonNull
-    private final OnDiskQueueHelper<E> onDiskQueueHelper;
+    private final BinaryState binaryState;
+
+    @NonNull
+    private final Codec<E> valueCodec;
+
+    private final int stateId;
+    private final String label;
 
     /**
      * Create a new instance
@@ -31,25 +37,26 @@ public class OnDiskReadableQueueState<E> extends ReadableQueueStateBase<E> {
      * @param serviceName  the service name
      * @param stateKey     the state key
      * @param valueCodec   the codec for the value
-     * @param virtualMap   the backing merkle data structure to use
+     * @param binaryState   the backing merkle data structure to use
      */
     public OnDiskReadableQueueState(
             @NonNull final String serviceName,
             @NonNull final String stateKey,
             @NonNull final Codec<E> valueCodec,
-            @NonNull final VirtualMap virtualMap) {
+            @NonNull final BinaryState binaryState) {
         super(serviceName, stateKey);
-        this.onDiskQueueHelper = new OnDiskQueueHelper<>(serviceName, stateKey, virtualMap, valueCodec);
+        this.binaryState = binaryState;
+        this.valueCodec = valueCodec;
+        this.stateId = getValidatedStateId(serviceName, stateKey);
+        this.label = computeLabel(serviceName, stateKey);
     }
 
     @Nullable
     @Override
     protected E peekOnDataSource() {
-        final QueueState state = onDiskQueueHelper.getState();
-        Objects.requireNonNull(state);
-        final E value = state.isEmpty() ? null : onDiskQueueHelper.getFromStore(state.getHead());
+        final E value = binaryState.queuePeek(stateId, valueCodec);
         // Log to transaction state log, what was peeked
-        logQueuePeek(computeLabel(serviceName, stateKey), value);
+        logQueuePeek(label, value);
         return value;
     }
 
@@ -57,6 +64,6 @@ public class OnDiskReadableQueueState<E> extends ReadableQueueStateBase<E> {
     @NonNull
     @Override
     protected Iterator<E> iterateOnDataSource() {
-        return onDiskQueueHelper.iterateOnDataSource();
+        return binaryState.createQueueIterator(stateId, valueCodec);
     }
 }

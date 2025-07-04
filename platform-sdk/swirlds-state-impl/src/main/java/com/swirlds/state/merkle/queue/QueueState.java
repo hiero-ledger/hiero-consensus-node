@@ -25,7 +25,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  * <p><b>Where is it used?</b></p>
  * This class is used in queue implementations that rely on disk-backed storage, such as in
- * conjunction with the {@link com.swirlds.state.merkle.disk.OnDiskQueueHelper}, to persist the state
+ * conjunction with the {@link com.swirlds.state.BinaryState}, to persist the state
  * of the queue and manage its metadata.
  */
 public class QueueState {
