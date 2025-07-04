@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.pool;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
@@ -34,16 +33,14 @@ public class TransactionPoolMetrics {
     /**
      * Create metrics for the transaction pool.
      *
-     * @param platformContext                     the platform context
+     * @param metrics                             the metrics instance to use
      * @param getBufferedTransactionCount         a supplier for the number of buffered transactions
      * @param getPriorityBufferedTransactionCount a supplier for the number of priority buffered transactions
      */
     public TransactionPoolMetrics(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
             @NonNull final Supplier<Integer> getBufferedTransactionCount,
             @NonNull final Supplier<Integer> getPriorityBufferedTransactionCount) {
-
-        final Metrics metrics = platformContext.getMetrics();
 
         acceptedAppTransactions = metrics.getOrCreate(ACCEPTED_APP_TRANSACTIONS_CONFIG);
         rejectedAppTransactions = metrics.getOrCreate(REJECTED_APP_TRANSACTIONS_CONFIG);
