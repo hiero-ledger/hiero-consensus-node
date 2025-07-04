@@ -117,4 +117,5 @@ jobs:
       custom-job-name: "Dry-Run: SDK TCK Regression"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

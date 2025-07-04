@@ -3,8 +3,9 @@ package org.hiero.consensus.event.creator.impl.rules;
 
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimiter;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
@@ -19,16 +20,16 @@ public class MaximumRateRule implements EventCreationRule {
     /**
      * Constructor.
      *
-     * @param platformContext the platform context for this node
+     * @param configuration provides the configuration for the event creator
+     * @param time          provides the time source for rate limiting
      */
-    public MaximumRateRule(@NonNull final PlatformContext platformContext) {
+    public MaximumRateRule(@NonNull final Configuration configuration, @NonNull final Time time) {
 
-        final EventCreationConfig eventCreationConfig =
-                platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         final double maxCreationRate = eventCreationConfig.maxCreationRate();
         if (maxCreationRate > 0) {
-            rateLimiter = new RateLimiter(platformContext.getTime(), maxCreationRate);
+            rateLimiter = new RateLimiter(time, maxCreationRate);
         } else {
             // No brakes!
             rateLimiter = null;

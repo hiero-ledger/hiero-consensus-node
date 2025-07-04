@@ -14,9 +14,8 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import java.util.List;
@@ -165,9 +164,9 @@ class EventCreationRulesTests {
 
     @Test
     void noRateLimitTest() {
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = new FakeTime();
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
 
         final AtomicInteger eventCreationCount = new AtomicInteger(0);
         final EventCreator baseEventCreator = mock(EventCreator.class);
@@ -176,7 +175,7 @@ class EventCreationRulesTests {
             return mock(PlatformEvent.class);
         });
 
-        final EventCreationRule rule = new MaximumRateRule(platformContext);
+        final EventCreationRule rule = new MaximumRateRule(configuration, time);
 
         // Ask for a bunch of events to be created without advancing the time.
         for (int i = 0; i < 100; i++) {
@@ -196,12 +195,8 @@ class EventCreationRulesTests {
                 .getOrCreateConfig();
 
         final FakeTime time = new FakeTime();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .withTime(time)
-                .build();
 
-        final EventCreationRule rule = new MaximumRateRule(platformContext);
+        final EventCreationRule rule = new MaximumRateRule(configuration, time);
 
         int millisSinceLastEvent = (int) period.toMillis();
         for (int i = 0; i < 100; i++) {
