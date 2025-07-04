@@ -8,12 +8,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.FallenBehindManagerImpl;
 import com.swirlds.platform.gossip.sync.SyncManagerImpl;
 import com.swirlds.platform.network.PeerInfo;
@@ -46,24 +47,24 @@ class SyncManagerTest {
 
         public SyncManagerTestData() {
             final Random random = getRandomPrintSeed();
-            final PlatformContext platformContext =
-                    TestPlatformContextBuilder.create().build();
+            configuration = new TestConfigBuilder()
+                    .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, "0.25")
+                    .getOrCreateConfig();
+            final Metrics metrics = new NoOpMetrics();
+            final Time time = Time.getCurrent();
 
-            transactionPoolNexus = spy(new TransactionPoolNexus(platformContext));
+            transactionPoolNexus = spy(new TransactionPoolNexus(configuration, metrics, time));
 
             this.roster = RandomRosterBuilder.create(random).withSize(41).build();
             this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
 
-            configuration = new TestConfigBuilder()
-                    .withValue(ReconnectConfig_.FALLEN_BEHIND_THRESHOLD, "0.25")
-                    .getOrCreateConfig();
             final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
             final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
             final NetworkTopology topology = new StaticTopology(peers, selfId);
 
             syncManager = new SyncManagerImpl(
-                    platformContext,
+                    metrics,
                     new FallenBehindManagerImpl(
                             selfId, peers.size(), mock(StatusActionSubmitter.class), reconnectConfig));
         }

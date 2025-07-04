@@ -144,12 +144,18 @@ jobs:
 
       - name: Verify Workflow Parameters
         id: parameters
+        env:
+          REF_CHECK: ${{ inputs.ref }}
+          REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
-          if [[ "${{ inputs.ref }}" == refs/*  ]]; then
-            COMMIT_SHA=$( git log -1 --format="%H" "${{ inputs.ref }}" )
+          REF_INFO=$(git ls-remote "${REPO_URL}" "${REF_CHECK}")
+          if [[ -n "${REF_INFO/ /}" ]]; then
+            COMMIT_SHA="$(echo "${REF_INFO}" | awk '{print $1}')"
           else
-            COMMIT_SHA="${{ inputs.ref }}"
+            COMMIT_SHA="${REF_CHECK}"
           fi
+
+          echo "COMMIT SHA is: ${COMMIT_SHA}"
           BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
@@ -164,6 +170,14 @@ jobs:
           echo "commit-prefix=${COMMIT_PREFIX}" >>"${GITHUB_OUTPUT}"
           echo "commit-id=${COMMIT_SHA}" >>"${GITHUB_OUTPUT}"
           echo "commit-id-short=$(echo "${COMMIT_SHA}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
+
+          echo "### Branch and Commit Metadata" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name: ${BRANCH_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name (lowercase): ${BRANCH_NAME_LOWER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name (safe): ${BRANCH_NAME_SAFE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit Prefix: ${COMMIT_PREFIX}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit SHA: ${COMMIT_SHA}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit SHA (short): $(echo "${COMMIT_SHA}" | cut -c1-8)" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify Version Update (As Specified)
         if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
