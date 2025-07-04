@@ -8,9 +8,12 @@ Comprehensive guide to Docker-based testing with the Container environment for r
 
 - [🎯 Overview](#-overview)
 - [🏗️ Network and Node Management](#-network-and-node-management)
-- [🌐 Network Simulation](#-network-simulation)
-- [⏱️ Time Management](#-time-management)
-- [🎲 Deterministic Testing](#-deterministic-testing)
+- [🐳 Docker Integration](#-docker-integration)
+  - [Image Building](#image-building)
+  - [Container Startup Process](#container-startup-process)
+  - [gRPC Protocol](#grpc-protocol)
+  - [Event Streaming Flow](#event-streaming-flow)
+  - [Debugging Container Tests](#debugging-container-tests)
 
 ## 🎯 Overview
 
@@ -161,7 +164,7 @@ classDiagram
 
 The `Network` interface and its abstract implementation `AbstractNetwork` provide the foundation for managing collections of consensus nodes, with `ContainerNetwork` being a specific implementation that uses Testcontainers to run nodes in Docker containers. The `Node` interface and its `AbstractNode` base class represent individual consensus participants, with `ContainerNode` being the concrete implementation that integrates with the containerized network environment.
 
-## Docker Integration
+## 🐳 Docker Integration
 
 ### Image Building
 
