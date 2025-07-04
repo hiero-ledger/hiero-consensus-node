@@ -139,9 +139,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
-@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
 public class AtomicEthereumSuite {
-
     public static final long GAS_LIMIT = 1_000_000;
     public static final String ERC20_CONTRACT = "ERC20Contract";
     public static final String EMIT_SENDER_ORIGIN_CONTRACT = "EmitSenderOrigin";
@@ -727,6 +725,7 @@ public class AtomicEthereumSuite {
     }
 
     @HapiTest
+    @Disabled // enable after https://github.com/hiero-ledger/hiero-consensus-node/pull/20006 is merged
     final Stream<DynamicTest> etx008ContractCreateExecutesWithExpectedRecord() {
         final var txn = "creation";
         final var contract = "Fuse";

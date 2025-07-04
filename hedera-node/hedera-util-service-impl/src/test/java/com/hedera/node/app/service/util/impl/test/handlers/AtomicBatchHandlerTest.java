@@ -39,6 +39,7 @@ import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
@@ -47,6 +48,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -341,6 +343,12 @@ class AtomicBatchHandlerTest {
                 .build();
         final var bytes = transactionsToBytes(transaction);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var tokenServiceMock = mock(TokenServiceApi.class);
+        final var storeFactoryMock = mock(StoreFactory.class);
+
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(storeFactoryMock.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceMock);
         given(handleContext.body()).willReturn(txnBody);
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
