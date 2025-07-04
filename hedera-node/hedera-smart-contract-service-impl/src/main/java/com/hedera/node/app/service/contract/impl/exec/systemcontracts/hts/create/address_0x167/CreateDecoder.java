@@ -49,7 +49,7 @@ public class CreateDecoder extends CreateCommonDecoder {
         final var call = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1.decodeCall(encoded);
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
         final var initSupply = ((BigInteger) call.get(INIT_SUPPLY)).longValueExact();
-        final var decimals = ((BigInteger) call.get(DECIMALS)).intValue();
+        final var decimals = ((BigInteger) call.get(DECIMALS)).intValueExact();
         final var tokenCreateWrapper = getTokenCreateWrapper(
                 hederaToken, true, initSupply, decimals, senderId, nativeOperations, addressIdConverter);
         return bodyFor(tokenCreateWrapper);
