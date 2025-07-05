@@ -54,7 +54,7 @@ class PlatformStatEntryTest {
         final Supplier<Object> getAndReset = mock(Supplier.class);
 
         // when
-        final StatEntry.Config config = new StatEntry.Config(CATEGORY, NAME, Object.class, getter)
+        final StatEntry.Config<Object> config = new StatEntry.Config<>(CATEGORY, NAME, Object.class, getter)
                 .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT)
@@ -250,7 +250,7 @@ class PlatformStatEntryTest {
     void testToString() {
         // given
         final Supplier<Object> getter = mock(Supplier.class);
-        final StatEntry.Config config = new StatEntry.Config(CATEGORY, NAME, Object.class, getter)
+        final StatEntry.Config<Object> config = new StatEntry.Config<>(CATEGORY, NAME, Object.class, getter)
                 .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform;
 
+import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
@@ -17,7 +18,7 @@ public abstract class AbstractDistributionMetric extends AbstractMetric {
     /**
      * Half-life of the metric
      */
-    protected final double halfLife;
+    private final double halfLife;
 
     /**
      * Constructs a new {@code AbstractStatsMetric} with the specified configuration and half-life.
@@ -90,5 +91,10 @@ public abstract class AbstractDistributionMetric extends AbstractMetric {
     @Override
     public void reset() {
         getStatsBuffered().reset(halfLife);
+    }
+
+    @Override
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("halfLife", halfLife).append("value", get());
     }
 }

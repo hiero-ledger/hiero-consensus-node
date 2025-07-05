@@ -3,6 +3,7 @@ package com.swirlds.common.metrics.platform;
 
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
+import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.metrics.DurationGauge;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.impl.AbstractMetric;
@@ -16,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * Platform-implementation of {@link DurationGauge}
  */
 public class PlatformDurationGauge extends AbstractMetric implements DurationGauge {
+
     private final AtomicLong nanos;
     private final ChronoUnit unit;
 
@@ -25,8 +27,9 @@ public class PlatformDurationGauge extends AbstractMetric implements DurationGau
      */
     public PlatformDurationGauge(@NonNull final DurationGauge.Config config) {
         super(config);
-        this.unit = config.getTimeUnit();
-        this.nanos = new AtomicLong();
+
+        unit = config.getTimeUnit();
+        nanos = new AtomicLong();
     }
 
     /**
@@ -58,5 +61,10 @@ public class PlatformDurationGauge extends AbstractMetric implements DurationGau
     @Override
     public double get() {
         return getAsDouble() / unit.getDuration().toNanos();
+    }
+
+    @Override
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("unit", unit).append("value", get());
     }
 }
