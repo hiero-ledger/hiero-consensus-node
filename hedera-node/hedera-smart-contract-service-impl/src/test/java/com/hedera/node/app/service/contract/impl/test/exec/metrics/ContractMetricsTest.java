@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -112,6 +113,14 @@ public class ContractMetricsTest {
 
         assertThat(subject.getAllCounterNames()).isEmpty();
         assertThat(subject.getAllCounterValues()).isEmpty();
+    }
+
+    @Test
+    void processedTransactionIsRecordedWithoutErrors() {
+        when(contractsConfig.metricsSmartContractPrimaryEnabled()).thenReturn(true);
+        final var subject = getSubject();
+        subject.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(10, 10, 10, 10, true));
+        assertThat(subject.getProcessedTransactionCount()).isEqualTo(1L);
     }
 
     private static final long DEFAULT_NODE_ID = 3;

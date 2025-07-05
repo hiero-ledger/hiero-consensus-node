@@ -6,6 +6,7 @@ import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_OPS_DURATION;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.THROTTLE_BY_OPS_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REMAINING_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.isSameResult;
@@ -15,15 +16,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
@@ -110,6 +110,9 @@ class CustomMessageCallProcessorTest {
     @Mock
     private HederaOpsDuration hederaOpsDuration;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
     private CustomMessageCallProcessor subject;
 
     @BeforeEach
@@ -120,7 +123,8 @@ class CustomMessageCallProcessorTest {
                 registry,
                 addressChecks,
                 Map.of(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS, prngPrecompile),
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
     }
 
     @Test
@@ -135,7 +139,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getContextVariable(THROTTLE_BY_OPS_DURATION, false)).willReturn(false);
         given(stack.getLast()).willReturn(frame);
         given(result.getOutput()).willReturn(OUTPUT_DATA);
         given(result.getState()).willReturn(MessageFrame.State.CODE_SUCCESS);
@@ -223,6 +227,7 @@ class CustomMessageCallProcessorTest {
     @Test
     void updatesFrameBySuccessfulPrecompileResultWithGasRefund() {
         givenEvmPrecompileCall();
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
         final var result = new PrecompiledContract.PrecompileContractResult(
                 OUTPUT_DATA, true, MessageFrame.State.CODE_SUCCESS, Optional.empty());
         given(nativePrecompile.computePrecompile(INPUT_DATA, frame)).willReturn(result);
@@ -230,7 +235,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getContextVariable(THROTTLE_BY_OPS_DURATION, false)).willReturn(false);
         given(stack.getLast()).willReturn(frame);
 
         subject.start(frame, operationTracer);
@@ -245,6 +250,7 @@ class CustomMessageCallProcessorTest {
     @Test
     void revertsFrameFromPrecompileResult() {
         givenEvmPrecompileCall();
+        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
         final var result = new PrecompiledContract.PrecompileContractResult(
                 OUTPUT_DATA, false, MessageFrame.State.REVERT, Optional.empty());
         given(nativePrecompile.computePrecompile(INPUT_DATA, frame)).willReturn(result);
@@ -252,7 +258,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getRemainingGas()).willReturn(3L);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(gasCounter);
-        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(frame.getContextVariable(THROTTLE_BY_OPS_DURATION, false)).willReturn(false);
         given(stack.getLast()).willReturn(frame);
         given(frame.getContractAddress()).willReturn(Address.ALTBN128_ADD);
 
