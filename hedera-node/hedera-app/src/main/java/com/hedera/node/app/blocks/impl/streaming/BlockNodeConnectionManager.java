@@ -72,10 +72,8 @@ public class BlockNodeConnectionManager {
      */
     public static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(1);
     /**
-     * The amount of time the worker thread will sleep when there is no work available to process.
+     * The multiplier used for exponential backoff when retrying connections.
      */
-    private static final int PROCESSOR_LOOP_DELAY_MS = 10;
-
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     /**
      * The maximum delay used for reties.
@@ -218,6 +216,18 @@ public class BlockNodeConnectionManager {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .blockItemBatchSize();
+    }
+
+    /**
+     * The amount of time the worker thread will sleep when there is no work available to process.
+     *
+     * @return the sleep duration of the worker loop
+     */
+    private Duration workerLoopSleepDuration() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .workerLoopSleepDuration();
     }
 
     /**
@@ -549,8 +559,7 @@ public class BlockNodeConnectionManager {
 
                 // Sleep for a short duration to avoid busy waiting
                 if (shouldSleep) {
-                    // TODO: make sleep duration configurable
-                    Thread.sleep(PROCESSOR_LOOP_DELAY_MS);
+                    Thread.sleep(workerLoopSleepDuration());
                 }
             } catch (final InterruptedException e) {
                 logger.error("Block stream worker interrupted", e);
