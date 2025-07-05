@@ -36,7 +36,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.BasicConfig;
@@ -243,9 +242,6 @@ public class Browser {
             // Set the MerkleCryptography instance for this node
             final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
 
-            // Register with the ConstructableRegistry classes which need configuration.
-            BootstrapUtils.setupConstructableRegistryWithConfiguration(configuration);
-
             // Create platform context
             final PlatformContext platformContext = PlatformContext.create(
                     configuration,
@@ -254,8 +250,10 @@ public class Browser {
                     FileSystemManager.create(configuration),
                     recycleBin,
                     merkleCryptography);
-            // Each platform needs a different temporary state on disk.
-            MerkleDb.resetDefaultInstancePath();
+
+            // Register with the ConstructableRegistry classes which need configuration.
+            BootstrapUtils.setupConstructableRegistryWithPlatformContext(platformContext);
+
             PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();

@@ -5,6 +5,7 @@ import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLA
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -31,9 +32,10 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
     @NonNull
     public static TurtleAppState createGenesisState(
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Roster roster,
             @NonNull final SemanticVersion version) {
-        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
+        final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration, fileSystemManager);
         final TurtleAppState state = new TurtleAppState();
         initializer.initStates(state);
         RosterUtils.setActiveRoster(state, roster, 0L);

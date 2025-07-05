@@ -12,12 +12,6 @@ public class CryptoBenchMerkleDb extends CryptoBench {
         registry.registerConstructables("com.swirlds.merkledb");
     }
 
-    @Override
-    public void beforeTest(String name) {
-        super.beforeTest(name);
-        updateMerkleDbPath();
-    }
-
     public static void main(String[] args) throws Exception {
         CryptoBenchMerkleDb.setupMerkleDb();
         final CryptoBenchMerkleDb bench = new CryptoBenchMerkleDb();

@@ -43,6 +43,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -380,6 +381,7 @@ class WritableHistoryStoreImplTest {
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
+        final var fileSystemManager = FileSystemManager.create(DEFAULT_CONFIG);
         migrator.doMigrations(
                 state,
                 servicesRegistry,
@@ -387,6 +389,7 @@ class WritableHistoryStoreImplTest {
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 DEFAULT_CONFIG,
+                fileSystemManager,
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,

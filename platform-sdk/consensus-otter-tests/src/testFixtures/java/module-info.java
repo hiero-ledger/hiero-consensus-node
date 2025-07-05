@@ -24,7 +24,6 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.component.framework;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core.test.fixtures;
     requires org.hiero.base.crypto;

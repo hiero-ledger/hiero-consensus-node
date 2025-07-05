@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValue;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeVirtualValueSerializer;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
@@ -17,14 +17,12 @@ import com.swirlds.virtualmap.VirtualMapMigration;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -143,13 +141,7 @@ class MigrationTest {
      * Create a new virtual map data source builder.
      */
     private static MerkleDbDataSourceBuilder constructBuilder() throws IOException {
-        // The tests below create maps with identical names. They would conflict with each other in the default
-        // MerkleDb instance, so let's use a new database location for every map
-        final Path defaultVirtualMapPath =
-                LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb-source", CONFIGURATION);
-        MerkleDb.setDefaultPath(defaultVirtualMapPath);
-        final MerkleDbTableConfig tableConfig =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 1234, Long.MAX_VALUE);
-        return new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        final FileSystemManager fileSystemManager = FileSystemManager.create(CONFIGURATION);
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 1234, Long.MAX_VALUE);
     }
 }

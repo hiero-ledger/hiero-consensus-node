@@ -11,10 +11,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
@@ -43,7 +43,6 @@ import java.util.List;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -62,17 +61,24 @@ public class TestingAppStateInitializer {
             .withConfigDataType(FileSystemManagerConfig.class)
             .build();
 
-    public static final TestingAppStateInitializer DEFAULT = new TestingAppStateInitializer(CONFIGURATION);
+    public static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
+
+    public static final TestingAppStateInitializer DEFAULT =
+            new TestingAppStateInitializer(CONFIGURATION, FILE_SYSTEM_MANAGER);
 
     private final Configuration configuration;
+
+    private final FileSystemManager fileSystemManager;
 
     /**
      * Constructor for {@link TestingAppStateInitializer}
      *
      * @param configuration the configuration to use for the initialized state
      */
-    public TestingAppStateInitializer(@NonNull final Configuration configuration) {
+    public TestingAppStateInitializer(
+            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
         this.configuration = requireNonNull(configuration);
+        this.fileSystemManager = requireNonNull(fileSystemManager);
     }
 
     /**
@@ -89,7 +95,8 @@ public class TestingAppStateInitializer {
             registry.registerConstructable(
                     new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
             registry.registerConstructable(new ClassConstructorPair(
-                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
+                    MerkleDbDataSourceBuilder.class,
+                    () -> new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER)));
             registry.registerConstructable(new ClassConstructorPair(
                     VirtualNodeCache.class,
                     () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
@@ -191,10 +198,9 @@ public class TestingAppStateInitializer {
                                     md.onDiskValueSerializerClassId(),
                                     md.onDiskValueClassId(),
                                     md.stateDefinition().valueCodec());
-                            final var tableConfig =
-                                    new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
                             final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
-                            final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+                            final var dsBuilder = new MerkleDbDataSourceBuilder(
+                                    configuration, fileSystemManager, def.maxKeysHint(), 16);
                             final var virtualMap =
                                     new VirtualMap<>(label, keySerializer, valueSerializer, dsBuilder, configuration);
                             return virtualMap;

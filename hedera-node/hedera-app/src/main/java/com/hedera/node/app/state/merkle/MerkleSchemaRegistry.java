@@ -14,10 +14,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkle.map.MerkleMap;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -49,7 +49,6 @@ import java.util.TreeSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * An implementation of {@link SchemaRegistry}.
@@ -173,6 +172,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final SemanticVersion currentVersion,
             @NonNull final Configuration appConfig,
             @NonNull final Configuration platformConfig,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final MigrationStateChanges migrationStateChanges,
@@ -182,6 +182,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
+        requireNonNull(fileSystemManager);
         requireNonNull(metrics);
         requireNonNull(sharedValues);
         requireNonNull(migrationStateChanges);
@@ -229,7 +230,13 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                 && alreadyIncludesStateDefs(previousVersion, s.getVersion()))
                         .toList();
                 final var redefinedWritableStates = applyStateDefinitions(
-                        schema, schemasAlreadyInState, appConfig, platformConfig, metrics, stateRoot);
+                        schema,
+                        schemasAlreadyInState,
+                        appConfig,
+                        platformConfig,
+                        fileSystemManager,
+                        metrics,
+                        stateRoot);
                 writableStates = redefinedWritableStates.beforeStates();
                 newStates = redefinedWritableStates.afterStates();
             } else {
@@ -266,6 +273,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
             @NonNull final List<Schema> schemasAlreadyInState,
             @NonNull final Configuration nodeConfiguration,
             @NonNull final Configuration platformConfiguration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
             @NonNull final MerkleNodeState stateRoot) {
         // Create the new states (based on the schema) which, thanks to the above, does not
@@ -323,16 +331,12 @@ public class MerkleSchemaRegistry implements SchemaRegistry {
                                     // PREFER_DISK_BASED_INDICES = false
                                     final MerkleDbConfig merkleDbConfig =
                                             platformConfiguration.getConfigData(MerkleDbConfig.class);
-                                    final var tableConfig = new MerkleDbTableConfig(
-                                            (short) 1,
-                                            DigestType.SHA_384,
-                                            // Future work: drop StateDefinition.maxKeysHint and load VM size
-                                            // from VirtualMapConfig.size instead
+                                    final var label = StateMetadata.computeLabel(serviceName, stateKey);
+                                    final var dsBuilder = new MerkleDbDataSourceBuilder(
+                                            platformConfiguration,
+                                            fileSystemManager,
                                             def.maxKeysHint(),
                                             merkleDbConfig.hashesRamToDiskThreshold());
-                                    final var label = StateMetadata.computeLabel(serviceName, stateKey);
-                                    final var dsBuilder =
-                                            new MerkleDbDataSourceBuilder(tableConfig, platformConfiguration);
                                     final var virtualMap = new VirtualMap<>(
                                             label, keySerializer, valueSerializer, dsBuilder, platformConfiguration);
                                     return virtualMap;

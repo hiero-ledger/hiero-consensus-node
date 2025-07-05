@@ -14,7 +14,6 @@ open module com.swirlds.state.impl.test.fixtures {
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.merkledb;
-    requires org.hiero.base.crypto;
     requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
 

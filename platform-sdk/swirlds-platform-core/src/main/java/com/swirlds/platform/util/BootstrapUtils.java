@@ -9,6 +9,8 @@ import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVi
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -161,15 +163,18 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Add classes to the constructable registry which need the configuration.
+     * Add classes to the constructable registry which need the platform context.
      *
-     * @param configuration configuration
+     * @param platformContext the platform context
      */
-    public static void setupConstructableRegistryWithConfiguration(Configuration configuration)
+    public static void setupConstructableRegistryWithPlatformContext(final PlatformContext platformContext)
             throws ConstructableRegistryException {
+        final Configuration configuration = platformContext.getConfiguration();
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
         ConstructableRegistry.getInstance()
                 .registerConstructable(new ClassConstructorPair(
-                        MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
+                        MerkleDbDataSourceBuilder.class,
+                        () -> new MerkleDbDataSourceBuilder(configuration, fileSystemManager)));
 
         registerVirtualMapConstructables(configuration);
     }

@@ -4,9 +4,7 @@ package com.swirlds.benchmark;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
@@ -26,12 +24,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.openjdk.jmh.annotations.TearDown;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
+
     protected static final Logger logger = LogManager.getLogger(VirtualMapBench.class);
 
     protected static final String LABEL = "vm";
@@ -42,22 +40,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
 
     /* This map may be pre-created on demand and reused between benchmarks/iterations */
     protected VirtualMap<BenchmarkKey, BenchmarkValue> virtualMapP;
-
-    private int dbIndex = 0;
-
-    /**
-     * Use a different MerkleDb instance for every test run. With a single instance,
-     * even if its folder is deleted before each run, there could be background
-     * threads (virtual pipeline thread, data source compaction thread, etc.) from
-     * the previous run that re-create the folder, and it results in a total mess.
-     * <p>
-     * This method must be called AFTER calling beforeTest(String), or at least
-     * after setTestDir(String) because it needs the test directory path.
-     */
-    protected void updateMerkleDbPath() {
-        final Path merkleDbPath = getTestDir().resolve("merkledb" + dbIndex++);
-        MerkleDb.setDefaultPath(merkleDbPath);
-    }
 
     /* Run snapshots periodically */
     private boolean doSnapshots;
@@ -95,9 +77,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     protected VirtualMap<BenchmarkKey, BenchmarkValue> createEmptyMap(String label) {
         final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
         // Start with a relatively low virtual map size hint and let MerkleDb resize its HDHM
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1, DigestType.SHA_384, maxKey / 2, merkleDbConfig.hashesRamToDiskThreshold());
-        MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+        MerkleDbDataSourceBuilder dataSourceBuilder = new MerkleDbDataSourceBuilder(
+                configuration, fileSystemManager, maxKey / 2, merkleDbConfig.hashesRamToDiskThreshold());
         return new VirtualMap<>(
                 label, new BenchmarkKeySerializer(), new BenchmarkValueSerializer(), dataSourceBuilder, configuration);
     }

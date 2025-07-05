@@ -5,6 +5,7 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -44,6 +45,7 @@ public interface ServiceMigrator {
             @NonNull SemanticVersion currentVersion,
             @NonNull Configuration appConfig,
             @NonNull Configuration platformConfig,
+            @NonNull FileSystemManager fileSystemManager,
             @NonNull Metrics metrics,
             @NonNull StartupNetworks startupNetworks,
             @NonNull StoreMetricsServiceImpl storeMetricsService,

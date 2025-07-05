@@ -114,6 +114,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -641,8 +642,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     public void initializeStatesApi(
             @NonNull final MerkleNodeState state,
             @NonNull final InitTrigger trigger,
+            @NonNull final PlatformContext platformContext,
             @NonNull final Configuration platformConfig) {
         requireNonNull(state);
+        requireNonNull(platformContext);
         requireNonNull(platformConfig);
         this.configProvider = new ConfigProviderImpl(trigger == GENESIS, metrics);
         this.genesisNetworkSupplier = () -> startupNetworks().genesisNetworkOrThrow(platformConfig);
@@ -667,7 +670,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             throw new IllegalStateException("Cannot downgrade from " + deserializedVersion + " to " + version);
         }
         try {
-            migrateSchemas(state, deserializedVersion, trigger, metrics, platformConfig);
+            migrateSchemas(state, deserializedVersion, trigger, platformContext, metrics, platformConfig);
         } catch (final Throwable t) {
             logger.fatal("Critical failure during schema migration", t);
             throw new IllegalStateException("Critical failure during migration", t);
@@ -696,7 +699,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         }
         this.platform = requireNonNull(platform);
         if (state.getReadableStates(EntityIdService.NAME).isEmpty()) {
-            initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
+            initializeStatesApi(
+                    state, trigger, platform.getContext(), platform.getContext().getConfiguration());
         }
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
@@ -727,6 +731,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final MerkleNodeState state,
             @Nullable final SemanticVersion deserializedVersion,
             @NonNull final InitTrigger trigger,
+            @NonNull final PlatformContext platformContext,
             @NonNull final Metrics metrics,
             @NonNull final Configuration platformConfig) {
         final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(version, deserializedVersion) > 0;
@@ -750,6 +755,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 // migration, implying we should pass a config provider; but we don't need this yet
                 configProvider.getConfiguration(),
                 platformConfig,
+                platformContext.getFileSystemManager(),
                 metrics,
                 startupNetworks,
                 storeMetricsService,

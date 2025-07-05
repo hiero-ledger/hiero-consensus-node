@@ -4,6 +4,7 @@ package com.swirlds.merkledb.files;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -19,8 +20,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -49,11 +48,10 @@ import org.junit.jupiter.api.Test;
  */
 public class CloseFlushTest {
 
-    private static Path tmpFileDir;
+    private static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
 
     @BeforeAll
     public static void setup() throws IOException {
-        tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         Configurator.setRootLevel(Level.WARN);
     }
 
@@ -67,13 +65,15 @@ public class CloseFlushTest {
         final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
+        final Path tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource =
                     TestType.fixed_fixed.dataType().createDataSource(storeDir, "closeFlushTest", count, 0, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
-            final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
+            final VirtualDataSourceBuilder builder =
+                    new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION, FILE_SYSTEM_MANAGER);
             VirtualMap<VirtualKey, ExampleByteArrayVirtualValue> map = new VirtualMap(
                     "closeFlushTest",
                     TestType.fixed_fixed.dataType().getKeySerializer(),
@@ -124,14 +124,15 @@ public class CloseFlushTest {
 
         // Provided for deserialization
         public CustomDataSourceBuilder() {
-            super(CONFIGURATION);
+            super(CONFIGURATION, FILE_SYSTEM_MANAGER);
         }
 
         public CustomDataSourceBuilder(
                 final VirtualDataSource delegate,
                 AtomicReference<Exception> sink,
-                final @NonNull Configuration configuration) {
-            super(configuration);
+                final @NonNull Configuration configuration,
+                final @NonNull FileSystemManager fileSystemManager) {
+            super(configuration, fileSystemManager);
             this.delegate = delegate;
             this.exceptionSink = sink;
         }
@@ -222,18 +223,6 @@ public class CloseFlushTest {
                 @Override
                 public void stopAndDisableBackgroundCompaction() {
                     delegate.stopAndDisableBackgroundCompaction();
-                }
-
-                @Override
-                @SuppressWarnings("rawtypes")
-                public KeySerializer getKeySerializer() {
-                    throw new UnsupportedOperationException("This method should never be called");
-                }
-
-                @Override
-                @SuppressWarnings("rawtypes")
-                public ValueSerializer getValueSerializer() {
-                    throw new UnsupportedOperationException("This method should never be called");
                 }
             };
         }

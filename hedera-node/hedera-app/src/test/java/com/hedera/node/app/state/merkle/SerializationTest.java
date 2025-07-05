@@ -12,13 +12,13 @@ import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -232,8 +232,6 @@ class SerializationTest extends MerkleTestBase {
         originalTree.computeHash();
         originalTree.createSnapshot(tempDir);
 
-        // Restore to a fresh MerkleDb instance
-        MerkleDb.resetDefaultInstancePath();
         final MerkleNodeState state =
                 originalTree.loadSnapshot(tempDir.resolve(MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME));
         initServices(schemaV1, state);
@@ -313,6 +311,7 @@ class SerializationTest extends MerkleTestBase {
                 schemaV1.getVersion(),
                 config,
                 config,
+                mock(FileSystemManager.class),
                 mock(Metrics.class),
                 new HashMap<>(),
                 migrationStateChanges,
@@ -335,6 +334,7 @@ class SerializationTest extends MerkleTestBase {
                 v1,
                 config,
                 config,
+                FileSystemManager.create(config),
                 mock(Metrics.class),
                 new HashMap<>(),
                 migrationStateChanges,

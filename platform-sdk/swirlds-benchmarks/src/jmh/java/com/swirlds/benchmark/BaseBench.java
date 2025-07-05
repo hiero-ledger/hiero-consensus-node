@@ -3,6 +3,7 @@ package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
 import com.swirlds.benchmark.reconnect.BenchmarkMerkleInternal;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.config.api.Configuration;
@@ -71,6 +72,8 @@ public abstract class BaseBench {
 
     protected static Configuration configuration;
 
+    protected static FileSystemManager fileSystemManager;
+
     private static void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
@@ -95,6 +98,8 @@ public abstract class BaseBench {
         final BenchmarkConfig benchmarkConfig = getConfig(BenchmarkConfig.class);
         logger.info("Benchmark configuration: {}", benchmarkConfig);
         logger.info("Build: {}", Utils.buildVersion());
+
+        fileSystemManager = FileSystemManager.create(configuration);
 
         final String data = benchmarkConfig.benchmarkData();
         if (data == null || data.isBlank()) {

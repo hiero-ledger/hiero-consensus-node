@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -41,7 +42,6 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -60,6 +60,8 @@ class VirtualMapSerializationTests {
     public static final ValueSerializer<ExampleFixedSizeVirtualValue> VALUE_SERIALIZER =
             new ExampleFixedSizeVirtualValueSerializer();
 
+    private static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
+
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
@@ -69,7 +71,8 @@ class VirtualMapSerializationTests {
         registry.registerConstructables("org.hiero");
         ConstructableRegistry.getInstance()
                 .registerConstructable(new ClassConstructorPair(
-                        MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
+                        MerkleDbDataSourceBuilder.class,
+                        () -> new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER)));
         registry.registerConstructable(
                 new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap<>(CONFIGURATION)));
         registry.registerConstructable(new ClassConstructorPair(
@@ -85,14 +88,7 @@ class VirtualMapSerializationTests {
     }
 
     public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) throws IOException {
-        // The tests below create maps with identical names. They would conflict with each other in the default
-        // MerkleDb instance, so let's use a new database location for every map
-        final Path defaultVirtualMapPath =
-                LegacyTemporaryFileBuilder.buildTemporaryFile("merkledb-source", configuration);
-        MerkleDb.setDefaultPath(defaultVirtualMapPath);
-        final MerkleDbTableConfig tableConfig =
-                new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 10_000, Long.MAX_VALUE);
-        return new MerkleDbDataSourceBuilder(tableConfig, configuration);
+        return new MerkleDbDataSourceBuilder(configuration, FILE_SYSTEM_MANAGER, 10_000, Long.MAX_VALUE);
     }
 
     /**
@@ -254,10 +250,6 @@ class VirtualMapSerializationTests {
             assertNotNull(list, "saved state directory is not a valid directory");
             assertFalse(list.isEmpty(), "there should be a non-zero number of files created");
         }
-        // Change default MerkleDb path, so data sources are restored into a different DB instance
-        final Path restoredDbDirectory =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("merkledb-restored", CONFIGURATION);
-        MerkleDb.setDefaultPath(restoredDbDirectory);
 
         final MerkleDataInputStream in = new MerkleDataInputStream(new ByteArrayInputStream(byteOut.toByteArray()));
 

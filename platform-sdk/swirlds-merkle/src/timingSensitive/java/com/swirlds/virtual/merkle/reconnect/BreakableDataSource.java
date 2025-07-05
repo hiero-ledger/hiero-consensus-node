@@ -6,8 +6,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -119,17 +117,5 @@ public final class BreakableDataSource implements VirtualDataSource {
     @Override
     public void stopAndDisableBackgroundCompaction() {
         delegate.stopAndDisableBackgroundCompaction();
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes")
-    public KeySerializer getKeySerializer() {
-        throw new UnsupportedOperationException("This method should never be called");
-    }
-
-    @Override
-    @SuppressWarnings("rawtypes")
-    public ValueSerializer getValueSerializer() {
-        throw new UnsupportedOperationException("This method should never be called");
     }
 }

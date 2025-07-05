@@ -83,14 +83,15 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.StateConfig;
@@ -110,7 +111,6 @@ import java.nio.file.Paths;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
@@ -149,6 +149,7 @@ public class InitUtils {
                 .withConfigDataType(CryptoConfig.class)
                 .withConfigDataType(StateCommonConfig.class)
                 .withConfigDataType(StateConfig.class)
+                .withConfigDataType(FileSystemManagerConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(ApiPermissionConfig.class)
@@ -192,11 +193,9 @@ public class InitUtils {
      */
     static List<VirtualMapAndDataSourceRecord<?, ?>> initVirtualMapRecords(ServicesRegistryImpl servicesRegistry) {
         final Path stateDirPath = Paths.get(STATE_DIR);
+        final FileSystemManager fileSystemManager = FileSystemManager.create(CONFIGURATION);
 
-        final MerkleDb merkleDb = MerkleDb.getInstance(stateDirPath, CONFIGURATION);
-        Map<String, MerkleDbTableConfig> tableConfigByNames = merkleDb.getTableConfigs();
         final var virtualMaps = new ArrayList<VirtualMapAndDataSourceRecord<?, ?>>();
-
         servicesRegistry.registrations().forEach((registration) -> {
             try {
                 var service = registration.service();
@@ -220,7 +219,6 @@ public class InitUtils {
                                     if (TABLES_TO_EXCLUDE.contains(label)) {
                                         return;
                                     }
-                                    MerkleDbTableConfig tableConfig = tableConfigByNames.get(label);
                                     final var keySerializer = new OnDiskKeySerializer<>(
                                             md.onDiskKeySerializerClassId(),
                                             md.onDiskKeyClassId(),
@@ -229,7 +227,8 @@ public class InitUtils {
                                             md.onDiskValueSerializerClassId(),
                                             md.onDiskValueClassId(),
                                             md.stateDefinition().valueCodec());
-                                    final var ds = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
+                                    final var ds =
+                                            new RestoringMerkleDbDataSourceBuilder(stateDirPath, fileSystemManager);
                                     final var vm =
                                             new VirtualMap(label, keySerializer, valueSerializer, ds, CONFIGURATION);
                                     virtualMaps.add(new VirtualMapAndDataSourceRecord<>(
@@ -328,7 +327,9 @@ public class InitUtils {
     /**
      * This method initializes the State API
      */
-    static void initServiceMigrator(State state, Configuration configuration, ServicesRegistry servicesRegistry) {
+    static void initServiceMigrator(State state, PlatformContext platformContext, ServicesRegistry servicesRegistry) {
+        final var configuration = platformContext.getConfiguration();
+        final var fileSystemManager = platformContext.getFileSystemManager();
         final var bootstrapConfigProvider = new BootstrapConfigProviderImpl();
         final var serviceMigrator = new OrderedServiceMigrator();
         final var platformFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
@@ -341,6 +342,7 @@ public class InitUtils {
                 version,
                 configuration,
                 configuration,
+                fileSystemManager,
                 new NoOpMetrics(),
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),

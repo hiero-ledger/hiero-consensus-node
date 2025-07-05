@@ -84,6 +84,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -401,6 +402,7 @@ public class TransactionExecutorsTest {
         registerServices(appContext, servicesRegistry);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
+        final var fileSystemManager = FileSystemManager.create(config);
         migrator.doMigrations(
                 state,
                 servicesRegistry,
@@ -408,6 +410,7 @@ public class TransactionExecutorsTest {
                 bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
                 new ConfigProviderImpl().getConfiguration(),
                 config,
+                fileSystemManager,
                 NO_OP_METRICS,
                 startupNetworks,
                 storeMetricsService,

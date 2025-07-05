@@ -27,9 +27,7 @@ import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig_;
@@ -95,11 +93,9 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        // Don't use JUnit @TempDir as it runs into a thread race with Merkle DB DataSource release...
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
                 "SignedStateFileReadWriteTest", TestingAppStateInitializer.CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory);
-        MerkleDb.resetDefaultInstancePath();
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(
                         StateCommonConfig_.SAVED_STATE_DIRECTORY,
@@ -119,19 +115,21 @@ class StateFileManagerTests {
     /**
      * Make sure the signed state was properly saved.
      */
-    private void validateSavingOfState(final SignedState originalState) throws IOException {
+    private void validateSavingOfState(final SignedState originalState, final PlatformContext context)
+            throws IOException {
 
         final Path stateDirectory = signedStateFilePath.getSignedStateDirectory(
                 MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, originalState.getRound());
 
-        validateSavingOfState(originalState, stateDirectory);
+        validateSavingOfState(originalState, stateDirectory, context);
     }
 
     /**
      * Make sure the signed state was properly saved.
      */
-    private void validateSavingOfState(final SignedState originalState, final Path stateDirectory) throws IOException {
-
+    private void validateSavingOfState(
+            final SignedState originalState, final Path stateDirectory, final PlatformContext context)
+            throws IOException {
         assertEventuallyEquals(
                 -1, originalState::getReservationCount, Duration.ofSeconds(1), "invalid reservation count");
 
@@ -145,11 +143,8 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        MerkleDb.resetDefaultInstancePath();
-        Configuration configuration =
-                TestPlatformContextBuilder.create().build().getConfiguration();
         final DeserializedSignedState deserializedSignedState =
-                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, PlatformContext.create(configuration));
+                readStateFile(stateFile, TEST_PLATFORM_STATE_FACADE, context);
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
@@ -185,7 +180,7 @@ class StateFileManagerTests {
 
         if (successExpected) {
             assertNotNull(stateSavingResult, "If succeeded, should return a StateSavingResult");
-            validateSavingOfState(signedState);
+            validateSavingOfState(signedState, context);
         } else {
             assertNull(stateSavingResult, "If unsuccessful, should return null");
         }
@@ -217,7 +212,7 @@ class StateFileManagerTests {
         thread.join(1000);
 
         final Path stateDirectory = testDirectory.resolve("fatal").resolve("node1234_round" + signedState.getRound());
-        validateSavingOfState(signedState, stateDirectory);
+        validateSavingOfState(signedState, stateDirectory, context);
     }
 
     @Test
@@ -232,7 +227,7 @@ class StateFileManagerTests {
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
 
         final Path stateDirectory = testDirectory.resolve("iss").resolve("node1234_round" + signedState.getRound());
-        validateSavingOfState(signedState, stateDirectory);
+        validateSavingOfState(signedState, stateDirectory, context);
     }
 
     /**
@@ -301,7 +296,6 @@ class StateFileManagerTests {
 
             timestamp = timestamp.plus(secondsDelta, ChronoUnit.SECONDS);
 
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState = new RandomSignedStateGenerator(random)
                     .setConsensusTimestamp(timestamp)
                     .setRound(round)
@@ -319,7 +313,7 @@ class StateFileManagerTests {
 
                 savedStates.add(signedState);
 
-                validateSavingOfState(signedState);
+                validateSavingOfState(signedState, context);
 
                 final List<SavedStateInfo> currentStatesOnDisk = new SignedStateFilePath(
                                 context.getConfiguration().getConfigData(StateCommonConfig.class))
@@ -341,15 +335,9 @@ class StateFileManagerTests {
 
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
-                    Configuration configuration =
-                            TestPlatformContextBuilder.create().build().getConfiguration();
-                    // Restore to a new MerkleDb instance
-                    MerkleDb.resetDefaultInstancePath();
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readStateFile(
-                                            savedStateInfo.stateFile(),
-                                            TEST_PLATFORM_STATE_FACADE,
-                                            PlatformContext.create(configuration))
+                                            savedStateInfo.stateFile(), TEST_PLATFORM_STATE_FACADE, context)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");
@@ -405,13 +393,12 @@ class StateFileManagerTests {
                 .getSignedStatesBaseDirectory()
                 .resolve("iss")
                 .resolve("node" + SELF_ID + "_round" + issRound);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState issState =
                 new RandomSignedStateGenerator(random).setRound(issRound).build();
         makeImmutable(issState);
         issState.markAsStateToSave(ISS);
         manager.dumpStateTask(StateDumpRequest.create(issState.reserve("test")));
-        validateSavingOfState(issState, issDirectory);
+        validateSavingOfState(issState, issDirectory, context);
 
         // Simulate the saving of a fatal state
         final int fatalRound = 667;
@@ -419,18 +406,16 @@ class StateFileManagerTests {
                 .getSignedStatesBaseDirectory()
                 .resolve("fatal")
                 .resolve("node" + SELF_ID + "_round" + fatalRound);
-        MerkleDb.resetDefaultInstancePath();
         final SignedState fatalState =
                 new RandomSignedStateGenerator(random).setRound(fatalRound).build();
         makeImmutable(fatalState);
         fatalState.markAsStateToSave(FATAL_ERROR);
         manager.dumpStateTask(StateDumpRequest.create(fatalState.reserve("test")));
-        validateSavingOfState(fatalState, fatalDirectory);
+        validateSavingOfState(fatalState, fatalDirectory, context);
 
         // Save a bunch of states. After each time, check the states that are still on disk.
         final List<SignedState> states = new ArrayList<>();
         for (int round = 1; round <= count; round++) {
-            MerkleDb.resetDefaultInstancePath();
             final SignedState signedState =
                     new RandomSignedStateGenerator(random).setRound(round).build();
             issState.markAsStateToSave(PERIODIC_SNAPSHOT);
@@ -444,7 +429,7 @@ class StateFileManagerTests {
                 if (roundToValidate < 0) {
                     continue;
                 }
-                validateSavingOfState(states.get(roundToValidate));
+                validateSavingOfState(states.get(roundToValidate), context);
             }
 
             // Verify that old states are properly deleted
@@ -458,8 +443,8 @@ class StateFileManagerTests {
                     "unexpected number of states on disk after saving round " + round);
 
             // ISS/fatal state should still be in place
-            validateSavingOfState(issState, issDirectory);
-            validateSavingOfState(fatalState, fatalDirectory);
+            validateSavingOfState(issState, issDirectory, context);
+            validateSavingOfState(fatalState, fatalDirectory, context);
         }
     }
 

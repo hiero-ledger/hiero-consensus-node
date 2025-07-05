@@ -68,11 +68,11 @@ public final class BrokenBuilder implements VirtualDataSourceBuilder {
 
     @Override
     public BreakableDataSource copy(
-            final VirtualDataSource snapshotMe, final boolean makeCopyActive, final boolean offlineUse) {
+            final VirtualDataSource snapshotMe, boolean compactionEnabled, final boolean offlineUse) {
         final var breakableSnapshot = (BreakableDataSource) snapshotMe;
         COPIES_TO_DESTROY.add(breakableSnapshot);
         BreakableDataSource breakableDataSource =
-                new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive, offlineUse));
+                new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, compactionEnabled, offlineUse));
         COPIES_TO_DESTROY.add(breakableDataSource);
         return breakableDataSource;
     }

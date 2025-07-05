@@ -5,16 +5,16 @@ import static com.swirlds.demo.virtualmerkle.VirtualMerkleLeafHasher.hashOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKey;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapKeySerializer;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValue;
 import com.swirlds.demo.virtualmerkle.map.smartcontracts.bytecode.SmartContractByteCodeMapValueSerializer;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -36,6 +35,7 @@ class VirtualMerkleLeafHasherTest {
             .withConfigDataType(MerkleDbConfig.class)
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
+            .withConfigDataType(FileSystemManagerConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .build();
     static Path storeDir;
@@ -47,7 +47,6 @@ class VirtualMerkleLeafHasherTest {
     static void beforeAll() {
         try {
             storeDir = Files.createTempDirectory("VirtualMerkleLeafHasherTest2");
-            MerkleDb.setDefaultPath(storeDir);
         } catch (IOException e) {
             e.printStackTrace(System.err);
         }
@@ -55,8 +54,8 @@ class VirtualMerkleLeafHasherTest {
         keySerializer = new SmartContractByteCodeMapKeySerializer();
         valueSerializer = new SmartContractByteCodeMapValueSerializer();
 
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 50_000_000, 0);
-        dataSourceBuilder = new MerkleDbDataSourceBuilder(tableConfig, CONFIGURATION);
+        final FileSystemManager fileSystemManager = FileSystemManager.create(CONFIGURATION);
+        dataSourceBuilder = new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 50_000_000, 0);
     }
 
     @Test

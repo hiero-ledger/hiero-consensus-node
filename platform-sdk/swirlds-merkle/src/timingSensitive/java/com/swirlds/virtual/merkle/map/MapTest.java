@@ -10,10 +10,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtual.merkle.TestKey;
 import com.swirlds.virtual.merkle.TestKeySerializer;
@@ -27,7 +27,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
@@ -43,26 +42,24 @@ final class MapTest {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .build();
+
+    private static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
+
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-    private static final MerkleDbTableConfig TABLE_CONFIG = new MerkleDbTableConfig(
-            (short) 1, DigestType.SHA_384, INITIAL_MAP_SIZE, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
 
-    VirtualDataSourceBuilder createLongBuilder() {
-        return new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
-    }
-
-    VirtualDataSourceBuilder createGenericBuilder() {
-        return new MerkleDbDataSourceBuilder(TABLE_CONFIG, CONFIGURATION);
+    VirtualDataSourceBuilder createBuilder() {
+        return new MerkleDbDataSourceBuilder(
+                CONFIGURATION, FILE_SYSTEM_MANAGER, INITIAL_MAP_SIZE, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
     }
 
     VirtualMap<TestKey, TestValue> createLongMap(String label) {
         return new VirtualMap<>(
-                label, new TestKeySerializer(), new TestValueSerializer(), createLongBuilder(), CONFIGURATION);
+                label, new TestKeySerializer(), new TestValueSerializer(), createBuilder(), CONFIGURATION);
     }
 
     VirtualMap<TestObjectKey, TestValue> createObjectMap(String label) {
         return new VirtualMap<>(
-                label, new TestObjectKeySerializer(), new TestValueSerializer(), createGenericBuilder(), CONFIGURATION);
+                label, new TestObjectKeySerializer(), new TestValueSerializer(), createBuilder(), CONFIGURATION);
     }
 
     @Test
