@@ -6,13 +6,18 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.common.utility.Threshold;
+import com.swirlds.platform.gossip.shadowgraph.SyncFallenBehindStatus;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.Network;
@@ -61,8 +66,8 @@ public abstract class AbstractNetwork implements Network {
      * Constructs an instance of {@link AbstractNetwork} with the specified default timeouts for start, freeze, and
      * shutdown actions.
      *
-     * @param defaultStartTimeout    the default timeout for starting the network
-     * @param defaultFreezeTimeout   the default timeout for freezing the network
+     * @param defaultStartTimeout the default timeout for starting the network
+     * @param defaultFreezeTimeout the default timeout for freezing the network
      * @param defaultShutdownTimeout the default timeout for shutting down the network
      */
     protected AbstractNetwork(
@@ -122,6 +127,18 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void freeze() throws InterruptedException {
         defaultFreezeAction.freeze();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getNetworkWeight() {
+        long total = 0;
+        for (final Node node : getNodes()) {
+            total += node.getWeight();
+        }
+        return total;
     }
 
     /**
@@ -198,7 +215,60 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given {@link PlatformStatus}.
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
+        final Set<Node> otherNodes = getNodes().stream()
+                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
+                .collect(Collectors.toSet());
+
+        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
+        final EventWindow selfEventWindow = maybeBehindNode.getConsensusResult().getLatestEventWindow();
+
+        long weightOfAheadNodes = 0;
+        for (final Node maybeAheadNode : otherNodes) {
+            final EventWindow peerEventWindow =
+                    maybeAheadNode.getConsensusResult().getLatestEventWindow();
+
+            // If any peer in the required list says the "self" node is not behind, the node is not behind.
+            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                weightOfAheadNodes += maybeAheadNode.getWeight();
+            }
+        }
+        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getNetworkWeight());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode, final double fraction) {
+        final Set<Node> otherNodes = getNodes().stream()
+                .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
+                .collect(Collectors.toSet());
+
+        // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
+        final EventWindow selfEventWindow = maybeBehindNode.getConsensusResult().getLatestEventWindow();
+
+        int numNodesAhead = 0;
+        for (final Node maybeAheadNode : otherNodes) {
+            final EventWindow peerEventWindow =
+                    maybeAheadNode.getConsensusResult().getLatestEventWindow();
+
+            // If any peer in the required list says the "self" node is not behind, the node is not behind.
+            if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
+                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                numNodesAhead++;
+            }
+        }
+        return (numNodesAhead / (1.0 * otherNodes.size())) >= fraction;
+    }
+
+    /**
+     * Creates a {@link BooleanSupplier} that returns {@code true} if all nodes are in the given
+     * {@link PlatformStatus}.
      *
      * @param status the status to check
      * @return the {@link BooleanSupplier}
@@ -211,7 +281,7 @@ public abstract class AbstractNetwork implements Network {
      * Throws an {@link IllegalStateException} if the network is in the given state.
      *
      * @param expected the state that will cause the exception to be thrown
-     * @param message  the message to include in the exception
+     * @param message the message to include in the exception
      * @throws IllegalStateException if the network is in the expected state
      */
     protected void throwIfInState(@NonNull final State expected, @NonNull final String message) {

@@ -71,11 +71,11 @@ public class ContainerNode extends AbstractNode implements Node {
     /**
      * Constructor for the {@link ContainerNode} class.
      *
-     * @param selfId       the unique identifier for this node
-     * @param roster       the roster of the network
+     * @param selfId the unique identifier for this node
+     * @param roster the roster of the network
      * @param keysAndCerts the keys for the node
-     * @param network      the network this node is part of
-     * @param dockerImage  the Docker image to use for this node
+     * @param network the network this node is part of
+     * @param dockerImage the Docker image to use for this node
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -83,7 +83,13 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) {
-        super(selfId);
+        super(
+                selfId,
+                roster.rosterEntries().stream()
+                        .filter(r -> r.nodeId() == selfId.id())
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
+                        .weight());
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 

@@ -97,6 +97,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     /**
      * Constructor of {@link TurtleNode}.
+     *
      * @param randotron the random number generator
      * @param time the time provider
      * @param selfId the node ID of the node
@@ -115,7 +116,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
-        super(selfId);
+        super(
+                selfId,
+                roster.rosterEntries().stream()
+                        .filter(r -> r.nodeId() == selfId.id())
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
+                        .weight());
         logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, this.selfId.toString());
