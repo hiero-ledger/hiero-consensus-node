@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -115,14 +116,17 @@ public interface SystemContractOperations {
 
     /**
      * Attempts to create a child record of the current record, with the given {@code result}.
+     *
      * @param result contract function result
      * @param responseStatus response status
      * @param transaction transaction
+     * @param txResult the concise EVM transaction result
      */
     void externalizeResult(
-            @NonNull ContractFunctionResult result,
+            @Deprecated @NonNull ContractFunctionResult result,
             @NonNull ResponseCodeEnum responseStatus,
-            @NonNull Transaction transaction);
+            @NonNull Transaction transaction,
+            @NonNull EvmTransactionResult txResult);
 
     /**
      * Generate synthetic transaction for child hts call

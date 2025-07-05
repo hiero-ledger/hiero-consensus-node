@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
+import static com.hedera.node.app.service.token.api.ContractChangeSummary.NONCE_INFO_CONTRACT_ID_COMPARATOR;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.TransactionOutput;
@@ -14,6 +15,7 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.TranslationContext;
@@ -43,10 +45,10 @@ import org.hyperledger.besu.evm.log.Log;
  * from a query.
  */
 public class BlockItemsTranslator {
-    private static final Function<TransactionOutput, ContractFunctionResult> CONTRACT_CALL_EXTRACTOR =
-            output -> output.contractCallOrThrow().contractCallResultOrThrow();
-    private static final Function<TransactionOutput, ContractFunctionResult> CONTRACT_CREATE_EXTRACTOR =
-            output -> output.contractCreateOrThrow().contractCreateResultOrThrow();
+    private static final Function<TransactionOutput, EvmTransactionResult> CONTRACT_CALL_EXTRACTOR =
+            output -> output.contractCallOrThrow().evmTransactionResultOrThrow();
+    private static final Function<TransactionOutput, EvmTransactionResult> CONTRACT_CREATE_EXTRACTOR =
+            output -> output.contractCreateOrThrow().evmTransactionResultOrThrow();
 
     public static final BlockItemsTranslator BLOCK_ITEMS_TRANSLATOR = new BlockItemsTranslator();
 
@@ -147,32 +149,34 @@ public class BlockItemsTranslator {
                 if (function == CONTRACT_CALL) {
                     recordBuilder.contractCallResult(outputValueIfPresent(
                             TransactionOutput::hasContractCall,
-                            logAwareResultExtractor(CONTRACT_CALL_EXTRACTOR, logs),
+                            translatingExtractor(CONTRACT_CALL_EXTRACTOR, context, logs),
                             outputs));
                 } else if (function == CONTRACT_CREATE) {
                     recordBuilder.contractCreateResult(outputValueIfPresent(
                             TransactionOutput::hasContractCreate,
-                            logAwareResultExtractor(CONTRACT_CREATE_EXTRACTOR, logs),
+                            translatingExtractor(CONTRACT_CREATE_EXTRACTOR, context, logs),
                             outputs));
                 } else if (function == ETHEREUM_TRANSACTION) {
+                    recordBuilder.ethereumHash(((ContractOpContext) context).ethHash());
                     final var ethOutput = outputValueIfPresent(
                             TransactionOutput::hasEthereumCall, TransactionOutput::ethereumCallOrThrow, outputs);
                     if (ethOutput != null) {
-                        recordBuilder.ethereumHash(ethOutput.ethereumHash());
-                        switch (ethOutput.ethResult().kind()) {
-                            case ETHEREUM_CALL_RESULT ->
+                        switch (ethOutput.txnResult().kind()) {
+                            case EVM_CALL_TRANSACTION_RESULT ->
                                 recordBuilder.contractCallResult(
-                                        resultWithLogs(ethOutput.ethereumCallResultOrThrow(), logs));
-                            case ETHEREUM_CREATE_RESULT ->
+                                        legacyResultFrom(ethOutput.evmCallTransactionResultOrThrow(), context, logs));
+                            case EVM_CREATE_TRANSACTION_RESULT ->
                                 recordBuilder.contractCreateResult(
-                                        resultWithLogs(ethOutput.ethereumCreateResultOrThrow(), logs));
+                                        legacyResultFrom(ethOutput.evmCreateTransactionResultOrThrow(), context, logs));
                         }
                     }
                 }
             }
             default -> {
-                final var synthResult =
-                        outputValueIfPresent(TransactionOutput::hasContractCall, CONTRACT_CALL_EXTRACTOR, outputs);
+                final var synthResult = outputValueIfPresent(
+                        TransactionOutput::hasContractCall,
+                        translatingExtractor(CONTRACT_CALL_EXTRACTOR, context, null),
+                        outputs);
                 if (synthResult != null) {
                     recordBuilder.contractCallResult(synthResult);
                 }
@@ -197,17 +201,51 @@ public class BlockItemsTranslator {
         return recordBuilder.receipt(translateReceipt(context, result, outputs)).build();
     }
 
-    private Function<TransactionOutput, ContractFunctionResult> logAwareResultExtractor(
-            @NonNull final Function<TransactionOutput, ContractFunctionResult> extractor,
+    private Function<TransactionOutput, ContractFunctionResult> translatingExtractor(
+            @NonNull final Function<TransactionOutput, EvmTransactionResult> extractor,
+            @NonNull final TranslationContext context,
             @Nullable final List<EvmTransactionLog> logs) {
-        return output -> resultWithLogs(extractor.apply(output), logs);
+        return output -> legacyResultFrom(extractor.apply(output), context, logs);
     }
 
-    private ContractFunctionResult resultWithLogs(
-            @NonNull final ContractFunctionResult result, @Nullable final List<EvmTransactionLog> logs) {
-        if (logs == null || logs.isEmpty()) {
-            return result;
-        } else {
+    private ContractFunctionResult legacyResultFrom(
+            @NonNull final EvmTransactionResult result,
+            @NonNull final TranslationContext context,
+            @Nullable final List<EvmTransactionLog> logs) {
+        final var builder = ContractFunctionResult.newBuilder()
+                .senderId(result.senderId())
+                .contractID(result.contractId())
+                .contractCallResult(result.resultData())
+                .errorMessage(result.errorMessage())
+                .gasUsed(result.gasUsed());
+        final var callContext = result.hasInternalCallContext()
+                ? result.internalCallContextOrThrow()
+                : context instanceof ContractOpContext contractOpContext ? contractOpContext.ethCallContext() : null;
+        if (callContext != null) {
+            builder.gas(callContext.gas()).amount(callContext.value()).functionParameters(callContext.callData());
+        }
+        if (context instanceof ContractOpContext contractContext) {
+            builder.signerNonce(contractContext.senderNonce());
+            if (contractContext.createdContractIds() != null) {
+                builder.createdContractIDs(contractContext.createdContractIds());
+            }
+            if (contractContext.evmAddress() != null) {
+                builder.evmAddress(contractContext.evmAddress());
+            }
+            final var changedNonceInfos = contractContext.changedNonceInfos();
+            if (changedNonceInfos != null && !changedNonceInfos.isEmpty()) {
+                final var infos = new ArrayList<>(changedNonceInfos);
+                infos.sort(NONCE_INFO_CONTRACT_ID_COMPARATOR);
+                builder.contractNonces(infos);
+            }
+            attachLogsTo(builder, logs);
+        }
+        return builder.build();
+    }
+
+    private void attachLogsTo(
+            @NonNull final ContractFunctionResult.Builder builder, @Nullable final List<EvmTransactionLog> logs) {
+        if (logs != null && !logs.isEmpty()) {
             final List<Log> besuLogs = new ArrayList<>(logs.size());
             final List<ContractLoginfo> verboseLogs = new ArrayList<>(logs.size());
             for (final var log : logs) {
@@ -222,10 +260,7 @@ public class BlockItemsTranslator {
                         .data(log.data())
                         .build());
             }
-            return result.copyBuilder()
-                    .bloom(bloomForAll(besuLogs))
-                    .logInfo(verboseLogs)
-                    .build();
+            builder.bloom(bloomForAll(besuLogs)).logInfo(verboseLogs);
         }
     }
 

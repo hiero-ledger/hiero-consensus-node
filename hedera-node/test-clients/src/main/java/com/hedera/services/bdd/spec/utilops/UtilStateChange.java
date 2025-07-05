@@ -118,7 +118,7 @@ public class UtilStateChange {
             }
             return r;
         }
-    };
+    }
 
     /**
      * Create (and register) 4 accounts with EC addresses - one each of the four different ways
@@ -134,11 +134,11 @@ public class UtilStateChange {
     public static @NonNull List<SpecOperation> createEthereumAccountsWithECKeysAllDifferentWays(
             final @NonNull Map<ECKind, String> accountNamesByKind) {
 
-        // Merge default account names into caller-provided map of account names
-        final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal)));
-        accountsToCreate.putAll(Stream.of(ECKind.defaultAccountNames(), accountNamesByKind)
-                .flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> v1)));
+        final var accountsToCreate = new TreeMap<ECKind, String>((Comparator.comparing(Enum::ordinal))) {
+            {
+                putAll(accountNamesByKind);
+            }
+        };
         final var accountCreationTxnIds = accountsToCreate.values().toArray(new String[0]);
 
         final Map<ECKind, Address> evmAddresses = new HashMap<>(); // Collect addresses of created accounts here
@@ -212,7 +212,9 @@ public class UtilStateChange {
      * Like {@link #createEthereumAccountsWithECKeysAllDifferentWays(Map)} but with all defaulted account names.
      */
     public static @NonNull List<SpecOperation> createEthereumAccountsWithECKeysAllDifferentWays() {
-        return createEthereumAccountsWithECKeysAllDifferentWays(Map.of());
+        final var defaultAcctNamesByKind = ECKind.defaultAccountNames().entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return createEthereumAccountsWithECKeysAllDifferentWays(defaultAcctNamesByKind);
     }
 
     private static @NonNull VisibleItemsValidator ecAccountsValidator(

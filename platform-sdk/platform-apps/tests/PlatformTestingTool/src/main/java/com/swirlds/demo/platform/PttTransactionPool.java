@@ -53,6 +53,10 @@ public class PttTransactionPool implements FastCopyable {
 
     private static final Marker MARKER = MarkerManager.getMarker("DEMO_INFO");
     private static final Marker ERROR = MarkerManager.getMarker("EXCEPTION");
+    /**
+     * The minimum threshold to the current time to respect for setting the freeze time.
+     */
+    private static final int FREEZE_TIME_MINIMUM_DIFFERENCE_SECONDS = 15;
     /** Transaction pool for FCM operations */
     private FCMTransactionPool fcmTransactionPool;
 
@@ -366,8 +370,15 @@ public class PttTransactionPool implements FastCopyable {
     }
 
     public byte[] createFreezeTranBytes(final FreezeConfig freezeConfig) {
-        final Instant startFreezeTime = this.initTime.plus(freezeConfig.getStartFreezeAfterMin(), ChronoUnit.MINUTES);
-        return createFreezeTranByte(startFreezeTime);
+        final Instant futureThreshold = Instant.now().plusSeconds(FREEZE_TIME_MINIMUM_DIFFERENCE_SECONDS);
+        Instant configuedFreezeTime = this.initTime.plus(freezeConfig.getStartFreezeAfterMin(), ChronoUnit.MINUTES);
+
+        // If the freeze time is too soon, delay it to avoid collision in which the freeze
+        // time is set in the same round that crosses that boundary
+        if (futureThreshold.isAfter(configuedFreezeTime)) {
+            configuedFreezeTime = configuedFreezeTime.plusSeconds(FREEZE_TIME_MINIMUM_DIFFERENCE_SECONDS);
+        }
+        return createFreezeTranByte(configuedFreezeTime);
     }
 
     public byte[] createFreezeTranByte(final Instant startFreezeTime) {

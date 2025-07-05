@@ -427,7 +427,10 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext(), blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }
@@ -477,16 +480,21 @@ public class PlatformComponentBuilder {
     public EventCreationManager buildEventCreationManager() {
         if (eventCreationManager == null) {
             final EventCreator eventCreator = new TipsetEventCreator(
-                    blocks.platformContext(),
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
                     blocks.randomBuilder().buildNonCryptographicRandom(),
                     data -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.appVersion(),
                     blocks.transactionPoolNexus());
 
             eventCreationManager = new DefaultEventCreationManager(
-                    blocks.platformContext(), blocks.transactionPoolNexus(), eventCreator);
+                    blocks.platformContext().getConfiguration(),
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    blocks.transactionPoolNexus(),
+                    eventCreator);
         }
         return eventCreationManager;
     }
@@ -766,13 +774,15 @@ public class PlatformComponentBuilder {
                             .validateInitialState()
                     ? DO_NOT_IGNORE_ROUNDS
                     : initialStateRound;
+            final long latestFreezeRound = blocks.platformStateFacade()
+                    .latestFreezeRoundOf(blocks.initialState().get().getState());
 
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
-                    blocks.appVersion(),
                     ignorePreconsensusSignatures,
-                    roundToIgnore);
+                    roundToIgnore,
+                    latestFreezeRound);
         }
         return issDetector;
     }

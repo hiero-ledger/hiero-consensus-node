@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.util.HapiUtils;
@@ -42,7 +41,6 @@ public class UnsignedEvent implements Hashable {
     /**
      * Create a UnsignedEvent object
      *
-     * @param softwareVersion the software version of the node that created this event.
      * @param creatorId       ID of this event's creator
      * @param selfParent      self parent event descriptor
      * @param otherParents    other parent event descriptors
@@ -51,7 +49,6 @@ public class UnsignedEvent implements Hashable {
      * @param transactions    list of transactions included in this event instance
      */
     public UnsignedEvent(
-            @NonNull final SemanticVersion softwareVersion,
             @NonNull final NodeId creatorId,
             @Nullable final EventDescriptorWrapper selfParent,
             @NonNull final List<EventDescriptorWrapper> otherParents,
@@ -63,7 +60,7 @@ public class UnsignedEvent implements Hashable {
         this.parents = this.metadata.getAllParents().stream()
                 .map(EventDescriptorWrapper::eventDescriptor)
                 .toList();
-        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), softwareVersion);
+        this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), null);
     }
 
     /**

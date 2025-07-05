@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,7 +74,6 @@ public class RandomEventUtils {
                     .forEach(convertedTransactions::add);
         }
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                SemanticVersion.newBuilder().major(1).build(),
                 creatorId,
                 selfDescriptor,
                 otherDescriptor == null ? Collections.emptyList() : Collections.singletonList(otherDescriptor),
