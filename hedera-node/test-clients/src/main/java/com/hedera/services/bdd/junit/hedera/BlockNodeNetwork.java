@@ -191,6 +191,7 @@ public class BlockNodeNetwork {
                 # Block stream configuration
                 blockStream.writerMode=FILE_AND_GRPC
                 blockStream.shutdownNodeOnNoBlockNodes=true
+                blockNode.streamResetPeriod=60s
                 """;
 
         // Write the properties with CREATE and APPEND options

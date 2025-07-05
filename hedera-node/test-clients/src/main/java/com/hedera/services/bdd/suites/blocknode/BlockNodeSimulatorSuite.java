@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
@@ -173,6 +174,8 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(10, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.getFirst()),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Cancelled periodic stream reset", portNumbers.getFirst()),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(1)),
                         String.format(
@@ -180,6 +183,9 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(1)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
                                 portNumbers.get(1)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -190,6 +196,8 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(10, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Cancelled periodic stream reset", portNumbers.get(1)),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(2)),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(2)),
                         String.format(
@@ -197,6 +205,9 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(2)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(2)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
                                 portNumbers.get(2)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -207,6 +218,8 @@ public class BlockNodeSimulatorSuite {
                         Duration.of(10, SECONDS),
                         Duration.of(45, SECONDS),
                         String.format("[localhost:%s/ACTIVE] Stream encountered an error", portNumbers.get(2)),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Cancelled periodic stream reset", portNumbers.get(2)),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(3)),
                         String.format("[localhost:%s/CONNECTING] Running connection task...", portNumbers.get(3)),
                         String.format(
@@ -214,6 +227,9 @@ public class BlockNodeSimulatorSuite {
                                 portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                portNumbers.get(3)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
                                 portNumbers.get(3)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -230,6 +246,8 @@ public class BlockNodeSimulatorSuite {
                         String.format(
                                 "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
                                 portNumbers.get(1)),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M", portNumbers.get(1)),
                         String.format("[localhost:%s/ACTIVE] Closing connection...", portNumbers.get(3)),
                         String.format(
                                 "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
@@ -263,5 +281,53 @@ public class BlockNodeSimulatorSuite {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(5)
+    final Stream<DynamicTest> activeConnectionPeriodicallyRestarts() {
+        final AtomicReference<Instant> connectionDropTime = new AtomicReference<>();
+        final AtomicInteger node0PortNumber = new AtomicInteger();
+        return hapiTest(
+                doingContextual(spec -> {
+                    connectionDropTime.set(Instant.now());
+                    node0PortNumber.set(spec.getBlockNodePortById(0));
+                }),
+                burstOfTps(300, Duration.ofSeconds(60)),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        connectionDropTime::get,
+                        Duration.of(60, SECONDS),
+                        Duration.of(15, SECONDS),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Scheduled periodic stream reset every PT1M",
+                                node0PortNumber.get()),
+                        String.format("[localhost:%s/ACTIVE] Performing scheduled stream reset", node0PortNumber.get()),
+                        String.format("[localhost:%s/ACTIVE] Closing connection...", node0PortNumber.get()),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Connection state transitioned from ACTIVE to UNINITIALIZED",
+                                node0PortNumber.get()),
+                        String.format(
+                                "[localhost:%s/UNINITIALIZED] Scheduling stream restart at block",
+                                node0PortNumber.get()),
+                        String.format(
+                                "[localhost:%s/CONNECTING] Connection state transitioned from UNINITIALIZED to CONNECTING",
+                                node0PortNumber.get()),
+                        String.format(
+                                "[localhost:%s/PENDING] Connection state transitioned from CONNECTING to PENDING",
+                                node0PortNumber.get()),
+                        String.format(
+                                "[localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE",
+                                node0PortNumber.get()))),
+                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }

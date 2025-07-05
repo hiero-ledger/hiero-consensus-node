@@ -97,7 +97,7 @@ public class BlockNodeConnectionManager {
      */
     private final BlockBufferService blockBufferService;
     /**
-     * Scheduled executor service that is used to scheduled asynchronous tasks such as reconnecting to block nodes.
+     * Scheduled executor service that is used to schedule asynchronous tasks such as reconnecting to block nodes.
      */
     private final ScheduledExecutorService executorService;
     /**
@@ -490,7 +490,14 @@ public class BlockNodeConnectionManager {
         // Create the connection object
         final GrpcServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
-                configProvider, nodeConfig, this, blockBufferService, grpcClient, blockStreamMetrics, grpcEndpoint);
+                configProvider,
+                nodeConfig,
+                this,
+                blockBufferService,
+                grpcClient,
+                blockStreamMetrics,
+                grpcEndpoint,
+                executorService);
 
         connections.put(nodeConfig, connection);
         // Immediately schedule the FIRST connection attempt.
