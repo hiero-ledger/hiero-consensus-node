@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "Node: Optional PR Checks"
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+  statuses: write
+  id-token: write
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Code
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      enable-spotless-check: false
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  dependency-check:
+    name: Dependency (Module Info)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - build
+    with:
+      custom-job-label: "Check"
+      enable-dependency-check: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  spotless:
+    name: Spotless
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - build
+    with:
+      custom-job-label: "Check"
+      enable-unit-tests: false
+      enable-spotless-check: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  hapi-tests-bn-communication:
+    name: HAPI Tests (Block Node Communication)
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      custom-job-label: Optional
+      enable-unit-tests: false
+      enable-hapi-tests-bn-communication: true
+      enable-network-log-capture: true
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}

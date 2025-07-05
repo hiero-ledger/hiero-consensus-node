@@ -124,6 +124,7 @@ jobs:
       enable-hapi-tests-misc: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-crypto: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-iss: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
+      enable-hapi-tests-bn-communication: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-token: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-smart-contract: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
       enable-hapi-tests-restart: ${{ github.event_name == 'push' || github.event.inputs.enable-hapi-tests == 'true' }}
