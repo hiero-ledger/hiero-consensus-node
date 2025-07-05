@@ -36,49 +36,71 @@ jobs:
           COMMIT_SHA=${{ inputs.ref }}
           COMMIT_AUTHOR="$(git show -s --format='%an' ${COMMIT_SHA})"
           COMMIT_MSG="$(git show -s --format='%s' ${COMMIT_SHA})"
-
+          
           # Print them to the console
           echo "Commit Author: $COMMIT_AUTHOR"
           echo "Commit Message: $COMMIT_MSG"
           echo "Commit SHA: $COMMIT_SHA"
-
+          
           # Expose them as outputs for the next steps
           echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           echo "msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
 
       - name: Notify Jenkins of Release (Integration)
         id: jenkins-integration
-        uses: fjogeleit/http-request-action@23ad54bcd1178fcff6a0d17538fa09de3a7f0a4d # v1.16.4
-        with:
-          url: ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }}
-          data: |
-            '{
+        run: |
+          RESPONSE=$(curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
               "ref": "${{ inputs.ref_name }}",
               "author": "${{ steps.gather-commit-info.outputs.author }}",
               "msg": "${{ steps.gather-commit-info.outputs.msg }}",
               "sha": "${{ inputs.ref }}"
-            }'
+            }' \
+            ${{ secrets.RELEASE_JENKINS_INTEGRATION_URL }})
+          
+          echo "response<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "Raw response from Jenkins:"
+          echo "$RESPONSE"
 
       - name: Display Jenkins Payload
         env:
           JSON_RESPONSE: ${{ steps.jenkins-integration.outputs.response }}
         run: |
-          jq '.' <<<"${JSON_RESPONSE}"
-          printf "### Jenkins Response Payload\n\`\`\`json\n%s\n\`\`\`\n" "$(jq '.' <<<"${JSON_RESPONSE}")" >>"${GITHUB_STEP_SUMMARY}"
+          jq '.' <<<"${JSON_RESPONSE}" || echo "Failed to parse response as JSON"
+          printf "### Jenkins Response Payload\n\`\`\`json\n%s\n\`\`\`\n" "$(jq '.' <<<"${JSON_RESPONSE}" 2>/dev/null || echo "${JSON_RESPONSE}")" >>"${GITHUB_STEP_SUMMARY}"
+          jq '.jobs | keys[]' <<<"${JSON_RESPONSE}" || echo "No jobs key found in response"
 
       - name: Check for Jenkins Failures (Integration)
         env:
           JSON_RESPONSE: ${{ steps.jenkins-integration.outputs.response }}
         run: |
-          INTEGRATION_TRIGGERED="$(jq '.jobs."build-upgrade-integration".triggered' <<<"${JSON_RESPONSE}")"
-          DOCKER_TRIGGERED="$(jq '.jobs."build-upgrade-integration-docker".triggered' <<<"${JSON_RESPONSE}")"
-
-          if [[ "${INTEGRATION_TRIGGERED}" != true ]]; then
-            echo "::error title=Jenkins Trigger Failure::Failed to trigger the 'build-upgrade-integration' job via the Jenkins 'integration' pipeline!"
+          echo "Response content:"
+          echo "${JSON_RESPONSE}"
+          
+          if [ -z "${JSON_RESPONSE}" ]; then
+            echo "::error::Empty response from Jenkins"
             exit 1
           fi
-
-          if [[ "${DOCKER_TRIGGERED}" != true ]]; then
-            echo "::error title=Jenkins Trigger Failure::Failed to trigger the 'build-upgrade-integration-docker' job via the Jenkins 'integration' pipeline!"
+          
+          INTEGRATION_TRIGGERED="$(echo "${JSON_RESPONSE}" | jq -r '.jobs."build-upgrade-integration".triggered // "false"' 2>/dev/null || echo "false")"
+          DOCKER_TRIGGERED="$(echo "${JSON_RESPONSE}" | jq -r '.jobs."build-upgrade-integration-docker".triggered // "false"' 2>/dev/null || echo "false")"
+          
+          echo "INTEGRATION_TRIGGERED=${INTEGRATION_TRIGGERED}"
+          echo "DOCKER_TRIGGERED=${DOCKER_TRIGGERED}"
+          
+          if [[ "${INTEGRATION_TRIGGERED}" != "true" ]]; then
+            echo "::error title=Jenkins Trigger Failure::Failed to trigger the 'build-upgrade-integration' job via the Jenkins pipeline!"
             exit 1
           fi
+          
+          if [[ "${DOCKER_TRIGGERED}" != "true" ]]; then
+            echo "::error title=Jenkins Trigger Failure::Failed to trigger the 'build-upgrade-integration-docker' job via the Jenkins pipeline!"
+            exit 1
+          fi
+          
+          echo "Both Jenkins jobs were triggered successfully."
+          exit
