@@ -7,10 +7,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.ENDING_PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.PARENT;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STANDALONE;
-import static com.hedera.hapi.platform.event.TransactionGroupRole.STARTING_PARENT;
 import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
@@ -57,7 +53,6 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChange;
@@ -78,7 +73,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -99,16 +93,10 @@ import org.hyperledger.besu.evm.log.Log;
 public class BaseTranslator {
     private static final Logger log = LogManager.getLogger(BaseTranslator.class);
 
-    private static final org.apache.tuweni.bytes.Bytes EIP_1014_PREFIX =
-            org.apache.tuweni.bytes.Bytes.fromHexString("0xFF");
-
     private static final Comparator<ContractID> CONTRACT_ID_NUM_COMPARATOR =
             Comparator.comparingLong(ContractID::contractNumOrThrow);
     private static final Comparator<ContractNonceInfo> NONCE_INFO_CONTRACT_ID_COMPARATOR =
             Comparator.comparing(ContractNonceInfo::contractIdOrThrow, CONTRACT_ID_NUM_COMPARATOR);
-
-    public static final Set<TransactionGroupRole> PARENT_ROLES =
-            EnumSet.of(STANDALONE, PARENT, ENDING_PARENT, STARTING_PARENT);
 
     /**
      * These fields are context maintained for the full lifetime of the translator.
@@ -874,7 +862,7 @@ public class BaseTranslator {
         });
         userTimestamp = null;
         unit.blockTransactionParts().forEach(parts -> {
-            if (PARENT_ROLES.contains(parts.role())) {
+            if (parts.isTopLevel()) {
                 userTimestamp = asInstant(parts.consensusTimestamp());
             }
             if (parts.functionality() == HederaFunctionality.TOKEN_MINT) {

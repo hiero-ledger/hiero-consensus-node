@@ -47,6 +47,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
+                null,
                 EvmTransactionResult.DEFAULT,
                 null,
                 null);
@@ -61,6 +62,7 @@ class CallOutcomeTest {
         final var outcome = new CallOutcome(
                 SUCCESS_RESULT.asProtoResultOf(null, updater, null),
                 SUCCESS,
+                null,
                 null,
                 null,
                 null,
@@ -85,6 +87,7 @@ class CallOutcomeTest {
                 null,
                 null,
                 null,
+                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null);
@@ -98,6 +101,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asProtoResultOf(null, updater, null),
                 INVALID_CONTRACT_ID,
                 CALLED_CONTRACT_ID,
+                null,
                 null,
                 null,
                 null,

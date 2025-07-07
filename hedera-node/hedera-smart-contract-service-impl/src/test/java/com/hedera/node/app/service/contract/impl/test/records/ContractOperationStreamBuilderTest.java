@@ -46,6 +46,7 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 null,
+                null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
                 null);
@@ -64,6 +65,7 @@ class ContractOperationStreamBuilderTest {
                 ContractID.DEFAULT,
                 null,
                 ContractStateChanges.DEFAULT,
+                null,
                 null,
                 null,
                 null,
