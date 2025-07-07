@@ -159,6 +159,8 @@ Consumes Roster via different utility classes:
 - Platform does not receive a `currentRoster` or a `previousRoster` anymore, it receives a list of Round Roster pairs that every component will apply to its own reference of a `RosterHistory` by injecting a value through the wiring framework.
 - Platform does not use `ReadableRosterStore` anymore.
 
+![img_6.png](img_6.png)
+
 ### Pros & Cons
 
 + (-) Include an event window injection in components that use the roster-history could create a link from consensus to other components that would violate our future module relationships
