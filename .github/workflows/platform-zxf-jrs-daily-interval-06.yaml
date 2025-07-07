@@ -26,8 +26,9 @@ concurrency:
 # Panel Definition & Timings:
 # "configs/suites/GCP-PRCheck-Abbrev-4N.json"
 # "configs/suites/daily/4N/GCP-Daily-ISS-4N.json"                     100m
+# "configs/suites/daily/4N/GCP-Daily-Migration-4N.json"               30m
 # "configs/suites/daily/6N/GCP-Daily-Migration-6N.json"               30m
-# "configs/suites/daily/6N/GCP-Daily-Birth-Round-6N.json"
+# "configs/suites/daily/8N/GCP-Daily-Migration-8N.json"               30m
 #   TOTAL RUN TIME:             ?
 
 jobs:
@@ -72,14 +73,14 @@ jobs:
     needs:
       - abbrev
 
-  migration:
+  migration-01:
     name: Migration
     uses: ./.github/workflows/zxc-jrs-regression.yaml
     if: ${{ !cancelled() && always() }}
     with:
       ref: ${{ github.event.inputs.ref }}
       branch-name: ${{ github.event.inputs.branch-name }}
-      panel-config: "configs/suites/daily/6N/GCP-Daily-Migration-6N.json"
+      panel-config: "configs/suites/daily/4N/GCP-Daily-Migration-4N.json"
     secrets:
       access-token: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
       jrs-ssh-user-name: ${{ secrets.PLATFORM_JRS_SSH_USER_NAME }}

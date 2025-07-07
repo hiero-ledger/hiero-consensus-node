@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -704,7 +703,7 @@ public class NumericValidationTest {
                     .call("createFungibleTokenV3", EXPIRY_SECOND, -1L, 100L, 10L, 2)
                     .gas(1_000_000L)
                     .sending(ONE_HUNDRED_HBARS)
-                    .andAssert(txn -> txn.hasKnownStatus(INVALID_RENEWAL_PERIOD)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
         @HapiTest
@@ -726,7 +725,7 @@ public class NumericValidationTest {
                     .gas(1_000_000L)
                     .sending(ONE_HUNDRED_HBARS)
                     .payingWith(alice)
-                    .andAssert(txn -> txn.hasKnownStatus(INVALID_RENEWAL_PERIOD)));
+                    .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)

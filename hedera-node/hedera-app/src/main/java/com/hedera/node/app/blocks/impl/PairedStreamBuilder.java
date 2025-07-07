@@ -21,11 +21,12 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -124,11 +125,6 @@ public class PairedStreamBuilder
 
     public RecordStreamBuilder recordStreamBuilder() {
         return recordStreamBuilder;
-    }
-
-    @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        blockStreamBuilder.setTransactionGroupRole(role);
     }
 
     @Override
@@ -331,11 +327,6 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public ContractFunctionResult contractFunctionResult() {
-        return recordStreamBuilder.contractFunctionResult();
-    }
-
-    @Override
     public List<Long> serialNumbers() {
         return recordStreamBuilder.serialNumbers();
     }
@@ -356,6 +347,13 @@ public class PairedStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(final long senderNonce) {
+        blockStreamBuilder.newSenderNonce(senderNonce);
+        return this;
+    }
+
     /**
      * Sets the receipt contractID;
      * This is used for HAPI and Ethereum contract creation transactions.
@@ -373,9 +371,29 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
+    public PairedStreamBuilder createdEvmAddress(@Nullable Bytes evmAddress) {
+        blockStreamBuilder.createdEvmAddress(evmAddress);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public PairedStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        blockStreamBuilder.changedNonceInfo(nonceInfos);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        blockStreamBuilder.createdContractIds(contractIds);
+        return this;
+    }
+
+    @NonNull
+    @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
-        blockStreamBuilder.contractCreateResult(result);
         return this;
     }
 
@@ -388,9 +406,9 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash) {
-        recordStreamBuilder.ethereumHash(ethereumHash);
-        blockStreamBuilder.ethereumHash(ethereumHash);
+    public EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash, boolean hydratedFromFile) {
+        recordStreamBuilder.ethereumHash(ethereumHash, hydratedFromFile);
+        blockStreamBuilder.ethereumHash(ethereumHash, hydratedFromFile);
         return this;
     }
 
@@ -567,7 +585,20 @@ public class PairedStreamBuilder
     @Override
     public PairedStreamBuilder contractCallResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCallResult(result);
-        blockStreamBuilder.contractCallResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable final EvmTransactionResult result) {
+        blockStreamBuilder.evmCallTransactionResult(result);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable final EvmTransactionResult result) {
+        blockStreamBuilder.evmCreateTransactionResult(result);
         return this;
     }
 

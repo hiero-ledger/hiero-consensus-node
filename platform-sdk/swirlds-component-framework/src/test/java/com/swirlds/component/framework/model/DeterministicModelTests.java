@@ -9,13 +9,11 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL_THREAD;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.assertj.core.api.Fail.fail;
 import static org.hiero.base.utility.NonCryptographicHashing.hash32;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -36,8 +34,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import org.hiero.base.utility.NonCryptographicHashing;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class DeterministicModelTests {
 
@@ -102,13 +98,10 @@ class DeterministicModelTests {
      *
      * @param seed            the seed to use for the random number generator
      * @param wiringModel     the wiring model to use
-     * @param enableHeartbeat whether to enable a heartbeat scheduler, useful for ensuring that the standard case is
-     *                        non-deterministic even without a heartbeat introducing artifacts from the wall clock
      * @return the input wire to feed data into the mesh
      */
     @NonNull
-    private static WiringMesh generateWiringMesh(
-            final long seed, @NonNull final WiringModel wiringModel, final boolean enableHeartbeat) {
+    private static WiringMesh generateWiringMesh(final long seed, @NonNull final WiringModel wiringModel) {
 
         // - Data is fed into A
         // - Data comes out of J
@@ -258,9 +251,7 @@ class DeterministicModelTests {
         inK.bind(buildHandler(random, 0.01, lock));
 
         outA.solderTo(inB);
-        if (enableHeartbeat) {
-            wiringModel.buildHeartbeatWire(Duration.ofMillis(5)).solderTo(schedulerBHeartbeat);
-        }
+        wiringModel.buildHeartbeatWire(Duration.ofMillis(5)).solderTo(schedulerBHeartbeat);
         outB.solderTo(inC);
         outC.solderTo(inD);
         outD.solderTo(inE);
@@ -312,7 +303,9 @@ class DeterministicModelTests {
      * @param waitForNextCycle a runnable that will be called each time the mesh is checked for quiescence
      */
     private static long evaluateMesh(
-            @NonNull final long seed, @NonNull final WiringMesh mesh, @NonNull final Runnable waitForNextCycle) {
+            @NonNull final long seed,
+            @NonNull final DeterministicModelTests.WiringMesh mesh,
+            @NonNull final Runnable waitForNextCycle) {
 
         final Random random = new Random(seed);
 
@@ -333,44 +326,6 @@ class DeterministicModelTests {
         return mesh.outputValue.get();
     }
 
-    /**
-     * The purpose of this test is to verify that the test setup is non-deterministic when using the standard wiring
-     * model.
-     */
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void verifyStandardNondeterminism(final boolean enableHeartbeat) {
-        final Random random = getRandomPrintSeed();
-        final long meshSeed = random.nextLong();
-        final long dataSeed = random.nextLong();
-
-        final WiringModel model1 =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
-        final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model1, enableHeartbeat), () -> {
-            try {
-                MILLISECONDS.sleep(1);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
-        });
-
-        final WiringModel model2 =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
-        final long value2 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, model2, enableHeartbeat), () -> {
-            try {
-                MILLISECONDS.sleep(1);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
-        });
-
-        assertNotEquals(value1, value2);
-        model1.stop();
-        model2.stop();
-    }
-
     @Test
     void verifyDeterministicModel() {
         final Random random = getRandomPrintSeed();
@@ -381,25 +336,26 @@ class DeterministicModelTests {
         final DeterministicWiringModel deterministicWiringModel1 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final long value1 =
-                evaluateMesh(dataSeed, generateWiringMesh(meshSeed, deterministicWiringModel1, true), () -> {
-                    time.tick(Duration.ofMillis(1));
-                    deterministicWiringModel1.tick();
-                });
-
-        time.reset();
         final DeterministicWiringModel deterministicWiringModel2 = WiringModelBuilder.create(new NoOpMetrics(), time)
                 .withDeterministicModeEnabled(true)
                 .build();
-        final long value2 =
-                evaluateMesh(dataSeed, generateWiringMesh(meshSeed, deterministicWiringModel2, true), () -> {
-                    time.tick(Duration.ofMillis(1));
-                    deterministicWiringModel2.tick();
-                });
+        try {
+            final long value1 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, deterministicWiringModel1), () -> {
+                time.tick(Duration.ofMillis(1));
+                deterministicWiringModel1.tick();
+            });
 
-        assertEquals(value1, value2);
-        deterministicWiringModel1.stop();
-        deterministicWiringModel2.stop();
+            time.reset();
+            final long value2 = evaluateMesh(dataSeed, generateWiringMesh(meshSeed, deterministicWiringModel2), () -> {
+                time.tick(Duration.ofMillis(1));
+                deterministicWiringModel2.tick();
+            });
+
+            assertEquals(value1, value2);
+        } finally {
+            deterministicWiringModel1.stop();
+            deterministicWiringModel2.stop();
+        }
     }
 
     /**

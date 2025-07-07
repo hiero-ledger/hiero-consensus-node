@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -318,13 +319,22 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, 10L);
         when(stateManager.getBlockState(11L)).thenReturn(null);
 
+        connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
 
         verify(metrics).incrementEndOfStreamCount(Code.BEHIND);
-        verify(requestObserver).onCompleted();
-        verify(connectionManager).jumpToBlock(-1L);
+        verify(stateManager, times(1)).getEarliestAvailableBlockNumber();
+        verify(stateManager, times(1)).getHighestAckedBlockNumber();
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
         verify(stateManager).getBlockState(11L);
+        verify(requestObserver)
+                .onNext(PublishStreamRequest.newBuilder()
+                        .endStream(PublishStreamRequest.EndStream.newBuilder()
+                                .endCode(PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
+                                .build())
+                        .build());
+        verify(requestObserver).onCompleted();
+        verify(connectionManager).jumpToBlock(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestObserver);
         verifyNoMoreInteractions(connectionManager);
