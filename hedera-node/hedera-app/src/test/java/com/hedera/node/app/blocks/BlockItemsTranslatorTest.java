@@ -231,7 +231,7 @@ class BlockItemsTranslatorTest {
                 CONTRACT_ID,
                 null,
                 null,
-                List.of(),
+                null,
                 null,
                 null,
                 Bytes.EMPTY);
@@ -406,7 +406,7 @@ class BlockItemsTranslatorTest {
                 CONTRACT_ID,
                 null,
                 null,
-                List.of(),
+                null,
                 null,
                 null,
                 Bytes.EMPTY);
@@ -451,7 +451,7 @@ class BlockItemsTranslatorTest {
                 CONTRACT_ID,
                 null,
                 null,
-                List.of(),
+                null,
                 null,
                 null,
                 Bytes.EMPTY);
@@ -497,7 +497,7 @@ class BlockItemsTranslatorTest {
                 CONTRACT_ID,
                 null,
                 null,
-                List.of(),
+                null,
                 null,
                 null,
                 Bytes.EMPTY);
@@ -545,7 +545,7 @@ class BlockItemsTranslatorTest {
                 CONTRACT_ID,
                 null,
                 null,
-                List.of(),
+                null,
                 null,
                 null,
                 ETH_HASH);
@@ -594,7 +594,7 @@ class BlockItemsTranslatorTest {
                 CONTRACT_ID,
                 null,
                 null,
-                List.of(),
+                null,
                 null,
                 null,
                 ETH_HASH);
