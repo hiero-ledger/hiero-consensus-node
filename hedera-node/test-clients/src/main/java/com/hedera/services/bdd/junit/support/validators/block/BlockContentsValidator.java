@@ -1,30 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.hapi.block.stream.BlockItem.ItemOneOfType.TRACE_DATA;
-import static com.hedera.hapi.block.stream.BlockItem.ItemOneOfType.TRANSACTION_OUTPUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
-import com.hedera.hapi.block.stream.trace.TraceData;
-import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.EventTransaction;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
-import com.hedera.hapi.util.HapiUtils;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
-import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -48,13 +33,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         validator.validateBlocks(blocks);
     }
 
-    public static final Factory FACTORY = new Factory() {
-        @NonNull
-        @Override
-        public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            return new BlockContentsValidator();
-        }
-    };
+    public static final Factory FACTORY = spec -> new BlockContentsValidator();
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
@@ -118,174 +97,25 @@ public class BlockContentsValidator implements BlockStreamValidator {
             logger.error("Expected round header at index {}, found: {}", startIndex, items.get(startIndex));
             Assertions.fail("Round must start with a round header");
         }
-
         int currentIndex = startIndex + 1;
         boolean hasEventOrStateChange = false;
-        var isLatestParentBatchTxn = false;
-        var latestParentFunction = HederaFunctionality.NONE;
-
         // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
-            BlockItem item = items.get(currentIndex);
-
-            if (item.hasEventHeader() || item.hasStateChanges()) {
-                hasEventOrStateChange = true;
-                currentIndex++;
-            } else if (item.hasEventTransaction()) {
-                latestParentFunction = functionOfTxn(item, currentIndex);
-                if (isParent(item)) {
-                    isLatestParentBatchTxn = latestParentFunction.equals(HederaFunctionality.ATOMIC_BATCH);
+            final var item = items.get(currentIndex);
+            final var kind = item.item().kind();
+            switch (kind) {
+                case EVENT_HEADER, STATE_CHANGES -> hasEventOrStateChange = true;
+                case RECORD_FILE, FILTERED_ITEM_HASH ->
+                    Assertions.fail("Unexpected item type " + kind + " at index " + currentIndex);
+                default -> {
+                    // No-op
                 }
-                currentIndex = validateTransactionGroup(items, currentIndex);
-            } else if (item.hasTransactionResult()) {
-                if (!isLatestParentBatchTxn) {
-                    logger.error(
-                            "Found transaction result or output without preceding event transaction at index {}",
-                            currentIndex);
-                    Assertions.fail("Found transaction result or output without preceding event transaction at index "
-                            + currentIndex);
-                }
-                currentIndex = validateResultOnlyGroup(items, currentIndex);
-            } else {
-                logger.error("Invalid item type at index {}: {}", currentIndex, item);
-                Assertions.fail("Invalid item type at index " + currentIndex + ": " + item);
             }
+            currentIndex++;
         }
-
         if (!hasEventOrStateChange) {
             logger.error("Round starting at index {} has no event headers or state changes", startIndex);
             Assertions.fail("Round starting at index " + startIndex + " has no event headers or state changes");
-        }
-
-        return currentIndex;
-    }
-
-    /**
-     * Checks if the given block item is a parent or starting parent transaction.
-     *
-     * @param item the block item to check
-     * @return true if the item is a parent transaction, false otherwise
-     */
-    private static boolean isParent(final BlockItem item) {
-        return item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.STARTING_PARENT
-                || item.eventTransactionOrThrow().transactionGroupRole() == TransactionGroupRole.PARENT;
-    }
-
-    /**
-     * Determines the Hedera functionality of the transaction in the given block item.
-     *
-     * @param item the block item containing the event transaction
-     * @param currentIndex the index of the block item in the block
-     * @return the Hedera functionality of the transaction, or HederaFunctionality.NONE if it cannot be determined
-     */
-    private HederaFunctionality functionOfTxn(final BlockItem item, final int currentIndex) {
-        try {
-            final var eventTransaction = item.eventTransactionOrThrow();
-            if (eventTransaction.hasApplicationTransaction()) {
-                final TransactionBody transactionBody = bodyFrom(eventTransaction);
-                return HapiUtils.functionOf(transactionBody);
-            }
-        } catch (Exception e) {
-            Assertions.fail("Failed to parse event transaction at index " + currentIndex + ": " + e.getMessage());
-            return HederaFunctionality.NONE;
-        }
-        return HederaFunctionality.NONE;
-    }
-
-    @NonNull
-    public static TransactionBody bodyFrom(final EventTransaction eventTransaction) throws ParseException {
-        final var applicationTransaction = eventTransaction.applicationTransactionOrThrow();
-        final var txn = Transaction.PROTOBUF.parse(Bytes.wrap(applicationTransaction.toByteArray()));
-        final TransactionBody transactionBody;
-        if (txn.signedTransactionBytes() != null && txn.signedTransactionBytes().length() > 0) {
-            transactionBody = TransactionBody.PROTOBUF.parse(SignedTransaction.PROTOBUF
-                    .parse(txn.signedTransactionBytes())
-                    .bodyBytes());
-        } else {
-            transactionBody = TransactionBody.PROTOBUF.parse(txn.bodyBytes());
-        }
-        return transactionBody;
-    }
-
-    private static final Set<BlockItem.ItemOneOfType> OPTIONAL_ITEM_TYPES = Set.of(TRANSACTION_OUTPUT, TRACE_DATA);
-
-    /**
-     * Validates a transaction group (transaction + result + optional outputs).
-     * Returns the index of the next item after this group.
-     */
-    private static int validateTransactionGroup(final List<BlockItem> items, int transactionIndex) {
-        if (transactionIndex + 1 >= items.size()) {
-            Assertions.fail("Event transaction at end of block with no result");
-        }
-
-        // Check for transaction result
-        BlockItem nextItem = items.get(transactionIndex + 1);
-        if (!nextItem.hasTransactionResult()) {
-            logger.error("Expected transaction result at index {}, found: {}", transactionIndex + 1, nextItem);
-            Assertions.fail("Event transaction must be followed by transaction result");
-        }
-
-        // Check for optional transaction outputs
-        int currentIndex = transactionIndex + 2;
-        while (currentIndex < items.size()
-                && OPTIONAL_ITEM_TYPES.contains(items.get(currentIndex).item().kind())) {
-            final var item = items.get(currentIndex);
-            switch (item.item().kind()) {
-                case TRANSACTION_OUTPUT -> {
-                    if (TransactionOutput.DEFAULT.equals(item.transactionOutputOrThrow())) {
-                        Assertions.fail("Transaction output at index " + currentIndex
-                                + " is equal to TransactionOutput.DEFAULT");
-                    }
-                }
-                case TRACE_DATA -> {
-                    if (TraceData.DEFAULT.equals(item.traceDataOrThrow())) {
-                        Assertions.fail("Found default trace data at index " + currentIndex);
-                    }
-                }
-                default ->
-                    throw new IllegalStateException("Should be unreachable, but got "
-                            + items.get(currentIndex).item());
-            }
-            currentIndex++;
-        }
-
-        return currentIndex;
-    }
-
-    /**
-     * Validates a result-only group (result without preceding event transaction).
-     * This is typically used for transaction outputs for atomic batch transactions.
-     *
-     * @param items the list of block items
-     * @param resultIndex the index of the transaction result item
-     * @return the index of the next item after this group
-     */
-    private static int validateResultOnlyGroup(final List<BlockItem> items, int resultIndex) {
-        if (!items.get(resultIndex).hasTransactionResult()) {
-            Assertions.fail(
-                    "Expected transaction result at index " + resultIndex + ", found " + items.get(resultIndex));
-        }
-        int currentIndex = resultIndex + 1;
-        while (currentIndex < items.size()
-                && OPTIONAL_ITEM_TYPES.contains(items.get(currentIndex).item().kind())) {
-            final var item = items.get(currentIndex);
-            switch (item.item().kind()) {
-                case TRANSACTION_OUTPUT -> {
-                    if (TransactionOutput.DEFAULT.equals(item.transactionOutputOrThrow())) {
-                        Assertions.fail("Transaction output at index " + currentIndex
-                                + " is equal to TransactionOutput.DEFAULT");
-                    }
-                }
-                case TRACE_DATA -> {
-                    if (TraceData.DEFAULT.equals(item.traceDataOrThrow())) {
-                        Assertions.fail("Found default trace data at index " + currentIndex);
-                    }
-                }
-                default ->
-                    throw new IllegalStateException("Should be unreachable, but got "
-                            + items.get(currentIndex).item());
-            }
-            currentIndex++;
         }
         return currentIndex;
     }

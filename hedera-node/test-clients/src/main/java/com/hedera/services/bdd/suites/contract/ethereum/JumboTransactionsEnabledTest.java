@@ -48,6 +48,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.meta.AccountCreationDetails;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
@@ -130,6 +132,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gas(1_000_000L)
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
 
@@ -170,7 +173,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 new TestCombinationWithGas(
                         MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 7_200_000));
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
         public Stream<DynamicTest> jumboTxnWithEthereumDataLessThanAllowedKbShouldPass() {
             return positiveBoundariesTestCases.flatMap(test -> {
@@ -338,7 +341,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .orUnavailableStatus());
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail for above max size data with TRANSACTION_OVERSIZE")
         // JUMBO_N_01
         public Stream<DynamicTest> jumboTxnWithAboveMaxDataShouldFail() {
@@ -360,7 +363,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
             });
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail for oversized data with grpc unavailable status")
         // JUMBO_N_02
         public Stream<DynamicTest> jumboTxnWithOversizedDataShouldFail() {
@@ -370,6 +373,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                     jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, new byte[test.txnSize], test.type)
                             .noLogging()
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
                             .orUnavailableStatus()));
         }
 
@@ -394,7 +398,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .via("payTxn"));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @Tag(ADHOC)
         @DisplayName("Jumbo Ethereum transactions should fail with corrupted payload")
         // JUMBO_N_17
@@ -428,7 +432,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .orUnavailableStatus());
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Three jumbo transactions one after the other")
         // JUMBO_N_08
         public Stream<DynamicTest> treeJumboTransactionOneAfterTheOther() {
@@ -488,7 +492,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS)));
         }
 
-        @HapiTest
+        @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should fail due to insufficient payer balance")
         // JUMBO_N_14
         public Stream<DynamicTest> jumboTxnWithInsufficientPayerBalanceShouldFail() {
