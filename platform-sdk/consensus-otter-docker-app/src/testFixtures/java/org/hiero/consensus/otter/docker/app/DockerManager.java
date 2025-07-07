@@ -9,7 +9,6 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
@@ -91,15 +90,14 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             // Capture the dispatcher in a final variable so the lambda remains valid
             final OutboundDispatcher currentDispatcher = dispatcher;
 
-            final Consumer<EventMessage> enqueue = dispatcher::enqueue;
             nodeManager.registerPlatformStatusChangeListener(
-                    notification -> enqueue.accept(EventMessageFactory.fromPlatformStatusChange(notification)));
+                    notification -> dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification)));
 
             nodeManager.registerConsensusRoundListener(
-                    rounds -> enqueue.accept(EventMessageFactory.fromConsensusRounds(rounds)));
+                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
 
             InMemoryAppender.subscribe(log -> {
-                enqueue.accept(EventMessageFactory.fromStructuredLog(log));
+                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
                 return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
             });
 
