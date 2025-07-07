@@ -17,7 +17,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
-import com.hedera.services.bdd.junit.support.translators.BlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.utils.RcDiff;
@@ -41,7 +41,6 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
     private static final int DIFF_INTERVAL_SECONDS = 300;
     private static final Logger logger = LogManager.getLogger(TransactionRecordParityValidator.class);
 
-    private final BlockUnitSplit blockUnitSplit = new BlockUnitSplit();
     private final BlockTransactionalUnitTranslator translator;
 
     public static final Factory FACTORY = new Factory() {
@@ -64,6 +63,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
     /**
      * A main method to run a standalone validation of the block stream against the record stream in this project.
+     *
      * @param args unused
      * @throws IOException if there is an error reading the block or record streams
      */
@@ -91,9 +91,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         requireNonNull(blocks);
         requireNonNull(data);
 
+        final var rfTranslator = new BlockTransactionalUnitTranslator();
         var foundGenesisBlock = false;
         for (final var block : blocks) {
             if (translator.scanBlockForGenesis(block)) {
+                rfTranslator.scanBlockForGenesis(block);
                 foundGenesisBlock = true;
                 break;
             }
@@ -106,33 +108,33 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .map(RecordStreamEntry::from)
                 .toList();
         final var numStateChanges = new AtomicInteger();
-        final List<SingleTransactionRecord> actualSingleTransactionRecords = blocks.stream()
+        final var roleFreeSplit = new RoleFreeBlockUnitSplit();
+        final var roleFreeRecords = blocks.stream()
                 .flatMap(block ->
-                        blockUnitSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
+                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
-                .flatMap(unit -> translator.translate(unit).stream())
+                .flatMap(unit -> rfTranslator.translate(unit).stream())
                 .toList();
-        final List<RecordStreamEntry> actualEntries =
-                actualSingleTransactionRecords.stream().map(this::asEntry).toList();
-        final var rcDiff = new RcDiff(
+        final var actualEntries = roleFreeRecords.stream().map(this::asEntry).toList();
+        final var roleFreeDiff = new RcDiff(
                 MAX_DIFFS_TO_REPORT, DIFF_INTERVAL_SECONDS, expectedEntries, actualEntries, null, System.out);
-        final var diffs = rcDiff.summarizeDiffs();
-        final var validatorSummary = new SummaryBuilder(
+        final var roleFreeDiffs = roleFreeDiff.summarizeDiffs();
+        final var rfValidatorSummary = new SummaryBuilder(
                         MAX_DIFFS_TO_REPORT,
                         DIFF_INTERVAL_SECONDS,
                         blocks.size(),
                         expectedEntries.size(),
                         actualEntries.size(),
                         numStateChanges.get(),
-                        diffs)
+                        roleFreeDiffs)
                 .build();
-        if (diffs.isEmpty()) {
-            logger.info("Validation complete. Summary: {}", validatorSummary);
+        if (roleFreeDiffs.isEmpty()) {
+            logger.info("Role-free validation complete. Summary: {}", rfValidatorSummary);
         } else {
-            final var diffOutput = rcDiff.buildDiffOutput(diffs);
+            final var diffOutput = roleFreeDiff.buildDiffOutput(roleFreeDiffs);
             final var errorMsg = new StringBuilder()
                     .append(diffOutput.size())
-                    .append(" differences found between translated and expected records");
+                    .append(" differences found between role-based and role-free records");
             diffOutput.forEach(summary -> errorMsg.append("\n\n").append(summary));
             Assertions.fail(errorMsg.toString());
         }
@@ -141,7 +143,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .flatMap(recordWithSidecars ->
                         recordWithSidecars.sidecarFiles().stream().flatMap(f -> f.getSidecarRecordsList().stream()))
                 .toList();
-        final List<TransactionSidecarRecord> actualSidecars = actualSingleTransactionRecords.stream()
+        final List<TransactionSidecarRecord> actualSidecars = roleFreeRecords.stream()
                 .flatMap(r -> r.transactionSidecarRecords().stream())
                 .map(r -> pbjToProto(
                         r, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class))

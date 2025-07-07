@@ -15,10 +15,11 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -59,13 +60,15 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final NodeId nodeId,
             @NonNull final TransactionSupplier transactionSupplier) {
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        return new TipsetEventCreator(platformContext, random, signer, roster, nodeId, transactionSupplier);
+        return new TipsetEventCreator(
+                configuration, metrics, time, random, signer, roster, nodeId, transactionSupplier);
     }
 
     /**
@@ -80,10 +83,7 @@ public class TipsetEventCreatorTestUtils {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .withTime(time)
-                .build();
+        final Metrics metrics = new NoOpMetrics();
 
         for (final RosterEntry address : roster.rosterEntries()) {
 
@@ -97,8 +97,9 @@ public class TipsetEventCreatorTestUtils {
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
-            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
+                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+            final OrphanBuffer orphanBuffer =
+                    new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
