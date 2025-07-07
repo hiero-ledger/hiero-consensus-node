@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.contexts;
 
-import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
@@ -25,7 +24,7 @@ import java.util.List;
  * @param contractId The id of a newly created contract
  * @param evmAddress The EVM of a newly created contract
  * @param changedNonceInfos The list of contract IDs whose nonces were changed during the transaction, if any
- * @param stateChanges The state changes that occurred during the transaction
+ * @param createdContractIds if applicable, the list of contract IDs created during the transaction
  * @param senderNonce if applicable, the nonce of the sender after the transaction
  * @param ethCallContext if applicable, the context of an internal call in the transaction
  * @param ethHash if applicable, the hash of the Ethereum transaction
@@ -40,7 +39,7 @@ public record ContractOpContext(
         @Nullable ContractID contractId,
         @Nullable Bytes evmAddress,
         @Nullable List<ContractNonceInfo> changedNonceInfos,
-        @NonNull List<StateChange> stateChanges,
+        @Nullable List<ContractID> createdContractIds,
         @Nullable Long senderNonce,
         @Nullable InternalCallContext ethCallContext,
         @NonNull Bytes ethHash,

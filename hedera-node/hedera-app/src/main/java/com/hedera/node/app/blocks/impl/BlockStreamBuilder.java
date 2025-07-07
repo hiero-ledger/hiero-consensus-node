@@ -322,6 +322,12 @@ public class BlockStreamBuilder
     private List<ContractNonceInfo> changedNonceInfos;
 
     /**
+     * If set, the ids of contracts that were created in the EVM transaction.
+     */
+    @Nullable
+    private List<ContractID> createdContractIds;
+
+    /**
      * If set, the EVM logs resulting from the transaction.
      */
     @Nullable
@@ -730,6 +736,13 @@ public class BlockStreamBuilder
     @Override
     public BlockStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
         this.changedNonceInfos = requireNonNull(nonceInfos);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        this.createdContractIds = requireNonNull(contractIds);
         return this;
     }
 
@@ -1321,7 +1334,7 @@ public class BlockStreamBuilder
                         contractId,
                         evmAddress.length() > 0 ? evmAddress : null,
                         changedNonceInfos,
-                        stateChanges,
+                        createdContractIds,
                         senderNonce,
                         evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
                         ethereumHash,

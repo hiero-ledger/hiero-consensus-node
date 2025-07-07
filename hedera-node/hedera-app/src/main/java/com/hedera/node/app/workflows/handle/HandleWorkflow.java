@@ -111,6 +111,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * The handle workflow that is responsible for handling the next {@link Round} of transactions.
@@ -161,6 +162,8 @@ public class HandleWorkflow {
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
     private final PlatformStateFacade platformStateFacade;
+    // Flag to indicate whether we have checked for transplant updates after JVM started
+    private boolean checkedForTransplant;
 
     @Inject
     public HandleWorkflow(
@@ -264,6 +267,28 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
+
+        // This is only set if streamMode is BLOCKS or BOTH or once user transactions are handled
+        // Dispatch transplant updates for the nodes in override network
+        if (boundaryStateChangeListener.lastConsensusTime() != null && !checkedForTransplant) {
+            boolean dispatchedTransplantUpdates = false;
+            try {
+                dispatchedTransplantUpdates = systemTransactions.dispatchTransplantUpdates(
+                        state, boundaryStateChangeListener.lastConsensusTimeOrThrow(), round.getRoundNum());
+                transactionsDispatched |= dispatchedTransplantUpdates;
+            } catch (Exception e) {
+                logger.error("Failed to dispatch transplant updates", e);
+            } finally {
+                checkedForTransplant = true;
+                if (dispatchedTransplantUpdates) {
+                    final var writableStates = state.getWritableStates(RosterService.NAME);
+                    final var writableRosterStore = new WritableRosterStore(writableStates);
+                    writableRosterStore.updateTransplantInProgress(false);
+                    ((CommittableWritableStates) writableStates).commit();
+                    logger.info("Transplant in progress is set to false in the roster store");
+                }
+            }
+        }
 
         configureTssCallbacks(state);
         try {
@@ -894,6 +919,7 @@ public class HandleWorkflow {
 
     /**
      * Configure the TSS callbacks for the given state.
+     *
      * @param state the latest state
      */
     private void configureTssCallbacks(@NonNull final State state) {
