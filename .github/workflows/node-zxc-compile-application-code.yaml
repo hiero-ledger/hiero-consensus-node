@@ -188,7 +188,7 @@ jobs:
 
       - name: Compile
         id: gradle-build
-        run: ${GRADLE_EXEC} assemble :test-clients:yahCliJar
+        run: ${GRADLE_EXEC} assemble :yahcli:assemble
 
       - name: Spotless Check
         if: ${{ inputs.enable-spotless-check && !cancelled() }}

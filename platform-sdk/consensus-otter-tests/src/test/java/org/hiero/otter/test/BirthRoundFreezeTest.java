@@ -5,6 +5,7 @@ import static org.apache.logging.log4j.Level.WARN;
 import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.otter.fixtures.Network;
@@ -33,7 +34,7 @@ public class BirthRoundFreezeTest {
      * @throws InterruptedException if an operation times out
      */
     @OtterTest
-    void testFreezeInBirthRoundMode(final TestEnvironment env) throws InterruptedException {
+    void testFreezeInBirthRoundMode(@NonNull final TestEnvironment env) throws InterruptedException {
 
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

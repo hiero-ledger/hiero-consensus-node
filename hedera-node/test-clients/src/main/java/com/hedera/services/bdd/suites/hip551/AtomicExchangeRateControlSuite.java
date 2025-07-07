@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -31,13 +30,11 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of ExchangeRateControlSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
 @OrderedInIsolation
-@Tag(ADHOC)
 public class AtomicExchangeRateControlSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
