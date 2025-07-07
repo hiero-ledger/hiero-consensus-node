@@ -133,12 +133,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public long getNetworkWeight() {
-        long total = 0;
-        for (final Node node : getNodes()) {
-            total += node.getWeight();
-        }
-        return total;
+    public long getTotalWeight() {
+        return getNodes().stream().mapToLong(Node::weight).sum();
     }
 
     /**
@@ -234,10 +230,10 @@ public abstract class AbstractNetwork implements Network {
             // If any peer in the required list says the "self" node is not behind, the node is not behind.
             if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
                     != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-                weightOfAheadNodes += maybeAheadNode.getWeight();
+                weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
-        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getNetworkWeight());
+        return Threshold.STRONG_MINORITY.isSatisfiedBy(weightOfAheadNodes, getTotalWeight());
     }
 
     /**
@@ -257,9 +253,9 @@ public abstract class AbstractNetwork implements Network {
             final EventWindow peerEventWindow =
                     maybeAheadNode.getConsensusResult().getLatestEventWindow();
 
-            // If any peer in the required list says the "self" node is not behind, the node is not behind.
+            // If any peer in the required list says the "self" node is behind, it is ahead so add it to the count
             if (SyncFallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    != SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
+                    == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
                 numNodesAhead++;
             }
         }

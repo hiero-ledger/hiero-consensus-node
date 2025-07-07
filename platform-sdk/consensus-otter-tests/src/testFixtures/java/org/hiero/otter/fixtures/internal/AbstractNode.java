@@ -66,7 +66,7 @@ public abstract class AbstractNode implements Node {
      * {@inheritDoc}
      */
     @Override
-    public long getWeight() {
+    public long weight() {
         return weight;
     }
 

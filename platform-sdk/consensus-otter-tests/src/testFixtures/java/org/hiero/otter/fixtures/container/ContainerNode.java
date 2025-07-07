@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -83,13 +84,7 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) {
-        super(
-                selfId,
-                roster.rosterEntries().stream()
-                        .filter(r -> r.nodeId() == selfId.id())
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
-                        .weight());
+        super(selfId, getWeight(roster, selfId));
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
@@ -113,6 +108,14 @@ public class ContainerNode extends AbstractNode implements Node {
                 .maxInboundMessageSize(32 * 1024 * 1024)
                 .usePlaintext()
                 .build();
+    }
+
+    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
+        return roster.rosterEntries().stream()
+                .filter(entry -> entry.nodeId() == selfId.id())
+                .findFirst()
+                .map(RosterEntry::weight)
+                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
     }
 
     /**

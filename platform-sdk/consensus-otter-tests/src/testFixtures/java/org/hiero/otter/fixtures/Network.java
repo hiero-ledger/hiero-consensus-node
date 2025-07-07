@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.test.fixtures.WeightGenerator;
+import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -25,7 +26,9 @@ public interface Network {
      * @return a list of the added nodes
      */
     @NonNull
-    List<Node> addNodes(int count);
+    default List<Node> addNodes(final int count) {
+        return addNodes(count, WeightGenerators.GAUSSIAN);
+    }
 
     /**
      * Add regular nodes to the network with specific weights.
@@ -71,11 +74,11 @@ public interface Network {
     List<Node> getNodes();
 
     /**
-     * Gets the total weight of the network. Always non-negative.
+     * Gets the total weight of the network. Always positive.
      *
      * @return the network weight
      */
-    long getNetworkWeight();
+    long getTotalWeight();
 
     /**
      * Freezes the network.

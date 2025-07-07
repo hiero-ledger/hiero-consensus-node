@@ -82,7 +82,7 @@ public interface Node {
      * Gets the weight of the node. This value is always non-negative.
      * @return the weight
      */
-    long getWeight();
+    long weight();
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.

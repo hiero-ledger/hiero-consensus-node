@@ -10,7 +10,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -102,15 +101,6 @@ public class ContainerNetwork extends AbstractNetwork {
     @NonNull
     protected TransactionGenerator transactionGenerator() {
         return transactionGenerator;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public List<Node> addNodes(final int count) {
-        return addNodes(count, WeightGenerators.GAUSSIAN);
     }
 
     /**

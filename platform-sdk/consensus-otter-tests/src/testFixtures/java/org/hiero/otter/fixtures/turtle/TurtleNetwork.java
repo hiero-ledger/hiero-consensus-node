@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerator;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -103,15 +102,6 @@ public class TurtleNetwork extends AbstractNetwork implements TurtleTimeManager.
     @NonNull
     protected TransactionGenerator transactionGenerator() {
         return transactionGenerator;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public List<Node> addNodes(final int count) {
-        return addNodes(count, WeightGenerators.GAUSSIAN);
     }
 
     /**
