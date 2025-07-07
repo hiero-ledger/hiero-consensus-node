@@ -28,7 +28,7 @@ class TranslationContextTest {
                 HederaFunctionality.NONE,
                 serializedSignedTx);
 
-        assertEquals(Bytes.wrap(noThrowSha384HashOf(serializedSignedTx.toByteArray())), subject.serializedSignedTx());
+        assertEquals(Bytes.wrap(noThrowSha384HashOf(serializedSignedTx.toByteArray())), subject.transactionHash());
     }
 
     @Test
@@ -43,6 +43,6 @@ class TranslationContextTest {
                 HederaFunctionality.NONE,
                 null);
 
-        assertEquals(Bytes.wrap(noThrowSha384HashOf(transactionBytes.toByteArray())), subject.serializedSignedTx());
+        assertEquals(Bytes.wrap(noThrowSha384HashOf(transactionBytes.toByteArray())), subject.transactionHash());
     }
 }

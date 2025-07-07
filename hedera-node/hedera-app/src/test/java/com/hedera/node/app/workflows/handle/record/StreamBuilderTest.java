@@ -15,11 +15,14 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TopicID;
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
@@ -60,7 +63,31 @@ public class StreamBuilderTest {
     public static final long TOPIC_RUNNING_HASH_VERSION = 153513L;
     public static final long NEW_TOTAL_SUPPLY = 34134546L;
     public static final String MEMO = "Yo Memo";
-    private @Mock SignedTransaction signedTx;
+    private static final Bytes FAKE_BODY_BYTES = Bytes.wrap("body-bytes");
+    private static final SignatureMap FAKE_SIG_MAP = SignatureMap.newBuilder()
+            .sigPair(SignaturePair.newBuilder()
+                    .pubKeyPrefix(Bytes.wrap("prefix"))
+                    .ed25519(Bytes.wrap("signature"))
+                    .build())
+            .build();
+    private static final SignedTransaction LEGACY_SIGNED_TX = SignedTransaction.newBuilder()
+            .useLegacyTransactionHashAlgorithm(true)
+            .bodyBytes(FAKE_BODY_BYTES)
+            .sigMap(FAKE_SIG_MAP)
+            .build();
+
+    private static final Transaction WRAPPED_LEGACY_TX = Transaction.newBuilder()
+            .bodyBytes(LEGACY_SIGNED_TX.bodyBytes())
+            .sigMap(LEGACY_SIGNED_TX.sigMap())
+            .build();
+    private static final SignedTransaction NORMAL_SIGNED_TX = SignedTransaction.newBuilder()
+            .bodyBytes(FAKE_BODY_BYTES)
+            .sigMap(FAKE_SIG_MAP)
+            .build();
+    private static final Bytes SERIALIZED_NORMAL_SIGNED_TX = SignedTransaction.PROTOBUF.toBytes(NORMAL_SIGNED_TX);
+    private static final Transaction WRAPPED_NORMAL_TX = Transaction.newBuilder()
+            .signedTransactionBytes(SERIALIZED_NORMAL_SIGNED_TX)
+            .build();
     private @Mock TransactionID transactionID;
     private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock ContractFunctionResult contractCallResult;
@@ -106,7 +133,7 @@ public class StreamBuilderTest {
 
         singleTransactionRecordBuilder
                 .parentConsensus(PARENT_CONSENSUS_TIME)
-                .signedTx(signedTx)
+                .signedTx(LEGACY_SIGNED_TX)
                 .transactionID(transactionID)
                 .memo(MEMO)
                 .transactionFee(TRANSACTION_FEE)
@@ -150,7 +177,7 @@ public class StreamBuilderTest {
         assertEquals(
                 HapiUtils.asTimestamp(PARENT_CONSENSUS_TIME),
                 singleTransactionRecord.transactionRecord().parentConsensusTimestamp());
-        assertEquals(signedTx, singleTransactionRecord.transaction());
+        assertEquals(WRAPPED_LEGACY_TX, singleTransactionRecord.transaction());
 
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             assertTrue(singleTransactionRecord.transactionRecord().hasPrngBytes());
@@ -164,7 +191,8 @@ public class StreamBuilderTest {
         final Bytes transactionHash;
         try {
             final MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            transactionHash = Bytes.wrap(digest.digest(transactionBytes.toByteArray()));
+            final var wrappedBytes = Transaction.PROTOBUF.toBytes(WRAPPED_LEGACY_TX);
+            transactionHash = Bytes.wrap(digest.digest(wrappedBytes.toByteArray()));
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -235,14 +263,14 @@ public class StreamBuilderTest {
         RecordStreamBuilder singleTransactionRecordBuilder =
                 new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
-        singleTransactionRecordBuilder.signedTx(signedTx);
+        singleTransactionRecordBuilder.signedTx(NORMAL_SIGNED_TX).serializedSignedTx(SERIALIZED_NORMAL_SIGNED_TX);
 
         assertNull(singleTransactionRecordBuilder.parentConsensusTimestamp());
         assertEquals(ResponseCodeEnum.OK, singleTransactionRecordBuilder.status());
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder.build();
 
-        assertEquals(signedTx, singleTransactionRecord.transaction());
+        assertEquals(WRAPPED_NORMAL_TX, singleTransactionRecord.transaction());
         // Consensus timestamp will be set at end of handle workflow
         assertEquals(
                 Timestamp.DEFAULT, singleTransactionRecord.transactionRecord().consensusTimestamp());
@@ -258,7 +286,8 @@ public class StreamBuilderTest {
                 new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
         SingleTransactionRecord singleTransactionRecord = singleTransactionRecordBuilder
-                .signedTx(signedTx)
+                .signedTx(NORMAL_SIGNED_TX)
+                .serializedSignedTx(SERIALIZED_NORMAL_SIGNED_TX)
                 .addTokenTransferList(tokenTransfer)
                 .addAssessedCustomFee(assessedCustomFee)
                 .addAutomaticTokenAssociation(tokenAssociation)
@@ -269,7 +298,7 @@ public class StreamBuilderTest {
                 .addContractBytecode(contractBytecode, false)
                 .build();
 
-        assertEquals(signedTx, singleTransactionRecord.transaction());
+        assertEquals(WRAPPED_NORMAL_TX, singleTransactionRecord.transaction());
         // Consensus timestamp will be set at end of handle workflow
         assertEquals(
                 Timestamp.DEFAULT, singleTransactionRecord.transactionRecord().consensusTimestamp());

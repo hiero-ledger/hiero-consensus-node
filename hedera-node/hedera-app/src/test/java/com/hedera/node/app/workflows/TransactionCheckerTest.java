@@ -241,7 +241,7 @@ final class TransactionCheckerTest extends AppTestBase {
             final var info = checker.check(transaction, null);
 
             // Then the parsed data is as we expected
-            assertThat(info.signedTx()).isEqualTo(tx);
+            assertThat(info.signedTx()).isEqualTo(signedTx);
             assertThat(info.txBody()).isEqualTo(txBody);
             assertThat(info.signatureMap()).isEqualTo(signatureMap);
             assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -264,6 +264,11 @@ final class TransactionCheckerTest extends AppTestBase {
                     .bodyBytes(signedTx.bodyBytes())
                     .sigMap(signedTx.sigMap())
                     .build();
+            final var repackagedSignedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(localTx.bodyBytes())
+                    .sigMap(localTx.sigMap())
+                    .useLegacyTransactionHashAlgorithm(true)
+                    .build();
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
             // When we parseStrict and check
@@ -271,7 +276,7 @@ final class TransactionCheckerTest extends AppTestBase {
             final var info = checker.check(transaction, null);
 
             // Then everything works because the deprecated fields are supported
-            assertThat(info.signedTx()).isEqualTo(localTx);
+            assertThat(info.signedTx()).isEqualTo(repackagedSignedTx);
             assertThat(info.txBody()).isEqualTo(txBody);
             assertThat(info.signatureMap()).isEqualTo(signatureMap);
             assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -461,7 +466,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var info = checker.check(tx, null);
 
                 // Then the parsed data is as we expected
-                assertThat(info.signedTx()).isEqualTo(tx);
+                assertThat(info.signedTx()).isEqualTo(signedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -483,12 +488,17 @@ final class TransactionCheckerTest extends AppTestBase {
                         .bodyBytes(signedTx.bodyBytes())
                         .sigMap(signedTx.sigMap())
                         .build();
+                final var repackagedSignedTx = SignedTransaction.newBuilder()
+                        .bodyBytes(localTx.bodyBytes())
+                        .sigMap(localTx.sigMap())
+                        .useLegacyTransactionHashAlgorithm(true)
+                        .build();
 
                 // When we parse and check
                 final var info = checker.check(localTx, null);
 
                 // Then everything works because the deprecated fields are supported
-                assertThat(info.signedTx()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(repackagedSignedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -537,7 +547,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 // When we check
                 final var info = checker.check(localTx, null);
                 // Then the parsed data is as we expected
-                assertThat(info.signedTx()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(signedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);
@@ -559,11 +569,16 @@ final class TransactionCheckerTest extends AppTestBase {
                         .bodyBytes(asBytes(TransactionBody.PROTOBUF, txBody))
                         .sigMap(signatureMap)
                         .build();
+                final var repackagedSignedTx = SignedTransaction.newBuilder()
+                        .bodyBytes(localTx.bodyBytes())
+                        .sigMap(localTx.sigMap())
+                        .useLegacyTransactionHashAlgorithm(true)
+                        .build();
 
                 // When we check
                 final var info = checker.check(localTx, null);
                 // Then the parsed data is as we expected
-                assertThat(info.signedTx()).isEqualTo(localTx);
+                assertThat(info.signedTx()).isEqualTo(repackagedSignedTx);
                 assertThat(info.txBody()).isEqualTo(txBody);
                 assertThat(info.signatureMap()).isEqualTo(signatureMap);
                 assertThat(info.functionality()).isEqualTo(CONSENSUS_CREATE_TOPIC);

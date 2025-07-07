@@ -702,7 +702,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             ByteBuffer hash = null;
             switch (kind) {
                 case EVENT_HEADER,
-                        EVENT_TRANSACTION,
+                        SIGNED_TRANSACTION,
                         TRANSACTION_RESULT,
                         TRANSACTION_OUTPUT,
                         STATE_CHANGES,
@@ -735,7 +735,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var kind = item.item().kind();
             switch (kind) {
                 case ROUND_HEADER, EVENT_HEADER -> consensusHeaderHasher.addLeaf(hash);
-                case EVENT_TRANSACTION -> inputTreeHasher.addLeaf(hash);
+                case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(hash);
                 case TRANSACTION_RESULT -> {
                     runningHashManager.nextResultHash(hash);
                     hash.rewind();

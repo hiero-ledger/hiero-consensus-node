@@ -237,10 +237,24 @@ public class RecordStreamBuilder
         }
         final var transactionReceipt = builder.build();
 
+        // The "re-wrapped" transaction for legacy record stream compliance
+        final Transaction transaction;
         final Bytes transactionHash;
         try {
             final MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            transactionHash = Bytes.wrap(digest.digest(serializedSignedTx.toByteArray()));
+            if (signedTx.useLegacyTransactionHashAlgorithm()) {
+                transaction = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+                final var legacyBytes = Transaction.PROTOBUF.toBytes(transaction);
+                transactionHash = Bytes.wrap(digest.digest(legacyBytes.toByteArray()));
+            } else {
+                transaction = Transaction.newBuilder()
+                        .signedTransactionBytes(serializedSignedTx)
+                        .build();
+                transactionHash = Bytes.wrap(digest.digest(serializedSignedTx.toByteArray()));
+            }
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
@@ -300,12 +314,7 @@ public class RecordStreamBuilder
         logEndTransactionRecord(transactionID, transactionRecord);
 
         return new SingleTransactionRecord(
-                Transaction.newBuilder()
-                        .signedTransactionBytes(serializedSignedTx)
-                        .build(),
-                transactionRecord,
-                transactionSidecarRecords,
-                new TransactionOutputs(tokenType));
+                transaction, transactionRecord, transactionSidecarRecords, new TransactionOutputs(tokenType));
     }
 
     @Override
@@ -376,7 +385,7 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public StreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+    public RecordStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
         this.serializedSignedTx = serializedSignedTx;
         return this;
     }
