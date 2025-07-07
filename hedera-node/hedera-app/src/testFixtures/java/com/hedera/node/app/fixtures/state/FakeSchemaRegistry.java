@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 
 public class FakeSchemaRegistry implements SchemaRegistry {
     private static final Logger logger = LogManager.getLogger(FakeSchemaRegistry.class);
+
     private final SchemaApplications schemaApplications = new SchemaApplications();
 
     /**

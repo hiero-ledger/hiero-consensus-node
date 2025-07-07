@@ -1,13 +1,7 @@
 /**
- * #  Service
+ * # Smart Contract Service
  * Block stream messages that report the results of transactions handled
  * by the `smart contract` service.
- *
- * > REVIEW NOTE
- * >> The use of sidecar records is a bit odd here. We may find it more
- * >> effective to extract the actual changes into proper output messages
- * >> and fields included in the ethereum call output and/or related state
- * >> changes items, and remove the whole sidecar concept going forward.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -34,13 +28,14 @@ import "services/contract_types.proto";
  * the original transaction.
  */
 message CallContractOutput {
+    // Preview block streams used this field for sidecars
+    reserved 1;
+
     /**
-     * An EVM contract call result.
-     * <p>
-     * This field SHALL contain all of the data produced by the contract
-     * call transaction as well as basic accounting results.
+     * An EVM transaction result. Contains just the information not already
+     * externalized in the matching transaction body.
      */
-    proto.ContractFunctionResult contract_call_result = 1;
+    proto.EvmTransactionResult evm_transaction_result = 2;
 }
 
 /**
@@ -50,13 +45,14 @@ message CallContractOutput {
  * the original transaction.
  */
 message CreateContractOutput {
+    // Preview block streams used this field for sidecars
+    reserved 1;
+
     /**
-     * An EVM contract call result.
-     * <p>
-     * This field SHALL contain all of the data produced by the contract
-     * create transaction as well as basic accounting results.
+     * An EVM transaction result. Contains just the information not already
+     * externalized in the matching transaction body.
      */
-    proto.ContractFunctionResult contract_create_result = 1;
+    proto.EvmTransactionResult evm_transaction_result = 2;
 }
 
 // no evm exec, only modified entity
@@ -100,29 +96,31 @@ message SystemDeleteContractOutput {}
  * the original transaction.
  */
 message EthereumOutput {
+   // Preview block streams used these fields for sidecars and verbose
+   // contract function results
+   reserved 2,3,4;
+
     /**
-     * An ethereum hash value.
+     * If the associated Ethereum transaction required hydrating its
+     * call data from a file, the Keccak256 hash of the transaction.
      * <p>
-     * This SHALL be a keccak256 hash of the ethereumData.
+     * If the Ethereum transaction was inline, this field SHALL NOT be set.
      */
     bytes ethereum_hash = 1;
 
-    oneof eth_result {
+    oneof txn_result {
         /**
-         * A result for an Ethereum Transaction executed as a call.
-         * <p>
-         * This field SHALL contain all of the data produced by the contract
-         * call transaction as well as basic accounting results.
+         * An EVM transaction result for an Ethereum transaction executed as a
+         * call. Contains just the information not already externalized in the
+         * matching transaction body.
          */
-        proto.ContractFunctionResult ethereum_call_result = 2;
+        proto.EvmTransactionResult evm_call_transaction_result = 5;
 
         /**
-         * A result for an Ethereum Transaction executed as a create.
-         * <p>
-         * This field SHALL contain all of the data produced by the contract
-         * create transaction as well as basic accounting results.
+         * An EVM transaction result for an Ethereum transaction executed as a
+         * create. Contains just the information not already externalized in the
+         * matching transaction body.
          */
-        proto.ContractFunctionResult ethereum_create_result = 3;
+        proto.EvmTransactionResult evm_create_transaction_result = 6;
     }
 }
-

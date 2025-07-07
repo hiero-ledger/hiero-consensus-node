@@ -473,7 +473,7 @@ public class ConversionUtils {
         } else {
             final var account = nativeOperations.getAccount(
                     nativeOperations.entityIdFactory().newAccountId(number));
-            if (account == null) {
+            if (account == null || account.deleted()) {
                 return MISSING_ENTITY_NUMBER;
             } else if (!Arrays.equals(explicit, explicitAddressOf(account))) {
                 return NON_CANONICAL_REFERENCE_NUMBER;

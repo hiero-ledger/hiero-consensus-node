@@ -2,10 +2,12 @@
 package org.hiero.consensus.event.creator;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
@@ -94,12 +96,18 @@ public interface ConsensusEventCreator {
     /**
      * Initializes the component.
      *
-     * @param platformContext the platform context to be used during initialization
+     * @param configuration the configuration to be used during initialization
+     * @param metrics the metrics to be used during initialization
+     * @param time the time source to be used during initialization
      * @param model the wiring model to be used during initialization
      * @return this {@link ConsensusEventCreator} instance
      */
     @NonNull
-    ConsensusEventCreator initialize(@NonNull PlatformContext platformContext, @NonNull WiringModel model);
+    ConsensusEventCreator initialize(
+            @NonNull Configuration configuration,
+            @NonNull Metrics metrics,
+            @NonNull Time time,
+            @NonNull WiringModel model);
 
     /**
      * Destroys the component.
