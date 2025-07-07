@@ -108,6 +108,8 @@ Consumes Roster via different utility classes:
 
 ## Proposed changes
 
+### OPTION 1:
+
 - unify naming: activeRoster and currentRoster are used interchangeably.
 - unify nullability criteria in all methods (some return null other exception)
 - Remove RosterRetriever
@@ -143,12 +145,26 @@ Consumes Roster via different utility classes:
 
 ![roster.png](roster.png)
 
-#### Pros & Cons
+### OPTION 2:
 
-+ (+) Solves all the mentioned problems at minimum runtime execution cost.
-+ (+) Respects platform/state boundaries
-+ (+) Eliminate intermediate classes and clutter code by making each component cache only the instance they will be working with.
+- unify naming: activeRoster and currentRoster are used interchangeably.
+- unify nullability criteria in all methods (some return null other exception)
+- Remove RosterRetriever
+- `RosterHistory` becomes a mutable class. Its responsibility is to hold all the roster history provided to us by updates from the app, tracks which roster applies to each round.
+  It offers a new operation to add a roster round relationship to the tracked elements.
+- Create `RosterData` class as a POJO data object internally using a map to facilitate the retrieval of the information in a roster
+- `RosterHistory` returns `RosterData` in all operations
+- Platform code does not use `Roster` but uses `RosterHistory` directly, all components will have a local instance of the history.
+- Each component that needs it, have a RosterData to X transformation and caching implemented locally
+- Platform does not receive a `currentRoster` or a `previousRoster` anymore, it receives a list of Round Roster pairs that every component will apply to its own reference of a `RosterHistory` by injecting a value through the wiring framework.
+- Platform does not use `ReadableRosterStore` anymore.
+
+### Pros & Cons
+
 + (-) Include an event window injection in components that use the roster-history could create a link from consensus to other components that would violate our future module relationships
-- (-) High Memory footprint as `RosterHistory` and `RosterDataMap` are holding caches and every component will need their own instance of them.
+- (-) High Memory footprint as every component will need their own instance caches.
 - (-) The logic of the `ReadableRosterStore` is duplicated in `RosterHistory`
 - (-) potential need to include more wires to inject the event-window.
++ (+) OPTION 1: Eliminate intermediate classes and clutter code by making each component cache only the instance they will be working with.
++ (+) OPTION 2: Fewer classes to maintain
++ (-) OPTION 2: Duplicate logic as every component needs to mantain caches that are similar
