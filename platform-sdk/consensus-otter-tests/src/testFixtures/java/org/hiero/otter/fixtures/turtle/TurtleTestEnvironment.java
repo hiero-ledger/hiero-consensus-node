@@ -12,10 +12,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -30,6 +32,7 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
  */
 public class TurtleTestEnvironment implements TestEnvironment {
 
+    public static final Set<Capability> CAPABILITIES = Set.of();
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
     static final String APP_NAME = "otter";

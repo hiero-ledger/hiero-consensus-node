@@ -52,7 +52,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
-        collector.subscribe(subscriber);
+        collector.subscribeConsensusRoundSubscriber(subscriber);
     }
 
     /**
