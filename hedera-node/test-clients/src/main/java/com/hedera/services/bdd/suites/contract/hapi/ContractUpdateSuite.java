@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
@@ -57,6 +58,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.utilops.RunnableOp;
@@ -433,10 +435,12 @@ public class ContractUpdateSuite {
                 contractDelete(contract + suffix)
                         .payingWith(payer)
                         .signedBy(payer, INITIAL_ADMIN_KEY)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 contractDelete(contract + suffix)
                         .payingWith(payer)
                         .signedBy(payer)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 contractDelete(contract + suffix).payingWith(payer).hasKnownStatus(SUCCESS));
     }

@@ -2,9 +2,37 @@
 
 A comprehensive Java-based testing framework for the Consensus Module, supporting both simulated and containerized environments. More environments will be added in the future.
 
-## 🚀 Quick Start
+## 🚀 A first Otter Test
 
-https://github.com/hiero-ledger/hiero-consensus-node/blob/main/platform-sdk/consensus-otter-tests/src/test/java/org/hiero/otter/test/DocExampleTest.java#L19-L42
+This example demonstrates a simple test that checks if consensus is reached and the logs contain no error messages.
+
+```java
+    @OtterTest
+    void testConsensus(@NonNull final TestEnvironment env) throws InterruptedException {
+        // 1. Get the network and time manager
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+
+        // 2. Create a 4-node network
+        network.addNodes(4);
+
+        // 3. Start the network
+        network.start();
+
+        // 4. Wait 30 seconds while the network is running
+        timeManager.waitFor(Duration.ofSeconds(30));
+
+        // 5. Verify consensus was reached
+        assertThat(network.getConsensusResults())
+                .haveEqualCommonRounds()
+                .haveMaxDifferenceInLastRoundNum(withPercentage(5));
+
+        // 6. Check for no error-level log messages
+        assertThat(network.getLogResults()).haveNoErrorLevelMessages();
+    }
+```
+
+For the full description of the test, see [🏁 Getting Started](docs/getting-started.md).
 
 ## ✨ Key Features
 

@@ -37,7 +37,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -305,11 +304,6 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        // No-op
-    }
-
-    @Override
     public void nullOutSideEffectFields() {
         serialNumbers.clear();
         tokenTransferLists.clear();
@@ -533,6 +527,12 @@ public class RecordStreamBuilder
     @NonNull
     @Override
     public RecordStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
         throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 

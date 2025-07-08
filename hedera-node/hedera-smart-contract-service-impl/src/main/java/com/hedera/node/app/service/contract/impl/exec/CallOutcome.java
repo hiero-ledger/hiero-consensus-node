@@ -32,6 +32,7 @@ import java.util.List;
  * @param slotUsages any contract slot usages that should be externalized in trace data
  * @param logs if not null, any EVM transaction logs that should be externalized in trace data
  * @param changedNonceInfos if not null, any contract IDs that had their nonce changed during the call
+ * @param createdContractIds
  * @param txResult the concise EVM transaction result
  * @param newSenderNonce if not null, the new sender nonce after the call
  * @param createdEvmAddress
@@ -45,6 +46,7 @@ public record CallOutcome(
         @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable List<EvmTransactionLog> logs,
         @Nullable List<ContractNonceInfo> changedNonceInfos,
+        @Nullable List<ContractID> createdContractIds,
         @NonNull EvmTransactionResult txResult,
         @Nullable Long newSenderNonce,
         @Nullable Bytes createdEvmAddress) {
@@ -93,6 +95,13 @@ public record CallOutcome(
     }
 
     /**
+     * @return whether some contract IDs were created during the execution of the contract.
+     */
+    public boolean hasCreatedContractIds() {
+        return createdContractIds != null && !createdContractIds.isEmpty();
+    }
+
+    /**
      * Return the slot usages.
      */
     public @NonNull List<ContractSlotUsage> slotUsagesOrThrow() {
@@ -114,9 +123,17 @@ public record CallOutcome(
     }
 
     /**
+     * Return the contract IDs that were created during the call.
+     */
+    public @NonNull List<ContractID> createdContractIdsOrThrow() {
+        return requireNonNull(createdContractIds);
+    }
+
+    /**
      * @param result the contract function result
      * @param txResult the concise EVM transaction result
      * @param changedNonceInfos if not null, the contract IDs that had their nonce changed during the call
+     * @param createdContractIds if not null, the contract IDs that were created during the call
      * @param evmAddress if not null, the EVM address of the contract that created
      * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
@@ -124,7 +141,8 @@ public record CallOutcome(
     public static CallOutcome fromResultsWithMaybeSidecars(
             @Deprecated @NonNull final ContractFunctionResult result,
             @NonNull final EvmTransactionResult txResult,
-            @Nullable List<ContractNonceInfo> changedNonceInfos,
+            @Nullable final List<ContractNonceInfo> changedNonceInfos,
+            @Nullable final List<ContractID> createdContractIds,
             @Nullable final Bytes evmAddress,
             @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
@@ -136,6 +154,7 @@ public record CallOutcome(
                 hevmResult.slotUsages(),
                 hevmResult.evmLogs(),
                 changedNonceInfos,
+                createdContractIds,
                 txResult,
                 hevmResult.signerNonce(),
                 evmAddress);
@@ -145,6 +164,7 @@ public record CallOutcome(
      * @param result the contract function result
      * @param txResult the concise EVM transaction result
      * @param updatedNonceInfos if not null, the contract IDs that had their nonce changed during the call
+     * @param createdContractIds if not null, the contract IDs that were created during the call
      * @param evmAddress if not null, the EVM address of the contract that created
      * @param hevmResult the result after EVM transaction execution
      * @return the EVM transaction outcome
@@ -153,6 +173,7 @@ public record CallOutcome(
             @NonNull final ContractFunctionResult result,
             @NonNull final EvmTransactionResult txResult,
             @Nullable final List<ContractNonceInfo> updatedNonceInfos,
+            @Nullable final List<ContractID> createdContractIds,
             @Nullable Bytes evmAddress,
             @NonNull final HederaEvmTransactionResult hevmResult) {
         return new CallOutcome(
@@ -164,6 +185,7 @@ public record CallOutcome(
                 null,
                 hevmResult.evmLogs(),
                 updatedNonceInfos,
+                createdContractIds,
                 txResult,
                 hevmResult.signerNonce(),
                 evmAddress);
@@ -178,6 +200,7 @@ public record CallOutcome(
      * @param slotUsages any contract slot usages that should be externalized in trace data
      * @param logs any EVM transaction logs that should be externalized in trace data
      * @param changedNonceInfos the contract IDs that had their nonce changed during the call
+     * @param createdContractIds if not null, the contract IDs that were created during the call
      * @param txResult the concise EVM transaction result
      * @param newSenderNonce if applicable, the new sender nonce after the call
      * @param createdEvmAddress if applicable, the EVM address of the contract that was created

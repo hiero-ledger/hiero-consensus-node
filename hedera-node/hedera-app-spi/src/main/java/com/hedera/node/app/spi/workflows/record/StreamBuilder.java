@@ -19,7 +19,6 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -41,11 +40,6 @@ public interface StreamBuilder {
     default StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         return this;
     }
-
-    /**
-     * Sets this stream item's position in a state changes "group".
-     */
-    void setTransactionGroupRole(@NonNull TransactionGroupRole role);
 
     /**
      * Sets the transaction for this stream item builder.

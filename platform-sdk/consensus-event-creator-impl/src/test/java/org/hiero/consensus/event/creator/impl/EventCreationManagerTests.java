@@ -11,9 +11,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
@@ -37,15 +38,14 @@ class EventCreationManagerTests {
                 .thenReturn(eventsToCreate.get(0), eventsToCreate.get(1), eventsToCreate.get(2));
 
         time = new FakeTime();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(new TestConfigBuilder()
-                        .withValue("event.creation.eventIntakeThrottle", 10)
-                        .withValue("event.creation.eventCreationRate", 1)
-                        .getOrCreateConfig())
-                .withTime(time)
-                .build();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue("event.creation.eventIntakeThrottle", 10)
+                .withValue("event.creation.eventCreationRate", 1)
+                .getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
 
-        manager = new DefaultEventCreationManager(platformContext, mock(TransactionPoolNexus.class), creator);
+        manager = new DefaultEventCreationManager(
+                configuration, metrics, time, mock(TransactionPoolNexus.class), creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
