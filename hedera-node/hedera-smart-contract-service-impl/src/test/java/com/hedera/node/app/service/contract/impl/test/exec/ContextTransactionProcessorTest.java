@@ -129,6 +129,7 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 List.of(),
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -172,6 +173,7 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 List.of(),
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -212,6 +214,7 @@ class ContextTransactionProcessorTest {
                 null,
                 null,
                 null,
+                List.of(),
                 List.of(),
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),

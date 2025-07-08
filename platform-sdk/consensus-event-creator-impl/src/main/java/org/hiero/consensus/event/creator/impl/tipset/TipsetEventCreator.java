@@ -6,8 +6,9 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWei
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -88,7 +89,9 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * Create a new tipset event creator.
      *
-     * @param platformContext     the platform context
+     * @param configuration       the configuration for the event creator
+     * @param metrics             the metrics for the event creator
+     * @param time                provides the time source for the event creator
      * @param random              a source of randomness, does not need to be cryptographically secure
      * @param signer              used for signing things with this node's private key
      * @param roster              the current roster
@@ -96,29 +99,30 @@ public class TipsetEventCreator implements EventCreator {
      * @param transactionSupplier provides transactions to be included in new events
      */
     public TipsetEventCreator(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Random random,
             @NonNull final HashSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final TransactionSupplier transactionSupplier) {
 
-        this.time = platformContext.getTime();
+        this.time = Objects.requireNonNull(time);
         this.random = Objects.requireNonNull(random);
         this.signer = Objects.requireNonNull(signer);
         this.selfId = Objects.requireNonNull(selfId);
         this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
         this.roster = Objects.requireNonNull(roster);
 
-        final EventCreationConfig eventCreationConfig =
-                platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
-        tipsetMetrics = new TipsetMetrics(platformContext, roster);
+        tipsetMetrics = new TipsetMetrics(metrics, roster);
         tipsetTracker = new TipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
-        tipsetWeightCalculator =
-                new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessOtherEventTracker);
+        tipsetWeightCalculator = new TipsetWeightCalculator(
+                configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
         networkSize = roster.rosterEntries().size();
 
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
