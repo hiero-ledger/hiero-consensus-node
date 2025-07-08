@@ -27,9 +27,13 @@ public abstract class AbstractNode implements Node {
 
     protected final NodeId selfId;
 
+    /** Saves current state in the lifeCycle, can be set asynchronously  */
     protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
+
+    /** Current software version of the platform, can be set asynchronously  */
     protected volatile SemanticVersion version = Node.DEFAULT_VERSION;
 
+    /** Saves current state of the platform, can be set asynchronously  */
     @Nullable
     protected volatile PlatformStatus platformStatus = null;
 

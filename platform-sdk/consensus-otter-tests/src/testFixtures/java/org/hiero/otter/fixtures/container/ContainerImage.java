@@ -35,13 +35,12 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         final int debugPort = BASE_DEBUG_PORT + (int) selfId.id();
 
         // Apply the common configuration expected by tests
-        withNetwork(network)
-                .withNetworkAliases(alias)
-                .withExposedPorts(CONTROL_PORT);
+        withNetwork(network).withNetworkAliases(alias).withExposedPorts(CONTROL_PORT);
 
-        withEnv("JAVA_TOOL_OPTIONS",
+        withEnv(
+                "JAVA_TOOL_OPTIONS",
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort + " "
-        + "-Djdk.attach.allowAttachSelf=true -XX:+StartAttachListener");
+                        + "-Djdk.attach.allowAttachSelf=true -XX:+StartAttachListener");
         addFixedExposedPort(debugPort, debugPort);
     }
 }

@@ -157,15 +157,14 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Starts the consensus node application. This method triggers the underlying platform
-     * to begin processing consensus rounds and other operations.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start receiving transactions.
      */
     public void start() {
         platform.start();
     }
 
     /**
-     * Shuts down the consensus node application. Once destroyed, the application cannot be restarted.
+     * Shuts down the consensus node. Once destroyed, it cannot be restarted.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
