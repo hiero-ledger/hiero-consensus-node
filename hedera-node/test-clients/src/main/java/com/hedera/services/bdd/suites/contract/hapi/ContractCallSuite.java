@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
@@ -233,6 +234,7 @@ public class ContractCallSuite {
     }
 
     @HapiTest
+    @Tag(ADHOC)
     final Stream<DynamicTest> insufficientGasToPrecompileFailsWithInterpretableActionSidecars() {
         final var contract = "LowLevelCall";
         // A real-world payload for a call to the altbn128 pairing precompile, for

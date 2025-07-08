@@ -42,13 +42,19 @@ public record TransactionParts(
     public static TransactionParts from(@NonNull final Bytes serializedSignedTx) {
         try {
             final var signedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+            final Transaction wrapper;
+            if (signedTx.useLegacyTransactionHashAlgorithm()) {
+                wrapper = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+            } else {
+                wrapper = Transaction.newBuilder()
+                        .signedTransactionBytes(serializedSignedTx)
+                        .build();
+            }
             final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
-            return new TransactionParts(
-                    Transaction.newBuilder()
-                            .signedTransactionBytes(serializedSignedTx)
-                            .build(),
-                    body,
-                    functionOf(body));
+            return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream
             throw new IllegalArgumentException(e);
@@ -63,13 +69,19 @@ public record TransactionParts(
      */
     public static TransactionParts from(@NonNull final SignedTransaction signedTx) {
         try {
+            final Transaction wrapper;
+            if (signedTx.useLegacyTransactionHashAlgorithm()) {
+                wrapper = Transaction.newBuilder()
+                        .bodyBytes(signedTx.bodyBytes())
+                        .sigMap(signedTx.sigMap())
+                        .build();
+            } else {
+                wrapper = Transaction.newBuilder()
+                        .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                        .build();
+            }
             final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
-            return new TransactionParts(
-                    Transaction.newBuilder()
-                            .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
-                            .build(),
-                    body,
-                    functionOf(body));
+            return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream
             throw new IllegalArgumentException(e);
