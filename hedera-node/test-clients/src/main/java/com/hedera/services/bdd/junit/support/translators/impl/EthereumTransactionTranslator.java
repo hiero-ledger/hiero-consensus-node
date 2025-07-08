@@ -107,7 +107,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                     }
                                                 }
                                                 if (parts.status() == SUCCESS) {
-                                                    if (parts.isTopLevel()) {
+                                                    if (parts.isTopLevel() || parts.inBatch()) {
                                                         // If all sidecars are disabled and there were no logs for a
                                                         // top-level creation,
                                                         // for parity we still need to fill in the result with empty
