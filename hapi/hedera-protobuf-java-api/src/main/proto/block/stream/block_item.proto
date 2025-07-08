@@ -29,7 +29,6 @@ option java_package = "com.hedera.hapi.block.stream.protoc";
 option java_multiple_files = true;
 
 import "services/transaction_contents.proto";
-import "platform/event/event_transaction.proto";
 import "block/stream/block_proof.proto";
 import "block/stream/record_file_item.proto";
 import "block/stream/input/event_metadata.proto";
@@ -160,7 +159,7 @@ message BlockItem {
          * This item MUST NOT contain data for more than one
          * `SignedTransaction` or system-generated transaction.
          */
-        com.hedera.hapi.platform.event.EventTransaction event_transaction = 4;
+        proto.SignedTransaction signed_transaction = 4;
 
         /**
          * The result of running a transaction.
@@ -248,16 +247,6 @@ message BlockItem {
          * stream items of this type.<br/>
          */
         com.hedera.hapi.block.stream.trace.TraceData trace_data = 16;
-
-        /**
-         * A single transaction.
-         * <p>
-         * This item SHALL contain the serialized bytes of a
-         * single transaction.<br/>
-         * This item MUST NOT contain data for more than one
-         * `SignedTransaction` or system-generated transaction.
-         */
-        proto.SignedTransaction signed_transaction = 17;
     }
 }
 

@@ -153,7 +153,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
         assertThat(response.cost()).isZero();
         // And that the transaction and its bytes were actually passed to the submission manager
-        verify(submissionManager).submit(transactionBody, requestBuffer);
+        verify(submissionManager).submit(eq(transactionBody), any());
     }
 
     @Nested

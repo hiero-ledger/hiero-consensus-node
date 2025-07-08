@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -57,5 +59,12 @@ public record TransactionInfo(
                 signedBytes,
                 functionality,
                 serializedSignedTx);
+    }
+
+    /**
+     * Returns the serialized signed transaction, or throws a {@link NullPointerException} if it is null.
+     */
+    public @NonNull Bytes serializedSignedTxOrThrow() {
+        return requireNonNull(serializedSignedTx);
     }
 }

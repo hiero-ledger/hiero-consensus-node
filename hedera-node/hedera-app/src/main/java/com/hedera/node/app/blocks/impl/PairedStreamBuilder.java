@@ -142,9 +142,9 @@ public class PairedStreamBuilder
     }
 
     @Override
-    public PairedStreamBuilder serializedSignedTx(@Nullable final Bytes serializedTransaction) {
-        recordStreamBuilder.serializedSignedTx(serializedTransaction);
-        blockStreamBuilder.serializedSignedTx(serializedTransaction);
+    public PairedStreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        recordStreamBuilder.serializedSignedTx(serializedSignedTx);
+        blockStreamBuilder.serializedSignedTx(serializedSignedTx);
         return this;
     }
 

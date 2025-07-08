@@ -1760,4 +1760,9 @@ enum ResponseCodeEnum {
      * which the network does not support.
      */
     GRPC_WEB_PROXY_NOT_SUPPORTED = 399;
+
+    /**
+     * A HAPI client cannot set the SignedTransaction#useLegacyHashAlgorithm field.
+     */
+    INVALID_LEGACY_TX_HASH_ALGORITHM = 400;
 }

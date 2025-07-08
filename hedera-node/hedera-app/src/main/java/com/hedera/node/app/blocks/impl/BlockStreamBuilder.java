@@ -165,7 +165,7 @@ public class BlockStreamBuilder
      * (We already have this pre-serialized when the transaction came from an event.)
      */
     @Nullable
-    private Bytes signedTxBytes;
+    private Bytes serializedSignedTx;
 
     // --- Fields used to build the TranslationContext ---
     /**
@@ -660,8 +660,8 @@ public class BlockStreamBuilder
     }
 
     @Override
-    public StreamBuilder serializedSignedTx(@Nullable final Bytes signedTxBytes) {
-        this.signedTxBytes = signedTxBytes;
+    public StreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        this.serializedSignedTx = serializedSignedTx;
         return this;
     }
 
@@ -1225,8 +1225,7 @@ public class BlockStreamBuilder
 
     private TransactionBody inProgressBody() {
         try {
-            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(signedTxBytes);
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }
@@ -1338,7 +1337,7 @@ public class BlockStreamBuilder
                         senderNonce,
                         evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
                         ethereumHash,
-                        signedTxBytes);
+                        serializedSignedTx);
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,
@@ -1348,7 +1347,7 @@ public class BlockStreamBuilder
                         functionality,
                         accountId,
                         evmAddress,
-                        signedTxBytes);
+                        serializedSignedTx);
             case FILE_CREATE ->
                 new FileOpContext(
                         memo,
@@ -1357,7 +1356,7 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         fileId,
-                        signedTxBytes);
+                        serializedSignedTx);
             case NODE_CREATE ->
                 new NodeOpContext(
                         memo,
@@ -1366,7 +1365,7 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         nodeId,
-                        signedTxBytes);
+                        serializedSignedTx);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(
                         memo,
@@ -1375,7 +1374,7 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         scheduleId,
-                        signedTxBytes);
+                        serializedSignedTx);
             case CONSENSUS_SUBMIT_MESSAGE ->
                 new SubmitOpContext(
                         memo,
@@ -1386,7 +1385,7 @@ public class BlockStreamBuilder
                         runningHash,
                         runningHashVersion,
                         sequenceNumber,
-                        signedTxBytes);
+                        serializedSignedTx);
             case TOKEN_AIRDROP -> {
                 if (!pendingAirdropRecords.isEmpty()) {
                     pendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
@@ -1398,7 +1397,7 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         pendingAirdropRecords,
-                        signedTxBytes);
+                        serializedSignedTx);
             }
             case TOKEN_MINT ->
                 new MintOpContext(
@@ -1409,7 +1408,7 @@ public class BlockStreamBuilder
                         functionality,
                         serialNumbers,
                         newTotalSupply,
-                        signedTxBytes);
+                        serializedSignedTx);
             case TOKEN_BURN, TOKEN_ACCOUNT_WIPE ->
                 new SupplyChangeOpContext(
                         memo,
@@ -1418,7 +1417,7 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         newTotalSupply,
-                        signedTxBytes);
+                        serializedSignedTx);
             case TOKEN_CREATE ->
                 new TokenOpContext(
                         memo,
@@ -1427,7 +1426,7 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         tokenId,
-                        signedTxBytes);
+                        serializedSignedTx);
             case CONSENSUS_CREATE_TOPIC ->
                 new TopicOpContext(
                         memo,
@@ -1436,10 +1435,15 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         topicId,
-                        signedTxBytes);
+                        serializedSignedTx);
             default ->
                 new BaseOpContext(
-                        memo, translationContextExchangeRates, transactionId, signedTx, functionality, signedTxBytes);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        serializedSignedTx);
         };
     }
 }

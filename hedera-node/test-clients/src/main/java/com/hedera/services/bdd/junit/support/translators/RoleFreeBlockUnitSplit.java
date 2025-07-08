@@ -158,7 +158,7 @@ public class RoleFreeBlockUnitSplit {
             for (int k = i; k < j && !done; k++) {
                 final var item = items.get(k);
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
+                    case SIGNED_TRANSACTION, TRANSACTION_RESULT, TRANSACTION_OUTPUT, TRACE_DATA, STATE_CHANGES ->
                         txItems.add(item);
                     default -> done = true;
                 }
@@ -223,7 +223,7 @@ public class RoleFreeBlockUnitSplit {
             final var pending = new PendingBlockTransactionParts();
             for (final var item : nextPartItems) {
                 switch (item.item().kind()) {
-                    case EVENT_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
+                    case SIGNED_TRANSACTION -> pending.addPartsEnforcingOrder(getParts.apply(idx));
                     case TRANSACTION_RESULT -> pending.addResultEnforcingOrder(item.transactionResultOrThrow());
                     case TRANSACTION_OUTPUT -> pending.addOutputEnforcingOrder(item.transactionOutputOrThrow());
                     case TRACE_DATA -> pending.addTraceEnforcingOrder(item.traceDataOrThrow());

@@ -58,10 +58,11 @@ public interface StreamBuilder {
 
     /**
      * Sets the serialized bytes for the transaction; if known, we can avoid re-serializing the transaction.
-     * @param serializedTransaction if non-null, the serialized transaction
+     *
+     * @param serializedSignedTx if non-null, the serialized transaction
      * @return this builder
      */
-    StreamBuilder serializedSignedTx(@Nullable Bytes serializedTransaction);
+    StreamBuilder serializedSignedTx(@Nullable Bytes serializedSignedTx);
 
     /**
      * Returns any ids recorded as having explicit reward situations during the construction of this builder so far.

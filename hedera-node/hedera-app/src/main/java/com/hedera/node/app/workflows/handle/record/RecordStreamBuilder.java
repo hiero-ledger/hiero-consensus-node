@@ -143,7 +143,8 @@ public class RecordStreamBuilder
     // base transaction data
     private SignedTransaction signedTx;
 
-    private Bytes serializedSignedTx = Bytes.EMPTY;
+    @Nullable
+    private Bytes serializedSignedTx = null;
     // fields needed for TransactionRecord
     // Mutable because the provisional consensus timestamp assigned on dispatch could
     // change when removable records appear "between" this record and the parent record
@@ -250,6 +251,9 @@ public class RecordStreamBuilder
                 final var legacyBytes = Transaction.PROTOBUF.toBytes(transaction);
                 transactionHash = Bytes.wrap(digest.digest(legacyBytes.toByteArray()));
             } else {
+                if (serializedSignedTx == null) {
+                    serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+                }
                 transaction = Transaction.newBuilder()
                         .signedTransactionBytes(serializedSignedTx)
                         .build();

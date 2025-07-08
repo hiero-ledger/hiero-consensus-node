@@ -31,7 +31,6 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
@@ -50,13 +49,12 @@ public class BlockStreamBuilderTest {
     public static final long TRANSACTION_FEE = 6846513L;
     public static final int ENTROPY_NUMBER = 87372879;
     public static final String MEMO = "Yo Memo";
-    private SignedTransaction signedTx = SignedTransaction.newBuilder()
+    private final SignedTransaction signedTx = SignedTransaction.newBuilder()
             .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
                     .build()))
             .build();
     private @Mock TransactionID transactionID;
-    private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
@@ -66,7 +64,6 @@ public class BlockStreamBuilderTest {
     private @Mock AccountAmount accountAmount;
     private @Mock ResponseCodeEnum status;
     private @Mock ExchangeRateSet exchangeRate;
-    private @Mock ContractStateChanges contractStateChanges;
     private @Mock AccountID accountID;
 
     @Test

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MES
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_LEGACY_TX_HASH_ALGORITHM;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
@@ -19,6 +20,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -218,7 +221,9 @@ public class TransactionChecker {
      * exist, or may not have enough balance, or the transaction may not have paid enough to cover the fees, or many
      * other scenarios. Those will be checked in later stages of the workflow (and in many cases, within the service
      * modules themselves).</p>
-     *
+     * <p>
+     * Note this method is <b>only</b> used at HAPI ingest, since by the time a transaction has been submitted,
+     * it no longer has a {@link Transaction} wrapper and is a serialized {@link SignedTransaction}.
      * @param tx the {@link Transaction} that needs to be checked
      * @return an {@link TransactionInfo} with the parsed and checked entities
      * @throws PreCheckException if the data is not valid
@@ -228,7 +233,7 @@ public class TransactionChecker {
     public TransactionInfo check(@NonNull final Transaction tx) throws PreCheckException {
         // NOTE: Since we've already parsed the transaction, we assume that the
         // transaction was not too many bytes. This is a safe assumption because
-        // the code that receives the transaction bytes and parses/ the transaction
+        // the code that receives the transaction bytes and parses the transaction
         // also verifies that the transaction is not too large.
         checkTransactionDeprecation(tx);
 
@@ -238,6 +243,7 @@ public class TransactionChecker {
             serializedSignedTx = tx.signedTransactionBytes();
             signedTx = parseStrict(
                     serializedSignedTx.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
+            validateFalsePreCheck(signedTx.useLegacyTransactionHashAlgorithm(), INVALID_LEGACY_TX_HASH_ALGORITHM);
         } else {
             signedTx = new SignedTransaction(tx.bodyBytes(), tx.sigMap(), true);
             serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
@@ -562,6 +568,7 @@ public class TransactionChecker {
 
     private TransactionInfo check(@NonNull final SignedTransaction signedTx, @NonNull final Bytes serializedSignedTx)
             throws PreCheckException {
+        validateTruePreCheck(signedTx.hasSigMap(), INVALID_TRANSACTION_BODY);
         final var signatureMap = signedTx.sigMapOrThrow();
         final var txBody = parseStrict(
                 signedTx.bodyBytes().toReadableSequentialData(), TransactionBody.PROTOBUF, INVALID_TRANSACTION_BODY);

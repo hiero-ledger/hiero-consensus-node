@@ -332,7 +332,7 @@ class BlockStreamManagerImplTest {
                 appendHash(combine(ZERO_BLOCK_HASH, FAKE_RESULT_HASH), appendHash(ZERO_BLOCK_HASH, Bytes.EMPTY, 4), 4),
                 appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
                 Bytes.fromHex(
-                        "b1b8220d09b508a5cd9f2f5cf1bb27e3638f48fe3c7a6905a02cf511b6b94e9f58e30ac0b3009bf8b904eadb1eef22a3"),
+                        "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
                 ZERO_BLOCK_HASH,
                 2,
                 List.of(
@@ -567,7 +567,7 @@ class BlockStreamManagerImplTest {
                 appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
                 appendHash(FAKE_RESTART_BLOCK_HASH, appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256), 256),
                 Bytes.fromHex(
-                        "b1b8220d09b508a5cd9f2f5cf1bb27e3638f48fe3c7a6905a02cf511b6b94e9f58e30ac0b3009bf8b904eadb1eef22a3"),
+                        "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
                 ZERO_BLOCK_HASH,
                 2,
                 List.of(
