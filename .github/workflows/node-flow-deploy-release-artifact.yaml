@@ -263,10 +263,6 @@ jobs:
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{
-            "ref": "${{ inputs.ref }}",
-            "ref-name": "${{ inputs.ref-name }}"
-            }'
 
   report-failures:
     name: Report Production Release Failures

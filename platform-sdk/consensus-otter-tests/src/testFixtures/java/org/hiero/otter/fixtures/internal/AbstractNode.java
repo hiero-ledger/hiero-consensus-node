@@ -28,11 +28,11 @@ public abstract class AbstractNode implements Node {
     protected final NodeId selfId;
     protected final long weight;
 
-    protected LifeCycle lifeCycle = LifeCycle.INIT;
-    protected SemanticVersion version = Node.DEFAULT_VERSION;
+    protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
+    protected volatile SemanticVersion version = Node.DEFAULT_VERSION;
 
     @Nullable
-    protected PlatformStatus platformStatus = null;
+    protected volatile PlatformStatus platformStatus = null;
 
     /**
      * Constructor for the AbstractNode class.
