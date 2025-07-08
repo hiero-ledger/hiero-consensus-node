@@ -212,13 +212,10 @@ public class StandaloneDispatchFactory {
     }
 
     private ConsensusTransaction consensusTransactionFor(@NonNull final TransactionBody transactionBody) {
-        final var signedTransaction =
+        final var signedTx =
                 new SignedTransaction(TransactionBody.PROTOBUF.toBytes(transactionBody), SignatureMap.DEFAULT, false);
-        final var transaction = Transaction.newBuilder()
-                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTransaction))
-                .build();
-        final var transactionBytes = Transaction.PROTOBUF.toBytes(transaction);
-        final var consensusTransaction = new TransactionWrapper(transactionBytes);
+        final var serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+        final var consensusTransaction = new TransactionWrapper(serializedSignedTx);
         consensusTransaction.setMetadata(temporaryPreHandleResult());
         return consensusTransaction;
     }

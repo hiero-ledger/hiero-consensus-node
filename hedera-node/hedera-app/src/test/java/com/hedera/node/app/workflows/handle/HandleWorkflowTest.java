@@ -500,7 +500,6 @@ class HandleWorkflowTest {
                 cacheWarmer,
                 opWorkflowMetrics,
                 throttleServiceManager,
-                version,
                 initTrigger,
                 hollowAccountCompletions,
                 systemTransactions,

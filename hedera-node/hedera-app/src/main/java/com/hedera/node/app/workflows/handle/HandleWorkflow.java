@@ -27,7 +27,6 @@ import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -132,7 +131,6 @@ public class HandleWorkflow {
     private final CacheWarmer cacheWarmer;
     private final OpWorkflowMetrics opWorkflowMetrics;
     private final ThrottleServiceManager throttleServiceManager;
-    private final SemanticVersion version;
     private final InitTrigger initTrigger;
     private final HollowAccountCompletions hollowAccountCompletions;
     private final SystemTransactions systemTransactions;
@@ -176,7 +174,6 @@ public class HandleWorkflow {
             @NonNull final CacheWarmer cacheWarmer,
             @NonNull final OpWorkflowMetrics opWorkflowMetrics,
             @NonNull final ThrottleServiceManager throttleServiceManager,
-            @NonNull final SemanticVersion version,
             @NonNull final InitTrigger initTrigger,
             @NonNull final HollowAccountCompletions hollowAccountCompletions,
             @NonNull final SystemTransactions systemTransactions,
@@ -206,7 +203,6 @@ public class HandleWorkflow {
         this.cacheWarmer = requireNonNull(cacheWarmer);
         this.opWorkflowMetrics = requireNonNull(opWorkflowMetrics);
         this.throttleServiceManager = requireNonNull(throttleServiceManager);
-        this.version = requireNonNull(version);
         this.initTrigger = requireNonNull(initTrigger);
         this.hollowAccountCompletions = requireNonNull(hollowAccountCompletions);
         this.systemTransactions = requireNonNull(systemTransactions);
