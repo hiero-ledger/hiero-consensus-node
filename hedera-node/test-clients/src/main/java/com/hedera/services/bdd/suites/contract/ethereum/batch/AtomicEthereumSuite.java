@@ -130,7 +130,6 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -725,7 +724,6 @@ public class AtomicEthereumSuite {
     }
 
     @HapiTest
-    @Disabled // enable after https://github.com/hiero-ledger/hiero-consensus-node/pull/20006 is merged
     final Stream<DynamicTest> etx008ContractCreateExecutesWithExpectedRecord() {
         final var txn = "creation";
         final var contract = "Fuse";
