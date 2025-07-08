@@ -15,7 +15,6 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
@@ -85,7 +84,9 @@ class QuerySystemContractOperationsTest {
     void externalizingResultsAreNoop() {
         assertDoesNotThrow(() -> subject.externalizeResult(
                 ContractFunctionResult.DEFAULT, SUCCESS, SignedTransaction.DEFAULT, EvmTransactionResult.DEFAULT));
-        assertSame(Transaction.DEFAULT, subject.syntheticSignedTxForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
+        assertSame(
+                SignedTransaction.DEFAULT,
+                subject.syntheticSignedTxForNativeCall(Bytes.EMPTY, ContractID.DEFAULT, true));
     }
 
     @Test

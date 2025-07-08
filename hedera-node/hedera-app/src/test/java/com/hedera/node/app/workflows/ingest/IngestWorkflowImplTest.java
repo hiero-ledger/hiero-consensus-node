@@ -127,7 +127,7 @@ class IngestWorkflowImplTest extends AppTestBase {
                 SignatureMap.newBuilder().build(),
                 randomBytes(100), // Not used in this test, so random bytes is OK
                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
-                null);
+                SignedTransaction.PROTOBUF.toBytes(signedTx));
         doAnswer(invocationOnMock -> {
                     final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
                     result.setThrottleUsages(List.of());
