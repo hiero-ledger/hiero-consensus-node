@@ -47,6 +47,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCh
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -265,7 +266,6 @@ public class AtomicBatchApproveAllowanceTest {
     }
 
     @HapiTest
-    // TODO: this test needs fixing ingest checks for inner transactions
     final Stream<DynamicTest> cannotPayForAnyTransactionWithContractAccount() {
         final var cryptoAdminKey = "cryptoAdminKey";
         final var contract = "PayableConstructor";
@@ -273,15 +273,11 @@ public class AtomicBatchApproveAllowanceTest {
                 newKeyNamed(cryptoAdminKey),
                 uploadInitCode(contract),
                 contractCreate(contract).adminKey(cryptoAdminKey).balance(ONE_HUNDRED_HBARS),
-                // atomicBatchDefaultOperator(
-                cryptoTransfer(tinyBarsFromTo(contract, FUNDING, 1))
-                        .fee(ONE_HBAR)
-                        .payingWith(contract)
-                        .signedBy(cryptoAdminKey)
-                        .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND)
-                // ).hasKnownStatus(INNER_TRANSACTION_FAILED)
-
-                );
+                atomicBatchDefaultOperator(cryptoTransfer(tinyBarsFromTo(contract, FUNDING, 1))
+                                .fee(ONE_HBAR)
+                                .payingWith(contract)
+                                .signedBy(cryptoAdminKey))
+                        .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND));
     }
 
     @HapiTest
@@ -664,30 +660,31 @@ public class AtomicBatchApproveAllowanceTest {
                         .signedBy(PAYER, OWNER)
                         .blankMemo(),
                 cryptoDelete(OWNER),
-                cryptoApproveAllowance()
-                        .payingWith(PAYER)
-                        .addCryptoAllowance(OWNER, SPENDER, 100L)
-                        .signedBy(PAYER, OWNER)
-                        .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
-                cryptoApproveAllowance()
-                        .payingWith(PAYER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-                        .signedBy(PAYER, OWNER)
-                        .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
-                cryptoApproveAllowance()
-                        .payingWith(PAYER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-                        .signedBy(PAYER, OWNER)
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
-                getAccountDetails(OWNER).has(accountDetailsWith().deleted(true)).payingWith(GENESIS));
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .via("invalidOwnerTxn")
+                                .payingWith(PAYER)
+                                .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                .signedBy(PAYER, OWNER)
+                                .blankMemo())
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                assertStatus("invalidOwnerTxn", INVALID_ALLOWANCE_OWNER_ID));
+        //                atomicBatchDefaultOperator(cryptoApproveAllowance()
+        //                        .payingWith(PAYER)
+        //                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+        //                        .signedBy(PAYER, OWNER)
+        //                        .blankMemo())
+        //                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+        //                atomicBatchDefaultOperator(cryptoApproveAllowance()
+        //                        .payingWith(PAYER)
+        //                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
+        //                        .signedBy(PAYER, OWNER)
+        //                        .via(BASE_APPROVE_TXN)
+        //                        .blankMemo())
+        //                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+        //                getAccountDetails(OWNER).has(accountDetailsWith().deleted(true)).payingWith(GENESIS));
     }
 
     @HapiTest
-    // TODO: continue form here
     final Stream<DynamicTest> invalidSpenderFails() {
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
@@ -720,22 +717,28 @@ public class AtomicBatchApproveAllowanceTest {
                 mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
                 cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, OWNER)),
                 cryptoDelete(SPENDER),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addCryptoAllowance(OWNER, SPENDER, 100L)
-                        .blankMemo()
-                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
-                        .blankMemo()
-                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID),
-                cryptoApproveAllowance()
-                        .payingWith(OWNER)
-                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
-                        .via(BASE_APPROVE_TXN)
-                        .blankMemo()
-                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID));
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addCryptoAllowance(OWNER, SPENDER, 100L)
+                                .blankMemo()
+                                .via("cryptoAllowance"))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                assertStatus("cryptoAllowance", INVALID_ALLOWANCE_SPENDER_ID),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
+                                .blankMemo()
+                                .via("allowanceForFungibleToken"))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                assertStatus("allowanceForFungibleToken", INVALID_ALLOWANCE_SPENDER_ID),
+                atomicBatchDefaultOperator(cryptoApproveAllowance()
+                                .payingWith(OWNER)
+                                .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
+                                .via(BASE_APPROVE_TXN)
+                                .blankMemo()
+                                .via("allowanceForNft"))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                assertStatus("allowanceForNft", INVALID_ALLOWANCE_SPENDER_ID));
     }
 
     @HapiTest
@@ -760,27 +763,29 @@ public class AtomicBatchApproveAllowanceTest {
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .supplyKey(SUPPLY_KEY)
                         .treasury(TOKEN_TREASURY),
-                tokenAssociate(PAYER, FUNGIBLE_TOKEN),
-                tokenAssociate(PAYER, NON_FUNGIBLE_TOKEN),
-                mintToken(
-                                NON_FUNGIBLE_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("a"),
-                                        ByteString.copyFromUtf8("b"),
-                                        ByteString.copyFromUtf8("c")))
-                        .via(NFT_TOKEN_MINT_TXN),
-                mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, PAYER)),
+                atomicBatchDefaultOperator(
+                        tokenAssociate(PAYER, FUNGIBLE_TOKEN),
+                        tokenAssociate(PAYER, NON_FUNGIBLE_TOKEN),
+                        mintToken(
+                                        NON_FUNGIBLE_TOKEN,
+                                        List.of(
+                                                ByteString.copyFromUtf8("a"),
+                                                ByteString.copyFromUtf8("b"),
+                                                ByteString.copyFromUtf8("c")))
+                                .via(NFT_TOKEN_MINT_TXN),
+                        mintToken(FUNGIBLE_TOKEN, 500L).via(FUNGIBLE_TOKEN_MINT_TXN),
+                        cryptoTransfer(
+                                movingUnique(NON_FUNGIBLE_TOKEN, 1L, 2L, 3L).between(TOKEN_TREASURY, PAYER))),
                 cryptoApproveAllowance()
                         .payingWith(PAYER)
                         .addCryptoAllowance(MISSING_OWNER, ANOTHER_SPENDER, 100L)
                         .addTokenAllowance(MISSING_OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .addNftAllowance(MISSING_OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .via(APPROVE_TXN)
-                        .blankMemo()
-                        .logged(),
+                        .blankMemo(),
+                validateChargedUsd(APPROVE_TXN, 0.05, 0.01),
                 getTxnRecord(APPROVE_TXN),
-                validateChargedUsdWithin(APPROVE_TXN, 0.05238, 0.01),
+                //                validateInnerTxnChargedUsd(APPROVE_TXN, "batchApproveTxn", 0.05),
                 getAccountDetails(PAYER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
