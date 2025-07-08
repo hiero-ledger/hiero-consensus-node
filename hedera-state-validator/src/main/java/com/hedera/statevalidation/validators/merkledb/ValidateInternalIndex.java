@@ -16,8 +16,6 @@ import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceProvi
 import com.hedera.statevalidation.parameterresolver.VirtualMapAndDataSourceRecord;
 import com.hedera.statevalidation.reporting.Report;
 import com.hedera.statevalidation.reporting.SlackReportGenerator;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import java.io.IOException;
@@ -45,7 +43,7 @@ public class ValidateInternalIndex {
 
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord<VirtualKey, VirtualValue> record, Report report) {
+    public void validateIndex(VirtualMapAndDataSourceRecord record, Report report) {
         var dataSource = record.dataSource();
         if (record.dataSource().getFirstLeafPath() == -1) {
             log.info("Skipping the validation for {} as the map is empty", record.name());

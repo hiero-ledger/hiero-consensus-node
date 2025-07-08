@@ -55,4 +55,30 @@ public class Report {
     public void setVmapReportByName(final Map<String, VirtualMapReport> vmapReportByName) {
         this.vmapReportByName = vmapReportByName;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("REPORT SUMMARY\n");
+        sb.append("=============\n");
+        sb.append(String.format("Node: %s\n", nodeName));
+        sb.append(String.format("Round Number: %d\n", roundNumber));
+        sb.append(String.format("Number of Accounts: %d\n", numberOfAccounts));
+
+        sb.append("\nSTATE REPORT\n");
+        sb.append(stateReport.toString());
+
+        sb.append("\nVIRTUAL MAP REPORTS\n");
+        sb.append("==================\n");
+        if (vmapReportByName.isEmpty()) {
+            sb.append("No virtual map reports available.\n");
+        } else {
+            for (Map.Entry<String, VirtualMapReport> entry : vmapReportByName.entrySet()) {
+                sb.append(String.format("\n[%s]\n", entry.getKey()));
+                sb.append(entry.getValue().toString());
+            }
+        }
+
+        return sb.toString();
+    }
 }

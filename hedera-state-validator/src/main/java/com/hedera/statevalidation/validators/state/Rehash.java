@@ -65,21 +65,20 @@ public class Rehash {
         var infoStringFromState = platformStateFacade.getInfoString(
                 deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
 
-        final var originalLines = Arrays.asList(hashInfo.content().split("\n"));
+        final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();
         final var fullList = Arrays.asList(infoStringFromState.split("\n"));
-        // skipping irrelevant lines
+        // skipping irrelevant lines, capturing only the one with the root hash
         final var revisedLines = filterLines(fullList);
 
         assertEquals(originalLines, revisedLines, "The Merkle tree structure does not match the expected state.");
     }
 
-    private List<String> filterLines(List<String> lines) {
-        int i = 0;
-        for (; i < lines.size(); i++) {
-            if (lines.get(i).contains("(root)")) {
-                break;
+    private String filterLines(List<String> lines) {
+        for (String line : lines) {
+            if (line.contains("(root)")) {
+                return line;
             }
         }
-        return lines.subList(i, lines.size());
+        return "root hash not found";
     }
 }

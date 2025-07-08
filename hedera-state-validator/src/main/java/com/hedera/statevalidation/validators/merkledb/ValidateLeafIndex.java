@@ -37,7 +37,7 @@ public class ValidateLeafIndex {
     @SuppressWarnings("unchecked")
     @ParameterizedTest
     @ArgumentsSource(VirtualMapAndDataSourceProvider.class)
-    public void validateIndex(VirtualMapAndDataSourceRecord<?, ?> dsRecord, Report report) {
+    public void validateIndex(VirtualMapAndDataSourceRecord dsRecord, Report report) {
         if (dsRecord.dataSource().getFirstLeafPath() == -1) {
             log.info("Skipping the validation for {} as the map is empty", dsRecord.name());
             return;
