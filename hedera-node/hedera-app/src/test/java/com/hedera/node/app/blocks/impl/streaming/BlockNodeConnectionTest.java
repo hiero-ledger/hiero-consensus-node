@@ -14,8 +14,9 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -29,7 +30,6 @@ import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Queue;
-import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
@@ -63,7 +63,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     private GrpcServiceClient grpcServiceClient;
     private BlockStreamMetrics metrics;
     private final String grpcEndpoint = "foo";
-    private StreamObserver<PublishStreamRequest> requestObserver;
+    private StreamObserver<PassThroughPublishStreamRequest> requestObserver;
 
     @BeforeEach
     void beforeEach() {
@@ -328,9 +328,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(connectionManager).rescheduleAndSelectNewNode(connection, Duration.ofSeconds(30));
         verify(stateManager).getBlockState(11L);
         verify(requestObserver)
-                .onNext(PublishStreamRequest.newBuilder()
-                        .endStream(PublishStreamRequest.EndStream.newBuilder()
-                                .endCode(PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
+                .onNext(PassThroughPublishStreamRequest.newBuilder()
+                        .endStream(PassThroughPublishStreamRequest.EndStream.newBuilder()
+                                .endCode(PassThroughPublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
                                 .build())
                         .build());
         verify(requestObserver).onCompleted();
@@ -444,8 +444,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
 
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
-        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item);
+        final PassThroughBlockItem item =
+                PassThroughBlockItem.newBuilder().blockHeader(blockHeader).build();
+        final PassThroughPublishStreamRequest request = createRequest(item);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.sendRequest(request);
@@ -460,8 +461,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testSendRequest_notActive() {
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
-        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item);
+        final PassThroughBlockItem item =
+                PassThroughBlockItem.newBuilder().blockHeader(blockHeader).build();
+        final PassThroughPublishStreamRequest request = createRequest(item);
 
         connection.createRequestObserver();
         connection.updateConnectionState(ConnectionState.PENDING);
@@ -476,8 +478,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testSendRequest_observerNull() {
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
-        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
-        final PublishStreamRequest request = createRequest(item);
+        final PassThroughBlockItem item =
+                PassThroughBlockItem.newBuilder().blockHeader(blockHeader).build();
+        final PassThroughPublishStreamRequest request = createRequest(item);
 
         // don't create the observer
         connection.updateConnectionState(ConnectionState.PENDING);

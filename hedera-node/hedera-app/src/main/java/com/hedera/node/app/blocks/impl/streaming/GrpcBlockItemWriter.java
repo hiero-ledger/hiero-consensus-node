@@ -3,7 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -51,7 +51,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
      * @param blockItem the block item to write
      */
     @Override
-    public void writePbjItem(@NonNull BlockItem blockItem) {
+    public void writePbjItem(@NonNull PassThroughBlockItem blockItem) {
         requireNonNull(blockItem, "blockItem must not be null");
         blockBufferService.addItem(blockNumber, blockItem);
     }

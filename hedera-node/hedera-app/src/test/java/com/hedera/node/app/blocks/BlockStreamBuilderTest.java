@@ -12,6 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.schema.BlockItemSchema;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -32,7 +34,12 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -52,6 +59,8 @@ public class BlockStreamBuilderTest {
     private final SignedTransaction signedTx = SignedTransaction.newBuilder()
             .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
+                    .memo("ABCDEFG")
+                    .transactionFee(123)
                     .build()))
             .build();
     private @Mock TransactionID transactionID;
@@ -67,12 +76,26 @@ public class BlockStreamBuilderTest {
     private @Mock AccountID accountID;
 
     @Test
+    void canManuallySerializeBytesByField() throws ParseException {
+        final var automatic = BlockItem.newBuilder().signedTransaction(signedTx).build();
+        final var serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+        final int serializedSignedTxLen = (int) serializedSignedTx.length();
+        final var raw = new byte[serializedSignedTxLen + 2];
+        final var buffer = BufferedData.wrap(raw);
+        ProtoWriterTools.writeTag(buffer, BlockItemSchema.SIGNED_TRANSACTION, ProtoConstants.WIRE_TYPE_DELIMITED);
+        buffer.writeVarInt(serializedSignedTxLen, false);
+        buffer.writeBytes(serializedSignedTx);
+        final var manual = BlockItem.PROTOBUF.parse(new ReadableStreamingData(raw));
+        assertEquals(automatic, manual);
+    }
+
+    @Test
     void testBlockItemsWithCryptoTransferOutput() {
         final var itemsBuilder = createBaseBuilder()
                 .assessedCustomFees(List.of(assessedCustomFee))
                 .functionality(HederaFunctionality.CRYPTO_TRANSFER);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -89,7 +112,7 @@ public class BlockStreamBuilderTest {
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyBytes(prngBytes);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -101,7 +124,7 @@ public class BlockStreamBuilderTest {
         } else {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyNumber(ENTROPY_NUMBER);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -123,7 +146,7 @@ public class BlockStreamBuilderTest {
                 .evmCallTransactionResult(evmTxResult)
                 .addContractSlotUsages(usages);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -145,7 +168,7 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder =
                 createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -155,7 +178,7 @@ public class BlockStreamBuilderTest {
         assertTrue(output.hasAccountCreate());
     }
 
-    private void validateTransactionResult(final List<BlockItem> blockItems) {
+    private void validateTransactionResult(final List<PassThroughBlockItem> blockItems) {
         final var resultBlockItem = blockItems.get(1);
         assertTrue(resultBlockItem.hasTransactionResult());
         final var result = resultBlockItem.transactionResult();
@@ -172,10 +195,10 @@ public class BlockStreamBuilderTest {
         assertEquals(10L, result.congestionPricingMultiplier());
     }
 
-    private void validateTransactionBlockItems(final List<BlockItem> blockItems) {
+    private void validateTransactionBlockItems(final List<PassThroughBlockItem> blockItems) {
         final var txnBlockItem = blockItems.getFirst();
         assertTrue(txnBlockItem.hasSignedTransaction());
-        assertEquals(signedTx, txnBlockItem.signedTransactionOrThrow());
+        assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
     }
 
     private BlockStreamBuilder createBaseBuilder() {

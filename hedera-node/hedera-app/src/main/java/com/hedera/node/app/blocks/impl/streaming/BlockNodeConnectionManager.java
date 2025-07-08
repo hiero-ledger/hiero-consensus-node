@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 
+import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -606,7 +607,7 @@ public class BlockNodeConnectionManager {
                     blockState.isBlockProofSent(),
                     blockState.numRequestsCreated(),
                     requestIndex);
-            final PublishStreamRequest publishStreamRequest = blockState.getRequest(requestIndex);
+            final PassThroughPublishStreamRequest publishStreamRequest = blockState.getRequest(requestIndex);
             if (publishStreamRequest != null) {
                 connection.sendRequest(publishStreamRequest);
                 blockState.markRequestSent(requestIndex);

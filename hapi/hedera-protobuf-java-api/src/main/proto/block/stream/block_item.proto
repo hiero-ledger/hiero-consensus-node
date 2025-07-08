@@ -251,6 +251,142 @@ message BlockItem {
 }
 
 /**
+ * Please see the documentation for `BlockItem`.
+ * <p>
+ * This message is a `BlockItem` variant for stream producers or consumers that
+ * need to preserve ("pass through") the exact serialization of upstream
+ * SignedTransaction items.
+ * <p>
+ * On the wire, it is indistinguishable from a `BlockItem`.
+ */
+message PassThroughBlockItem {
+    // Reserved for future items that are neither "input" nor "output".
+    reserved 11,12,13,14,15;
+
+    oneof item {
+        /**
+         * An header for the block, marking the start of a new block.
+         */
+        com.hedera.hapi.block.stream.output.BlockHeader block_header = 1;
+
+        /**
+         * An header emitted at the start of a new network "event".
+         * <p>
+         * This item SHALL contain the properties relevant to a single
+         * gossip event.
+         */
+        com.hedera.hapi.block.stream.input.EventHeader event_header = 2;
+
+        /**
+         * An header emitted at the start of a new consensus "round".
+         * <p>
+         * This item SHALL contain the properties relevant to a single
+         * consensus round.
+         */
+        com.hedera.hapi.block.stream.input.RoundHeader round_header = 3;
+
+        /**
+         * A single transaction.
+         * <p>
+         * This item SHALL contain the serialized bytes of a
+         * single transaction.<br/>
+         * Each event transaction SHALL be either a `SignedTransaction` or
+         * an internal system-generated transaction.<br/>
+         * This item MUST NOT contain data for more than one
+         * `SignedTransaction` or system-generated transaction.
+         */
+        bytes signed_transaction = 4;
+
+        /**
+         * The result of running a transaction.
+         * <p>
+         * This item SHALL be present immediately after an
+         * `signed_transaction` item.<br/>
+         * This item MAY be redacted in some circumstances, and SHALL be
+         * replaced with a `filtered_item` if removed.
+         */
+        com.hedera.hapi.block.stream.output.TransactionResult transaction_result = 5;
+
+        /**
+         * A transaction output.
+         * <p>
+         * This item MAY not be present if a transaction does not produce
+         * an output.<br/>
+         * If a transaction does produce an output that is not reflected
+         * in state changes, then this item MUST be present after the
+         * `transaction_result` for that transaction.
+         */
+        com.hedera.hapi.block.stream.output.TransactionOutput transaction_output = 6;
+
+        /**
+         * A set of state changes.
+         * <p>
+         * All changes to values in network state SHALL be described by
+         * stream items of this type.<br/>
+         * The source of these state changes SHALL be described by the
+         * `reason` enumeration.
+         */
+        com.hedera.hapi.block.stream.output.StateChanges state_changes = 7;
+
+        /**
+         * Verification data for an item filtered from the stream.<br/>
+         * This is a hash for a merkle tree node where the contents of that
+         * part of the merkle tree have been removed from this stream.
+         * <p>
+         * Items of this type SHALL NOT be present in the full (unfiltered)
+         * block stream.<br/>
+         * Items of this type SHALL replace any item removed from a partial
+         * (filtered) block stream.<br/>
+         * Presence of `filtered_item` entries SHALL NOT prevent verification
+         * of a block, but MAY preclude verification or reconstruction of
+         * consensus state.<br/>
+         */
+        FilteredItemHash filtered_item_hash = 8;
+
+        /**
+         * A signed block proof.<br/>
+         * The signed merkle proof for this block. This will validate
+         * a "virtual" merkle tree containing the previous block "virtual"
+         * root, an "input" subtree, an "output" subtree, and
+         * a "state changes" subtree.
+         * <p>
+         * This item is not part of the block stream hash chain/tree, and
+         * MUST follow after the end of a block.
+         */
+        BlockProof block_proof = 9;
+
+        /**
+         * A record file and associated data.
+         * <p>
+         * This MUST contain a single Record file, associated Sidecar files,
+         * and data from related Signature files.
+         * If this item is present, special treatment is
+         * REQUIRED for this block.
+         * <ul>
+         *   <li>The block SHALL NOT have a `BlockHeader`.</li>
+         *   <li>The block SHALL NOT have a `BlockProof`.</li>
+         *   <li>The block SHALL contain _exactly one_ `RecordFileItem`.</li>
+         *   <li>The block SHALL NOT contain any item other than a
+         *       `RecordFileItem`.</li>
+         *   <li>The content of the `RecordFileItem` MUST be validated using
+         *       the signature data and content provided within according to
+         *       the process used for Record Files prior to the creation
+         *       of Block Stream.</li>
+         * </ul>
+         */
+        RecordFileItem record_file = 10;
+
+        /**
+         * A trace data.
+         * <p>
+         * Any informational trace data MAY be described by
+         * stream items of this type.<br/>
+         */
+        com.hedera.hapi.block.stream.trace.TraceData trace_data = 16;
+    }
+}
+
+/**
  * Verification data for an item filtered from the stream.
  *
  * Items of this type SHALL NOT be present in the full (unfiltered) block

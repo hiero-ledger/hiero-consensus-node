@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
@@ -310,7 +311,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
                     .blockTimestamp(asTimestamp(blockTimestamp))
                     .hapiProtoVersion(hapiVersion);
-            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
+            worker.addItem(PassThroughBlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeLastRound = round.getConsensusTimestamp();
     }
@@ -518,7 +519,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
-    public void writeItem(@NonNull final BlockItem item) {
+    public void writeItem(@NonNull final PassThroughBlockItem item) {
         worker.addItem(item);
     }
 
@@ -588,8 +589,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
             proof.schemeId(schemeId);
-            final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
+            final var proofItem =
+                    PassThroughBlockItem.newBuilder().blockProof(proof).build();
+            block.writer().writePbjItemAndBytes(proofItem, PassThroughBlockItem.PROTOBUF.toBytes(proofItem));
             block.writer().closeCompleteBlock();
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
@@ -668,7 +670,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             currentTask.send();
         }
 
-        void addItem(BlockItem item) {
+        void addItem(PassThroughBlockItem item) {
             new ParallelTask(item, currentTask).send();
             SequentialTask nextTask = new SequentialTask();
             currentTask.send(nextTask);
@@ -685,10 +687,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     class ParallelTask extends AbstractTask {
 
-        BlockItem item;
+        PassThroughBlockItem item;
         SequentialTask out;
 
-        ParallelTask(BlockItem item, SequentialTask out) {
+        ParallelTask(PassThroughBlockItem item, SequentialTask out) {
             super(executor, 1);
             this.item = item;
             this.out = out;
@@ -696,7 +698,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         @Override
         protected boolean onExecute() {
-            Bytes bytes = BlockItem.PROTOBUF.toBytes(item);
+            Bytes bytes = PassThroughBlockItem.PROTOBUF.toBytes(item);
 
             final var kind = item.item().kind();
             ByteBuffer hash = null;
@@ -722,7 +724,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     class SequentialTask extends AbstractTask {
 
         SequentialTask next;
-        BlockItem item;
+        PassThroughBlockItem item;
         Bytes serialized;
         ByteBuffer hash;
 
@@ -766,7 +768,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             send();
         }
 
-        void send(BlockItem item, ByteBuffer hash, Bytes serialized) {
+        void send(PassThroughBlockItem item, ByteBuffer hash, Bytes serialized) {
             this.item = item;
             this.hash = hash;
             this.serialized = serialized;

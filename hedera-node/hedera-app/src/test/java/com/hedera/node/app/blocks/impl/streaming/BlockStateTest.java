@@ -8,7 +8,8 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockNodeCommunicationTe
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockState.ItemInfo;
 import com.hedera.node.app.blocks.impl.streaming.BlockState.ItemState;
 import com.hedera.node.app.blocks.impl.streaming.BlockState.RequestWrapper;
@@ -20,8 +21,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.block.api.BlockItemSet;
-import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PassThroughBlockItemSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -92,7 +92,7 @@ class BlockStateTest {
     void testAddItem_closedBlock() {
         block.closeBlock();
 
-        final BlockItem item = newBlockHeaderItem();
+        final PassThroughBlockItem item = newBlockHeaderItem();
 
         assertThatThrownBy(() -> block.addItem(item))
                 .isInstanceOf(IllegalStateException.class)
@@ -104,8 +104,8 @@ class BlockStateTest {
     @Test
     void testAddItem_headerItem() {
         final ItemInfo headerInfo = headerItemInfo();
-        final Queue<BlockItem> pendingItems = pendingItems();
-        final BlockItem headerItem = newBlockHeaderItem();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
+        final PassThroughBlockItem headerItem = newBlockHeaderItem();
 
         block.addItem(headerItem);
 
@@ -119,8 +119,8 @@ class BlockStateTest {
         final ItemInfo headerInfo = headerItemInfo();
         final ItemInfo preProofInfo = preProofItemInfo();
         final ItemInfo proofInfo = proofItemInfo();
-        final Queue<BlockItem> pendingItems = pendingItems();
-        final BlockItem item = newBlockTxItem();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
+        final PassThroughBlockItem item = newBlockTxItem();
 
         block.addItem(item);
 
@@ -135,8 +135,8 @@ class BlockStateTest {
         final ItemInfo headerInfo = headerItemInfo();
         final ItemInfo preProofInfo = preProofItemInfo();
         final ItemInfo proofInfo = proofItemInfo();
-        final Queue<BlockItem> pendingItems = pendingItems();
-        final BlockItem item = newPreProofBlockStateChangesItem();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
+        final PassThroughBlockItem item = newPreProofBlockStateChangesItem();
 
         block.addItem(item);
 
@@ -151,8 +151,8 @@ class BlockStateTest {
         final ItemInfo headerInfo = headerItemInfo();
         final ItemInfo preProofInfo = preProofItemInfo();
         final ItemInfo proofInfo = proofItemInfo();
-        final Queue<BlockItem> pendingItems = pendingItems();
-        final BlockItem item = newBlockProofItem();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
+        final PassThroughBlockItem item = newBlockProofItem();
 
         block.addItem(item);
 
@@ -164,17 +164,17 @@ class BlockStateTest {
 
     @Test
     void testGetRequest_notFound() {
-        final PublishStreamRequest req = block.getRequest(10);
+        final var req = block.getRequest(10);
         assertThat(req).isNull();
     }
 
     @Test
     void testGetRequest_found() {
-        final PublishStreamRequest req = newRequest(newBlockTxItem(), newBlockTxItem());
+        final PassThroughPublishStreamRequest req = newRequest(newBlockTxItem(), newBlockTxItem());
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
         requestsByIndex.put(2, new RequestWrapper(2, req, new AtomicBoolean(false)));
 
-        final PublishStreamRequest actualReq = block.getRequest(2);
+        final PassThroughPublishStreamRequest actualReq = block.getRequest(2);
         assertThat(actualReq).isNotNull().isEqualTo(req);
     }
 
@@ -201,7 +201,7 @@ class BlockStateTest {
     @Test
     void testProcessPendingItems_nonePending() {
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -214,7 +214,7 @@ class BlockStateTest {
     @Test
     void testProcessPendingItems_notEnoughForBatch() {
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -235,7 +235,7 @@ class BlockStateTest {
     @Test
     void testProcessPendingItems_enoughForBatch() {
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -256,7 +256,7 @@ class BlockStateTest {
         assertThat(pendingItems).hasSize(1); // all of the pending requests except 1 should be removed
         assertThat(block.numRequestsCreated()).isEqualTo(1); // should be one request with 10 items
 
-        final PublishStreamRequest request = block.getRequest(0);
+        final PassThroughPublishStreamRequest request = block.getRequest(0);
         assertThat(request).isNotNull();
         assertThat(request.blockItems().blockItems()).hasSize(10);
     }
@@ -264,7 +264,7 @@ class BlockStateTest {
     @Test
     void testProcessPendingItems_multipleBatches() {
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
         final int batchSize = 10;
@@ -279,10 +279,10 @@ class BlockStateTest {
         assertThat(pendingItems).hasSize(5); // should be 5 extra items that didn't fit in the batches
         assertThat(block.numRequestsCreated()).isEqualTo(2); // should be 2 requests
 
-        final PublishStreamRequest request1 = block.getRequest(0);
+        final PassThroughPublishStreamRequest request1 = block.getRequest(0);
         assertThat(request1).isNotNull();
         assertThat(request1.blockItems().blockItems()).hasSize(10);
-        final PublishStreamRequest request2 = block.getRequest(0);
+        final PassThroughPublishStreamRequest request2 = block.getRequest(0);
         assertThat(request2).isNotNull();
         assertThat(request2.blockItems().blockItems()).hasSize(10);
     }
@@ -291,7 +291,7 @@ class BlockStateTest {
     void testProcessPendingItems_withHeader() {
         final ItemInfo headerInfo = headerItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -301,7 +301,7 @@ class BlockStateTest {
 
         assertThat(pendingItems).isEmpty();
         assertThat(block.numRequestsCreated()).isEqualTo(1);
-        final PublishStreamRequest request1 = block.getRequest(0);
+        final PassThroughPublishStreamRequest request1 = block.getRequest(0);
         assertThat(request1).isNotNull();
         assertThat(request1.blockItems().blockItems()).hasSize(1);
         assertThat(headerInfo.state()).hasValue(ItemState.PACKED);
@@ -311,7 +311,7 @@ class BlockStateTest {
     void testProcessPendingItems_withPreProof() {
         final ItemInfo preProofInfo = preProofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -322,7 +322,7 @@ class BlockStateTest {
 
         assertThat(pendingItems).isEmpty();
         assertThat(block.numRequestsCreated()).isEqualTo(1);
-        final PublishStreamRequest request1 = block.getRequest(0);
+        final PassThroughPublishStreamRequest request1 = block.getRequest(0);
         assertThat(request1).isNotNull();
         assertThat(request1.blockItems().blockItems()).hasSize(2);
         assertThat(preProofInfo.state()).hasValue(ItemState.PACKED);
@@ -332,7 +332,7 @@ class BlockStateTest {
     void testProcessPendingItems_withProof() {
         final ItemInfo proofInfo = proofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -342,7 +342,7 @@ class BlockStateTest {
 
         assertThat(pendingItems).isEmpty();
         assertThat(block.numRequestsCreated()).isEqualTo(1);
-        final PublishStreamRequest request1 = block.getRequest(0);
+        final PassThroughPublishStreamRequest request1 = block.getRequest(0);
         assertThat(request1).isNotNull();
         assertThat(request1.blockItems().blockItems()).hasSize(1);
         assertThat(proofInfo.state()).hasValue(ItemState.PACKED);
@@ -354,7 +354,7 @@ class BlockStateTest {
         final ItemInfo preProofInfo = preProofItemInfo();
         final ItemInfo proofInfo = proofItemInfo();
         final Map<Integer, RequestWrapper> requestsByIndex = requestsByIndex();
-        final Queue<BlockItem> pendingItems = pendingItems();
+        final Queue<PassThroughBlockItem> pendingItems = pendingItems();
         pendingItems.clear(); // ensure nothing exists
         requestsByIndex.clear(); // ensure nothing exists
 
@@ -378,11 +378,11 @@ class BlockStateTest {
         assertThat(pendingItems).isEmpty();
         assertThat(block.numRequestsCreated()).isEqualTo(3);
 
-        final PublishStreamRequest request1 = block.getRequest(0);
+        final PassThroughPublishStreamRequest request1 = block.getRequest(0);
         assertThat(request1.blockItems().blockItems()).hasSize(4);
-        final PublishStreamRequest request2 = block.getRequest(1);
+        final PassThroughPublishStreamRequest request2 = block.getRequest(1);
         assertThat(request2.blockItems().blockItems()).hasSize(4);
-        final PublishStreamRequest request3 = block.getRequest(2);
+        final PassThroughPublishStreamRequest request3 = block.getRequest(2);
         assertThat(request3.blockItems().blockItems()).hasSize(1);
 
         assertThat(headerInfo.state()).hasValue(ItemState.PACKED);
@@ -435,8 +435,8 @@ class BlockStateTest {
 
     // Utilities
 
-    private Queue<BlockItem> pendingItems() {
-        return (Queue<BlockItem>) pendingItemsHandle.get(block);
+    private Queue<PassThroughBlockItem> pendingItems() {
+        return (Queue<PassThroughBlockItem>) pendingItemsHandle.get(block);
     }
 
     private Map<Integer, RequestWrapper> requestsByIndex() {
@@ -455,8 +455,9 @@ class BlockStateTest {
         return (ItemInfo) proofItemHandle.get(block);
     }
 
-    private PublishStreamRequest newRequest(final BlockItem... items) {
-        final BlockItemSet bis = BlockItemSet.newBuilder().blockItems(items).build();
-        return PublishStreamRequest.newBuilder().blockItems(bis).build();
+    private PassThroughPublishStreamRequest newRequest(final PassThroughBlockItem... items) {
+        final PassThroughBlockItemSet bis =
+                PassThroughBlockItemSet.newBuilder().blockItems(items).build();
+        return PassThroughPublishStreamRequest.newBuilder().blockItems(bis).build();
     }
 }

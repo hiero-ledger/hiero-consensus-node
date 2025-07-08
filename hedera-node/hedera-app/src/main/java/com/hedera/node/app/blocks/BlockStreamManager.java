@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedListener;
@@ -148,7 +148,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param item the block item to write
      * @throws IllegalStateException if the stream is closed
      */
-    void writeItem(@NonNull BlockItem item);
+    void writeItem(@NonNull PassThroughBlockItem item);
 
     /**
      * Notifies the block stream manager that a fatal event has occurred, e.g. an ISS. This event should
