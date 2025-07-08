@@ -11,7 +11,7 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
  * A small convenience wrapper around {@link GenericContainer} that applies common
- * configuration for OTTER test node containers. It connects the container to the
+ * configuration for Otter test node containers. It connects the container to the
  * provided Docker {@link Network}.
  */
 public class ContainerImage extends GenericContainer<ContainerImage> {
@@ -19,7 +19,7 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
     private static final int BASE_DEBUG_PORT = 5005;
 
     /**
-     * Constructs a new container instance with sane defaults.
+     * Constructs a new container instance and exposed the debug port as {@code 5005 + selfId}.
      *
      * @param dockerImage  the Docker image to run
      * @param network      the Docker network to attach the container to

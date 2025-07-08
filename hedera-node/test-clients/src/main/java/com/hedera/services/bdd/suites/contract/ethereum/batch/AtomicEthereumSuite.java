@@ -139,7 +139,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
-@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
+@Disabled
 public class AtomicEthereumSuite {
 
     public static final long GAS_LIMIT = 1_000_000;

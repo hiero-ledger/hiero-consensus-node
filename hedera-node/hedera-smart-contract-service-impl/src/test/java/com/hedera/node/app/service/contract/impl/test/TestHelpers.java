@@ -497,6 +497,10 @@ public class TestHelpers {
                             .spenderId(B_NEW_ACCOUNT_ID)
                             .build())
             .build();
+
+    public static final Account DELETED_SOMEBODY =
+            SOMEBODY.copyBuilder().deleted(true).build();
+
     public static final Account ALIASED_SOMEBODY = Account.newBuilder()
             .accountId(A_NEW_ACCOUNT_ID)
             .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))

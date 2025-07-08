@@ -155,6 +155,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
                     result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
+                    result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
                     result);
         } catch (HandleException e) {
@@ -218,6 +219,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         return CallOutcome.fromResultsWithoutSidecars(
                 result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, ethCallData),
                 result.asEvmTxResultOf(ethTxDataIfApplicable(), ethCallData),
+                null,
                 null,
                 null,
                 result);

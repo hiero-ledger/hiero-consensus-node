@@ -2,6 +2,8 @@
 package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
@@ -12,6 +14,8 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  * Implementation of {@link TestEnvironment} for tests running on a container network.
  */
 public class ContainerTestEnvironment implements TestEnvironment {
+
+    public static final Set<Capability> CAPABILITIES = Set.of(Capability.RECONNECT);
 
     private final ContainerNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager();
