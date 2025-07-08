@@ -34,11 +34,23 @@ public class GetTokenInfoOperation extends AbstractSpecOperation implements Spec
 
     /**
      * Takes a factory to produce a verification operation from the retrieved token info and returns this.
+     *
      * @param verification the factory to produce the verification operation
      * @return this
      */
     public GetTokenInfoOperation andDo(@NonNull final Function<TokenInfo, SpecOperation> verification) {
         this.assertions = op -> op.andVerify(verification);
+        return this;
+    }
+
+    /**
+     * Allows to get TokenInfo into tokenInfoConsumer.
+     *
+     * @param tokenInfoConsumer the consumer that will get TokenInfo when response will be available
+     * @return this
+     */
+    public GetTokenInfoOperation andGet(@NonNull final Consumer<TokenInfo> tokenInfoConsumer) {
+        this.assertions = op -> op.getTokenInfo(tokenInfoConsumer);
         return this;
     }
 
