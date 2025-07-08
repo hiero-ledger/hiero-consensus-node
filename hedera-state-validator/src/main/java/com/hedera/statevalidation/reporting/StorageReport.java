@@ -67,4 +67,22 @@ public class StorageReport {
     public void setItemCount(final long itemCount) {
         this.itemCount = itemCount;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(String.format("  Path Range: %d to %d\n", minPath, maxPath));
+        sb.append(String.format("  Size: %d MB\n", onDiskSizeInMb));
+        sb.append(String.format("  Files: %d\n", numberOfStorageFiles));
+        sb.append(String.format("  Items: %,d\n", itemCount));
+
+        sb.append(String.format("  Waste: %.2f%%\n", wastePercentage));
+
+        if (duplicateItems > 0) {
+            sb.append(String.format("  Duplicates: %,d\n", duplicateItems));
+        }
+
+        return sb.toString();
+    }
 }
