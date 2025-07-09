@@ -4,6 +4,7 @@ package com.swirlds.state.merkle.singleton;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
+import com.swirlds.state.test.fixtures.merkle.singleton.ValueLeaf;
 import org.junit.jupiter.api.Test;
 
 @Deprecated

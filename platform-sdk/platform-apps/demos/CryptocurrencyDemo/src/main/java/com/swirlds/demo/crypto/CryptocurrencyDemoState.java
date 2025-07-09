@@ -14,7 +14,7 @@ package com.swirlds.demo.crypto;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.merkle.MerkleStateRoot;
+import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
