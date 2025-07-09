@@ -86,12 +86,6 @@ public class FakeEvent implements Event {
         return creatorId;
     }
 
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return null;
-    }
-
     @Override
     public long getBirthRound() {
         return eventCore.birthRound();

@@ -56,15 +56,6 @@ public interface Event {
     }
 
     /**
-     * Returns the software version of the node that created this event.
-     * @deprecated This method is deprecated and will be removed in a future release.
-     * @return the software version
-     */
-    @Deprecated(forRemoval = true)
-    @NonNull
-    SemanticVersion getSoftwareVersion();
-
-    /**
      * Returns the birth round of this event.
      * @see EventDescriptor#birthRound()
      * @return the birth round of the event

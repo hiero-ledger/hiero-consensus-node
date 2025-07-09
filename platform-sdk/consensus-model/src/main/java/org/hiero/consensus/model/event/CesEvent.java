@@ -160,13 +160,6 @@ public class CesEvent extends AbstractSerializableHashable
         return platformEvent.getCreatorId();
     }
 
-    @Deprecated(forRemoval = true)
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return platformEvent.getSoftwareVersion();
-    }
-
     @Override
     public long getBirthRound() {
         return platformEvent.getBirthRound();
