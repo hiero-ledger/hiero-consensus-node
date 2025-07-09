@@ -134,13 +134,9 @@ message ConsensusSnapshot {
      */
     uint64 round = 1;
     /**
-     * A list of SHA-384 hash values.<br/>
-     * The hashes of all judges for this round.
-     * <p>
-     * This list SHALL be ordered by creator ID.<br/>
-     * This list MUST be deterministically ordered.
+     * Used to be judge hashes, replaced by judge ids which contain creator node ID and judge hash.<br/>
      */
-    repeated bytes judge_hashes = 2 [deprecated = true];
+    reserved 2;
 
     /**
      * A list of minimum judge information entries.<br/>
