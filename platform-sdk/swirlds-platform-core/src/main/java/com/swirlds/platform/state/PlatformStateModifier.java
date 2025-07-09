@@ -72,6 +72,12 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
     void setLastFrozenTime(@Nullable Instant lastFrozenTime);
 
     /**
+     * Set the last freeze round.
+     * @param latestFreezeRound the round number of the latest freeze round
+     */
+    void setLatestFreezeRound(long latestFreezeRound);
+
+    /**
      * Set the first software version where the birth round migration happened.
      *
      * @param firstVersionInBirthRoundMode the first software version where the birth round migration happened

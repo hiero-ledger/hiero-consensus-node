@@ -47,17 +47,21 @@ import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
+import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
@@ -153,6 +157,15 @@ class BlockStreamManagerImplTest {
     @Mock
     private ConsensusEvent mockEvent;
 
+    @Mock
+    private Metrics metrics;
+
+    @Mock
+    private Counter indirectProofsCounter;
+
+    @Mock
+    private ReadableSingletonState<Object> platformStateReadableSingletonState;
+
     private final AtomicReference<Bytes> lastAItem = new AtomicReference<>();
     private final AtomicReference<Bytes> lastBItem = new AtomicReference<>();
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
@@ -165,6 +178,7 @@ class BlockStreamManagerImplTest {
     @BeforeEach
     void setUp() {
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenReturn(indirectProofsCounter);
     }
 
     @Test
@@ -226,7 +240,8 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
-                lifecycle);
+                lifecycle,
+                metrics);
         assertSame(Instant.EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -249,7 +264,8 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
-                lifecycle);
+                lifecycle,
+                metrics);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -272,7 +288,7 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
+        given(blockHashSigner.schemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -318,17 +334,23 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
                 ZERO_BLOCK_HASH,
-                4,
+                2,
                 List.of(
                         Bytes.EMPTY,
-                        Bytes.EMPTY,
                         Bytes.fromHex(
-                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
+                                "a02721663224af22a28e784ed41ac694a60b03a7f9eebb644d9766a93b8a39de0a9bdb378b98f4aaa487cc1d9eec660c")),
                 Timestamp.DEFAULT,
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                CONSENSUS_THEN);
+                CONSENSUS_THEN,
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "f8fe87ef851b795cd957b8f344aca46e872887b81231fb24d2ab46a6c5cafcf8be7eaa643a89557002ae5a40c5c1d6d8"));
+
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -403,7 +425,7 @@ class BlockStreamManagerImplTest {
         assertFalse(subject.hasLedgerId());
 
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
+        given(blockHashSigner.schemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
         assertTrue(subject.hasLedgerId());
@@ -491,6 +513,11 @@ class BlockStreamManagerImplTest {
                 platformStateWithFreezeTime(CONSENSUS_NOW),
                 aWriter);
         givenEndOfRoundSetup();
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
+        given(platformStateReadableSingletonState.get())
+                .willReturn(
+                        PlatformState.newBuilder().latestFreezeRound(ROUND_NO).build());
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
@@ -499,7 +526,7 @@ class BlockStreamManagerImplTest {
         subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
 
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
+        given(blockHashSigner.schemeId()).willReturn(1L);
         // Start the round that will be block N
         subject.startRound(round, state);
 
@@ -542,17 +569,22 @@ class BlockStreamManagerImplTest {
                 Bytes.fromHex(
                         "edde6b2beddb2fda438665bbe6df0a639c518e6d5352e7276944b70777d437d28d1b22813ed70f5b8a3a3cbaf08aa9a8"),
                 ZERO_BLOCK_HASH,
-                4,
+                2,
                 List.of(
                         Bytes.EMPTY,
-                        Bytes.EMPTY,
                         Bytes.fromHex(
-                                "dda122623c97d82bfad19873fedd61db98605b434fc8a36a71a7fe99aa017ab45238ceed20a4ae97dbaca7fb728980e3")),
+                                "a02721663224af22a28e784ed41ac694a60b03a7f9eebb644d9766a93b8a39de0a9bdb378b98f4aaa487cc1d9eec660c")),
                 Timestamp.DEFAULT,
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
-                CONSENSUS_THEN);
+                CONSENSUS_THEN,
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+                Bytes.fromHex(
+                        "7ed1db9962a90bab1b343b74c9b85c1b8c9ecbed41fa717d8f342ce3d0140bb403d2a99f0ef25391e290f23f4246dcef"));
         final var actualBlockInfo = infoRef.get();
         assertEquals(expectedBlockInfo, actualBlockInfo);
 
@@ -570,7 +602,7 @@ class BlockStreamManagerImplTest {
     @SuppressWarnings("unchecked")
     void supportsMultiplePendingBlocksWithIndirectProofAsExpected() throws ParseException {
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
+        given(blockHashSigner.schemeId()).willReturn(1L);
         givenSubjectWith(
                 1,
                 0,
@@ -636,7 +668,7 @@ class BlockStreamManagerImplTest {
         final var aProof = aItem.blockProofOrThrow();
         assertEquals(N_BLOCK_NO, aProof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, aProof.blockSignature());
-        assertEquals(2, aProof.siblingHashes().size());
+        assertEquals(3, aProof.siblingHashes().size());
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);
@@ -646,6 +678,8 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO + 1, bProof.block());
         assertEquals(FIRST_FAKE_SIGNATURE, bProof.blockSignature());
         assertTrue(bProof.siblingHashes().isEmpty());
+
+        verify(indirectProofsCounter).increment();
     }
 
     @Test
@@ -662,7 +696,7 @@ class BlockStreamManagerImplTest {
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
+        given(blockHashSigner.schemeId()).willReturn(1L);
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -725,7 +759,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() throws ParseException {
+    void alwaysEndsBlockOnFreezeRoundEvenIfPeriodNotElapsed() {
         // Given a 2 second block period
         givenSubjectWith(
                 1,
@@ -738,7 +772,12 @@ class BlockStreamManagerImplTest {
         given(boundaryStateChangeListener.boundaryTimestampOrThrow()).willReturn(Timestamp.DEFAULT);
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.activeSchemeId()).willReturn(1L);
+        given(blockHashSigner.schemeId()).willReturn(1L);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
+        given(platformStateReadableSingletonState.get())
+                .willReturn(
+                        PlatformState.newBuilder().latestFreezeRound(ROUND_NO).build());
 
         // Set up the signature future to complete immediately and run the callback synchronously
         given(blockHashSigner.signFuture(any())).willReturn(mockSigningFuture);
@@ -921,9 +960,11 @@ class BlockStreamManagerImplTest {
                 hashInfo,
                 SemanticVersion.DEFAULT,
                 TEST_PLATFORM_STATE_FACADE,
-                lifecycle);
-        given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
-        given(state.getReadableStates(PlatformStateService.NAME)).willReturn(readableStates);
+                lifecycle,
+                metrics);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(PLATFORM_STATE_KEY)).willReturn(platformStateReadableSingletonState);
+        lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);
         infoRef.set(blockStreamInfo);
         stateRef.set(platformState);
         blockStreamInfoState = new WritableSingletonStateBase<>(BLOCK_STREAM_INFO_KEY, infoRef::get, infoRef::set);

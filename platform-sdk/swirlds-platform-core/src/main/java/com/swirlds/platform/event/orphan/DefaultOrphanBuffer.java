@@ -4,8 +4,9 @@ package com.swirlds.platform.event.orphan;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -14,8 +15,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -68,29 +67,25 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     /**
      * Constructor
      *
-     * @param platformContext    the platform context
+     * @param configuration the platform configuration
+     * @param metrics the metrics instance to use
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultOrphanBuffer(
-            @NonNull final PlatformContext platformContext, @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.currentOrphanCount = 0;
 
-        platformContext
-                .getMetrics()
-                .getOrCreate(new FunctionGauge.Config<>(
-                                PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
-                        .withDescription("number of orphaned events currently in the orphan buffer")
-                        .withUnit("events"));
-
-        final AncientMode ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
-        this.eventWindow = EventWindow.getGenesisEventWindow(ancientMode);
-        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
-        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, ancientMode::selectIndicator);
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        PLATFORM_CATEGORY, "orphanBufferSize", Integer.class, this::getCurrentOrphanCount)
+                .withDescription("number of orphaned events currently in the orphan buffer")
+                .withUnit("events"));
+        this.eventWindow = EventWindow.getGenesisEventWindow();
+        missingParentMap = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
+        eventsWithParents = new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
     }
 
     /**
@@ -128,14 +123,14 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     public List<PlatformEvent> setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
 
-        eventsWithParents.shiftWindow(eventWindow.getAncientThreshold());
+        eventsWithParents.shiftWindow(eventWindow.ancientThreshold());
 
         // As the map is cleared out, we need to gather the ancient parents and their orphans. We can't
         // modify the data structure as the window is being shifted, so we collect that data and act on
         // it once the window has finished shifting.
         final List<ParentAndOrphans> ancientParents = new ArrayList<>();
         missingParentMap.shiftWindow(
-                eventWindow.getAncientThreshold(),
+                eventWindow.ancientThreshold(),
                 (parent, orphans) -> ancientParents.add(new ParentAndOrphans(parent, orphans)));
 
         final List<PlatformEvent> unorphanedEvents = new ArrayList<>();

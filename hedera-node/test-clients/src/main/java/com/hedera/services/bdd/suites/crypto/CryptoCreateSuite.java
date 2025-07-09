@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -90,10 +89,8 @@ public class CryptoCreateSuite {
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
     public static final String ED_25519_KEY = "ed25519Alias";
-    public static final String ACCOUNT_ID = asEntityString(10);
-    ;
-    public static final String STAKED_ACCOUNT_ID = asEntityString(3);
-    ;
+    public static final long ACCOUNT_ID = 10;
+    public static final long STAKED_ACCOUNT_ID = 3;
     public static final String CIVILIAN = "civilian";
     public static final String NO_KEYS = "noKeys";
     public static final String SHORT_KEY = "shortKey";
@@ -211,7 +208,7 @@ public class CryptoCreateSuite {
                         .has(accountWith()
                                 .isDeclinedReward(true)
                                 .noStakingNodeId()
-                                .stakedAccountIdWithLiteral(ACCOUNT_ID)),
+                                .stakedAccountId(ACCOUNT_ID)),
                 cryptoCreate("civilianWRewardStakingNode")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
@@ -229,14 +226,12 @@ public class CryptoCreateSuite {
                         .has(accountWith()
                                 .isDeclinedReward(false)
                                 .noStakingNodeId()
-                                .stakedAccountIdWithLiteral(ACCOUNT_ID)),
+                                .stakedAccountId(ACCOUNT_ID)),
                 /* --- sentinel values throw */
                 cryptoCreate("invalidStakedAccount")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
-                        .shardId(ShardID.newBuilder().setShardNum(0).build())
-                        .realmId(RealmID.newBuilder().setRealmNum(0).build())
-                        .stakedAccountId("0.0.0")
+                        .stakedAccountId("0")
                         .hasPrecheck(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
                         .balance(ONE_HUNDRED_HBARS)
@@ -1029,13 +1024,13 @@ public class CryptoCreateSuite {
                 cryptoCreate("differentShard")
                         .key(key)
                         .balance(1L)
-                        .shardId(ShardID.newBuilder().setShardNum(1).build())
+                        .shardId(ShardID.newBuilder().setShardNum(3).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID),
                 // expected realm is 2
                 cryptoCreate("differentRealm")
                         .key(key)
                         .balance(1L)
-                        .realmId(RealmID.newBuilder().setRealmNum(1).build())
+                        .realmId(RealmID.newBuilder().setRealmNum(4).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 }

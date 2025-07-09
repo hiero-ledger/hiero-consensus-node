@@ -55,6 +55,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
@@ -91,8 +92,7 @@ public class TokenUpdateSpecs {
     private static final String PAYER = "payer";
     private static final String TREASURY_UPDATE_TXN = "treasuryUpdateTxn";
     private static final String INVALID_TREASURY = "invalidTreasury";
-
-    private static String TOKEN_TREASURY = "treasury";
+    private static final String TOKEN_TREASURY = "treasury";
 
     @HapiTest
     final Stream<DynamicTest> canUpdateExpiryOnlyOpWithoutAdminKey() {
@@ -272,6 +272,71 @@ public class TokenUpdateSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> adminKeyMustSign() {
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                newKeyNamed("newAdminKey"),
+                newKeyNamed("kycThenFreezeKey"),
+                newKeyNamed("freezeThenKycKey"),
+                newKeyNamed("wipeThenSupplyKey"),
+                newKeyNamed("supplyThenWipeKey"),
+                newKeyNamed("oldFeeScheduleKey"),
+                newKeyNamed("newFeeScheduleKey"),
+                cryptoCreate("misc").balance(0L),
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+
+                // create with initial keys
+                tokenCreate("tbu")
+                        .treasury(TOKEN_TREASURY)
+                        .freezeDefault(true)
+                        .initialSupply(10)
+                        .adminKey("adminKey")
+                        .kycKey("kycThenFreezeKey")
+                        .freezeKey("freezeThenKycKey")
+                        .supplyKey("supplyThenWipeKey")
+                        .wipeKey("wipeThenSupplyKey")
+                        .feeScheduleKey("oldFeeScheduleKey"),
+
+                // change admin key without new admin signing should fail
+                tokenUpdate("tbu")
+                        .adminKey("newAdminKey")
+                        .signedByPayerAnd("adminKey")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+
+                // change admin key without old admin signing should fail
+                tokenUpdate("tbu")
+                        .adminKey("newAdminKey")
+                        .signedByPayerAnd("newAdminKey")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+
+                // change admin key with both signing should pass
+                tokenUpdate("tbu")
+                        .adminKey("newAdminKey")
+                        .signedByPayerAnd("adminKey", "newAdminKey")
+                        .hasKnownStatus(SUCCESS),
+
+                // changing various keys without those keys signing will fail
+                tokenUpdate("tbu")
+                        .kycKey("freezeThenKycKey")
+                        .freezeKey("kycThenFreezeKey")
+                        .wipeKey("supplyThenWipeKey")
+                        .supplyKey("wipeThenSupplyKey")
+                        .feeScheduleKey("newFeeScheduleKey")
+                        .signedByPayerAnd("kycThenFreezeKey")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+
+                // admin key is enough to sign for other key changes without those keys
+                tokenUpdate("tbu")
+                        .kycKey("freezeThenKycKey")
+                        .freezeKey("kycThenFreezeKey")
+                        .wipeKey("supplyThenWipeKey")
+                        .supplyKey("wipeThenSupplyKey")
+                        .feeScheduleKey("newFeeScheduleKey")
+                        .signedByPayerAnd("newAdminKey")
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> newTreasuryAutoAssociationWorks() {
         return defaultHapiSpec("NewTreasuryAutoAssociationWorks")
                 .given(
@@ -345,7 +410,6 @@ public class TokenUpdateSpecs {
 
     @HapiTest
     final Stream<DynamicTest> validAutoRenewWorks() {
-        final var firstPeriod = THREE_MONTHS_IN_SECONDS;
         final var secondPeriod = THREE_MONTHS_IN_SECONDS + 1234;
         return defaultHapiSpec("validAutoRenewWorks")
                 .given(
@@ -356,16 +420,27 @@ public class TokenUpdateSpecs {
                         tokenCreate("tbu")
                                 .adminKey("adminKey")
                                 .autoRenewAccount("autoRenew")
-                                .autoRenewPeriod(firstPeriod),
+                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS),
+                        // fail without the new autorenew key
                         tokenUpdate("tbu")
+                                .autoRenewAccount("newAutoRenew")
+                                .autoRenewPeriod(secondPeriod)
                                 .signedBy(GENESIS, "adminKey")
-                                .autoRenewAccount("newAutoRenew")
-                                .autoRenewPeriod(secondPeriod)
                                 .hasKnownStatus(INVALID_SIGNATURE),
+
+                        // fail without the admin key
                         tokenUpdate("tbu")
                                 .autoRenewAccount("newAutoRenew")
                                 .autoRenewPeriod(secondPeriod)
-                                .signedByPayerAnd("adminKey", "newAutoRenew"))
+                                .signedBy(GENESIS, "newAutoRenew")
+                                .hasKnownStatus(INVALID_SIGNATURE),
+
+                        // pass with both admin and the new autorenew key
+                        tokenUpdate("tbu")
+                                .autoRenewAccount("newAutoRenew")
+                                .autoRenewPeriod(secondPeriod)
+                                .signedByPayerAnd("adminKey", "newAutoRenew")
+                                .hasKnownStatus(SUCCESS))
                 .then(getTokenInfo("tbu").logged());
     }
 
@@ -1061,5 +1136,19 @@ public class TokenUpdateSpecs {
                         .adminKey("adminKey")
                         .supplyKey("supplyKey"),
                 tokenUpdate("token").expiry(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenUpdateWithAutoRenewAccountAndNoPeriod() {
+        return hapiTest(
+                cryptoCreate("adminKey"),
+                cryptoCreate("supplyKey"),
+                cryptoCreate("autoRenewAccount"),
+                tokenCreate("token")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey("adminKey")
+                        .supplyKey("supplyKey"),
+                tokenUpdate("token").autoRenewAccount("autoRenewAccount").hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 }

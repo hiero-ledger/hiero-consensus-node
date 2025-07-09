@@ -24,9 +24,11 @@ import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -104,6 +106,7 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.validation.AttributeValidatorImpl;
 import com.hedera.node.app.workflows.handle.validation.ExpiryValidatorImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -249,6 +252,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Mock
     private DeduplicationCache deduplicationCache;
 
+    @Mock
+    private PreHandleWorkflow preHandleWorkflow;
+
     private ServiceApiFactory apiFactory;
     private ReadableStoreFactory readableStoreFactory;
     private StoreFactoryImpl storeFactory;
@@ -292,6 +298,33 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         subject = createContext(txBody);
 
         mockNeeded();
+    }
+
+    @Test
+    void delegatesFeeChargingForPayer() {
+        given(feeAccumulator.chargeFee(payerId, 123L, null)).willReturn(new Fees(0, 123L, 0));
+
+        assertTrue(subject.tryToChargePayer(123L));
+    }
+
+    @Test
+    void failsFastOnNegativeAmounts() {
+        assertThrows(IllegalArgumentException.class, () -> subject.tryToChargePayer(-123L));
+        assertThrows(IllegalArgumentException.class, () -> subject.refundBestEffort(payerId, -123L));
+    }
+
+    @Test
+    void delegatesFeeChargingForOtherAccount() {
+        given(feeAccumulator.chargeFee(AccountID.DEFAULT, 123L, null)).willReturn(new Fees(0, 122L, 0));
+
+        assertFalse(subject.tryToCharge(AccountID.DEFAULT, 123L));
+    }
+
+    @Test
+    void delegatesRefunding() {
+        subject.refundBestEffort(payerId, 123L);
+
+        verify(feeAccumulator).refundFee(payerId, 123L);
     }
 
     @Test
@@ -389,14 +422,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             feeAccumulator,
             EMPTY_METADATA,
             transactionChecker,
-            List.of(result)
+            List.of(result),
+            preHandleWorkflow,
+            USER
         };
 
         final var constructor = DispatchHandleContext.class.getConstructors()[0];
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
-            // Skip signatureMapSize, payerKey, and preHandleResults
-            if (index == 2 || index == 4 || index == 24) {
+            // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
+            if (index == 2 || index == 4 || index == 24 || index == 25) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -791,7 +826,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 feeAccumulator,
                 EMPTY_METADATA,
                 transactionChecker,
-                results);
+                results,
+                preHandleWorkflow,
+                category);
     }
 
     private void mockNeeded() {

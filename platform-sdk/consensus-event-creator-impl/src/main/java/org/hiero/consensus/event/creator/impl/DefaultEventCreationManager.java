@@ -6,15 +6,19 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.event.FutureEventBuffer;
+import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
@@ -56,31 +60,37 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     private Duration unhealthyDuration = Duration.ZERO;
 
+    private final FutureEventBuffer futureEventBuffer;
+
     /**
      * Constructor.
      *
-     * @param platformContext      the platform context
+     * @param configuration        provides the configuration for the event creator
+     * @param metrics              provides the metrics for the event creator
+     * @param time                 provides the time source for the event creator
      * @param transactionPoolNexus provides transactions to be added to new events
      * @param creator              creates events
      */
     public DefaultEventCreationManager(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final TransactionPoolNexus transactionPoolNexus,
             @NonNull final EventCreator creator) {
 
         this.creator = Objects.requireNonNull(creator);
 
-        final EventCreationConfig config = platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
+        final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
 
         final List<EventCreationRule> rules = new ArrayList<>();
-        rules.add(new MaximumRateRule(platformContext));
+        rules.add(new MaximumRateRule(configuration, time));
         rules.add(new PlatformStatusRule(this::getPlatformStatus, transactionPoolNexus));
         rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
 
-        this.eventCreationRules = AggregateEventCreationRules.of(rules);
+        eventCreationRules = AggregateEventCreationRules.of(rules);
+        futureEventBuffer = new FutureEventBuffer(metrics, FutureEventBufferingOption.EVENT_BIRTH_ROUND);
 
-        phase = new PhaseTimerBuilder<>(
-                        platformContext, platformContext.getTime(), "platform", EventCreationStatus.class)
+        phase = new PhaseTimerBuilder<>(metrics, time, "platform", EventCreationStatus.class)
                 .enableFractionalMetrics()
                 .setInitialPhase(IDLE)
                 .setMetricsNamePrefix("eventCreation")
@@ -113,12 +123,16 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
         return newEvent;
     }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
-        creator.registerEvent(event);
+        final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+        if (nonFutureEvent != null) {
+            creator.registerEvent(event);
+        }
     }
 
     /**
@@ -127,6 +141,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         creator.setEventWindow(eventWindow);
+        futureEventBuffer.updateEventWindow(eventWindow).forEach(creator::registerEvent);
     }
 
     /**
@@ -136,6 +151,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
     public void clear() {
         creator.clear();
         phase.activatePhase(IDLE);
+        futureEventBuffer.clear();
+        final EventWindow eventWindow = EventWindow.getGenesisEventWindow();
+        futureEventBuffer.updateEventWindow(eventWindow);
     }
 
     /**

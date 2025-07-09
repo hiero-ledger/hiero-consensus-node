@@ -2,13 +2,9 @@
 package com.hedera.services.bdd.suites.contract.leaky;
 
 import static com.google.protobuf.ByteString.EMPTY;
-import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asHexedSolidityAddress;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asSolidityAddress;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -16,7 +12,6 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
-import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -76,6 +71,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTIO
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -142,7 +139,6 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.StateChange;
 import com.hedera.services.bdd.spec.assertions.StorageChange;
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.queries.contract.HapiContractCallLocal;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
@@ -152,7 +148,6 @@ import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -186,15 +181,11 @@ public class LeakyContractTestsSuite {
     private static final Logger log = LogManager.getLogger(LeakyContractTestsSuite.class);
     public static final String SENDER = "yahcliSender";
     public static final String RECEIVER = "yahcliReceiver";
-    private static final KeyShape DELEGATE_CONTRACT_KEY_SHAPE =
-            KeyShape.threshOf(1, KeyShape.SIMPLE, DELEGATE_CONTRACT);
-    private static final String CRYPTO_TRANSFER = "CryptoTransfer";
     public static final String TOKEN_TRANSFER_CONTRACT = "TokenTransferContract";
     public static final String TRANSFER_TOKEN_PUBLIC = "transferTokenPublic";
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NON_FUNGIBLE_TOKEN = "nonFungibleToken";
     private static final String MULTI_KEY = "purpose";
-    private static final String OWNER = "owner";
     private static final String ACCOUNT = "anybody";
     public static final String RECIPIENT = "recipient";
     private static final String FIRST = "FIRST";
@@ -202,7 +193,6 @@ public class LeakyContractTestsSuite {
     public static final String TRANSFER_SIG_NAME = "transferSig";
     public static final String ERC_20_CONTRACT = "ERC20Contract";
     private static final String TRANSFER_TXN = "transferTxn";
-    public static final String TRANSFER_FROM_ACCOUNT_TXN = "transferFromAccountTxn";
     public static final String TRANSFER = "transfer";
     public static final String APPROVE = "approve";
     private static final String NF_TOKEN = "nfToken";
@@ -218,8 +208,6 @@ public class LeakyContractTestsSuite {
     private static final String WITH_SPENDER = "WITH_SPENDER";
     private static final String DO_SPECIFIC_APPROVAL = "doSpecificApproval";
     public static final String TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
-    private static final String EVM_VERSION_PROPERTY = "contracts.evm.version";
-    private static final String EVM_VERSION_038 = "v0.38";
     private static final String CREATION = "creation";
     private static final String ENTITY_MEMO = "JUST DO IT";
     private static final String CREATE_2_TXN = "create2Txn";
@@ -272,10 +260,7 @@ public class LeakyContractTestsSuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(
-                                            spec,
-                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                            +ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(spec, expectedCreate2Address.get(), +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
                         .signedBy(DEFAULT_PAYER)
@@ -700,8 +685,8 @@ public class LeakyContractTestsSuite {
         final var adminKey = "adminKey";
         final var entityMemo = "JUST DO IT";
         final var customAutoRenew = 7776001L;
-        final AtomicReference<String> childLiteralId = new AtomicReference<>();
-        final AtomicReference<String> grandChildLiteralId = new AtomicReference<>();
+        final AtomicLong childNum = new AtomicLong();
+        final AtomicLong grandChildNum = new AtomicLong();
         final AtomicReference<ByteString> expectedChildAddress = new AtomicReference<>();
         final AtomicReference<ByteString> expectedParentAddress = new AtomicReference<>();
 
@@ -718,8 +703,7 @@ public class LeakyContractTestsSuite {
                 withOpContext((spec, opLog) -> {
                     final var parentNum = spec.registry().getContractId(contract);
 
-                    final var expectedParentContractAddress = asHeadlongAddress(asEvmAddress(
-                                    parentNum.getShardNum(), parentNum.getRealmNum(), parentNum.getContractNum()))
+                    final var expectedParentContractAddress = asHeadlongAddress(asSolidityAddress(parentNum))
                             .toString()
                             .toLowerCase()
                             .substring(2);
@@ -728,26 +712,15 @@ public class LeakyContractTestsSuite {
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
-
-                    final var childId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentNum.getContractNum() + 1L)
-                            .build();
-                    childLiteralId.set(HapiPropertySource.asContractString(childId));
+                    childNum.set(parentNum.getContractNum() + 1L);
                     expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
-                    final var grandChildId = ContractID.newBuilder()
-                            .setShardNum(spec.shard())
-                            .setRealmNum(spec.realm())
-                            .setContractNum(parentNum.getContractNum() + 2L)
-                            .build();
-                    grandChildLiteralId.set(HapiPropertySource.asContractString(grandChildId));
+                    grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
-                    final var childContractInfo = getContractInfo(childLiteralId.get())
+                    final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
                             .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
-                    final var grandChildContractInfo = getContractInfo(grandChildLiteralId.get())
+                    final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
                                     .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
                             .logged();
@@ -763,8 +736,9 @@ public class LeakyContractTestsSuite {
                         recordWith()
                                 .contractCreateResult(resultWith().create1EvmAddress(expectedChildAddress.get(), 1L))
                                 .status(SUCCESS))),
-                sourcing(() ->
-                        getContractInfo(childLiteralId.get()).has(contractWith().propertiesInheritedFrom(contract))));
+                sourcing(() -> getContractInfo(String.valueOf(childNum.get()))
+                        .logged()
+                        .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
@@ -796,8 +770,8 @@ public class LeakyContractTestsSuite {
                             .getContractCallResult()
                             .getGasUsed();
 
-                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 23739L);
-                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 20000L);
+                    Assertions.assertTrue(gasUsedForTemporaryHoldTx < 35000L);
+                    Assertions.assertTrue(gasUsedForPermanentHoldTx > 40000L);
                 }));
     }
 
@@ -873,7 +847,7 @@ public class LeakyContractTestsSuite {
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(6_000_000),
                             emptyChildRecordsCheck(mirrorTxn, CONTRACT_REVERT_EXECUTED),
-                            getAccountInfo(asEntityString(NONEXISTENT_CONTRACT_NUM))
+                            getAccountInfo(String.valueOf(NONEXISTENT_CONTRACT_NUM))
                                     .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // given a reverting contract call, should also revert the hollow account creation
                             contractCall(LAZY_CREATE_CONTRACT, revertingCallLazyCreateFunction, address)
@@ -1391,7 +1365,7 @@ public class LeakyContractTestsSuite {
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("1.1.1"))),
+                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(TOKEN_TREASURY),

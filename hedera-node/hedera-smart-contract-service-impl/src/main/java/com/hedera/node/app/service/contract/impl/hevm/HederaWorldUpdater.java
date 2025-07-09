@@ -123,10 +123,11 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * this method surfaces any problem by throwing an exception.
      *
      * @param payerId the id of the account to collect the fee from
-     * @param amount      the amount to collect
+     * @param amount the amount to collect
+     * @param withNonceIncrement if the nonce should be incremented
      * @throws IllegalArgumentException if the collection fails for any reason
      */
-    void collectFee(@NonNull AccountID payerId, long amount);
+    void collectGasFee(@NonNull AccountID payerId, long amount, boolean withNonceIncrement);
 
     /**
      * Refunds the given fee to the given account. The caller should have already
@@ -136,7 +137,7 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * @param payerId the id of the account to refund the fee to
      * @param amount the amount to refund
      */
-    void refundFee(@NonNull AccountID payerId, long amount);
+    void refundGasFee(@NonNull AccountID payerId, long amount);
 
     /**
      * Tries to transfer the given amount from a sending contract to the recipient. The sender

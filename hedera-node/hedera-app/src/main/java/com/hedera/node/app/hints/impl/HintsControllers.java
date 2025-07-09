@@ -42,6 +42,7 @@ public class HintsControllers {
     private final HintsContext context;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
     private final Supplier<Configuration> configurationSupplier;
+    private final OnHintsFinished onHintsFinished;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -58,7 +59,8 @@ public class HintsControllers {
             @NonNull final HintsSubmissions submissions,
             @NonNull final HintsContext context,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
-            @NonNull final Supplier<Configuration> configurationSupplier) {
+            @NonNull final Supplier<Configuration> configurationSupplier,
+            @NonNull final OnHintsFinished onHintsFinished) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.context = requireNonNull(context);
@@ -66,6 +68,7 @@ public class HintsControllers {
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.configurationSupplier = requireNonNull(configurationSupplier);
+        this.onHintsFinished = requireNonNull(onHintsFinished);
     }
 
     /**
@@ -179,7 +182,8 @@ public class HintsControllers {
                     submissions,
                     context,
                     configurationSupplier,
-                    hintsStore);
+                    hintsStore,
+                    onHintsFinished);
         }
     }
 

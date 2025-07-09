@@ -5,8 +5,8 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.hiero.otter.fixtures.junit.OtterLogTestExtension;
-import org.junit.jupiter.api.Test;
+import org.hiero.otter.fixtures.junit.OtterTestExtension;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 /**
@@ -17,6 +17,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
  */
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-@Test
-@ExtendWith({OtterLogTestExtension.class})
-public @interface OtterTest {}
+@TestTemplate
+@ExtendWith({OtterTestExtension.class})
+public @interface OtterTest {
+
+    /**
+     * Specifies the capabilities required by the test. If an environment does not support all of the required capabilities, the test will be disabled.
+     *
+     * @return an array of required capabilities
+     */
+    Capability[] requires() default {};
+}

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.token;
 
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.NoTokenTransfers.emptyTokenTransfers;
@@ -90,7 +89,7 @@ public class TokenAssociationSpecs {
     final Stream<DynamicTest> canHandleInvalidAssociateTransactions() {
         final String alice = "ALICE";
         final String bob = "BOB";
-        final String unknownID = asEntityString(Long.MAX_VALUE);
+        final String unknownID = String.valueOf(Long.MAX_VALUE);
         return defaultHapiSpec("CanHandleInvalidAssociateTransactions")
                 .given(
                         newKeyNamed(MULTI_KEY),
@@ -233,6 +232,27 @@ public class TokenAssociationSpecs {
                 .given(tokenCreate(misc))
                 .when(createDefaultContract(contract).omitAdminKey())
                 .then(tokenAssociate(contract, misc).hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> associateNeedsAccountSignature() {
+        String token = "someToken";
+        String alice = "alice";
+        String bob = "bob";
+        return hapiTest(
+                // create token with admin = alice
+                newKeyNamed(alice),
+                tokenCreate(token).adminKey(alice),
+                // create account bob
+                cryptoCreate(bob).balance(0L).maxAutomaticTokenAssociations(0),
+                // associate token *without* the account key
+                tokenAssociate(bob, token).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE),
+                // associate token *with* the account key
+                tokenAssociate(bob, token).signedBy(DEFAULT_PAYER, bob).hasKnownStatus(SUCCESS),
+                // dissociate token *without* the account key
+                tokenDissociate(bob, token).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE),
+                // dissociate token *with* the account key
+                tokenDissociate(bob, token).signedBy(DEFAULT_PAYER, bob).hasKnownStatus(SUCCESS));
     }
 
     @HapiTest

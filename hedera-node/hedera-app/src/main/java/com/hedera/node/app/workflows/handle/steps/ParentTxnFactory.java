@@ -271,9 +271,7 @@ public class ParentTxnFactory {
         requireNonNull(exchangeRates);
         final var preHandleResult = parentTxn.preHandleResult();
         final var keyVerifier = new DefaultKeyVerifier(
-                parentTxn.txnInfo().signatureMap().sigPair().size(),
-                parentTxn.config().getConfigData(HederaConfig.class),
-                preHandleResult.getVerificationResults());
+                parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
         return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
@@ -331,6 +329,7 @@ public class ParentTxnFactory {
         final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
         final var feeAccumulator = new FeeAccumulator(
                 serviceApiFactory.getApi(TokenServiceApi.class), (FeeStreamBuilder) baseBuilder, stack);
+
         final var dispatchHandleContext = new DispatchHandleContext(
                 consensusNow,
                 creatorInfo,
@@ -356,7 +355,9 @@ public class ParentTxnFactory {
                 feeAccumulator,
                 DispatchMetadata.EMPTY_METADATA,
                 transactionChecker,
-                preHandleResult.innerResults());
+                preHandleResult.innerResults(),
+                preHandleWorkflow,
+                transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
         if (streamMode != RECORDS) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(

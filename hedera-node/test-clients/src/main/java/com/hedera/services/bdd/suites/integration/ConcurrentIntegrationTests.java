@@ -10,10 +10,8 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VER
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
-import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -38,10 +36,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.mutateNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingVersion;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -75,7 +74,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -132,12 +130,13 @@ public class ConcurrentIntegrationTests {
                 getAccountInfo("hollowAccount").isNotHollow());
     }
 
-    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen"})
+    @LeakyHapiTest(overrides = {"ledger.nftTransfers.maxLen", "atomicBatch.isEnabled"})
     final Stream<DynamicTest> chargedFeesReplayedAfterBatchFailure(
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftOne,
             @NonFungibleToken(numPreMints = 10) SpecNonFungibleToken nftTwo) {
         final List<SortedMap<AccountID, Long>> successfulRecordFees = new ArrayList<>();
         return hapiTest(
+                overridingTwo("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"),
                 cryptoCreate("operator").maxAutomaticTokenAssociations(2),
                 nftOne.doWith(
                         token -> cryptoTransfer(movingUnique(nftOne.name(), 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
@@ -214,8 +213,8 @@ public class ConcurrentIntegrationTests {
                 blockStreamMustIncludePassFrom(spec -> blockWithResultOf(BUSY)),
                 cryptoCreate("somebody").balance(0L),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, "somebody", ONE_HBAR))
-                        .setNode(asEntityString(4))
-                        .withSubmissionStrategy(usingVersion(PAST))
+                        .setNode(4)
+                        .withSubmissionStrategy(usingEventBirthRound(-1))
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY),
                 getAccountBalance("somebody").hasTinyBars(0L),
                 // Trigger block closure to ensure block is closed
@@ -227,9 +226,9 @@ public class ConcurrentIntegrationTests {
     final Stream<DynamicTest> completelySkipsTransactionFromUnknownNode() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode(asEntityString(666))
+                        .setNode(666)
                         .via("toBeSkipped")
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
+                        .withSubmissionStrategy(usingEventBirthRound(55L))
                         .hasAnyStatusAtAll(),
                 getTxnRecord("toBeSkipped").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
     }

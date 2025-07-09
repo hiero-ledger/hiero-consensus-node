@@ -13,12 +13,7 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-testModuleInfo { runtimeOnly("org.junit.jupiter.api") }
-
-sourceSets {
-    create("rcdiff")
-    create("yahcli")
-}
+sourceSets { create("rcdiff") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
@@ -26,7 +21,7 @@ tasks.register<JavaExec>("runTestClient") {
     group = "build"
     description = "Run a test client via -PtestClient=<Class>"
 
-    classpath = sourceSets.main.get().runtimeClasspath + files(tasks.jar)
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     mainClass = providers.gradleProperty("testClient")
 }
 
@@ -41,7 +36,7 @@ tasks.jacocoTestReport {
 
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -65,9 +60,6 @@ tasks.test {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prCheckTags =
@@ -131,78 +123,9 @@ tasks {
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
 }
 
-tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
-
-    // Choose a different initial port for each test task if running as PR check
-    val initialPort =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckStartPorts[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("")
-    systemProperty("hapi.spec.initial.port", initialPort)
-
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    // Use the same configuration as testSubprocess
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for an ISS case
-            else if (ciTagExpression.contains("ISS")) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
-        )
-    }
-
-    // Set the block node mode to simulator
-    systemProperty("hapi.spec.blocknode.mode", "SIM")
-
-    // Default to false for manyToOne mode, can be overridden with
-    // -Dhapi.spec.blocknode.simulator.manyToOne=true
-    systemProperty(
-        "hapi.spec.blocknode.simulator.manyToOne",
-        System.getProperty("hapi.spec.blocknode.simulator.manyToOne") ?: "false",
-    )
-
-    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
-    systemProperty(
-        "hapi.spec.quiet.mode",
-        System.getProperty("hapi.spec.quiet.mode")
-            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
-    )
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
-    maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
-}
-
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -229,6 +152,12 @@ tasks.register<Test>("testSubprocess") {
             .findFirst()
             .orElse("")
     systemProperty("hapi.spec.initial.port", initialPort)
+    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
+    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
+    // the majority of the hapi tests - with a nonzero shard/realm
+    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
+    systemProperty("hapi.spec.default.shard", 11)
+    systemProperty("hapi.spec.default.realm", 12)
 
     // Gather overrides into a single comma‐separated list
     val testOverrides =
@@ -297,14 +226,12 @@ tasks.register<Test>("testSubprocess") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
     modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -363,9 +290,6 @@ tasks.register<Test>("testRemote") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-
-    // Do not yet run things on the '--module-path'
-    modularity.inferModulePath.set(false)
 }
 
 val prEmbeddedCheckTags = mapOf("hapiEmbeddedMisc" to "EMBEDDED")
@@ -379,7 +303,7 @@ tasks {
 // Runs tests against an embedded network that supports concurrent tests
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -410,12 +334,14 @@ tasks.register<Test>("testEmbedded") {
     )
     // Tell our launcher to target a concurrent embedded network
     systemProperty("hapi.spec.embedded.mode", "concurrent")
+    // Running all the tests that are executed in testEmbedded with 0 for shard and realm,
+    // so we can maintain confidence that there are no regressions in the code.
+    systemProperty("hapi.spec.default.shard", 0)
+    systemProperty("hapi.spec.default.realm", 0)
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
     modularity.inferModulePath.set(false)
 }
 
@@ -431,7 +357,7 @@ tasks {
 // single thread
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = sourceSets.main.get().runtimeClasspath
+    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -460,8 +386,6 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-
-    // Do not yet run things on the '--module-path'
     modularity.inferModulePath.set(false)
 }
 
@@ -471,17 +395,6 @@ application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 tasks.withType<ShadowJar>().configureEach { isZip64 = true }
 
 tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
-
-val yahCliJar =
-    tasks.register<ShadowJar>("yahCliJar") {
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
-        from(sourceSets["main"].output)
-        from(sourceSets["yahcli"].output)
-        archiveClassifier.set("yahcli")
-        configurations = listOf(project.configurations.getByName("yahcliRuntimeClasspath"))
-
-        manifest { attributes("Main-Class" to "com.hedera.services.yahcli.Yahcli") }
-    }
 
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
@@ -522,21 +435,4 @@ val cleanValidation =
         delete(File(project.file("validation-scenarios"), "ValidationScenarios.jar"))
     }
 
-val copyYahCli =
-    tasks.register<Copy>("copyYahCli") {
-        group = "copy"
-        from(yahCliJar)
-        into(project.file("yahcli"))
-        rename { "yahcli.jar" }
-    }
-
-val cleanYahCli =
-    tasks.register<Delete>("cleanYahCli") {
-        group = "copy"
-        delete(File(project.file("yahcli"), "yahcli.jar"))
-    }
-
-tasks.clean {
-    dependsOn(cleanYahCli)
-    dependsOn(cleanValidation)
-}
+tasks.clean { dependsOn(cleanValidation) }

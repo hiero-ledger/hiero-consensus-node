@@ -9,13 +9,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
+import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher.rootHashFrom;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_KEY;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeTransactionWith;
-import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -57,6 +57,7 @@ import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.NoBlockNodesAvailableException;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
@@ -65,6 +66,7 @@ import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
+import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.ids.AppEntityIdFactory;
 import com.hedera.node.app.ids.EntityIdService;
 import com.hedera.node.app.ids.ReadableEntityIdStoreImpl;
@@ -103,6 +105,7 @@ import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -123,6 +126,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -418,15 +422,16 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
      * steps that try to create or deserialize a {@link MerkleNodeState}.
      *
-     * @param constructableRegistry  the registry to register {@link RuntimeConstructable} factories with
-     * @param registryFactory        the factory to use for creating the services registry
-     * @param migrator               the migrator to use with the services
+     * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
+     * @param registryFactory the factory to use for creating the services registry
+     * @param migrator the migrator to use with the services
      * @param startupNetworksFactory the factory for the startup networks
-     * @param hintsServiceFactory    the factory for the hinTS service
-     * @param historyServiceFactory  the factory for the history service
+     * @param hintsServiceFactory the factory for the hinTS service
+     * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
-     * @param metrics                the metrics object to use for reporting
-     * @param platformStateFacade    the facade object to access platform state
+     * @param metrics the metrics object to use for reporting
+     * @param platformStateFacade the facade object to access platform state
+     * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
             @NonNull final ConstructableRegistry constructableRegistry,
@@ -438,7 +443,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Metrics metrics,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Supplier<MerkleNodeState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -535,11 +541,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .forEach(servicesRegistry::register);
         try {
             consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
-            final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-            // And the factory for the MerkleStateRoot class id must be our constructor
+            // And the factory for the MerkleStateRoot class id must be ours
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     HederaStateRoot.class, () -> stateRootSupplier.get().getRoot()));
         } catch (final ConstructableRegistryException e) {
@@ -663,7 +668,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
         }
         try {
             migrateSchemas(state, deserializedVersion, trigger, metrics, platformConfig);
-            logConfiguration();
         } catch (final Throwable t) {
             logger.fatal("Critical failure during schema migration", t);
             throw new IllegalStateException("Critical failure during migration", t);
@@ -922,18 +926,20 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
         if (creatorInfo == null) {
             // It's normal immediately post-upgrade to still see events from a node removed from the address book
-            if (!isSoOrdered(event.getSoftwareVersion(), version)) {
+            final var platformStateStore = readableStoreFactory.getStore(ReadablePlatformStateStore.class);
+            if (event.getEventCore().birthRound() > platformStateStore.getLatestFreezeRound()) {
                 logger.warn(
-                        "Received event (version {} vs current {}) from node {} which is not in the address book",
-                        com.hedera.hapi.util.HapiUtils.toString(event.getSoftwareVersion()),
-                        com.hedera.hapi.util.HapiUtils.toString(version),
+                        "Received event with birth round {}, last freeze round is {}, from node {} "
+                                + "which is not in the address book",
+                        event.getEventCore().birthRound(),
+                        platformStateStore.getLatestFreezeRound(),
                         event.getCreatorId());
             }
             return;
         }
 
         final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
-            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getSoftwareVersion(), txn);
+            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
 
@@ -1174,7 +1180,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .platformStateFacade(platformStateFacade)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
-        daggerApp.initializer().accept(state);
+        daggerApp.initializer().initialize(state, streamMode);
+        logConfiguration();
         notifications.register(PlatformStatusChangeListener.class, this);
         notifications.register(ReconnectCompleteListener.class, daggerApp.reconnectListener());
         notifications.register(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
@@ -1216,41 +1223,47 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                         blockStreamInfo.blockNumber() - 1,
                         blockStreamInfo.blockNumber() - 1);
         requireNonNull(prevBlockHash);
-        final var leftParent = combine(prevBlockHash, blockStreamInfo.inputTreeRootHash());
-        // The fourth ingredient, the output tree root hash, is not directly in the BlockStreamInfo, but
-        // we can recompute it based on the tree hash information and the fact the last output item in
+
+        // The fourth ingredient, the state changes tree root hash, is not directly in the BlockStreamInfo, but
+        // we can recompute it based on the tree hash information and the fact the last state changes item in
         // the block was devoted to putting the BlockStreamInfo itself into the state
-        final var outputTreeRootHash = outputTreeRootHashFrom(blockStreamInfo);
-        final var rightParent = combine(outputTreeRootHash, blockStreamInfo.startOfBlockStateHash());
+        final var stateChangesHash = stateChangesTreeRootHashFrom(blockStreamInfo);
+
+        final var level1A = combine(prevBlockHash, blockStreamInfo.startOfBlockStateHash());
+        final var level1B = combine(blockStreamInfo.consensusHeaderTreeRootHash(), blockStreamInfo.inputTreeRootHash());
+        final var level1C = combine(blockStreamInfo.outputTreeRootHash(), stateChangesHash);
+        final var level1D = combine(blockStreamInfo.traceDataTreeRootHash(), NULL_HASH);
+        final var leftParent = combine(level1A, level1B);
+        final var rightParent = combine(level1C, level1D);
         return combine(leftParent, rightParent);
     }
 
     /**
-     * Given a {@link BlockStreamInfo} context, computes the output tree root hash that must have been
-     * computed at the end of the block that the context describes, assuming the final output block item
+     * Given a {@link BlockStreamInfo} context, computes the state changes tree root hash that must have been
+     * computed at the end of the block that the context describes, assuming the final state change block item
      * was the state change that put the context into the state.
      *
-     * @param blockStreamInfo the context to use
+     * @param info the context to use
      * @return the inferred output tree root hash
      */
-    private @NonNull Bytes outputTreeRootHashFrom(@NonNull final BlockStreamInfo blockStreamInfo) {
+    private @NonNull Bytes stateChangesTreeRootHashFrom(@NonNull final BlockStreamInfo info) {
         // This was the last state change in the block
         final var blockStreamInfoChange = StateChange.newBuilder()
                 .stateId(STATE_ID_BLOCK_STREAM_INFO.protoOrdinal())
                 .singletonUpdate(SingletonUpdateChange.newBuilder()
-                        .blockStreamInfoValue(blockStreamInfo)
+                        .blockStreamInfoValue(info)
                         .build())
                 .build();
         // And this was the last output block item
         final var lastStateChanges = BlockItem.newBuilder()
-                .stateChanges(new StateChanges(blockStreamInfo.blockEndTime(), List.of(blockStreamInfoChange)))
+                .stateChanges(new StateChanges(info.blockEndTime(), List.of(blockStreamInfoChange)))
                 .build();
         // So we can combine this last leaf's has with the size and rightmost hashes
-        // store from the pending output tree to recompute its final root hash
-        final var penultimateOutputTreeStatus = new StreamingTreeHasher.Status(
-                blockStreamInfo.numPrecedingOutputItems(), blockStreamInfo.rightmostPrecedingOutputTreeHashes());
+        // store from the pending state changes tree to recompute its final root hash
+        final var penultimateStateChangesTreeStatus = new StreamingTreeHasher.Status(
+                info.numPrecedingStateChangesItems(), info.rightmostPrecedingStateChangesTreeHashes());
         final var lastLeafHash = noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(lastStateChanges));
-        return rootHashFrom(penultimateOutputTreeStatus, lastLeafHash);
+        return rootHashFrom(penultimateStateChangesTreeStatus, lastLeafHash);
     }
 
     private void logConfiguration() {
@@ -1354,6 +1367,13 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (tssConfig.historyEnabled()) {
+            final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
+            final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+            final var store = new WritableHistoryStoreImpl(writableHistoryStates);
+            store.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
+            ((CommittableWritableStates) writableHistoryStates).commit();
+        }
         if (tssConfig.hintsEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
             final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
@@ -1369,22 +1389,29 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
     /**
      * Initializes block node connections and waits for at least one connection to be established.
      * This should be called before platform.start() to ensure we don't miss any blocks.
-     *
-     * @param timeout maximum time to wait for a connection
      */
-    public void initializeBlockNodeConnections(java.time.Duration timeout) {
-        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+    public void initializeBlockNodeConnections() {
+        final BlockStreamConfig blockStreamConfig =
+                configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+
         if (!blockStreamConfig.streamToBlockNodes()) {
             logger.info("Block stream to Block Nodes is disabled, skipping block node connection initialization");
             return;
         }
 
-        logger.info("Initializing block node connections with timeout {}", timeout);
-        boolean connected = daggerApp.blockNodeConnectionManager().waitForConnection(timeout);
-        if (blockStreamConfig.shutdownNodeOnNoBlockNodes() && !connected) {
-            logger.error("No block node connections established within timeout, shutting down");
-            this.shutdown();
-            System.exit(1);
+        final BlockNodeConnectionConfig blockNodeConnectionConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
+        try {
+            daggerApp.blockNodeConnectionManager().start();
+        } catch (final NoBlockNodesAvailableException e) {
+            if (blockNodeConnectionConfig.shutdownNodeOnNoBlockNodes()) {
+                logger.fatal("No block nodes available to connect to; shutting down");
+                shutdown();
+                System.exit(1);
+            } else {
+                logger.warn("No block nodes available to connect to");
+            }
         }
     }
 }

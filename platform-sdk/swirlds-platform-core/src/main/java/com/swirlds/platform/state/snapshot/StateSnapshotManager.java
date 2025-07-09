@@ -49,14 +49,14 @@ public interface StateSnapshotManager {
     }
 
     /**
-     * Extract the oldest minimum generation on disk from a {@link StateSavingResult}.
+     * Extract the oldest minimum birth round on disk from a {@link StateSavingResult}.
      *
      * @param result the result of the state saving operation
-     * @return the oldest minimum generation on disk
+     * @return the oldest minimum birth round on disk
      */
     @NonNull
-    default Long extractOldestMinimumGenerationOnDisk(@NonNull final StateSavingResult result) {
-        return result.oldestMinimumGenerationOnDisk();
+    default Long extractOldestMinimumBirthRoundOnDisk(@NonNull final StateSavingResult result) {
+        return result.oldestMinimumBirthRoundOnDisk();
     }
 
     /**

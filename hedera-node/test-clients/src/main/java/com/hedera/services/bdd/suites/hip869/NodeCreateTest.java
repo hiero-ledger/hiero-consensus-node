@@ -5,9 +5,8 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.PropertySource.asAccount;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.WRONG_LENGTH_EDDSA_KEY;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -29,7 +28,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GOSSIP_ENDPOIN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.GRPC_WEB_PROXY_NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_ENDPOINT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
@@ -44,7 +42,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -116,7 +113,7 @@ public class NodeCreateTest {
             throws CertificateEncodingException { // skipping ingest but purecheck still throw the same
 
         return hapiTest(nodeCreate("nodeCreate")
-                .setNode(asEntityString(4)) // exclude 1.2.3
+                .setNode("4") // exclude 1.2.3
                 .adminKey(NONSENSE_KEY)
                 .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                 .hasKnownStatus(KEY_REQUIRED));
@@ -141,7 +138,6 @@ public class NodeCreateTest {
      */
     @HapiTest
     final Stream<DynamicTest> failOnInvalidServiceEndpoint() {
-
         return hapiTest(nodeCreate("nodeCreate").serviceEndpoint(List.of()).hasPrecheck(INVALID_SERVICE_ENDPOINT));
     }
 
@@ -289,23 +285,21 @@ public class NodeCreateTest {
      * Check that node creation succeeds with gossip and service endpoints using ips and all optional fields are recorded.
      * @see <a href="https://github.com/hashgraph/hedera-improvement-proposal/blob/main/HIP/hip-869.md#specification">HIP-869</a>
      */
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.webProxyEndpointsEnabled"})
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> allFieldsSetHappyCaseForIps() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate()
                 .gossipEndpoint(GOSSIP_ENDPOINTS_IPS)
                 .serviceEndpoint(SERVICES_ENDPOINTS_IPS)
-                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_IP);
+                // The web proxy endpoint can never be an IP address
+                .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_FQDN);
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate,
                 verifyCanonicalCreate(nodeCreate),
                 viewNode("nodeCreate", node -> {
                     assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_IPS, node.gossipEndpoint());
                     assertEqualServiceEndpoints(SERVICES_ENDPOINTS_IPS, node.serviceEndpoint());
-                    assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_IP, node.grpcProxyEndpoint());
+                    assertEqualServiceEndpoint(GRPC_PROXY_ENDPOINT_FQDN, node.grpcProxyEndpoint());
                 }));
     }
 
@@ -315,11 +309,11 @@ public class NodeCreateTest {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.gossipFqdnRestricted", "nodes.webProxyEndpointsEnabled"})
+            overrides = {"nodes.gossipFqdnRestricted"})
     final Stream<DynamicTest> allFieldsSetHappyCaseForDomains() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate();
         return hapiTest(
-                overridingTwo("nodes.gossipFqdnRestricted", "false", "nodes.webProxyEndpointsEnabled", "true"),
+                overriding("nodes.gossipFqdnRestricted", "false"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate,
                 verifyCanonicalCreate(nodeCreate),
@@ -330,31 +324,24 @@ public class NodeCreateTest {
                 }));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            overrides = {"nodes.gossipFqdnRestricted"})
-    final Stream<DynamicTest> allFieldsButProxyEndpointSet() throws CertificateEncodingException {
-        final var nodeCreate = canonicalNodeCreate().withNoWebProxyEndpoint();
-        return hapiTest(
-                overriding("nodes.gossipFqdnRestricted", "false"),
-                newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
-                nodeCreate,
-                verifyCanonicalCreate(nodeCreate),
-                // nodes.webProxyEndpointsEnabled should default to false, resulting in a null proxy endpoint
-                viewNode("nodeCreate", node -> {
-                    assertEqualServiceEndpoints(GOSSIP_ENDPOINTS_FQDNS, node.gossipEndpoint());
-                    assertEqualServiceEndpoints(SERVICES_ENDPOINTS_FQDNS, node.serviceEndpoint());
-                    assertNull(node.grpcProxyEndpoint());
-                }));
-    }
-
-    @LeakyHapiTest(overrides = {"nodes.gossipFqdnRestricted"})
+    @LeakyHapiTest(overrides = {"nodes.gossipFqdnRestricted", "nodes.webProxyEndpointsEnabled"})
     final Stream<DynamicTest> webProxySetWhenNotEnabledReturnsNotSupported() throws CertificateEncodingException {
         final var nodeCreate = canonicalNodeCreate();
         return hapiTest(
-                overriding("nodes.gossipFqdnRestricted", "false"),
+                overridingTwo("nodes.gossipFqdnRestricted", "false", "nodes.webProxyEndpointsEnabled", "false"),
                 newKeyNamed(ED_25519_KEY).shape(KeyShape.ED25519),
                 nodeCreate.hasKnownStatus(GRPC_WEB_PROXY_NOT_SUPPORTED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> webProxyAsIpAddressIsRejected() throws CertificateEncodingException {
+        return hapiTest(
+                newKeyNamed("adminKey"),
+                nodeCreate("nodeCreate")
+                        .adminKey("adminKey")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
+                        .grpcWebProxyEndpoint(GRPC_PROXY_ENDPOINT_IP)
+                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
     private static HapiNodeCreate canonicalNodeCreate() throws CertificateEncodingException {
@@ -362,7 +349,7 @@ public class NodeCreateTest {
                 .description("hello")
                 .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                 .grpcCertificateHash("hash".getBytes())
-                .accountId(asAccount(asEntityString(100)))
+                .accountNum(100)
                 // Defaults to FQDN's for all endpoints
                 .gossipEndpoint(GOSSIP_ENDPOINTS_FQDNS)
                 .serviceEndpoint(SERVICES_ENDPOINTS_FQDNS)
@@ -387,6 +374,7 @@ public class NodeCreateTest {
                     ByteString.copyFrom("hash".getBytes()),
                     ByteString.copyFrom(node.grpcCertificateHash().toByteArray()),
                     "GRPC hash invalid");
+            assertNotNull(node.accountId(), "Account ID invalid");
             assertEquals(100, node.accountId().accountNum(), "Account ID invalid");
             assertNotNull(nodeCreate.getAdminKey(), " Admin key invalid");
             assertEquals(toPbj(nodeCreate.getAdminKey()), node.adminKey(), "Admin key invalid");
@@ -423,7 +411,7 @@ public class NodeCreateTest {
                         .adminKey(ED_25519_KEY)
                         .payingWith("payer")
                         .signedBy("payer")
-                        .setNode(asEntityString(4))
+                        .setNode("4")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)
                         .via("nodeCreationFailed"),
@@ -445,7 +433,8 @@ public class NodeCreateTest {
                         .adminKey(ED_25519_KEY)
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")
-                        .setNode(asEntityString(4))
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
+                        .setNode("4")
                         .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)
                         .via("multipleSigsCreation"),
@@ -470,7 +459,7 @@ public class NodeCreateTest {
                         .payingWith("payer")
                         .signedBy("payer")
                         .description(description)
-                        .setNode(asEntityString(4))
+                        .setNode("4")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .fee(1)
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
@@ -492,7 +481,7 @@ public class NodeCreateTest {
                         .payingWith("payer")
                         .signedBy("payer", "randomAccount", "testKey")
                         .description(description)
-                        .setNode(asEntityString(4))
+                        .setNode("4")
                         .gossipCaCertificate(gossipCertificates.getLast().getEncoded())
                         .fee(1)
                         .hasKnownStatus(INSUFFICIENT_TX_FEE)
@@ -612,17 +601,16 @@ public class NodeCreateTest {
                         .hasKnownStatus(UNAUTHORIZED));
     }
 
-    @LeakyHapiTest(overrides = {"nodes.webProxyEndpointsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> createNodeWithDefaultGrpcProxyFails() throws CertificateEncodingException {
         return hapiTest(
-                overriding("nodes.webProxyEndpointsEnabled", "true"),
                 newKeyNamed("adminKey"),
                 nodeCreate("testNode")
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .grpcWebProxyEndpoint(ServiceEndpoint.getDefaultInstance())
                         .description("newNode")
-                        .hasKnownStatus(INVALID_ENDPOINT));
+                        .hasKnownStatus(INVALID_SERVICE_ENDPOINT));
     }
 
     private static void assertEqualServiceEndpoints(

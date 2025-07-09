@@ -198,6 +198,14 @@ public class HapiSpecRegistry {
         return get(name, Long.class);
     }
 
+    public void saveTokenBalanceSnapshot(String token, String name, Long balance) {
+        put(token + "-" + name, balance);
+    }
+
+    public long getTokenBalanceSnapshot(String token, String name) {
+        return get(token + "-" + name, Long.class);
+    }
+
     public Timestamp getTimestamp(String label) {
         return get(label, Timestamp.class);
     }
@@ -598,6 +606,16 @@ public class HapiSpecRegistry {
 
     public void saveContractId(String name, ContractID id) {
         put(name, id);
+    }
+
+    public void saveContractId(String name, HapiSpec spec, ByteString evmAddress) {
+        put(
+                name,
+                ContractID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setEvmAddress(evmAddress)
+                        .build());
     }
 
     public ContractID getContractId(String name) {

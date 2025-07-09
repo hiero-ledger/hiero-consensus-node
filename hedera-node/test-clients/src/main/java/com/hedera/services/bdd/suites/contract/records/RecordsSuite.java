@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.contract.records;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -38,7 +39,6 @@ import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.AccountAmount;
-import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -98,20 +98,12 @@ public class RecordsSuite {
                     // validate transfer list
                     final List<AccountAmount> expectedTransfers = new ArrayList<>(2);
                     final var receiverTransfer = AccountAmount.newBuilder()
-                            .setAccountID(AccountID.newBuilder()
-                                    .setShardNum(spec.shard())
-                                    .setRealmNum(spec.realm())
-                                    .setAccountNum(parent.getContractNum())
-                                    .build())
+                            .setAccountID(asAccount(spec, parent.getContractNum()))
                             .setAmount(-10_000L)
                             .build();
                     expectedTransfers.add(receiverTransfer);
                     final var contractTransfer = AccountAmount.newBuilder()
-                            .setAccountID(AccountID.newBuilder()
-                                    .setShardNum(spec.shard())
-                                    .setRealmNum(spec.realm())
-                                    .setAccountNum(child.getContractNum())
-                                    .build())
+                            .setAccountID(asAccount(spec, child.getContractNum()))
                             .setAmount(10_000L)
                             .build();
                     expectedTransfers.add(contractTransfer);

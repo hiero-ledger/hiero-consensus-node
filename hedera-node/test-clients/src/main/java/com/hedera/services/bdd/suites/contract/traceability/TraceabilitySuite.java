@@ -5,7 +5,7 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySourceStaticInitializer.SHARD_AND_REALM;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -53,6 +53,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
@@ -104,6 +105,7 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
@@ -122,7 +124,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -196,7 +197,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -234,7 +235,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -272,7 +273,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -552,7 +553,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48260)
+                                        .setGas(2798260)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(8792)
                                         .setOutput(EMPTY)
@@ -590,7 +591,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -628,7 +629,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -943,7 +944,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -981,7 +982,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -1019,7 +1020,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -1334,7 +1335,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -1372,7 +1373,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48260)
+                                        .setGas(2798260)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(8792)
                                         .setOutput(EMPTY)
@@ -1410,7 +1411,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48260)
+                                        .setGas(2798260)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(8792)
                                         .setOutput(EMPTY)
@@ -1617,7 +1618,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -1656,7 +1657,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298248)
+                                        .setGas(2298248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -1695,7 +1696,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298236)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(48592)
                                         .setOutput(EMPTY)
@@ -1908,7 +1909,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -1946,7 +1947,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -1984,7 +1985,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -2230,7 +2231,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(115992)
+                                        .setGas(2865992)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY_CALLCODE))
                                         .setGasUsed(67632)
                                         .setOutput(EMPTY)
@@ -2269,7 +2270,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(116016)
+                                        .setGas(2866016)
                                         .setRecipientContract(
                                                 spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
                                         .setGasUsed(27832)
@@ -2309,7 +2310,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(116004)
+                                        .setGas(2866004)
                                         .setRecipientContract(
                                                 spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
                                         .setGasUsed(47732)
@@ -2605,7 +2606,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(115992)
+                                        .setGas(2865992)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY_CALLCODE))
                                         .setGasUsed(67632)
                                         .setOutput(EMPTY)
@@ -2644,7 +2645,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(116016)
+                                        .setGas(2866016)
                                         .setRecipientContract(
                                                 spec.registry().getContractId(TRACEABILITY_CALLCODE + SECOND))
                                         .setGasUsed(27832)
@@ -2684,7 +2685,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(116004)
+                                        .setGas(2866004)
                                         .setRecipientContract(
                                                 spec.registry().getContractId(TRACEABILITY_CALLCODE + THIRD))
                                         .setGasUsed(47732)
@@ -2941,7 +2942,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -2979,7 +2980,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -3017,7 +3018,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -3235,7 +3236,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -3273,7 +3274,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -3311,7 +3312,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -3566,7 +3567,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(298224)
+                                        .setGas(2298224)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY))
                                         .setGasUsed(68492)
                                         .setOutput(EMPTY)
@@ -3604,7 +3605,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + SECOND))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -3642,7 +3643,7 @@ public class TraceabilitySuite {
                                         .setCallType(CREATE)
                                         .setCallOperationType(CallOperationType.OP_CREATE)
                                         .setCallingAccount(TxnUtils.asId(GENESIS, spec))
-                                        .setGas(48248)
+                                        .setGas(2798248)
                                         .setRecipientContract(spec.registry().getContractId(TRACEABILITY + THIRD))
                                         .setGasUsed(28692)
                                         .setOutput(EMPTY)
@@ -3828,7 +3829,7 @@ public class TraceabilitySuite {
                                                             spec.registry().getAccountID(GENESIS))
                                                     .setRecipientContract(
                                                             spec.registry().getContractId(contract))
-                                                    .setGas(184672)
+                                                    .setGas(2934672)
                                                     .setGasUsed(214)
                                                     .setOutput(EMPTY)
                                                     .build())));
@@ -3858,7 +3859,8 @@ public class TraceabilitySuite {
                         .hasKnownStatus(SUCCESS)
                         .via(FIRST_CREATE_TXN),
                 withOpContext((spec, opLog) -> {
-                    final HapiGetTxnRecord txnRecord = getTxnRecord(FIRST_CREATE_TXN);
+                    final HapiGetTxnRecord txnRecord =
+                            getTxnRecord(FIRST_CREATE_TXN).logged();
                     allRunFor(
                             spec,
                             txnRecord,
@@ -3943,8 +3945,7 @@ public class TraceabilitySuite {
                 uploadInitCode(contract),
                 contractCreate(contract)
                         .via(CREATE_TXN)
-                        .exposingNumTo(
-                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         expectContractActionSidecarFor(
@@ -3988,7 +3989,7 @@ public class TraceabilitySuite {
                     final var childId = ContractID.newBuilder()
                             .setContractNum(parentId.getContractNum() + 1L)
                             .build();
-                    mirrorLiteralId.set(SHARD_AND_REALM + childId.getContractNum());
+                    mirrorLiteralId.set(asEntityString(spec.shard(), spec.realm(), childId.getContractNum()));
                     final var topLevelCallTxnRecord =
                             getTxnRecord(CREATE_2_TXN).andAllChildRecords().logged();
                     final var hapiGetContractBytecode =
@@ -4119,7 +4120,7 @@ public class TraceabilitySuite {
                                                                     "callSha256AndIsToken",
                                                                     toHash.getBytes(),
                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                            asHexedSolidityAddress(
                                                                                     vanillaTokenID.get()))))
                                                     .setOutput(
                                                             ByteStringUtils.wrapUnsafely(
@@ -4160,10 +4161,9 @@ public class TraceabilitySuite {
                                                                     Function.parse("isToken" + "(address)")
                                                                             .encodeCallWithArgs(
                                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                                            HapiPropertySource
-                                                                                                    .asHexedSolidityAddress(
-                                                                                                            vanillaTokenID
-                                                                                                                    .get())))
+                                                                                            asHexedSolidityAddress(
+                                                                                                    vanillaTokenID
+                                                                                                            .get())))
                                                                             .array()))
                                                     .setOutput(
                                                             ByteStringUtils.wrapUnsafely(
@@ -4452,7 +4452,7 @@ public class TraceabilitySuite {
                                             .setCallingAccount(spec.registry().getAccountID(GENESIS))
                                             .setRecipientContract(
                                                     spec.registry().getContractId(contract))
-                                            .setGas(184672)
+                                            .setGas(2934672)
                                             .setGasUsed(214)
                                             .setOutput(EMPTY)
                                             .build())));
@@ -4499,20 +4499,18 @@ public class TraceabilitySuite {
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(somebody)
                         .maxAutomaticTokenAssociations(2)
-                        .exposingCreatedIdTo(
-                                id -> somebodyMirrorAddr.set(HapiPropertySource.asHexedSolidityAddress(id))),
+                        .exposingCreatedIdTo(id -> somebodyMirrorAddr.set(asHexedSolidityAddress(id))),
                 cryptoCreate(somebodyElse)
                         .maxAutomaticTokenAssociations(2)
-                        .exposingCreatedIdTo(
-                                id -> somebodyElseMirrorAddr.set(HapiPropertySource.asHexedSolidityAddress(id))),
+                        .exposingCreatedIdTo(id -> somebodyElseMirrorAddr.set(asHexedSolidityAddress(id))),
                 newKeyNamed(someSupplyKey),
                 tokenCreate(tokenInQuestion)
                         .supplyKey(someSupplyKey)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .treasury(TOKEN_TREASURY)
                         .initialSupply(0)
-                        .exposingCreatedIdTo(idLit -> tiqMirrorAddr.set(
-                                HapiPropertySource.asHexedSolidityAddress(HapiPropertySource.asToken(idLit)))),
+                        .exposingCreatedIdTo(
+                                idLit -> tiqMirrorAddr.set(asHexedSolidityAddress(HapiPropertySource.asToken(idLit)))),
                 mintToken(
                         tokenInQuestion,
                         List.of(ByteString.copyFromUtf8("A penny for"), ByteString.copyFromUtf8("the Old Guy"))),
@@ -4547,12 +4545,12 @@ public class TraceabilitySuite {
                                                                     APPROVE_BY_DELEGATE,
                                                                     "doIt",
                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                            asHexedSolidityAddress(
                                                                                     spec.registry()
                                                                                             .getTokenID(
                                                                                                     tokenInQuestion))),
                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                            HapiPropertySource.asHexedSolidityAddress(
+                                                                            asHexedSolidityAddress(
                                                                                     spec.registry()
                                                                                             .getAccountID(
                                                                                                     somebodyElse))),
@@ -4580,11 +4578,10 @@ public class TraceabilitySuite {
                                                                     Function.parse("approve(address,uint256)")
                                                                             .encodeCallWithArgs(
                                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                                            HapiPropertySource
-                                                                                                    .asHexedSolidityAddress(
-                                                                                                            spec.registry()
-                                                                                                                    .getAccountID(
-                                                                                                                            somebodyElse))),
+                                                                                            asHexedSolidityAddress(
+                                                                                                    spec.registry()
+                                                                                                            .getAccountID(
+                                                                                                                    somebodyElse))),
                                                                                     serialNumberId)
                                                                             .array()))
                                                     .setRevertReason(ByteString.EMPTY)
@@ -4622,21 +4619,19 @@ public class TraceabilitySuite {
                                                                                             encodeTuple(
                                                                                                     "(address)",
                                                                                                     hexedSolidityAddressToHeadlongAddress(
-                                                                                                            HapiPropertySource
-                                                                                                                    .asHexedSolidityAddress(
-                                                                                                                            spec.registry()
-                                                                                                                                    .getTokenID(
-                                                                                                                                            tokenInQuestion)))),
+                                                                                                            asHexedSolidityAddress(
+                                                                                                                    spec.registry()
+                                                                                                                            .getTokenID(
+                                                                                                                                    tokenInQuestion)))),
                                                                                             12,
                                                                                             32)),
                                                                             Function.parse("approve(address,uint256)")
                                                                                     .encodeCallWithArgs(
                                                                                             hexedSolidityAddressToHeadlongAddress(
-                                                                                                    HapiPropertySource
-                                                                                                            .asHexedSolidityAddress(
-                                                                                                                    spec.registry()
-                                                                                                                            .getAccountID(
-                                                                                                                                    somebodyElse))),
+                                                                                                    asHexedSolidityAddress(
+                                                                                                            spec.registry()
+                                                                                                                    .getAccountID(
+                                                                                                                            somebodyElse))),
                                                                                             serialNumberId)
                                                                                     .array())))
                                                     .setError(ByteString.copyFrom("PRECOMPILE_ERROR".getBytes()))
@@ -4757,8 +4752,8 @@ public class TraceabilitySuite {
                         .adminKey(adminKey)
                         .entityMemo(entityMemo)
                         .via(CREATE_2_TXN)
-                        .exposingNumTo(
-                                num -> factoryEvmAddress.set(HapiPropertySource.asHexedSolidityAddress(0, 0, num))),
+                        .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
+                getTxnRecord(CREATE_2_TXN).logged(),
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 sourcing(() -> contractCallLocal(
                                 create2Factory, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
@@ -4783,10 +4778,7 @@ public class TraceabilitySuite {
                 cryptoTransfer((spec, b) -> {
                             final var defaultPayerId = spec.registry().getAccountID(DEFAULT_PAYER);
                             b.setTransfers(TransferList.newBuilder()
-                                    .addAccountAmounts(aaWith(
-                                            spec,
-                                            ByteString.copyFrom(CommonUtils.unhex(expectedCreate2Address.get())),
-                                            +ONE_HBAR))
+                                    .addAccountAmounts(Utils.aaWith(spec, expectedCreate2Address.get(), +ONE_HBAR))
                                     .addAccountAmounts(aaWith(defaultPayerId, -ONE_HBAR)));
                         })
                         .signedBy(DEFAULT_PAYER, PARTY)

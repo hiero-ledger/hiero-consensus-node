@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.spec.utilops.checks;
 
 import static com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget.NA;
-import static com.hedera.services.bdd.spec.HapiPropertySource.realm;
-import static com.hedera.services.bdd.spec.HapiPropertySource.shard;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.getUniqueTimestampPlusSecs;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.Freeze;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -29,16 +27,16 @@ public class VerifyUserFreezeNotAuthorized extends UtilOp {
         final var txnId = TransactionID.newBuilder()
                 .setTransactionValidStart(validStart)
                 .setAccountID(AccountID.newBuilder()
-                        .setShardNum(shard)
-                        .setRealmNum(realm)
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
                         .setAccountNum(USER_PAYER_NUM)
                         .build())
                 .build();
         final var body = TransactionBody.newBuilder()
                 .setTransactionID(txnId)
                 .setNodeAccountID(AccountID.newBuilder()
-                        .setShardNum(shard)
-                        .setRealmNum(realm)
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
                         .setAccountNum(3)
                         .build())
                 .setTransactionValidDuration(

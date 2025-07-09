@@ -30,6 +30,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.ids.WritableEntityCounters;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -192,7 +193,15 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // from the contract account.
         final var evmAddress = contract.alias();
         accountStore.removeAlias(evmAddress);
-        accountStore.put(contract.copyBuilder().alias(Bytes.EMPTY).deleted(true).build());
+        final var builder = contract.copyBuilder().deleted(true);
+        final var originalContract = accountStore.getOriginalValue(contract.accountIdOrThrow());
+        // If this contract was just created in the same EVM transaction, we need to externalize its alias in the
+        // block stream state changes for parity with with legacy record streams
+        if (originalContract != null && originalContract.smartContract()) {
+            builder.alias(Bytes.EMPTY);
+        }
+        System.out.println("Putting " + builder.build());
+        accountStore.put(builder.build());
 
         // It may be (but should never happen) that the alias in the given contractId does not match the alias on the
         // contract account itself. This shouldn't happen because it means that somehow we were able to look up the
@@ -308,11 +317,13 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     public Fees chargeFee(
             @NonNull final AccountID payerId,
             final long amount,
-            @NonNull final FeeStreamBuilder rb,
+            @NonNull final StreamBuilder streamBuilder,
             @Nullable final ObjLongConsumer<AccountID> cb) {
-        requireNonNull(rb);
         requireNonNull(payerId);
-
+        requireNonNull(streamBuilder);
+        if (!(streamBuilder instanceof FeeStreamBuilder feeBuilder)) {
+            throw new IllegalArgumentException("StreamBuilder must be a FeeStreamBuilder");
+        }
         final var payerAccount = lookupAccount("Payer", payerId);
         final var amountToCharge = Math.min(amount, payerAccount.tinybarBalance());
         chargePayer(payerAccount, amountToCharge, cb);
@@ -321,7 +332,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // For each atomic batch transaction, the transaction fee of inner transactions is
         // accumulated in the inner transaction
         if (cb == null) {
-            rb.transactionFee(rb.transactionFee() + amountToCharge);
+            feeBuilder.transactionFee(feeBuilder.transactionFee() + amountToCharge);
         }
         distributeToNetworkFundingAccounts(amountToCharge, cb);
         return new Fees(0, amountToCharge, 0);

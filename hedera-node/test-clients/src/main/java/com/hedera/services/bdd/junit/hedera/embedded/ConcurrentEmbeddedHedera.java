@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded;
 
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -85,6 +86,24 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     }
 
     @Override
+    public TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, final long eventBirthRound) {
+        requireNonNull(transaction);
+        requireNonNull(nodeAccountId);
+        if (defaultNodeAccountId.equals(nodeAccountId)) {
+            final var responseBuffer = BufferedData.allocate(MAX_PLATFORM_TXN_SIZE);
+            hedera.ingestWorkflow().submitTransaction(Bytes.wrap(transaction.toByteArray()), responseBuffer);
+            return parseTransactionResponse(responseBuffer);
+        } else {
+            final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
+            warnOfSkippedIngestChecks(nodeAccountId, nodeId);
+            platform.ingestQueue()
+                    .add(new FakeEvent(
+                            nodeId, now(), createAppPayloadWrapper(transaction.toByteArray()), eventBirthRound));
+            return OK_RESPONSE;
+        }
+    }
+
+    @Override
     public TransactionResponse submit(
             @NonNull final Transaction transaction,
             @NonNull final AccountID nodeAccountId,
@@ -100,8 +119,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
             final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
             warnOfSkippedIngestChecks(nodeAccountId, nodeId);
             platform.ingestQueue()
-                    .add(new FakeEvent(
-                            nodeId, now(), semanticVersion, createAppPayloadWrapper(transaction.toByteArray())));
+                    .add(new FakeEvent(nodeId, now(), createAppPayloadWrapper(transaction.toByteArray())));
             return OK_RESPONSE;
         }
     }
@@ -141,8 +159,14 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         }
 
         @Override
+        public void destroy() throws InterruptedException {
+            executorService.shutdown();
+            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
+        }
+
+        @Override
         public boolean createTransaction(@NonNull byte[] transaction) {
-            return queue.add(new FakeEvent(defaultNodeId, now(), version, createAppPayloadWrapper(transaction)));
+            return queue.add(new FakeEvent(defaultNodeId, now(), createAppPayloadWrapper(transaction)));
         }
 
         /**
@@ -165,8 +189,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                                 return new FakeConsensusEvent(
                                         event,
                                         consensusOrder.getAndIncrement(),
-                                        firstRoundTime.plusNanos(i * NANOS_BETWEEN_CONS_EVENTS),
-                                        event.getSoftwareVersion());
+                                        firstRoundTime.plusNanos(i * NANOS_BETWEEN_CONS_EVENTS));
                             })
                             .toList();
                     final var round = new FakeRound(roundNo.getAndIncrement(), requireNonNull(roster), consensusEvents);
@@ -194,11 +217,9 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                     roundNo.getAndIncrement(),
                     requireNonNull(roster),
                     List.of(new FakeConsensusEvent(
-                            new FakeEvent(
-                                    defaultNodeId, firstRoundTime, version, createAppPayloadWrapper(serializedTxn)),
+                            new FakeEvent(defaultNodeId, firstRoundTime, createAppPayloadWrapper(serializedTxn)),
                             consensusOrder.getAndIncrement(),
-                            firstRoundTime,
-                            version)));
+                            firstRoundTime)));
         }
     }
 }

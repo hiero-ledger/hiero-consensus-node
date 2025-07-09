@@ -14,6 +14,7 @@ import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
 import com.hedera.node.app.records.impl.producers.SerializedSingleTransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -181,6 +182,17 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         @Override
         public RecordStreamItemV7 getDefaultInstance() {
             return DEFAULT_VALUE;
+        }
+
+        @NonNull
+        @Override
+        public RecordStreamItemV7 parse(
+                @NonNull ReadableSequentialData readableSequentialData,
+                boolean strictMode,
+                boolean parseUnknownFields,
+                int maxDepth)
+                throws ParseException {
+            return new RecordStreamItemV7(null, null, null, null, 0, 0);
         }
 
         public @NonNull RecordStreamItemV7 parse(

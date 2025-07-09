@@ -17,7 +17,6 @@ import org.hiero.consensus.model.roster.AddressBook;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
-    private final ConsensusRoundValidator consensusRoundValidatorWithAllChecks = new ConsensusRoundValidator();
     private final PlatformContext platformContext;
     private final List<ConsensusTestNode> nodes;
     private long currentSequence = 0;
@@ -108,12 +107,16 @@ public class ConsensusTestOrchestrator {
      * @param consensusOutputValidator the validator to run
      */
     public void validate(final ConsensusOutputValidator consensusOutputValidator) {
+        for (final ConsensusTestNode node : nodes) {
+            ConsensusRoundValidator.validate(node.getOutput().getConsensusRounds());
+        }
+
         final ConsensusTestNode node1 = nodes.getFirst();
         for (int i = 1; i < nodes.size(); i++) {
             final ConsensusTestNode otherNode = nodes.get(i);
 
             consensusOutputValidator.validate(node1.getOutput(), otherNode.getOutput());
-            consensusRoundValidatorWithAllChecks.validate(
+            ConsensusRoundValidator.validate(
                     node1.getOutput().getConsensusRounds(),
                     otherNode.getOutput().getConsensusRounds());
         }

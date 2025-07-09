@@ -33,7 +33,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -197,11 +196,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        linker = new SimpleLinker(platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode());
-        orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
+        linker = new SimpleLinker();
+        orphanBuffer = new DefaultOrphanBuffer(
+                platformContext.getConfiguration(), platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
 
     /**
@@ -462,7 +459,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             // if we reach consensus, save the snapshot for future use
             consensusSnapshot = consensusRounds.getLast().getSnapshot();
             linker.setNonAncientThreshold(
-                    consensusRounds.getLast().getEventWindow().getAncientThreshold());
+                    consensusRounds.getLast().getEventWindow().ancientThreshold());
         }
     }
 

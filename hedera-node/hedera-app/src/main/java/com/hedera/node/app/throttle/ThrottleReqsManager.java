@@ -4,6 +4,7 @@ package com.hedera.node.app.throttle;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,12 +19,16 @@ public class ThrottleReqsManager {
         passedReq = new boolean[allReqs.size()];
     }
 
-    public boolean allReqsMetAt(Instant now) {
-        return allVerboseReqsMetAt(now, 0, null);
+    public boolean allReqsMetAt(Instant now, @Nullable final List<ThrottleUsage> throttleUsages) {
+        return allVerboseReqsMetAt(now, 0, null, throttleUsages);
     }
 
-    public boolean allReqsMetAt(Instant now, int nTransactions, ScaleFactor scaleFactor) {
-        return allVerboseReqsMetAt(now, nTransactions, scaleFactor);
+    public boolean allReqsMetAt(
+            Instant now,
+            int nTransactions,
+            ScaleFactor scaleFactor,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
+        return allVerboseReqsMetAt(now, nTransactions, scaleFactor, throttleUsages);
     }
 
     /**
@@ -49,7 +54,11 @@ public class ThrottleReqsManager {
         }
     }
 
-    private boolean allVerboseReqsMetAt(Instant now, int nTransactions, ScaleFactor scaleFactor) {
+    private boolean allVerboseReqsMetAt(
+            Instant now,
+            int nTransactions,
+            ScaleFactor scaleFactor,
+            @Nullable final List<ThrottleUsage> throttleUsages) {
         var allPassed = true;
         for (int i = 0; i < passedReq.length; i++) {
             var req = allReqs.get(i);
@@ -58,6 +67,9 @@ public class ThrottleReqsManager {
                 opsRequired = scaleFactor.scaling(nTransactions * opsRequired);
             }
             passedReq[i] = req.getLeft().allow(opsRequired, now);
+            if (throttleUsages != null && passedReq[i]) {
+                throttleUsages.add(new DeterministicThrottleUsage(req.getLeft(), opsRequired));
+            }
             allPassed &= passedReq[i];
         }
 

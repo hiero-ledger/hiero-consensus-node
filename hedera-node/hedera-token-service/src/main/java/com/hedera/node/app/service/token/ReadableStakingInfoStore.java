@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
+import java.util.function.LongUnaryOperator;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -20,6 +21,19 @@ public interface ReadableStakingInfoStore {
      */
     @Nullable
     StakingNodeInfo get(long nodeId);
+
+    /***
+     * Returns a function mapping undeleted node ids to their weights in this store.
+     */
+    default LongUnaryOperator weightFunction() {
+        return nodeId -> {
+            final var stakingInfo = get(nodeId);
+            if (stakingInfo != null && !stakingInfo.deleted()) {
+                return stakingInfo.stake();
+            }
+            return 0L;
+        };
+    }
 
     /**
      * Fetches all node IDs from state. If no nodes exist, returns an empty collection.

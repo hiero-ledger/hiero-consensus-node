@@ -73,6 +73,14 @@ public interface DoubleGauge extends Metric {
     void set(final double newValue);
 
     /**
+     * Modify the current value by adding passed parameter. Supports negative values which will result in subtraction.
+     *
+     * @param change
+     * 		value change
+     */
+    void add(final double change);
+
+    /**
      * Configuration of a {@link DoubleGauge}
      */
     final class Config extends MetricConfig<DoubleGauge, Config> {

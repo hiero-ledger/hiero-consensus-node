@@ -28,7 +28,8 @@ public interface HintsServiceComponent {
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
                 @BindsInstance AtomicReference<Roster> currentRoster,
-                @BindsInstance Duration blockPeriod);
+                @BindsInstance Duration blockPeriod,
+                @BindsInstance OnHintsFinished onHintsFinished);
     }
 
     HintsHandlers handlers();

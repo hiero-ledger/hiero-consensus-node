@@ -86,8 +86,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ConsensusSubmitMessageHandler implements TransactionHandler {
-    private static final int MESSAGE_OVERHEAD_BYTES = 475;
-    private static final int BASE_UNIT_BYTES = 500;
+    private static final int LARGE_STEP_BYTES = 512;
+    private static final int UNITS_PER_LARGE_STEP = 10;
+    private static final int SMALL_STEP_BYTES = 50;
     /**
      * Running hash version
      */
@@ -507,22 +508,29 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         requireNonNull(feeContext);
         final var op = feeContext.body().consensusSubmitMessageOrThrow();
         final var calculatorFactory = feeContext.feeCalculatorFactory();
-        final var totalBytes = BASIC_ENTITY_ID_SIZE + op.message().length();
+        final var msgSize = op.message().length();
 
         final var topic =
                 feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrElse(TopicID.DEFAULT));
         if (topic != null && !topic.customFees().isEmpty()) {
             final var calculator = calculatorFactory.feeCalculator(SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES);
             calculator.resetUsage();
+            // Charges the canonical price of $0.05 for a message up to 512 bytes and scales up to $0.06 for 1KB
+            // The price will scale based on the number of signatures
+            final var largePart = Math.max(1, msgSize / LARGE_STEP_BYTES);
+            final var remainder = msgSize < LARGE_STEP_BYTES ? 0 : msgSize % LARGE_STEP_BYTES;
+            final var feeUnits = SMALL_STEP_BYTES
+                    + ((largePart - 1) * UNITS_PER_LARGE_STEP)
+                    + (remainder + SMALL_STEP_BYTES - 1) / SMALL_STEP_BYTES;
             return calculator
                     .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                    .addBytesPerTransaction((totalBytes + MESSAGE_OVERHEAD_BYTES) / BASE_UNIT_BYTES)
+                    .addBytesPerTransaction(feeUnits)
                     .calculate();
         }
 
         return calculatorFactory
                 .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(totalBytes)
+                .addBytesPerTransaction(BASIC_ENTITY_ID_SIZE + msgSize)
                 .addNetworkRamByteSeconds((LONG_SIZE + TX_HASH_SIZE) * RECEIPT_STORAGE_TIME_SEC)
                 .calculate();
     }

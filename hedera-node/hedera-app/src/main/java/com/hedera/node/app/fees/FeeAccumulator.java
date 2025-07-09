@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,7 +20,7 @@ import java.util.function.ObjLongConsumer;
  */
 public class FeeAccumulator {
     private final TokenServiceApi tokenApi;
-    private final FeeStreamBuilder recordBuilder;
+    private final FeeStreamBuilder feeStreamBuilder;
     private final LongConsumer onNodeFeeCharged;
     private final LongConsumer onNodeFeeRefunded;
 
@@ -27,15 +28,15 @@ public class FeeAccumulator {
      * Creates a new instance of {@link FeeAccumulator}.
      *
      * @param tokenApi the {@link TokenServiceApi} to use to charge and refund fees.
-     * @param recordBuilder the {@link FeeStreamBuilder} to record any changes
+     * @param feeStreamBuilder the {@link FeeStreamBuilder} to record any changes
      * @param stack the {@link SavepointStackImpl} to use to manage savepoints
      */
     public FeeAccumulator(
             @NonNull final TokenServiceApi tokenApi,
-            @NonNull final FeeStreamBuilder recordBuilder,
+            @NonNull final FeeStreamBuilder feeStreamBuilder,
             @NonNull final SavepointStackImpl stack) {
         this.tokenApi = requireNonNull(tokenApi);
-        this.recordBuilder = requireNonNull(recordBuilder);
+        this.feeStreamBuilder = requireNonNull(feeStreamBuilder);
         this.onNodeFeeCharged = amount -> stack.peek().trackCollectedNodeFee(amount);
         this.onNodeFeeRefunded = amount -> stack.peek().trackRefundedNodeFee(amount);
     }
@@ -51,7 +52,7 @@ public class FeeAccumulator {
     public Fees chargeFee(
             @NonNull final AccountID payer, final long networkFee, @Nullable final ObjLongConsumer<AccountID> cb) {
         requireNonNull(payer);
-        return tokenApi.chargeFee(payer, networkFee, recordBuilder, cb);
+        return tokenApi.chargeFee(payer, networkFee, (StreamBuilder) feeStreamBuilder, cb);
     }
 
     /**
@@ -62,7 +63,7 @@ public class FeeAccumulator {
      */
     public void refundFee(@NonNull final AccountID payer, final long networkFee) {
         requireNonNull(payer);
-        tokenApi.refundFee(payer, networkFee, recordBuilder);
+        tokenApi.refundFee(payer, networkFee, feeStreamBuilder);
     }
 
     /**
@@ -83,7 +84,7 @@ public class FeeAccumulator {
         requireNonNull(payer);
         requireNonNull(nodeAccount);
         requireNonNull(fees);
-        return tokenApi.chargeFees(payer, nodeAccount, fees, recordBuilder, cb, onNodeFeeCharged);
+        return tokenApi.chargeFees(payer, nodeAccount, fees, feeStreamBuilder, cb, onNodeFeeCharged);
     }
 
     /**
@@ -98,6 +99,6 @@ public class FeeAccumulator {
         requireNonNull(payerId);
         requireNonNull(nodeAccountId);
         requireNonNull(fees);
-        tokenApi.refundFees(payerId, nodeAccountId, fees, recordBuilder, onNodeFeeRefunded);
+        tokenApi.refundFees(payerId, nodeAccountId, fees, feeStreamBuilder, onNodeFeeRefunded);
     }
 }

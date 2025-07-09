@@ -134,6 +134,18 @@ public class BucketThrottle {
     }
 
     /**
+     * If the bucket has enough capacity to leak the given number of
+     * instantaneous requests, leaks corresponding capacity units.
+     * @param numReqs the number of instantaneous requests to leak
+     */
+    void leakInstantaneous(final int numReqs) {
+        if (productWouldOverflow(numReqs, CAPACITY_UNITS_PER_TXN)) {
+            return;
+        }
+        bucket.leak(numReqs * CAPACITY_UNITS_PER_TXN);
+    }
+
+    /**
      * Returns the percent of the throttle bucket's capacity that is used, given some number of
      * nanoseconds have elapsed since the last capacity test.
      *

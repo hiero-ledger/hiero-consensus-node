@@ -8,6 +8,9 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -25,6 +28,8 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -32,7 +37,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
+import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -197,6 +202,13 @@ public class RecordStreamBuilder
     private TokenType tokenType;
     private HederaFunctionality function;
 
+    private boolean isContractCreate;
+
+    /**
+     * ops duration used by the contract transaction
+     */
+    private long opsDuration;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final TransactionCustomizer customizer,
@@ -292,11 +304,6 @@ public class RecordStreamBuilder
     }
 
     @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        // No-op
-    }
-
-    @Override
     public void nullOutSideEffectFields() {
         serialNumbers.clear();
         tokenTransferLists.clear();
@@ -311,7 +318,11 @@ public class RecordStreamBuilder
         contractFunctionResult = null;
 
         transactionReceiptBuilder.accountID((AccountID) null);
-        transactionReceiptBuilder.contractID((ContractID) null);
+
+        if (isContractCreate) {
+            transactionReceiptBuilder.contractID((ContractID) null);
+        }
+
         transactionReceiptBuilder.fileID((FileID) null);
         transactionReceiptBuilder.tokenID((TokenID) null);
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
@@ -324,7 +335,6 @@ public class RecordStreamBuilder
         transactionReceiptBuilder.topicRunningHashVersion(0L);
         transactionReceiptBuilder.topicSequenceNumber(0L);
         transactionRecordBuilder.alias(Bytes.EMPTY);
-        transactionRecordBuilder.ethereumHash(Bytes.EMPTY);
         transactionRecordBuilder.evmAddress(Bytes.EMPTY);
     }
 
@@ -496,6 +506,36 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public EthereumTransactionStreamBuilder newSenderNonce(long senderNonce) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder evmCallTransactionResult(@Nullable EvmTransactionResult result) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public ContractCreateStreamBuilder evmCreateTransactionResult(@Nullable EvmTransactionResult result) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public RecordStreamBuilder changedNonceInfo(@NonNull final List<ContractNonceInfo> nonceInfos) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
+    }
+
     /**
      * Sets the body to contractCreateResult result.
      *
@@ -508,6 +548,12 @@ public class RecordStreamBuilder
         transactionRecordBuilder.contractCreateResult(contractCreateResult);
         this.contractFunctionResult = contractCreateResult;
         return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
     /**
@@ -673,10 +719,11 @@ public class RecordStreamBuilder
      * Sets the ethereum hash.
      *
      * @param ethereumHash the ethereum hash
+     * @param hydratedFromFile
      * @return the builder
      */
     @NonNull
-    public RecordStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash) {
+    public RecordStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash, boolean hydratedFromFile) {
         requireNonNull(ethereumHash, "ethereumHash must not be null");
         transactionRecordBuilder.ethereumHash(ethereumHash);
         return this;
@@ -795,6 +842,11 @@ public class RecordStreamBuilder
         return this.contractFunctionResult.gasUsed();
     }
 
+    @Override
+    public long getOpsDurationForContractTxn() {
+        return opsDuration;
+    }
+
     /**
      * Sets the receipt accountID.
      *
@@ -837,6 +889,27 @@ public class RecordStreamBuilder
         transactionReceiptBuilder.accountID((AccountID) null);
         transactionReceiptBuilder.contractID(contractID);
         return this;
+    }
+
+    /**
+     * Sets the receipt contractID;
+     * This is used for HAPI and Ethereum contract creation transactions.
+     *
+     * @param contractID the {@link ContractID} for the receipt
+     * @return the builder
+     */
+    @Override
+    @NonNull
+    public RecordStreamBuilder createdContractID(@Nullable final ContractID contractID) {
+        isContractCreate = true;
+        contractID(contractID);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public RecordStreamBuilder createdEvmAddress(@Nullable final Bytes evmAddress) {
+        throw new UnsupportedOperationException("Record stream uses verbose results");
     }
 
     /**
@@ -1056,6 +1129,24 @@ public class RecordStreamBuilder
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
         return this;
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
+    }
+
+    @NonNull
+    @Override
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+        throw new UnsupportedOperationException("Record stream uses legacy sidecars");
     }
 
     /**

@@ -23,7 +23,7 @@ import org.hiero.otter.fixtures.TimeManager;
  */
 public class TurtleTimeManager implements TimeManager {
 
-    private static final Logger log = LogManager.getLogger(TurtleTimeManager.class);
+    private static final Logger log = LogManager.getLogger();
 
     private final FakeTime time;
     private final Duration granularity;
@@ -45,8 +45,18 @@ public class TurtleTimeManager implements TimeManager {
      *
      * @return the time source
      */
+    @NonNull
     public Time time() {
         return time;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Instant now() {
+        return time.now();
     }
 
     /**
@@ -68,6 +78,10 @@ public class TurtleTimeManager implements TimeManager {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public boolean waitForCondition(@NonNull final BooleanSupplier condition, @NonNull final Duration waitTime) {
         log.debug("Waiting up to {} for condition to become true...", waitTime);
 

@@ -40,7 +40,16 @@ public record DispatchOptions<T extends StreamBuilder>(
         @NonNull StreamBuilder.TransactionCustomizer transactionCustomizer,
         @NonNull DispatchMetadata dispatchMetadata,
         @Nullable FeeCharging customFeeCharging) {
+    /**
+     * The set of keys that are authorized to sign the transaction. This should be used only for the dispatches
+     * that don't have any signatures to verify.
+     */
     private static final Predicate<Key> PREAUTHORIZED_KEYS = k -> true;
+    /**
+     * The set of keys that are authorized to sign the transaction. If none of the keys sign
+     * for atomic batch inner transaction dispatches, the transaction will fail.
+     */
+    private static final Predicate<Key> NO_AUTHORIZED_KEYS = k -> false;
 
     /**
      * The choice of when to commit the dispatched transaction's effects on state.
@@ -334,7 +343,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REMOVABLE,
                 transactionCustomizer,
                 metaData,
-                null);
+                NOOP_FEE_CHARGING);
     }
 
     /**
@@ -345,26 +354,28 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param customFeeCharging the custom fee charging strategy for the dispatch
+     * @param innerTransactionBytes inner txn bytes used for pre-handling on dispatch
      * @return the options for the atomic batch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> atomicBatchDispatch(
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType,
-            @NonNull final FeeCharging customFeeCharging) {
+            @NonNull final FeeCharging customFeeCharging,
+            @NonNull final DispatchMetadata innerTransactionBytes) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
                 body,
                 UsePresetTxnId.NO,
-                PREAUTHORIZED_KEYS,
+                NO_AUTHORIZED_KEYS,
                 emptySet(),
                 TransactionCategory.BATCH_INNER,
                 ConsensusThrottling.ON,
                 streamBuilderType,
                 ReversingBehavior.REVERSIBLE,
                 NOOP_TRANSACTION_CUSTOMIZER,
-                EMPTY_METADATA,
+                innerTransactionBytes,
                 customFeeCharging);
     }
 }

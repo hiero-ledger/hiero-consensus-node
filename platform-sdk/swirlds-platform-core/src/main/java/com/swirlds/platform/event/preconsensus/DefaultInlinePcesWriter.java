@@ -11,9 +11,11 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {
+
     private final CommonPcesWriter commonPcesWriter;
     private final NodeId selfId;
     private final FileSyncOption fileSyncOption;
+    private final PcesWriterPerEventMetrics pcesWriterPerEventMetrics;
 
     /**
      * Constructor
@@ -27,12 +29,15 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
             @NonNull final NodeId selfId) {
         Objects.requireNonNull(platformContext, "platformContext is required");
         Objects.requireNonNull(fileManager, "fileManager is required");
-        commonPcesWriter = new CommonPcesWriter(platformContext, fileManager, false);
+        this.commonPcesWriter = new CommonPcesWriter(platformContext, fileManager);
         this.selfId = Objects.requireNonNull(selfId, "selfId is required");
         this.fileSyncOption = platformContext
                 .getConfiguration()
                 .getConfigData(PcesConfig.class)
                 .inlinePcesSyncOption();
+
+        this.pcesWriterPerEventMetrics =
+                new PcesWriterPerEventMetrics(platformContext.getMetrics(), platformContext.getTime());
     }
 
     @Override
@@ -45,30 +50,39 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
      */
     @NonNull
     @Override
-    public PlatformEvent writeEvent(@NonNull PlatformEvent event) {
+    public PlatformEvent writeEvent(@NonNull final PlatformEvent event) {
+        pcesWriterPerEventMetrics.startWriteEvent();
+
         // if we aren't streaming new events yet, assume that the given event is already durable
         if (!commonPcesWriter.isStreamingNewEvents()) {
             return event;
         }
 
-        if (commonPcesWriter.getFileType().selectIndicator(event) < commonPcesWriter.getNonAncientBoundary()) {
+        if (event.getBirthRound() < commonPcesWriter.getNonAncientBoundary()) {
             // don't do anything with ancient events
             return event;
         }
 
         try {
             commonPcesWriter.prepareOutputStream(event);
-            commonPcesWriter.getCurrentMutableFile().writeEvent(event);
+            pcesWriterPerEventMetrics.startFileWrite();
+            final long size = commonPcesWriter.getCurrentMutableFile().writeEvent(event);
+            pcesWriterPerEventMetrics.endFileWrite(size);
 
             if (fileSyncOption == FileSyncOption.EVERY_EVENT
                     || (fileSyncOption == FileSyncOption.EVERY_SELF_EVENT
                             && event.getCreatorId().equals(selfId))) {
-                commonPcesWriter.getCurrentMutableFile().sync();
-            }
 
+                pcesWriterPerEventMetrics.startFileSync();
+                commonPcesWriter.getCurrentMutableFile().sync();
+                pcesWriterPerEventMetrics.endFileSync();
+            }
             return event;
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            pcesWriterPerEventMetrics.endWriteEvent();
+            pcesWriterPerEventMetrics.clear();
         }
     }
 

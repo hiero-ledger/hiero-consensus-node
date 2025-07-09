@@ -190,7 +190,7 @@ public class PlatformTestingToolConsensusStateEventHandler
     private QuorumTriggeredAction<ControlAction> controlQuorum;
 
     /** The round number of the freeze round */
-    private long freezeRound = -1;
+    private final AtomicLong freezeRound = new AtomicLong(-1);
 
     public PlatformTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
         this.platformStateFacade = platformStateFacade;
@@ -725,7 +725,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                 consumeSystemTransaction(
                         testTransaction,
                         event.getCreatorId(),
-                        event.getSoftwareVersion(),
+                        event.getBirthRound(),
                         stateSignatureTransactionCallback);
             } else {
                 expandSignatures(transaction, testTransactionWrapper, state);
@@ -750,7 +750,7 @@ public class PlatformTestingToolConsensusStateEventHandler
         round.forEachEventTransaction((event, transaction) ->
                 handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
         if (platformStateFacade.isFreezeRound(state, round)) {
-            freezeRound = round.getRoundNum();
+            freezeRound.set(round.getRoundNum());
         }
     }
 
@@ -781,7 +781,7 @@ public class PlatformTestingToolConsensusStateEventHandler
             final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
         handleTransaction(
                 event.getCreatorId(),
-                event.getSoftwareVersion(),
+                event.getBirthRound(),
                 event.getTimeCreated(),
                 trans.getConsensusTimestamp(),
                 trans,
@@ -791,7 +791,7 @@ public class PlatformTestingToolConsensusStateEventHandler
 
     private void handleTransaction(
             @NonNull final NodeId id,
-            @NonNull final SemanticVersion semanticVersion,
+            final long eventBirthRound,
             @NonNull final Instant timeCreated,
             @NonNull final Instant timestamp,
             @NonNull final ConsensusTransaction trans,
@@ -815,7 +815,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                 final TestTransaction testTransaction = TestTransaction.parseFrom(testTransactionRawBytes);
 
                 if (testTransaction.getBodyCase() == STATESIGNATURETRANSACTION) {
-                    consumeSystemTransaction(testTransaction, id, semanticVersion, stateSignatureTransactionCallback);
+                    consumeSystemTransaction(testTransaction, id, eventBirthRound, stateSignatureTransactionCallback);
                     return;
                 }
                 if (testTransaction.getBodyCase() == FCMTRANSACTION) {
@@ -894,7 +894,7 @@ public class PlatformTestingToolConsensusStateEventHandler
                         testTransaction.get().getVirtualMerkleTransaction(), id, timeCreated, state);
                 break;
             case STATESIGNATURETRANSACTION:
-                consumeSystemTransaction(testTransaction.get(), id, semanticVersion, stateSignatureTransactionCallback);
+                consumeSystemTransaction(testTransaction.get(), id, eventBirthRound, stateSignatureTransactionCallback);
                 return;
             default:
                 logger.error(EXCEPTION.getMarker(), "Unrecognized transaction!");
@@ -924,14 +924,14 @@ public class PlatformTestingToolConsensusStateEventHandler
     private void consumeSystemTransaction(
             @NonNull final TestTransaction transaction,
             @NonNull final NodeId creator,
-            @NonNull final SemanticVersion semanticVersion,
+            final long eventBirthRound,
             @NonNull
                     final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
                             stateSignatureTransactionCallback) {
         final var stateSignatureTransaction =
                 convertStateSignatureTransactionFromTestToSourceType(transaction.getStateSignatureTransaction());
         stateSignatureTransactionCallback.accept(
-                new ScopedSystemTransaction<>(creator, semanticVersion, stateSignatureTransaction));
+                new ScopedSystemTransaction<>(creator, eventBirthRound, stateSignatureTransaction));
     }
 
     private StateSignatureTransaction convertStateSignatureTransactionFromTestToSourceType(
@@ -1178,7 +1178,7 @@ public class PlatformTestingToolConsensusStateEventHandler
         // if this is a freeze round, we need to seal it
         // we cannot check the freeze time in the state at this point, because lastFrozenTime has already been updated
         // so we remember the freeze round number in onHandleConsensusRound and check it here
-        if (round.getRoundNum() == freezeRound) {
+        if (round.getRoundNum() == freezeRound.get()) {
             return true;
         }
         return round.getRoundNum() % 3 == 0;

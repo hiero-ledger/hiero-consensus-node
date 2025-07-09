@@ -12,7 +12,6 @@ import static org.mockito.BDDMockito.verify;
 import static org.mockito.Mockito.times;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -44,6 +43,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -115,7 +115,7 @@ class SystemTransactionsTest {
     private HederaRecordCache recordCache;
 
     @Mock
-    private SemanticVersion softwareVersionFactory;
+    private StartupNetworks startupNetworks;
 
     @LoggingSubject
     private SystemTransactions subject;
@@ -144,7 +144,7 @@ class SystemTransactionsTest {
                 blockStreamManager,
                 exchangeRateManager,
                 recordCache,
-                softwareVersionFactory);
+                startupNetworks);
     }
 
     @Test
@@ -174,7 +174,7 @@ class SystemTransactionsTest {
         verifyUpdateDispatch(filesConfig.hapiPermissions(), serializedPermissionOverrides());
         verifyUpdateDispatch(filesConfig.throttleDefinitions(), serializedThrottleOverrides());
         verifyUpdateDispatch(filesConfig.feeSchedules(), serializedFeeSchedules());
-        verify(stack, times(6)).commitFullStack();
+        verify(stack, times(5)).commitFullStack();
     }
 
     @Test
@@ -192,7 +192,7 @@ class SystemTransactionsTest {
         subject.doPostUpgradeSetup(dispatch);
 
         verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
-        verify(stack, times(2)).commitFullStack();
+        verify(stack, times(1)).commitFullStack();
 
         final var infoLogs = logCaptor.infoLogs();
         assertThat(infoLogs.size()).isEqualTo(5);
@@ -223,7 +223,7 @@ class SystemTransactionsTest {
         subject.doPostUpgradeSetup(dispatch);
 
         verify(fileService).updateAddressBookAndNodeDetailsAfterFreeze(any(SystemContext.class), eq(readableNodeStore));
-        verify(stack, times(2)).commitFullStack();
+        verify(stack, times(1)).commitFullStack();
 
         final var errorLogs = logCaptor.errorLogs();
         assertThat(errorLogs.size()).isEqualTo(4);
