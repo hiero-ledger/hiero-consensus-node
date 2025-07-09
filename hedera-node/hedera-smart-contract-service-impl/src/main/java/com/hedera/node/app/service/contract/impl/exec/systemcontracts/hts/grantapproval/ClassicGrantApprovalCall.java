@@ -28,8 +28,8 @@ import org.hyperledger.besu.evm.log.Log;
  */
 public class ClassicGrantApprovalCall extends AbstractGrantApprovalCall {
 
-    // Approval(address indexed owner, address indexed spender, uint256 value)
-    // Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)
+    // Keccak-256 hash of the event signature "Approval(address,address,uint256)".
+    // Used as the topic0 identifier in Ethereum logs to detect Approval events.
     protected static final Bytes APPROVAL_EVENT =
             Bytes.fromHexString("8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925");
 

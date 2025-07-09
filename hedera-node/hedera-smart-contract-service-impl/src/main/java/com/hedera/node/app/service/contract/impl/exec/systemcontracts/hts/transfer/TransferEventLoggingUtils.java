@@ -22,8 +22,8 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  */
 public class TransferEventLoggingUtils {
 
-    // Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
-    // Transfer(address indexed from, address indexed to, uint256 value)
+    // Keccak-256 hash of the event signature "Transfer(address,address,uint256)".
+    // This hash is used as the topic0 in Ethereum logs to identify Transfer events.
     private static final Bytes TRANSFER_EVENT =
             Bytes.fromHexString("ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
 
