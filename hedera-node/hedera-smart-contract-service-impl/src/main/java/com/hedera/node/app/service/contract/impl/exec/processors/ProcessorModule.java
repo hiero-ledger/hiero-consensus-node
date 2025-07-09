@@ -23,9 +23,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.EvmSpecVersion;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.contractvalidation.MaxCodeSizeRule;
 import org.hyperledger.besu.evm.contractvalidation.PrefixCodeRule;
+import org.hyperledger.besu.evm.internal.EvmConfiguration;
 
 @Module(includes = {HtsTranslatorsModule.class, HasTranslatorsModule.class, HssTranslatorsModule.class})
 public interface ProcessorModule {
@@ -36,8 +39,8 @@ public interface ProcessorModule {
     @Provides
     @Singleton
     @IntoSet
-    static ContractValidationRule provideMaxCodeSizeRule() {
-        return MaxCodeSizeRule.of(0x6000);
+    static ContractValidationRule provideMaxCodeSizeRule(@NonNull final EvmConfiguration evmConfiguration) {
+        return MaxCodeSizeRule.from(EvmSpecVersion.defaultVersion(), evmConfiguration);
     }
 
     @Provides
@@ -45,6 +48,21 @@ public interface ProcessorModule {
     @IntoSet
     static ContractValidationRule providePrefixCodeRule() {
         return PrefixCodeRule.of();
+    }
+
+    /**
+     * Provides a singleton instance of {@link CodeFactory} initialized with zero values.
+     *
+     * <p>The values {@code maxEofVersion} and {@code maxContainerSize} are set to 0,
+     * which means the factory defaults to handling only legacy code (EOF version 0)
+     * and sets a strict size limit on EOF code containers.
+     *
+     * @return a singleton instance of {@link CodeFactory} with strict constraints.
+     */
+    @Provides
+    @Singleton
+    static CodeFactory provideCodeFactory() {
+        return new CodeFactory(0, 0);
     }
 
     @Provides

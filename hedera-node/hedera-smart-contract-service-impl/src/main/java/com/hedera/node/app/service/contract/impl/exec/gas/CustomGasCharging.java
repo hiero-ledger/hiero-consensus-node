@@ -113,7 +113,7 @@ public class CustomGasCharging {
         requireNonNull(transaction);
 
         final var intrinsicGas =
-                gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate());
+                gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), transaction.isCreate(), 0L);
         if (context.isNoopGasContext()) {
             return new GasCharges(intrinsicGas, 0L);
         }
@@ -153,7 +153,7 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
-        final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false);
+        final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(transaction.evmPayload(), false, 0L);
 
         if (transaction.isEthereumTransaction()) {
             final var fee = feeForAborted(transaction.relayerId(), context, worldUpdater, intrinsicGas);
