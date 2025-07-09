@@ -62,7 +62,7 @@ public record BlockTransactionalUnit(
             final var parts = blockTransactionParts.get(i);
             if (parts.transactionParts() == null) {
                 // replace it with inner transaction
-                blockTransactionParts.set(i, parts.withTransactionParts(innerTxns.removeFirst()));
+                blockTransactionParts.set(i, parts.withPartsFromBatchParent(innerTxns.removeFirst()));
             }
         }
         return this;

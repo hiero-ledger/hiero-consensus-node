@@ -6,7 +6,11 @@ on:
       ref:
         required: true
         default: "main"
-        description: "Version of hiero-consensus-node: branch, tag, commit"
+        description: "Version of hiero-consensus-node: branch, tag, commit."
+        type: string
+      build-tag:
+        required: true
+        description: "build-XXXXX tag associated with the ref input."
         type: string
 
 defaults:
@@ -34,7 +38,7 @@ permissions:
 jobs:
   canonical-test:
     name: Canonical (10 hour)
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
@@ -56,7 +60,7 @@ jobs:
       - name: Verify Workflow Parameters
         id: parameters
         run: |
-          BRANCH_NAME="${{ input.ref }}"
+          BRANCH_NAME="${{ inputs.ref }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BRANCH_NAME_SAFE="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
@@ -117,4 +121,4 @@ jobs:
       - name: Call Test Script
         id: call-test-script
         run: |
-          bash "${{ github.workspace }}/${{ env.TEST_SCRIPT }}" "${{ env.USERNAME }}" "${{ env.PASSWORD }}" "${{ env.SERVER }}" "${{ env.K8S_CLUSTER }}" "${{ steps.check-if-exist.outputs.build-version }}" "${{ env.VERSION_MIRRORNODE }}"
+          bash "${{ github.workspace }}/${{ env.TEST_SCRIPT }}" "${{ env.USERNAME }}" "${{ env.PASSWORD }}" "${{ env.SERVER }}" "${{ env.K8S_CLUSTER }}" "${{ inputs.build-tag }}" "${{ steps.check-if-exist.outputs.build-version }}" "${{ env.VERSION_MIRRORNODE }}"

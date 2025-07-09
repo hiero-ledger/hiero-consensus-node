@@ -119,6 +119,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
+                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null);
@@ -143,6 +144,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         final var expectedOutcome = new CallOutcome(
                 expectedResult,
                 HALT_RESULT.finalStatus(),
+                null,
                 null,
                 null,
                 null,

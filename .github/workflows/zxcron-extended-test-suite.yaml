@@ -26,7 +26,7 @@ env:
 jobs:
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
@@ -194,11 +194,12 @@ jobs:
       custom-job-name: "SDK TCK Regression"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-for-promotion:
     name: Tag as XTS-Passing
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite
@@ -243,7 +244,7 @@ jobs:
 
   report-success:
     name: Report XTS execution success
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite
@@ -385,7 +386,7 @@ jobs:
 
   report-failure:
     name: Report XTS execution failure
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hiero-citr-linux-medium
     needs:
       - abbreviated-panel
       - extended-test-suite

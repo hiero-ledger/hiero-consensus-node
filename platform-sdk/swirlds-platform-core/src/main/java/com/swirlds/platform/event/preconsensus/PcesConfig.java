@@ -99,6 +99,6 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "1ms") Duration replayHealthThreshold,
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
         @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,
-        @ConfigProperty(defaultValue = "EVERY_EVENT") FileSyncOption inlinePcesSyncOption,
-        @ConfigProperty(defaultValue = "FILE_CHANNEL_SYNC") PcesFileWriterType pcesFileWriterType,
+        @ConfigProperty(defaultValue = "EVERY_SELF_EVENT") FileSyncOption inlinePcesSyncOption,
+        @ConfigProperty(defaultValue = "OUTPUT_STREAM") PcesFileWriterType pcesFileWriterType,
         @ConfigProperty(defaultValue = "OUTPUT_STREAM") PcesFileWriterType macPcesFileWriterType) {}

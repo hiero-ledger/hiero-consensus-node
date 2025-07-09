@@ -226,6 +226,7 @@ class EthereumTransactionHandlerTest {
                 null,
                 null,
                 List.of(),
+                List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITH_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -274,6 +275,7 @@ class EthereumTransactionHandlerTest {
                 null,
                 null,
                 List.of(),
+                List.of(CALLED_CONTRACT_ID),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
