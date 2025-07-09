@@ -77,7 +77,7 @@ on:
         description: ""
         required: false
         type: string
-        default: "https://jrs.reports.eng.hashgraph.io"
+        default: "jrs.reports.eng.hashgraph.io"
       jrs-web-port:
         description: ""
         required: false
