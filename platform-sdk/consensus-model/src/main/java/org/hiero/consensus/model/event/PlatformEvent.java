@@ -179,16 +179,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Get the generation of the event.
-     *
-     * @return the generation of the event
-     */
-    @Deprecated(forRemoval = true)
-    public long getGeneration() {
-        return metadata.getGeneration();
-    }
-
-    /**
      * The non-deterministic generation of this event.
      *
      * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if

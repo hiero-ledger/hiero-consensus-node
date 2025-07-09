@@ -196,7 +196,6 @@ public class ProtobufConverter {
                 .hash(toPbj(sourceEventDescriptor.getHash()))
                 .creatorNodeId(sourceEventDescriptor.getCreatorNodeId())
                 .birthRound(sourceEventDescriptor.getBirthRound())
-                .generation(sourceEventDescriptor.getGeneration())
                 .build();
     }
 
@@ -213,7 +212,6 @@ public class ProtobufConverter {
                 .setHash(fromPbj(sourceEventDescriptor.hash()))
                 .setCreatorNodeId(sourceEventDescriptor.creatorNodeId())
                 .setBirthRound(sourceEventDescriptor.birthRound())
-                .setGeneration(sourceEventDescriptor.generation())
                 .build();
     }
 
