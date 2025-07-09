@@ -78,6 +78,11 @@ on:
         required: false
         type: string
         default: "https://jrs.reports.eng.hashgraph.io"
+      jrs-web-port:
+        description: ""
+        required: false
+        type: number
+        default: 0
       summary-bucket:
         description: ""
         required: false
