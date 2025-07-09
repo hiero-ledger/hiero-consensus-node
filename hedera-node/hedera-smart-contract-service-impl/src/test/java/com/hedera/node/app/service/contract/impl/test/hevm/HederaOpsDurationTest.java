@@ -20,9 +20,9 @@ class HederaOpsDurationTest {
     void testAllDurationsAreLoadedFromConfig() {
         hederaOpsDuration.applyDurationFromConfig(DEFAULT_OPS_DURATION_CONFIG);
 
-        assertEquals(123, hederaOpsDuration.getOpsDuration().get(1));
-        assertEquals(105, hederaOpsDuration.getOpsDuration().get(2));
-        assertEquals(2091, hederaOpsDuration.getOpsDuration().get(250));
+        assertEquals(123, hederaOpsDuration.getOpsDuration()[1]);
+        assertEquals(105, hederaOpsDuration.getOpsDuration()[2]);
+        assertEquals(2091, hederaOpsDuration.getOpsDuration()[250]);
         assertEquals(566, hederaOpsDuration.opsDurationMultiplier());
         assertEquals(1575, hederaOpsDuration.precompileDurationMultiplier());
         assertEquals(566, hederaOpsDuration.systemContractDurationMultiplier());

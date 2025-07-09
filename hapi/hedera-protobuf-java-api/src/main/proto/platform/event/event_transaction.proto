@@ -21,48 +21,6 @@ option java_package = "com.hedera.hapi.platform.event.legacy";
 option java_multiple_files = true;
 
 /**
- * Defines the position of an EventTransaction relative to a logical "group"
- * of EventTransaction that correspond to a single set of changes to the state
- * Merkle tree.
- */
-enum TransactionGroupRole {
-  /**
-   * The EventTransaction is the only transaction in its group.
-   */
-  STANDALONE = 0;
-
-  /**
-   * The EventTransaction is a child and first in its group.
-   */
-  FIRST_CHILD = 1;
-
-  /**
-   * The EventTransaction is a child in the middle of its group.
-   */
-  MIDDLE_CHILD = 2;
-
-  /**
-   * The EventTransaction is a child and last in its group.
-   */
-  LAST_CHILD = 3;
-
-  /**
-   * The EventTransaction is a parent and first in its group.
-   */
-  STARTING_PARENT = 4;
-
-  /**
-   * The EventTransaction is a parent in the middle of its group.
-   */
-  PARENT = 5;
-
-  /**
-   * The EventTransaction is a parent and last in its group.
-   */
-  ENDING_PARENT = 6;
-}
-
-/**
  * An Event Transaction gossiped between nodes as part of events.
  *
  * Each node MUST extract this transaction and process according to the type
@@ -88,9 +46,4 @@ message EventTransaction {
        */
       StateSignatureTransaction state_signature_transaction = 2;
   }
-
-  /**
-   * The role of this transaction in a group of transactions.
-   */
-  TransactionGroupRole transaction_group_role = 3;
 }

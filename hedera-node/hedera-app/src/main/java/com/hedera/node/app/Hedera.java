@@ -16,7 +16,6 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.blockHashByBlockNumber;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCK_INFO_STATE_KEY;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeTransactionWith;
-import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
 import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -127,6 +126,7 @@ import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -422,15 +422,16 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
      * <p>This registration is a critical side effect that must happen called before any Platform initialization
      * steps that try to create or deserialize a {@link MerkleNodeState}.
      *
-     * @param constructableRegistry  the registry to register {@link RuntimeConstructable} factories with
-     * @param registryFactory        the factory to use for creating the services registry
-     * @param migrator               the migrator to use with the services
+     * @param constructableRegistry the registry to register {@link RuntimeConstructable} factories with
+     * @param registryFactory the factory to use for creating the services registry
+     * @param migrator the migrator to use with the services
      * @param startupNetworksFactory the factory for the startup networks
-     * @param hintsServiceFactory    the factory for the hinTS service
-     * @param historyServiceFactory  the factory for the history service
+     * @param hintsServiceFactory the factory for the hinTS service
+     * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
-     * @param metrics                the metrics object to use for reporting
-     * @param platformStateFacade    the facade object to access platform state
+     * @param metrics the metrics object to use for reporting
+     * @param platformStateFacade the facade object to access platform state
+     * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
             @NonNull final ConstructableRegistry constructableRegistry,
@@ -442,7 +443,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Metrics metrics,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Supplier<MerkleNodeState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
@@ -539,11 +541,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 .forEach(servicesRegistry::register);
         try {
             consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
-            final Supplier<MerkleNodeState> baseSupplier = HederaStateRoot::new;
             final var blockStreamsEnabled = isBlockStreamEnabled();
             stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
             onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-            // And the factory for the MerkleStateRoot class id must be our constructor
+            // And the factory for the MerkleStateRoot class id must be ours
             constructableRegistry.registerConstructable(new ClassConstructorPair(
                     HederaStateRoot.class, () -> stateRootSupplier.get().getRoot()));
         } catch (final ConstructableRegistryException e) {
@@ -925,18 +926,20 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 daggerApp.networkInfo().nodeInfo(event.getCreatorId().id());
         if (creatorInfo == null) {
             // It's normal immediately post-upgrade to still see events from a node removed from the address book
-            if (!isSoOrdered(event.getSoftwareVersion(), version)) {
+            final var platformStateStore = readableStoreFactory.getStore(ReadablePlatformStateStore.class);
+            if (event.getEventCore().birthRound() > platformStateStore.getLatestFreezeRound()) {
                 logger.warn(
-                        "Received event (version {} vs current {}) from node {} which is not in the address book",
-                        com.hedera.hapi.util.HapiUtils.toString(event.getSoftwareVersion()),
-                        com.hedera.hapi.util.HapiUtils.toString(version),
+                        "Received event with birth round {}, last freeze round is {}, from node {} "
+                                + "which is not in the address book",
+                        event.getEventCore().birthRound(),
+                        platformStateStore.getLatestFreezeRound(),
                         event.getCreatorId());
             }
             return;
         }
 
         final Consumer<StateSignatureTransaction> simplifiedStateSignatureTxnCallback = txn -> {
-            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getSoftwareVersion(), txn);
+            final var scopedTxn = new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
             stateSignatureTxnCallback.accept(scopedTxn);
         };
 

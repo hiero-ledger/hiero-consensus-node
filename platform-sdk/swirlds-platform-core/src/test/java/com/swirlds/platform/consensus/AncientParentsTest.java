@@ -164,7 +164,7 @@ class AncientParentsTest {
     }
 
     private static void assertConsensusEvents(final TestIntake node1, final TestIntake node2) {
-        new ConsensusRoundValidator().validate(node1.getConsensusRounds(), node2.getConsensusRounds());
+        ConsensusRoundValidator.validate(node1.getConsensusRounds(), node2.getConsensusRounds());
         node1.getConsensusRounds().clear();
         node2.getConsensusRounds().clear();
     }
