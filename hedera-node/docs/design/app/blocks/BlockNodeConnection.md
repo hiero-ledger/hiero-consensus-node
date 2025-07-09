@@ -79,8 +79,8 @@ sequenceDiagram
 | `INTERNAL_ERROR`              | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
 | `PERSISTENCE_FAILED`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
 | `TIMEOUT`                     | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
-| `OUT_OF_ORDER`                | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
-| `BAD_STATE_PROOF`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `DUPLICATE_BLOCK`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `BAD_BLOCK_PROOF`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
 | `UNKNOWN`                     | Yes                   | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
 
 ### EndOfStream Rate Limiting

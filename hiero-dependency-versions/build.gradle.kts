@@ -29,7 +29,7 @@ val log4j = "2.25.0"
 val mockito = "5.18.0"
 val pbj = "0.11.6" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
-val testContainers = "1.21.0"
+val testContainers = "1.21.1"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
 
