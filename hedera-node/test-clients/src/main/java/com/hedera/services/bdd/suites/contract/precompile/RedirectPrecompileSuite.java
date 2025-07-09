@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
@@ -17,13 +18,19 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class RedirectPrecompileSuite {
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
@@ -32,6 +39,19 @@ public class RedirectPrecompileSuite {
     private static final String CONTRACT = "RedirectTestContract";
     private static final String NULL_CONTRACT = "RedirectNullContract";
     private static final String TXN = "txn";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> balanceOf() {
@@ -61,6 +81,48 @@ public class RedirectPrecompileSuite {
                                 .via(TXN)
                                 .hasKnownStatus(SUCCESS)
                                 .gas(1_000_000))),
+                childRecordsCheck(
+                        TXN,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .forFunction(ParsingConstants.FunctionType.ERC_BALANCE)
+                                                .withBalance(totalSupply))
+                                        .gasUsed(2607L))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicBalanceOf() {
+        final var totalSupply = 50;
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(totalSupply)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCall(
+                                                CONTRACT,
+                                                "getBalanceOf",
+                                                HapiParserUtil.asHeadlongAddress(asAddress(
+                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
+                                                asHeadlongAddress(asAddress(
+                                                        spec.registry().getAccountID(TOKEN_TREASURY))))
+                                        .payingWith(ACCOUNT)
+                                        .via(TXN)
+                                        .hasKnownStatus(SUCCESS)
+                                        .gas(1_000_000)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR))),
                 childRecordsCheck(
                         TXN,
                         SUCCESS,

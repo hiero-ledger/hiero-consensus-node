@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -16,6 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
@@ -24,15 +26,21 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class PrngPrecompileSuite {
     private static final long GAS_TO_OFFER = 400_000L;
@@ -48,6 +56,20 @@ public class PrngPrecompileSuite {
                     + "5678901234567890000000000000000000000000123456789012345678901234567890123456789000000000"
                     + "000d83bf9a1083bf9a1000d83bf9a10000000d83bf9a10000000000000000026e790000000000000000000000000000"
                     + "00000000d83bf9a1000000000d83bf9a1000";
+
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> multipleCallsHaveIndependentResults() {
@@ -92,6 +114,54 @@ public class PrngPrecompileSuite {
                         }),
                         // It's possible to call these contracts in a static context with no issues
                         contractCallLocal(prng, GET_SEED).gas(gasToOffer));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicMultipleCallsHaveIndependentResults() {
+        final var prng = THE_PRNG_CONTRACT;
+        final var gasToOffer = 400_000;
+        final var numCalls = 5;
+        final List<String> prngSeeds = new ArrayList<>();
+        return hapiTest(
+                uploadInitCode(prng),
+                contractCreate(prng),
+                withOpContext((spec, opLog) -> {
+                    for (int i = 0; i < numCalls; i++) {
+                        final var txn = "call" + i;
+                        final var call = atomicBatch(contractCall(prng, GET_SEED)
+                                        .gas(gasToOffer)
+                                        .via(txn)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR);
+                        final var lookup = getTxnRecord(txn).andAllChildRecords();
+                        allRunFor(spec, call, lookup);
+                        final var response = lookup.getResponseRecord();
+                        final var rawResult = response.getContractCallResult()
+                                .getContractCallResult()
+                                .toByteArray();
+                        // Since this contract returns the result of the Prng system
+                        // contract, its call result
+                        // should be identical to the result of the system contract
+                        // in the child record
+                        for (final var child : lookup.getChildRecords()) {
+                            if (child.hasContractCallResult()) {
+                                assertArrayEquals(
+                                        rawResult,
+                                        child.getContractCallResult()
+                                                .getContractCallResult()
+                                                .toByteArray());
+                            }
+                        }
+                        prngSeeds.add(CommonUtils.hex(rawResult));
+                    }
+                    opLog.info("Got prng seeds  : {}", prngSeeds);
+                    assertEquals(
+                            prngSeeds.size(),
+                            new HashSet<>(prngSeeds).size(),
+                            "An N-3 running hash was repeated, which is" + " inconceivable");
+                }),
+                // It's possible to call these contracts in a static context with no issues
+                contractCallLocal(prng, GET_SEED).gas(gasToOffer));
     }
 
     @HapiTest

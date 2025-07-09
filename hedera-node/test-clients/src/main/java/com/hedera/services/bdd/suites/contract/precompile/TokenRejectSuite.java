@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
@@ -33,6 +34,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_TOKEN_REFERENCE_LIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
@@ -44,12 +46,18 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_REFERENC
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(TOKEN)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class TokenRejectSuite {
@@ -70,6 +78,19 @@ public class TokenRejectSuite {
     private static final String NON_FUNGIBLE_TOKEN_B = "nonFungibleTokenB";
 
     private static final String MULTI_KEY = "multiKey";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> tokenRejectWorksAndAvoidsCustomFees() {
@@ -121,6 +142,77 @@ public class TokenRejectSuite {
                         tokenReject(ACCOUNT_1, rejectingToken(FUNGIBLE_TOKEN_B))
                                 .payingWith(ACCOUNT_1)
                                 .hasPrecheck(INSUFFICIENT_PAYER_BALANCE))),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN_A, 1L)
+                        .hasAccountID(ALT_TOKEN_TREASURY)
+                        .hasNoSpender(),
+                getAccountBalance(TOKEN_TREASURY).logged().hasTokenBalance(FUNGIBLE_TOKEN_A, 990L),
+                getAccountBalance(TOKEN_TREASURY).logged().hasTokenBalance(FUNGIBLE_TOKEN_B, 1000L),
+                // Verify that fee collector account has no tokens and no hBars
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(0)
+                        .hasTokenBalance(FUNGIBLE_TOKEN_A, 0L)
+                        .hasTokenBalance(FUNGIBLE_TOKEN_B, 0L));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicTokenRejectWorksAndAvoidsCustomFees() {
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(FEE_COLLECTOR).balance(0L).maxAutomaticTokenAssociations(5),
+                cryptoCreate(ACCOUNT).maxAutomaticTokenAssociations(5),
+                cryptoCreate(ACCOUNT_1).balance(0L).maxAutomaticTokenAssociations(1),
+                cryptoCreate(TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(ALT_TOKEN_TREASURY).balance(ONE_HUNDRED_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN_A)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .withCustom(fixedHbarFee(ONE_MILLION_HBARS, FEE_COLLECTOR))
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(FEE_COLLECTOR, FUNGIBLE_TOKEN_A),
+                tokenCreate(FUNGIBLE_TOKEN_B)
+                        .initialSupply(TOTAL_SUPPLY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .withCustom(fixedHtsFee(1000L, FUNGIBLE_TOKEN_A, FEE_COLLECTOR))
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN_A)
+                        .initialSupply(0)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY)
+                        .withCustom(fixedHbarFee(ONE_MILLION_HBARS, FEE_COLLECTOR))
+                        .treasury(ALT_TOKEN_TREASURY)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE),
+                mintToken(NON_FUNGIBLE_TOKEN_A, List.of(copyFromUtf8("fire"), copyFromUtf8("goat"))),
+                tokenAssociate(ACCOUNT, FUNGIBLE_TOKEN_A, FUNGIBLE_TOKEN_B, NON_FUNGIBLE_TOKEN_A),
+                cryptoTransfer(
+                        moving(250L, FUNGIBLE_TOKEN_A).between(TOKEN_TREASURY, ACCOUNT),
+                        moving(10L, FUNGIBLE_TOKEN_A).between(TOKEN_TREASURY, ACCOUNT_1),
+                        moving(250L, FUNGIBLE_TOKEN_B).between(TOKEN_TREASURY, ACCOUNT),
+                        movingUnique(NON_FUNGIBLE_TOKEN_A, 1L).between(ALT_TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        // Try rejecting NON_FUNGIBLE_TOKEN_A with FIXED hBar custom fee
+                        atomicBatch(tokenReject(ACCOUNT, rejectingNFT(NON_FUNGIBLE_TOKEN_A, 1L))
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        // Try rejecting FUNGIBLE_TOKEN_A with FIXED hBar custom fee
+                        atomicBatch(tokenReject(rejectingToken(FUNGIBLE_TOKEN_A))
+                                        .payingWith(ACCOUNT)
+                                        .signedBy(ACCOUNT)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        // Try rejecting FUNGIBLE_TOKEN_B with FIXED hts custom fee
+                        atomicBatch(tokenReject(ACCOUNT, rejectingToken(FUNGIBLE_TOKEN_B))
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        // Transaction fails because payer does not have hBars
+                        atomicBatch(tokenReject(ACCOUNT_1, rejectingToken(FUNGIBLE_TOKEN_B))
+                                        .payingWith(ACCOUNT_1)
+                                        .hasPrecheck(INSUFFICIENT_PAYER_BALANCE)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN_A, 1L)
                         .hasAccountID(ALT_TOKEN_TREASURY)
                         .hasNoSpender(),

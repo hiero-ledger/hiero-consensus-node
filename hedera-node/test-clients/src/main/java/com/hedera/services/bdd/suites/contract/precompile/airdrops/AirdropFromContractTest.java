@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAcco
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenClaimAirdrop;
@@ -26,6 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.checkForBalances;
@@ -46,6 +48,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -58,9 +61,11 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -70,8 +75,22 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class AirdropFromContractTest {
 
+    private static final String BATCH_OPERATOR = "batchOperator";
+
     @Contract(contract = "Airdrop", creationGas = 5_000_000)
     static SpecContract airdropContract;
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -88,6 +107,32 @@ public class AirdropFromContractTest {
                 token.treasury().transferUnitsTo(sender, 1_000L, token),
                 airdropContract
                         .call("tokenAirdrop", token, sender, receiver, 10L)
+                        .sending(85_000_000L)
+                        .gas(1_500_000L)
+                        .via("AirdropTxn"),
+                getTxnRecord("AirdropTxn").hasPriority(recordWith().pendingAirdropsCount(0)),
+                receiver.getBalance()
+                        .andAssert(balance -> balance.hasTokenBalance(token.name(), 10L))
+                        .andAssert(balance -> balance.hasTinyBars(100L)),
+                receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(1)));
+    }
+
+    @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @DisplayName("Atomic Contract Airdrops a token to a receiver who is associated to the token")
+    public Stream<DynamicTest> atomicAirdropTokenToAccount(
+            @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
+            @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
+            @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
+        return hapiTest(
+                sender.authorizeContract(airdropContract),
+                sender.associateTokens(token),
+                airdropContract.associateTokens(token),
+                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
+                token.treasury().transferUnitsTo(sender, 1_000L, token),
+                airdropContract
+                        .call("tokenAirdrop", token, sender, receiver, 10L)
+                        .wrappedInBatchOperation(BATCH_OPERATOR)
                         .sending(85_000_000L)
                         .gas(1_500_000L)
                         .via("AirdropTxn"),

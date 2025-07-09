@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -46,6 +47,7 @@ import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -54,17 +56,23 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class DissociatePrecompileSuite {
     private static final String NEGATIVE_DISSOCIATIONS_CONTRACT = "NegativeDissociationsContract";
@@ -82,6 +90,19 @@ public class DissociatePrecompileSuite {
     private static final KeyShape THRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
     private static final KeyShape THRESHOLD_KEY_SHAPE_2_CONTRACTS = KeyShape.threshOf(1, ED25519, CONTRACT, CONTRACT);
     private static final String CONTRACT_KEY_NESTED = "CONTRACT_KEY_NESTED";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> dissociateTokensNegativeScenarios() {
@@ -176,6 +197,129 @@ public class DissociatePrecompileSuite {
                                 .signingWith(ACCOUNT)
                                 .via(someNonExistingTokenArray)
                                 .logged(),
+                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN),
+                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN1))),
+                childRecordsCheck(
+                        nonExistingAccount,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(nonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)),
+                childRecordsCheck(
+                        zeroAccountAddress,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith().status(INVALID_ACCOUNT_ID)),
+                childRecordsCheck(
+                        nullTokenArray, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        someNonExistingTokenArray, SUCCESS, recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicDissociateTokensNegativeScenarios() {
+        final AtomicReference<Address> tokenAddress1 = new AtomicReference<>();
+        final AtomicReference<Address> tokenAddress2 = new AtomicReference<>();
+        final AtomicReference<Address> accountAddress = new AtomicReference<>();
+        final var nonExistingAccount = "nonExistingAccount";
+        final var nonExistingTokenArray = "nonExistingTokenArray";
+        final var someNonExistingTokenArray = "someNonExistingTokenArray";
+        final var zeroAccountAddress = "zeroAccountAddress";
+        final var nullTokenArray = "nullTokens";
+        final var nonExistingTokensInArray = "nonExistingTokensInArray";
+        return hapiTest(
+                uploadInitCode(NEGATIVE_DISSOCIATIONS_CONTRACT),
+                contractCreate(NEGATIVE_DISSOCIATIONS_CONTRACT),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress1::set),
+                tokenCreate(TOKEN1)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(50L)
+                        .supplyKey(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .treasury(TOKEN_TREASURY)
+                        .exposingAddressTo(tokenAddress2::set),
+                cryptoCreate(ACCOUNT).exposingCreatedIdTo(id -> accountAddress.set(idAsHeadlongAddress(id))),
+                tokenAssociate(ACCOUNT, List.of(TOKEN, TOKEN1)),
+                withOpContext((spec, custom) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCall(
+                                                NEGATIVE_DISSOCIATIONS_CONTRACT,
+                                                "dissociateTokensWithNonExistingAccountAddress",
+                                                (Object) new Address[] {tokenAddress1.get(), tokenAddress2.get()})
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .gas(GAS_TO_OFFER)
+                                        .via(nonExistingAccount)
+                                        .logged()
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN)),
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN1)),
+                        newKeyNamed(CONTRACT_KEY)
+                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, NEGATIVE_DISSOCIATIONS_CONTRACT))),
+                        cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
+                        atomicBatch(contractCall(
+                                                NEGATIVE_DISSOCIATIONS_CONTRACT,
+                                                "dissociateTokensWithEmptyTokensArray",
+                                                accountAddress.get())
+                                        .hasKnownStatus(SUCCESS)
+                                        .gas(GAS_TO_OFFER)
+                                        .signingWith(ACCOUNT)
+                                        .via(nonExistingTokenArray)
+                                        .logged()
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN)),
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN1)),
+                        contractCall(NEGATIVE_DISSOCIATIONS_CONTRACT, "dissociateTokensWithNullAccount", (Object)
+                                        new Address[] {tokenAddress1.get(), tokenAddress2.get()})
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .gas(GAS_TO_OFFER)
+                                .via(zeroAccountAddress)
+                                .logged(),
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN)),
+                        getAccountInfo(ACCOUNT).hasToken(relationshipWith(TOKEN1)),
+                        atomicBatch(contractCall(
+                                                NEGATIVE_DISSOCIATIONS_CONTRACT,
+                                                "dissociateTokensWithNullTokensArray",
+                                                accountAddress.get())
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .gas(GAS_TO_OFFER)
+                                        .signingWith(ACCOUNT)
+                                        .via(nullTokenArray)
+                                        .logged()
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatch(contractCall(
+                                                NEGATIVE_DISSOCIATIONS_CONTRACT,
+                                                "dissociateTokensWithNonExistingTokensArray",
+                                                accountAddress.get())
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .gas(GAS_TO_OFFER)
+                                        .signingWith(ACCOUNT)
+                                        .via(nonExistingTokensInArray)
+                                        .logged()
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatch(contractCall(
+                                                NEGATIVE_DISSOCIATIONS_CONTRACT,
+                                                "dissociateTokensWithTokensArrayWithSomeNonExistingAddresses",
+                                                accountAddress.get(),
+                                                new Address[] {tokenAddress1.get(), tokenAddress2.get()})
+                                        .hasKnownStatus(SUCCESS)
+                                        .gas(GAS_TO_OFFER)
+                                        .signingWith(ACCOUNT)
+                                        .via(someNonExistingTokenArray)
+                                        .logged()
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
                         getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN),
                         getAccountInfo(ACCOUNT).hasNoTokenRelationship(TOKEN1))),
                 childRecordsCheck(

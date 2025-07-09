@@ -7,12 +7,16 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.an
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.redirectCallResult;
 import static com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract.HRC;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
@@ -23,7 +27,10 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -32,6 +39,7 @@ import org.junit.jupiter.api.Tag;
  * Asserts expected behavior for the {@code isAuthorized()} HRC token redirect for both
  * contract and EOA {@code msg.sender} types and both fungible and non-fungible token types.
  */
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @DisplayName("isAssociated")
 public class IsAssociatedSystemContractTest {
@@ -40,6 +48,12 @@ public class IsAssociatedSystemContractTest {
 
     @NonFungibleToken(name = "nonFungibleToken")
     static SpecNonFungibleToken nonFungibleToken;
+
+    @FungibleToken(name = "fungibleToken2")
+    static SpecFungibleToken fungibleToken2;
+
+    @NonFungibleToken(name = "nonFungibleToken2")
+    static SpecNonFungibleToken nonFungibleToken2;
 
     @FungibleToken(name = "fungibleTokenForStatic")
     static SpecFungibleToken fungibleTokenForStatic;
@@ -53,6 +67,20 @@ public class IsAssociatedSystemContractTest {
     @Account(name = "senderAccount", tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount senderAccount;
 
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
+
     @HapiTest
     @DisplayName("returns true for EOA msg.sender exactly when associated")
     public Stream<DynamicTest> returnsTrueIffEoaMsgSenderIsAssociated() {
@@ -62,6 +90,17 @@ public class IsAssociatedSystemContractTest {
                 assertEoaGetsResultForBothTokens(true),
                 senderAccount.dissociateTokens(fungibleToken, nonFungibleToken),
                 assertEoaGetsResultForBothTokens(false));
+    }
+
+    @HapiTest
+    @DisplayName("returns true for EOA msg.sender exactly when associated")
+    public Stream<DynamicTest> atomicReturnsTrueIffEoaMsgSenderIsAssociated() {
+        return hapiTest(
+                assertAtomicEoaGetsResultForBothTokens(false),
+                senderAccount.associateTokens(fungibleToken2, nonFungibleToken2),
+                assertAtomicEoaGetsResultForBothTokens(true),
+                senderAccount.dissociateTokens(fungibleToken2, nonFungibleToken2),
+                assertAtomicEoaGetsResultForBothTokens(false));
     }
 
     @HapiTest
@@ -112,6 +151,22 @@ public class IsAssociatedSystemContractTest {
                                 txn.hasResults(anyResult(), redirectCallResult(HRC, "isAssociated", isAssociated))),
                 nonFungibleToken
                         .call(HRC, "isAssociated")
+                        .payingWith(senderAccount)
+                        .andAssert(txn ->
+                                txn.hasResults(anyResult(), redirectCallResult(HRC, "isAssociated", isAssociated))));
+    }
+
+    private SpecOperation assertAtomicEoaGetsResultForBothTokens(final boolean isAssociated) {
+        return blockingOrder(
+                fungibleToken
+                        .call(HRC, "isAssociated")
+                        .wrappedInBatchOperation(BATCH_OPERATOR)
+                        .payingWith(senderAccount)
+                        .andAssert(txn ->
+                                txn.hasResults(anyResult(), redirectCallResult(HRC, "isAssociated", isAssociated))),
+                nonFungibleToken
+                        .call(HRC, "isAssociated")
+                        .wrappedInBatchOperation(BATCH_OPERATOR)
                         .payingWith(senderAccount)
                         .andAssert(txn ->
                                 txn.hasResults(anyResult(), redirectCallResult(HRC, "isAssociated", isAssociated))));

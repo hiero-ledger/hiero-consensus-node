@@ -5,12 +5,14 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asScheduleId;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 
@@ -26,6 +28,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -35,6 +38,7 @@ import org.junit.jupiter.api.DynamicTest;
 @HapiTestLifecycle
 public class ScheduleCreateTokenTest {
 
+    private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CONTRACT_KEY = "contractKey";
     private static final String SIGN_SCHEDULE = "signSchedule";
     private static final String IHRC755 = "IHRC755";
@@ -46,7 +50,13 @@ public class ScheduleCreateTokenTest {
     static SpecAccount treasury;
 
     @Account
+    static SpecAccount treasury3;
+
+    @Account
     static SpecAccount autoRenew;
+
+    @Account
+    static SpecAccount autoRenew3;
 
     @Account(tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount treasury2;
@@ -64,6 +74,15 @@ public class ScheduleCreateTokenTest {
                 contract.getInfo(),
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(contract.name())),
                 designatedPayer.authorizeContract(contract));
+
+        lifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
@@ -79,6 +98,35 @@ public class ScheduleCreateTokenTest {
             final var scheduleID = asScheduleId(spec, scheduleAddress.get());
             spec.registry().saveScheduleId("scheduledCreateFT", scheduleID);
             assertScheduleAndSign(spec, "scheduledCreateFT");
+        }));
+    }
+
+    @HapiTest
+    @DisplayName("Atomic can successfully schedule a create fungible token operation")
+    public Stream<DynamicTest> atomicScheduledCreateToken() {
+        return hapiTest(withOpContext((spec, opLog) -> {
+            final var scheduleAddress = new AtomicReference<Address>();
+            allRunFor(
+                    spec,
+                    contract.call("scheduleCreateFT", autoRenew3, treasury3)
+                            .wrappedInBatchOperation(BATCH_OPERATOR)
+                            .gas(1_000_000L)
+                            .exposingResultTo(res -> scheduleAddress.set((Address) res[1])));
+            final var scheduleID = asScheduleId(spec, scheduleAddress.get());
+            spec.registry().saveScheduleId("scheduledCreateFT2", scheduleID);
+            allRunFor(
+                    spec,
+                    getScheduleInfo("scheduledCreateFT2")
+                            .hasScheduleId("scheduledCreateFT2")
+                            .isNotExecuted(),
+                    scheduleSign("scheduledCreateFT2").alsoSigningWith(treasury3.name()),
+                    getScheduleInfo("scheduledCreateFT2")
+                            .isNotExecuted()
+                            .hasSignatories(CONTRACT_KEY, treasury3.name()),
+                    scheduleSign("scheduledCreateFT2").alsoSigningWith(autoRenew3.name()),
+                    getScheduleInfo("scheduledCreateFT2")
+                            .isExecuted()
+                            .hasSignatories(CONTRACT_KEY, autoRenew3.name(), treasury3.name()));
         }));
     }
 

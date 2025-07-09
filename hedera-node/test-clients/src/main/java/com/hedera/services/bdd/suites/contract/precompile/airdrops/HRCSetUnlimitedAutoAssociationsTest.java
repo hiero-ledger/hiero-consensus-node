@@ -8,23 +8,45 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.AccountID;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@HapiTestLifecycle
 public class HRCSetUnlimitedAutoAssociationsTest {
+
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     public Stream<DynamicTest> hrcSetUnlimitedAutoAssociations() {
@@ -46,6 +68,44 @@ public class HRCSetUnlimitedAutoAssociationsTest {
                                 .via("setUnlimitedAutoAssociations")
                                 .payingWith("account")
                                 .gas(1_000_000L),
+                        getTxnRecord("setUnlimitedAutoAssociations")
+                                .logged()
+                                .hasPriority(recordWith()
+                                        .status(SUCCESS)
+                                        .contractCallResult(resultWith()
+                                                .resultThruAbi(
+                                                        getABIFor(
+                                                                com.hedera.services.bdd.suites.contract.Utils
+                                                                        .FunctionType.FUNCTION,
+                                                                "setUnlimitedAutomaticAssociations",
+                                                                "HRC904"),
+                                                        isLiteralResult(new Object[] {Long.valueOf(22)})))),
+                        getAccountInfo("account").hasMaxAutomaticAssociations(-1))));
+    }
+
+    @HapiTest
+    public Stream<DynamicTest> atomicHrcSetUnlimitedAutoAssociations() {
+        final AtomicReference<AccountID> accountNum = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate("account")
+                        .balance(100 * ONE_HUNDRED_HBARS)
+                        .maxAutomaticTokenAssociations(0)
+                        .exposingCreatedIdTo(accountNum::set),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCallWithFunctionAbi(
+                                                String.valueOf(accountNum.get().getAccountNum()),
+                                                getABIFor(
+                                                        com.hedera.services.bdd.suites.contract.Utils.FunctionType
+                                                                .FUNCTION,
+                                                        "setUnlimitedAutomaticAssociations",
+                                                        "HRC904"),
+                                                true)
+                                        .via("setUnlimitedAutoAssociations")
+                                        .payingWith("account")
+                                        .gas(1_000_000L)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
                         getTxnRecord("setUnlimitedAutoAssociations")
                                 .logged()
                                 .hasPriority(recordWith()

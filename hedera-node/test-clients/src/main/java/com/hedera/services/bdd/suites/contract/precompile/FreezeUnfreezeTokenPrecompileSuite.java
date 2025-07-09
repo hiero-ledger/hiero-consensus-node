@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -55,6 +56,7 @@ import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
@@ -66,18 +68,24 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenFreezeStatus;
 import com.hederahashgraph.api.proto.java.TokenID;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class FreezeUnfreezeTokenPrecompileSuite {
     public static final String FREEZE_CONTRACT = "FreezeUnfreezeContract";
@@ -97,6 +105,19 @@ public class FreezeUnfreezeTokenPrecompileSuite {
     private static final KeyShape THRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
     private static final String THRESHOLD_KEY = "THRESHOLD_KEY";
     private static final String ADMIN_KEY = "ADMIN_KEY";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> noTokenIdReverts() {
@@ -137,6 +158,57 @@ public class FreezeUnfreezeTokenPrecompileSuite {
                                 .payingWith(ACCOUNT)
                                 .gas(GAS_TO_OFFER)
                                 .via("FreezeTx"))),
+                childRecordsCheck(
+                        "UnfreezeTx", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
+                childRecordsCheck(
+                        "FreezeTx", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicNoTokenIdReverts() {
+        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<AccountID> accountID = new AtomicReference<>();
+        return hapiTest(
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).balance(100 * ONE_HBAR).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .freezeKey(FREEZE_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(FREEZE_CONTRACT),
+                contractCreate(FREEZE_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCall(
+                                                FREEZE_CONTRACT,
+                                                TOKEN_UNFREEZE_FUNC,
+                                                asHeadlongAddress(INVALID_ADDRESS),
+                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())))
+                                        .payingWith(ACCOUNT)
+                                        .gas(GAS_TO_OFFER)
+                                        .via("UnfreezeTx")
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        cryptoUpdate(ACCOUNT).key(FREEZE_KEY),
+                        atomicBatch(contractCall(
+                                                FREEZE_CONTRACT,
+                                                TOKEN_FREEZE_FUNC,
+                                                asHeadlongAddress(INVALID_ADDRESS),
+                                                HapiParserUtil.asHeadlongAddress(asAddress(accountID.get())))
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .payingWith(ACCOUNT)
+                                        .gas(GAS_TO_OFFER)
+                                        .via("FreezeTx")
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(
                         "UnfreezeTx", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_TOKEN_ID)),
                 childRecordsCheck(

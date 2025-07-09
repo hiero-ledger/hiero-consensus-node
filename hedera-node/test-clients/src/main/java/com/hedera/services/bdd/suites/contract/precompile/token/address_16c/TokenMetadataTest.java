@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
@@ -48,6 +49,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenInfo;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -60,6 +62,8 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
 public class TokenMetadataTest {
+
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     @Account(maxAutoAssociations = 10, tinybarBalance = ONE_MILLION_HBARS)
     static SpecAccount alice;
@@ -86,6 +90,15 @@ public class TokenMetadataTest {
                 nft.authorizeContracts(contractTarget)
                         .alsoAuthorizing(TokenKeyType.SUPPLY_KEY, TokenKeyType.METADATA_KEY),
                 fungibleToken.authorizeContracts(contractTarget));
+
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -94,6 +107,18 @@ public class TokenMetadataTest {
                 .flatMap(token -> hapiTest(
                         contractTarget
                                 .call("updateTokenMetadata", token, "randomMetaNew777")
+                                .gas(1_000_000L)
+                                .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
+                        token.getInfo().andAssert(info -> info.hasMetadata("randomMetaNew777"))));
+    }
+
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    public Stream<DynamicTest> atomicTestUpdateMetadata() {
+        return Stream.of(nft, fungibleToken)
+                .flatMap(token -> hapiTest(
+                        contractTarget
+                                .call("updateTokenMetadata", token, "randomMetaNew777")
+                                .wrappedInBatchOperation(BATCH_OPERATOR)
                                 .gas(1_000_000L)
                                 .andAssert(txn -> txn.hasKnownStatus(SUCCESS)),
                         token.getInfo().andAssert(info -> info.hasMetadata("randomMetaNew777"))));

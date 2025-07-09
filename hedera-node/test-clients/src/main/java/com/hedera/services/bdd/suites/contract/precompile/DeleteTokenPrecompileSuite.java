@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -31,26 +32,34 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class DeleteTokenPrecompileSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -62,6 +71,19 @@ public class DeleteTokenPrecompileSuite {
 
     public static final String THRESHOLD_KEY = "ThreshKey";
     private static final KeyShape THRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> deleteFungibleToken() {
@@ -109,6 +131,67 @@ public class DeleteTokenPrecompileSuite {
                                 .signedBy(GENESIS, ACCOUNT)
                                 .alsoSigningWithFullPrefix(ACCOUNT)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        tokenAlreadyDeletedTxn,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_WAS_DELETED)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_WAS_DELETED)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicDeleteFungibleToken() {
+        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        final AtomicReference<AccountID> accountID = new AtomicReference<>();
+        final var tokenAlreadyDeletedTxn = "tokenAlreadyDeletedTxn";
+
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(ACCOUNT).key(MULTI_KEY).balance(100 * ONE_HBAR).exposingCreatedIdTo(accountID::set),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id)))
+                        .initialSupply(1110),
+                uploadInitCode(DELETE_TOKEN_CONTRACT),
+                contractCreate(DELETE_TOKEN_CONTRACT),
+                tokenAssociate(ACCOUNT, VANILLA_TOKEN),
+                cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT)),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        newKeyNamed(THRESHOLD_KEY)
+                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, DELETE_TOKEN_CONTRACT))),
+                        tokenUpdate(VANILLA_TOKEN).adminKey(THRESHOLD_KEY).signedByPayerAnd(MULTI_KEY, THRESHOLD_KEY),
+                        cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
+                        atomicBatch(contractCall(
+                                                DELETE_TOKEN_CONTRACT,
+                                                TOKEN_DELETE_FUNCTION,
+                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                        .gas(GAS_TO_OFFER)
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .via(DELETE_TXN)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        getTokenInfo(VANILLA_TOKEN).isDeleted().logged(),
+                        cryptoTransfer(moving(500, VANILLA_TOKEN).between(TOKEN_TREASURY, ACCOUNT))
+                                .hasKnownStatus(TOKEN_WAS_DELETED),
+                        atomicBatch(contractCall(
+                                                DELETE_TOKEN_CONTRACT,
+                                                TOKEN_DELETE_FUNCTION,
+                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                        .gas(GAS_TO_OFFER)
+                                        .via(tokenAlreadyDeletedTxn)
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(
                         tokenAlreadyDeletedTxn,
                         CONTRACT_REVERT_EXECUTED,

@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -48,11 +49,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
@@ -62,7 +65,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
@@ -70,14 +75,18 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class AtomicCryptoTransferHTSSuite {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
@@ -102,6 +111,19 @@ public class AtomicCryptoTransferHTSSuite {
     private static final String BASE_APPROVAL_TXN = "baseApproveTxn";
 
     public static final String SECP_256K1_SOURCE_KEY = "secp256k1Alias";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> cryptoTransferForHbarOnly() {
@@ -227,6 +249,201 @@ public class AtomicCryptoTransferHTSSuite {
                                     .via(cryptoTransferRevertTxn)
                                     .gas(GAS_TO_OFFER)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+                }),
+                getTxnRecord(cryptoTransferTxn).andAllChildRecords().logged(),
+                getAccountBalance(SENDER).hasTinyBars(900 * ONE_HBAR),
+                getAccountBalance(RECEIVER).hasTinyBars(290 * ONE_HBAR),
+                getAccountBalance(RECEIVER2).hasTinyBars(210 * ONE_HBAR),
+                childRecordsCheck(
+                        cryptoTransferTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))
+                                .transfers(including(tinyBarsFromTo(SENDER, RECEIVER, 50 * ONE_HBAR)))),
+                childRecordsCheck(
+                        cryptoTransferRevertNoKeyTxn,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))),
+                childRecordsCheck(
+                        cryptoTransferRevertBalanceTooLowTxn,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INSUFFICIENT_ACCOUNT_BALANCE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INSUFFICIENT_ACCOUNT_BALANCE)))),
+                childRecordsCheck(
+                        cryptoTransferMultiTxn,
+                        SUCCESS,
+                        recordWith()
+                                .status(SUCCESS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(SUCCESS)))),
+                childRecordsCheck(
+                        cryptoTransferRevertTxn,
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_ACCOUNT_AMOUNTS)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_ACCOUNT_AMOUNTS)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicCryptoTransferForHbarOnly() {
+        final var cryptoTransferTxn = "cryptoTransferTxn";
+        final var cryptoTransferMultiTxn = "cryptoTransferMultiTxn";
+        final var cryptoTransferRevertTxn = "cryptoTransferRevertTxn";
+        final var cryptoTransferRevertNoKeyTxn = "cryptoTransferRevertNoKeyTxn";
+        final var cryptoTransferRevertBalanceTooLowTxn = "cryptoTransferRevertBalanceTooLowTxn";
+
+        return hapiTest(
+                cryptoCreate(SENDER).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(SENDER2).balance(10 * ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(2 * ONE_HUNDRED_HBARS).receiverSigRequired(true),
+                cryptoCreate(RECEIVER2).balance(2 * ONE_HUNDRED_HBARS).receiverSigRequired(true),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT),
+                withOpContext((spec, opLog) -> {
+                    final var sender = spec.registry().getAccountID(SENDER);
+                    final var sender2 = spec.registry().getAccountID(SENDER2);
+                    final var receiver = spec.registry().getAccountID(RECEIVER);
+                    final var receiver2 = spec.registry().getAccountID(RECEIVER2);
+                    final var amountToBeSent = 50 * ONE_HBAR;
+
+                    /*
+                     We will be covering the following test cases
+                     1. Simple hbar transfer between 2 parties
+                     2. When sender does not have the required key
+                     3. When sender's balance is too low
+                     4. Transfer among 3 parties
+                     5. When transfer balances do not add to 0
+                    */
+                    allRunFor(
+                            spec,
+                            newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
+                            cryptoUpdate(SENDER).key(DELEGATE_KEY),
+                            cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
+                            cryptoUpdate(RECEIVER2).key(DELEGATE_KEY),
+                            // Simple transfer between sender and receiver for 50 *
+                            // ONE_HBAR
+                            // should succeed
+                            atomicBatch(contractCall(
+                                                    CONTRACT,
+                                                    TRANSFER_MULTIPLE_TOKENS,
+                                                    transferList()
+                                                            .withAccountAmounts(
+                                                                    accountAmount(sender, -amountToBeSent, false),
+                                                                    accountAmount(receiver, amountToBeSent, false))
+                                                            .build(),
+                                                    EMPTY_TUPLE_ARRAY)
+                                            .payingWith(GENESIS)
+                                            .via(cryptoTransferTxn)
+                                            .gas(GAS_TO_OFFER)
+                                            .batchKey(BATCH_OPERATOR))
+                                    .payingWith(BATCH_OPERATOR),
+                            // Simple transfer between sender2 and receiver for 50 *
+                            // ONE_HBAR
+                            // should fail because sender2 does not have the right
+                            // key
+                            atomicBatch(contractCall(
+                                                    CONTRACT,
+                                                    TRANSFER_MULTIPLE_TOKENS,
+                                                    transferList()
+                                                            .withAccountAmounts(
+                                                                    accountAmount(sender2, -amountToBeSent, false),
+                                                                    accountAmount(receiver, amountToBeSent, false))
+                                                            .build(),
+                                                    EMPTY_TUPLE_ARRAY)
+                                            .payingWith(GENESIS)
+                                            .via(cryptoTransferRevertNoKeyTxn)
+                                            .gas(GAS_TO_OFFER)
+                                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                            .batchKey(BATCH_OPERATOR))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                            // Simple transfer between sender2 and receiver for 1000
+                            // * ONE_HUNDRED_HBAR
+                            // should fail because sender does not have enough hbars
+                            atomicBatch(contractCall(
+                                                    CONTRACT,
+                                                    TRANSFER_MULTIPLE_TOKENS,
+                                                    transferList()
+                                                            .withAccountAmounts(
+                                                                    accountAmount(
+                                                                            sender, -1000 * ONE_HUNDRED_HBARS, false),
+                                                                    accountAmount(
+                                                                            receiver, 1000 * ONE_HUNDRED_HBARS, false))
+                                                            .build(),
+                                                    EMPTY_TUPLE_ARRAY)
+                                            .payingWith(GENESIS)
+                                            .via(cryptoTransferRevertBalanceTooLowTxn)
+                                            .gas(GAS_TO_OFFER)
+                                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                            .batchKey(BATCH_OPERATOR))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                            // Simple transfer between sender, receiver and
+                            // receiver2 for 50 * ONE_HBAR
+                            // sender sends 50, receiver get 10 and receiver2 gets
+                            // 40
+                            // should succeed
+                            atomicBatch(contractCall(
+                                                    CONTRACT,
+                                                    TRANSFER_MULTIPLE_TOKENS,
+                                                    transferList()
+                                                            .withAccountAmounts(
+                                                                    accountAmount(sender, -amountToBeSent, false),
+                                                                    accountAmount(
+                                                                            receiver,
+                                                                            amountToBeSent - (10 * ONE_HBAR),
+                                                                            false),
+                                                                    accountAmount(
+                                                                            receiver2,
+                                                                            amountToBeSent - (40 * ONE_HBAR),
+                                                                            false))
+                                                            .build(),
+                                                    EMPTY_TUPLE_ARRAY)
+                                            .payingWith(GENESIS)
+                                            .via(cryptoTransferMultiTxn)
+                                            .gas(GAS_TO_OFFER)
+                                            .batchKey(BATCH_OPERATOR))
+                                    .payingWith(BATCH_OPERATOR),
+                            // Simple transfer between sender, receiver and
+                            // receiver2 for 50 * ONE_HBAR
+                            // sender sends 50, receiver get 5 and receiver2 gets 40
+                            // should fail because total does not add to 0
+                            atomicBatch(contractCall(
+                                                    CONTRACT,
+                                                    TRANSFER_MULTIPLE_TOKENS,
+                                                    transferList()
+                                                            .withAccountAmounts(
+                                                                    accountAmount(sender, -amountToBeSent, false),
+                                                                    accountAmount(
+                                                                            receiver,
+                                                                            amountToBeSent - (5 * ONE_HBAR),
+                                                                            false),
+                                                                    accountAmount(
+                                                                            receiver2,
+                                                                            amountToBeSent - (40 * ONE_HBAR),
+                                                                            false))
+                                                            .build(),
+                                                    EMPTY_TUPLE_ARRAY)
+                                            .payingWith(GENESIS)
+                                            .via(cryptoTransferRevertTxn)
+                                            .gas(GAS_TO_OFFER)
+                                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                            .batchKey(BATCH_OPERATOR))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .hasKnownStatus(INNER_TRANSACTION_FAILED));
                 }),
                 getTxnRecord(cryptoTransferTxn).andAllChildRecords().logged(),
                 getAccountBalance(SENDER).hasTinyBars(900 * ONE_HBAR),

@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -34,6 +35,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
@@ -50,6 +52,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -58,13 +62,16 @@ import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class ApproveAllowanceSuite {
 
@@ -86,6 +93,19 @@ public class ApproveAllowanceSuite {
     private static final String APPROVE_SIGNATURE = "Approval(address,address,uint256)";
     private static final String APPROVE_FOR_ALL_SIGNATURE = "ApprovalForAll(address,address,bool)";
     public static final String CALL_TO = "callTo";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> nftAutoCreationIncludeAllowanceCheck() {
@@ -175,6 +195,78 @@ public class ApproveAllowanceSuite {
                                 .payingWith(OWNER)
                                 .gas(4_000_000L)
                                 .via(approveTxn))),
+                childRecordsCheck(approveTxn, SUCCESS, recordWith().status(SUCCESS)),
+                getTxnRecord(approveTxn).andAllChildRecords().logged(),
+                withOpContext((spec, opLog) -> {
+                    final var sender = spec.registry().getContractId(HTS_APPROVE_ALLOWANCE_CONTRACT);
+                    final var receiver = spec.registry().getContractId(nestedContract);
+                    final var idOfToken = String.valueOf(
+                            spec.registry().getTokenID(FUNGIBLE_TOKEN).getTokenNum());
+                    var txnRecord = getTxnRecord(approveTxn)
+                            .hasPriority(recordWith()
+                                    .contractCallResult(resultWith()
+                                            .logs(inOrder(logWith()
+                                                    .contract(idOfToken)
+                                                    .withTopicsInOrder(List.of(
+                                                            eventSignatureOf(APPROVE_SIGNATURE),
+                                                            parsedToByteString(
+                                                                    sender.getShardNum(),
+                                                                    sender.getRealmNum(),
+                                                                    sender.getContractNum()),
+                                                            parsedToByteString(
+                                                                    receiver.getShardNum(),
+                                                                    receiver.getRealmNum(),
+                                                                    receiver.getContractNum())))
+                                                    .longValue(10)))))
+                            .andAllChildRecords()
+                            .logged();
+                    allRunFor(spec, txnRecord);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicHtsTokenApproveToInnerContract() {
+        final var approveTxn = "NestedChildren";
+        final var nestedContract = DIRECT_ERC_CALLEE;
+        final var theSpender = SPENDER;
+
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(OWNER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoCreate(theSpender),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .initialSupply(10L)
+                        .maxSupply(1000L)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(MULTI_KEY)
+                        .supplyKey(MULTI_KEY),
+                uploadInitCode(HTS_APPROVE_ALLOWANCE_CONTRACT),
+                // Refusing ethereum create conversion, because we get INVALID_SIGNATURE upon tokenAssociate,
+                // since we have CONTRACT_ID key
+                contractCreate(HTS_APPROVE_ALLOWANCE_CONTRACT).refusingEthConversion(),
+                uploadInitCode(nestedContract),
+                contractCreate(nestedContract).adminKey(MULTI_KEY).refusingEthConversion(),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN),
+                tokenAssociate(HTS_APPROVE_ALLOWANCE_CONTRACT, FUNGIBLE_TOKEN),
+                tokenAssociate(nestedContract, FUNGIBLE_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCall(
+                                                HTS_APPROVE_ALLOWANCE_CONTRACT,
+                                                "htsApprove",
+                                                asHeadlongAddress(asAddress(
+                                                        spec.registry().getTokenID(FUNGIBLE_TOKEN))),
+                                                asHeadlongAddress(asAddress(
+                                                        spec.registry().getContractId(nestedContract))),
+                                                BigInteger.valueOf(10))
+                                        .payingWith(OWNER)
+                                        .gas(4_000_000L)
+                                        .via(approveTxn)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR))),
                 childRecordsCheck(approveTxn, SUCCESS, recordWith().status(SUCCESS)),
                 getTxnRecord(approveTxn).andAllChildRecords().logged(),
                 withOpContext((spec, opLog) -> {

@@ -7,11 +7,13 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.i
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingNftPendingAirdrop;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.checkForEmptyBalance;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.prepareAccountAddresses;
 import static com.hedera.services.bdd.suites.contract.precompile.airdrops.SystemContractAirdropHelper.prepareAirdrops;
@@ -37,6 +39,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -46,6 +49,8 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class TokenCancelAirdropSystemContractTest {
+
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     @Contract(contract = "CancelAirdrop", creationGas = 2_000_000L)
     static SpecContract cancelAirdrop;
@@ -65,6 +70,15 @@ public class TokenCancelAirdropSystemContractTest {
                 sender.authorizeContract(cancelAirdrop),
                 sender.associateTokens(token),
                 token.treasury().transferUnitsTo(sender, 1000, token));
+
+        lifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
@@ -81,6 +95,26 @@ public class TokenCancelAirdropSystemContractTest {
                                         moving(10, token.name()).between(sender.name(), receiver.name())))),
                 cancelAirdrop
                         .call("cancelAirdrop", sender, receiver, token)
+                        .payingWith(sender)
+                        .via("cancelAirdrop"),
+                getTxnRecord("cancelAirdrop").hasPriority(recordWith().pendingAirdropsCount(0)));
+    }
+
+    @HapiTest
+    @DisplayName("Atomic Can cancel 1 fungible airdrop")
+    public Stream<DynamicTest> atomicCancelAirdrop() {
+        return hapiTest(
+                receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0)),
+                tokenAirdrop(moving(10, token.name()).between(sender.name(), receiver.name()))
+                        .payingWith(sender.name())
+                        .via("tokenAirdrop"),
+                getTxnRecord("tokenAirdrop")
+                        .hasPriority(recordWith()
+                                .pendingAirdrops(includingFungiblePendingAirdrop(
+                                        moving(10, token.name()).between(sender.name(), receiver.name())))),
+                cancelAirdrop
+                        .call("cancelAirdrop", sender, receiver, token)
+                        .wrappedInBatchOperation(BATCH_OPERATOR)
                         .payingWith(sender)
                         .via("cancelAirdrop"),
                 getTxnRecord("cancelAirdrop").hasPriority(recordWith().pendingAirdropsCount(0)));

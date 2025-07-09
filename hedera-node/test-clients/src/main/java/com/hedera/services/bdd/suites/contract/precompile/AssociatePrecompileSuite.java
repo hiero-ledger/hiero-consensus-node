@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -27,6 +28,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
@@ -41,19 +43,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class AssociatePrecompileSuite {
+
+    private static final String BATCH_OPERATOR = "batchOperator";
     private static final long GAS_TO_OFFER = 4_000_000L;
     private static final KeyShape DELEGATE_CONTRACT_KEY_SHAPE = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
     private static final String TOKEN_TREASURY = "treasury";
@@ -74,6 +84,18 @@ public class AssociatePrecompileSuite {
     private static final String CONTRACT_KEY = "ContractKey";
     private static final KeyShape KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
 
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
+
     /* -- HSCS-PREC-27 from HTS Precompile Test Plan -- */
     @HapiTest
     final Stream<DynamicTest> functionCallWithLessThanFourBytesFailsWithinSingleContractCall() {
@@ -88,6 +110,25 @@ public class AssociatePrecompileSuite {
                         .notTryingAsHexedliteral()
                         .via("Function call with less than 4 bytes txn")
                         .gas(100_000),
+                childRecordsCheck("Function call with less than 4 bytes txn", SUCCESS));
+    }
+
+    /* -- HSCS-PREC-27 from HTS Precompile Test Plan -- */
+    @HapiTest
+    final Stream<DynamicTest> atomicFunctionCallWithLessThanFourBytesFailsWithinSingleContractCall() {
+        return hapiTest(
+                uploadInitCode(THE_GRACEFULLY_FAILING_CONTRACT),
+                contractCreate(THE_GRACEFULLY_FAILING_CONTRACT),
+                atomicBatch(contractCall(
+                                        THE_GRACEFULLY_FAILING_CONTRACT,
+                                        "performLessThanFourBytesFunctionCall",
+                                        HapiParserUtil.asHeadlongAddress(ACCOUNT_ADDRESS),
+                                        HapiParserUtil.asHeadlongAddress(TOKEN_ADDRESS))
+                                .notTryingAsHexedliteral()
+                                .via("Function call with less than 4 bytes txn")
+                                .gas(100_000)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
                 childRecordsCheck("Function call with less than 4 bytes txn", SUCCESS));
     }
 

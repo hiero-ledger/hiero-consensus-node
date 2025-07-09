@@ -4,6 +4,8 @@ package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.contracts.TokenRedirectContract.HRC904;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_OWNER_ID;
@@ -22,6 +24,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -32,12 +35,23 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class HRCTokenRejectTest {
 
+    private static final String BATCH_OPERATOR = "batchOperator";
+
     @Account(tinybarBalance = 100_000_000_000L)
     static SpecAccount sender;
 
     @BeforeAll
     public static void setUp(@NonNull TestLifecycle lifecycle) {
         lifecycle.doAdhoc(sender.getInfo());
+
+        lifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
@@ -50,6 +64,22 @@ public class HRCTokenRejectTest {
                 token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 990L)),
                 sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)),
                 token.call(HRC904, "rejectTokenFT").with(call -> call.payingWith(sender.name())),
+                sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
+                token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1000L)));
+    }
+
+    @HapiTest
+    @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @DisplayName("Atomic HRC rejectTokenFT works")
+    public Stream<DynamicTest> atomicHrcFungibleWorks(@FungibleToken(initialSupply = 1000) SpecFungibleToken token) {
+        return hapiTest(
+                sender.associateTokens(token),
+                token.treasury().transferUnitsTo(sender, 10L, token),
+                token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 990L)),
+                sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)),
+                token.call(HRC904, "rejectTokenFT")
+                        .wrappedInBatchOperation(BATCH_OPERATOR)
+                        .with(call -> call.payingWith(sender.name())),
                 sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
                 token.treasury().getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1000L)));
     }

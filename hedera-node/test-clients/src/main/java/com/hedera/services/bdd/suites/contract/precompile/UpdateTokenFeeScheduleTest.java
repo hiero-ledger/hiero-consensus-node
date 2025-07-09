@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHbarFeeInSchedule;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHtsFeeInSchedule;
@@ -16,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.roy
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.royaltyFeeWithoutFallbackInSchedule;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_DENOMINATION_MUST_BE_FUNGIBLE_COMMON;
@@ -44,6 +46,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.queries.token.HapiGetTokenInfo;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -78,6 +81,8 @@ public class UpdateTokenFeeScheduleTest {
     @Account(name = "feeCollector", tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount feeCollector;
 
+    private static final String BATCH_OPERATOR = "batchOperator";
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
@@ -89,6 +94,15 @@ public class UpdateTokenFeeScheduleTest {
                         .authorizeContracts(updateTokenFeeSchedules)
                         .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
                 feeCollector.associateTokens(feeToken, fungibleToken));
+
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     @HapiTest
@@ -96,6 +110,18 @@ public class UpdateTokenFeeScheduleTest {
     public Stream<DynamicTest> updateFungibleTokenWithHbarFixedFee() {
         return hapiTest(
                 updateTokenFeeSchedules.call("updateFungibleFixedHbarFee", fungibleToken, 10L, feeCollector),
+                fungibleToken
+                        .getInfo()
+                        .andAssert(info -> info.hasCustom(fixedHbarFeeInSchedule(10L, feeCollector.name()))));
+    }
+
+    @HapiTest
+    @DisplayName("fungible token with fixed ℏ fee")
+    public Stream<DynamicTest> atomicUpdateFungibleTokenWithHbarFixedFee() {
+        return hapiTest(
+                updateTokenFeeSchedules
+                        .call("updateFungibleFixedHbarFee", fungibleToken, 10L, feeCollector)
+                        .wrappedInBatchOperation(BATCH_OPERATOR),
                 fungibleToken
                         .getInfo()
                         .andAssert(info -> info.hasCustom(fixedHbarFeeInSchedule(10L, feeCollector.name()))));
