@@ -85,7 +85,7 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + consensusSnapshot.round() + ", list is empty");
         }
-        return minimumJudgeInfos.getFirst().minimumJudgeAncientThreshold();
+        return minimumJudgeInfos.getFirst().minimumJudgeBirthRound();
     }
 
     /**

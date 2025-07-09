@@ -200,14 +200,11 @@ message MinimumJudgeInfo {
     uint64 round = 1;
 
     /**
-     * This is a minimum ancient threshold for all judges for a given round.
-     * The value should be interpreted as a generation if the birth
-     * round migration is not yet completed, and a birth round thereafter.
+     * This is a minimum birth round for all judges for a given round.
      * <p>
-     * This SHALL reflect the relevant minimum threshold, whether
-     * generation-based or birth-round-based.
+     * This SHALL reflect the relevant minimum birth round
      */
-    uint64 minimum_judge_ancient_threshold = 2;
+    uint64 minimum_judge_birth_round = 2;
 }
 
 /**

@@ -187,7 +187,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
                     "No minimum judge info found in state for round " + round + ", list is empty");
         }
 
-        return minimumJudgeInfo.getFirst().minimumJudgeAncientThreshold();
+        return minimumJudgeInfo.getFirst().minimumJudgeBirthRound();
     }
 
     /**

@@ -432,7 +432,7 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.MinimumJudgeInfo.newBuilder()
                 .round(sourceConsensusSnapshot.getRound())
-                .minimumJudgeAncientThreshold(sourceConsensusSnapshot.getMinimumJudgeAncientThreshold())
+                .minimumJudgeBirthRound(sourceConsensusSnapshot.getMinimumJudgeBirthRound())
                 .build();
     }
 
@@ -447,7 +447,7 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo.newBuilder()
                 .setRound(sourceConsensusSnapshot.round())
-                .setMinimumJudgeAncientThreshold(sourceConsensusSnapshot.minimumJudgeAncientThreshold())
+                .setMinimumJudgeBirthRound(sourceConsensusSnapshot.minimumJudgeBirthRound())
                 .build();
     }
 
