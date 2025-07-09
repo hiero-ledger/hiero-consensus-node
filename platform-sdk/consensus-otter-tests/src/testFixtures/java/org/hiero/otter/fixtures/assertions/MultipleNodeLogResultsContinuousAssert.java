@@ -25,7 +25,7 @@ public class MultipleNodeLogResultsContinuousAssert
         extends AbstractMultipleNodeContinuousAssertion<
                 MultipleNodeLogResultsContinuousAssert, MultipleNodeLogResults> {
 
-    protected final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
+    private final Set<Marker> suppressedLogMarkers = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a continuous assertion for the given {@link MultipleNodeLogResults}.

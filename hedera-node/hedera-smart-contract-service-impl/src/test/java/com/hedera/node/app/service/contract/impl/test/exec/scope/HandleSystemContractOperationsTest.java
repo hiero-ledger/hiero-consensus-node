@@ -56,7 +56,7 @@ class HandleSystemContractOperationsTest {
     private HandleContext context;
 
     @Mock
-    private ContractCallStreamBuilder recordBuilder;
+    private ContractCallStreamBuilder streamBuilder;
 
     @Mock
     private ExchangeRateInfo exchangeRateInfo;
@@ -162,15 +162,15 @@ class HandleSystemContractOperationsTest {
     void externalizesPreemptedAsExpected() {
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CRYPTO_TRANSFER))
-                .willReturn(recordBuilder);
-        given(recordBuilder.transaction(any())).willReturn(recordBuilder);
-        given(recordBuilder.status(any())).willReturn(recordBuilder);
+                .willReturn(streamBuilder);
+        given(streamBuilder.transaction(any())).willReturn(streamBuilder);
+        given(streamBuilder.status(any())).willReturn(streamBuilder);
 
         final var preemptedBuilder =
                 subject.externalizePreemptedDispatch(TransactionBody.DEFAULT, ACCOUNT_DELETED, CRYPTO_TRANSFER);
 
-        assertSame(recordBuilder, preemptedBuilder);
-        verify(recordBuilder).status(ACCOUNT_DELETED);
+        assertSame(streamBuilder, preemptedBuilder);
+        verify(streamBuilder).status(ACCOUNT_DELETED);
     }
 
     @Test
@@ -186,20 +186,26 @@ class HandleSystemContractOperationsTest {
                 100L,
                 org.apache.tuweni.bytes.Bytes.EMPTY,
                 AccountID.newBuilder().build());
+        var txResult = SystemContractUtils.txSuccessResultOfZeroValueTraceable(
+                0,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                100L,
+                org.apache.tuweni.bytes.Bytes.EMPTY,
+                AccountID.newBuilder().build());
 
         // given
         given(context.savepointStack()).willReturn(savepointStack);
         given(savepointStack.addChildRecordBuilder(ContractCallStreamBuilder.class, CONTRACT_CALL))
-                .willReturn(recordBuilder);
-        given(recordBuilder.transaction(transaction)).willReturn(recordBuilder);
-        given(recordBuilder.status(ResponseCodeEnum.SUCCESS)).willReturn(recordBuilder);
+                .willReturn(streamBuilder);
+        given(streamBuilder.transaction(transaction)).willReturn(streamBuilder);
+        given(streamBuilder.status(ResponseCodeEnum.SUCCESS)).willReturn(streamBuilder);
+        given(streamBuilder.contractCallResult(contractFunctionResult)).willReturn(streamBuilder);
 
         // when
-        subject.externalizeResult(contractFunctionResult, ResponseCodeEnum.SUCCESS, transaction);
+        subject.externalizeResult(contractFunctionResult, ResponseCodeEnum.SUCCESS, transaction, txResult);
 
         // then
-        verify(recordBuilder).status(ResponseCodeEnum.SUCCESS);
-        verify(recordBuilder).contractCallResult(contractFunctionResult);
+        verify(streamBuilder).status(ResponseCodeEnum.SUCCESS);
     }
 
     @Test

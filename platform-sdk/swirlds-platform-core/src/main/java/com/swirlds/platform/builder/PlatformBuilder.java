@@ -473,6 +473,9 @@ public final class PlatformBuilder {
         final PlatformWiring platformWiring = new PlatformWiring(
                 platformContext, model, callbacks, initialState.get().isGenesisState());
 
+        final TransactionPoolNexus transactionPoolNexus = new TransactionPoolNexus(
+                platformContext.getConfiguration(), platformContext.getMetrics(), platformContext.getTime());
+
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformWiring,
                 platformContext,
@@ -489,7 +492,7 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 randomBuilder,
-                new TransactionPoolNexus(platformContext),
+                transactionPoolNexus,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
                 initialPcesFiles,

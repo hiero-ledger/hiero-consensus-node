@@ -437,7 +437,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
         nodes.forEach(node -> {
-            final var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.YES);
+            final var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO);
             final var genesisNetworkPath = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
             final var isGenesis = genesisNetworkPath.toFile().exists();
             // Only write override-network.json if a node is not starting from genesis; otherwise it will adopt

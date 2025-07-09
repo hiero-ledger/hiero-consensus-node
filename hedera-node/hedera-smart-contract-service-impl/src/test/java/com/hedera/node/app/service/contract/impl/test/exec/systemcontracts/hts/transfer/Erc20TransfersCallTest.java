@@ -54,7 +54,7 @@ class Erc20TransfersCallTest extends CallTestBase {
     private VerificationStrategy verificationStrategy;
 
     @Mock
-    private ContractCallStreamBuilder recordBuilder;
+    private ContractCallStreamBuilder streamBuilder;
 
     @Mock
     private SystemContractGasCalculator systemContractGasCalculator;
@@ -96,8 +96,9 @@ class Erc20TransfersCallTest extends CallTestBase {
                         eq(verificationStrategy),
                         eq(SENDER_ID),
                         eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
-        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(SENDER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
@@ -118,11 +119,12 @@ class Erc20TransfersCallTest extends CallTestBase {
                         eq(verificationStrategy),
                         eq(SENDER_ID),
                         eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
+                .willReturn(streamBuilder);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(A_NEW_ACCOUNT_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
-        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
 
         subject = subjectForTransferFrom(1L);
 
@@ -141,8 +143,8 @@ class Erc20TransfersCallTest extends CallTestBase {
                         eq(verificationStrategy),
                         eq(SENDER_ID),
                         eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
-        given(recordBuilder.status()).willReturn(INSUFFICIENT_ACCOUNT_BALANCE);
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(INSUFFICIENT_ACCOUNT_BALANCE);
 
         subject = subjectForTransfer(1L);
 

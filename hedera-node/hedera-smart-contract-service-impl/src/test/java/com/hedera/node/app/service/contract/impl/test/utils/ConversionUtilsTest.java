@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_A
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BESU_LOG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DELETED_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INVALID_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.LONG_ZERO_ADDRESS_BYTES;
@@ -157,6 +158,16 @@ class ConversionUtilsTest {
     void returnsMissingIfSmallLongZeroAddressIsMissing() {
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         final var address = asHeadlongAddress(Address.fromHexString("0x1234").toArray());
+        final var actual = accountNumberForEvmReference(address, nativeOperations);
+        assertEquals(MISSING_ENTITY_NUMBER, actual);
+    }
+
+    @Test
+    void returnsMissingIfAccountDeleted() {
+        final long number = A_NEW_ACCOUNT_ID.accountNumOrThrow();
+        given(nativeOperations.getAccount(any(AccountID.class))).willReturn(DELETED_SOMEBODY);
+        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        final var address = asHeadlongAddress(asEvmAddress(number));
         final var actual = accountNumberForEvmReference(address, nativeOperations);
         assertEquals(MISSING_ENTITY_NUMBER, actual);
     }

@@ -19,4 +19,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @Retention(RetentionPolicy.RUNTIME)
 @TestTemplate
 @ExtendWith({OtterTestExtension.class})
-public @interface OtterTest {}
+public @interface OtterTest {
+
+    /**
+     * Specifies the capabilities required by the test. If an environment does not support all of the required capabilities, the test will be disabled.
+     *
+     * @return an array of required capabilities
+     */
+    Capability[] requires() default {};
+}
