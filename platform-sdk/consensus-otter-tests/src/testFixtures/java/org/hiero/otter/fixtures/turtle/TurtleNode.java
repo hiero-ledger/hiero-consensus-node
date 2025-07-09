@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -64,6 +65,7 @@ import org.hiero.otter.fixtures.turtle.app.TurtleApp;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -82,7 +84,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final AsyncNodeActions asyncNodeActions = new TurtleAcyncNodeActions();
+    private final AsyncNodeActions asyncNodeActions = new TurtleAsyncNodeActions();
 
     private PlatformContext platformContext;
 
@@ -154,6 +156,22 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startSyntheticBottleneck() {
+        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void stopSyntheticBottleneck() {
+        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
     }
 
     /**
@@ -393,7 +411,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Turtle-specific implementation of {@link AsyncNodeActions}.
      */
-    private class TurtleAcyncNodeActions implements AsyncNodeActions {
+    private class TurtleAsyncNodeActions implements AsyncNodeActions {
 
         /**
          * {@inheritDoc}
@@ -401,6 +419,22 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         @Override
         public void killImmediately() throws InterruptedException {
             TurtleNode.this.killImmediately();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void startSyntheticBottleneck() {
+            TurtleNode.this.startSyntheticBottleneck();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void stopSyntheticBottleneck() {
+            TurtleNode.this.startSyntheticBottleneck();
         }
 
         /**

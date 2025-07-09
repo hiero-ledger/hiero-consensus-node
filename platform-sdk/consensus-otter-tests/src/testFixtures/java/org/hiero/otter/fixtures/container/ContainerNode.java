@@ -126,6 +126,16 @@ public class ContainerNode extends AbstractNode implements Node {
         defaultAsyncAction.killImmediately();
     }
 
+    @Override
+    public void startSyntheticBottleneck() {
+        throw new UnsupportedOperationException("startSyntheticBottleneck() is not yet supported in ContainerNode.");
+    }
+
+    @Override
+    public void stopSyntheticBottleneck() {
+        throw new UnsupportedOperationException("stopSyntheticBottleneck() is not yet supported in ContainerNode.");
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -331,6 +341,16 @@ public class ContainerNode extends AbstractNode implements Node {
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
+        }
+
+        @Override
+        public void startSyntheticBottleneck() {
+
+        }
+
+        @Override
+        public void stopSyntheticBottleneck() {
+
         }
     }
 

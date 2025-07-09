@@ -38,6 +38,10 @@ public interface Node {
      */
     void killImmediately() throws InterruptedException;
 
+    void startSyntheticBottleneck();
+
+    void stopSyntheticBottleneck();
+
     /**
      * Start the node.
      *
