@@ -212,10 +212,6 @@ class PlatformStateFacadeTest {
                 .contains("Creation version:")
                 .contains("Minimum judge hash code:")
                 .contains("Root hash:")
-                .contains("First BR Version:")
-                .contains("Last round before BR:")
-                .contains("Lowest Judge Gen before BR")
-                .contains("Lowest Judge Gen before BR")
                 .contains("SingletonNode")
                 .contains("PlatformStateService.PLATFORM_STATE");
     }
