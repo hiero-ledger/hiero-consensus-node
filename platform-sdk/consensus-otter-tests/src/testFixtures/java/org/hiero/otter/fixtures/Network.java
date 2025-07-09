@@ -8,7 +8,7 @@ import java.util.List;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
-import org.hiero.otter.fixtures.result.MultipleNodeStatusProgression;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 
 /**
  * Interface representing a network of nodes.
@@ -32,10 +32,8 @@ public interface Network {
      * <p>The method will wait until all nodes have become {@link org.hiero.consensus.model.status.PlatformStatus#ACTIVE}.
      * It will wait for a environment-specific timeout before throwing an exception if the nodes do not reach the
      * {@code ACTIVE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     *
-     * @throws InterruptedException if the thread is interrupted while waiting
      */
-    void start() throws InterruptedException;
+    void start();
 
     /**
      * Add an instrumented node to the network.
@@ -117,7 +115,7 @@ public interface Network {
     void bumpConfigVersion();
 
     /**
-     * Gets the consensus rounds of all nodes.
+     * Gets the consensus rounds of all nodes that are currently in the network.
      *
      * @return the consensus rounds of the filtered nodes
      */
@@ -125,7 +123,7 @@ public interface Network {
     MultipleNodeConsensusResults getConsensusResults();
 
     /**
-     * Gets the log results of all nodes.
+     * Gets the log results of all nodes that are currently in the network.
      *
      * @return the log results of the nodes
      */
@@ -133,15 +131,15 @@ public interface Network {
     MultipleNodeLogResults getLogResults();
 
     /**
-     * Gets the status progression of all nodes in the network.
+     * Gets the status progression results of all nodes that are currently in the network.
      *
-     * @return the status progression of the nodes
+     * @return the status progression results of the nodes
      */
     @NonNull
-    MultipleNodeStatusProgression getStatusProgression();
+    MultipleNodePlatformStatusResults getPlatformStatusResults();
 
     /**
-     * Gets the results related to PCES files.
+     * Gets the results related to PCES files of all nodes that are currently in the network.
      *
      * @return the PCES files created by the nodes
      */

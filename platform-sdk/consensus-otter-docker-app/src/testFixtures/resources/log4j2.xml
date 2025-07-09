@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+
+  <Filters>
+    <MarkerFilter marker="SYNC_INFO" onMatch="DENY" onMismatch="NEUTRAL"/>
+    <MarkerFilter marker="OBJECT_STREAM_FILE" onMatch="DENY" onMismatch="NEUTRAL"/>
+  </Filters>
+
+  <Properties>
+    <Property name="logDir">logs</Property>
+  </Properties>
+
+  <Appenders>
+    <Console name="ConsoleMarker" target="SYSTEM_OUT">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+      </Filters>
+    </Console>
+
+    <File name="FileLogger" fileName="${logDir}/swirlds.log" append="true">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+        <MarkerFilter marker="STATE_HASH" onMatch="DENY" onMismatch="NEUTRAL"/>
+      </Filters>
+    </File>
+
+    <File name="HashStreamLogger" fileName="${logDir}/swirlds-hashstream.log" append="true">
+      <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %notEmpty{[%marker] }%-5level %logger{36} - %msg %n"/>
+      <Filters>
+        <ThresholdFilter level="INFO" onMatch="NEUTRAL" onMismatch="DENY"/>
+        <MarkerFilter marker="STATE_HASH" onMatch="NEUTRAL" onMismatch="DENY"/>
+      </Filters>
+    </File>
+
+    <InMemoryAppender name="InMemory"/>
+  </Appenders>
+
+  <Loggers>
+    <Root level="all">
+      <AppenderRef ref="ConsoleMarker"/>
+      <AppenderRef ref="FileLogger"/>
+      <AppenderRef ref="HashStreamLogger"/>
+      <AppenderRef ref="InMemory"/>
+    </Root>
+  </Loggers>
+</Configuration>

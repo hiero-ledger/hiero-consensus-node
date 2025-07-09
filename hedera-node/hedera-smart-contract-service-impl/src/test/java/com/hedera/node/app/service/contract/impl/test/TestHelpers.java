@@ -152,7 +152,7 @@ public class TestHelpers {
             .getOrCreateConfig();
     public static final ContractsConfig DEV_CHAIN_ID_CONTRACTS_CONFIG =
             DEV_CHAIN_ID_CONFIG.getConfigData(ContractsConfig.class);
-    public static final int HEDERA_MAX_REFUND_PERCENTAGE = 20;
+    public static final int HEDERA_MAX_REFUND_PERCENTAGE = 100;
     public static final Instant ETERNAL_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     public static final Key AN_ED25519_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0101010101010101010101010101010101010101010101010101010101010101"))
@@ -179,7 +179,7 @@ public class TestHelpers {
     public static final long USER_OFFERED_GAS_PRICE = 666;
     public static final long NETWORK_GAS_PRICE = 777;
     public static final Wei WEI_NETWORK_GAS_PRICE = Wei.of(NETWORK_GAS_PRICE);
-    public static final long BESU_MAX_REFUND_QUOTIENT = 2;
+    public static final long BESU_MAX_REFUND_QUOTIENT = 5;
     public static final long MAX_GAS_ALLOWANCE = 666_666_666;
     public static final int STACK_DEPTH = 1;
     public static final Bytes INITCODE = Bytes.wrap("0060a06040526000600b55".getBytes());
@@ -497,6 +497,10 @@ public class TestHelpers {
                             .spenderId(B_NEW_ACCOUNT_ID)
                             .build())
             .build();
+
+    public static final Account DELETED_SOMEBODY =
+            SOMEBODY.copyBuilder().deleted(true).build();
+
     public static final Account ALIASED_SOMEBODY = Account.newBuilder()
             .accountId(A_NEW_ACCOUNT_ID)
             .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))

@@ -31,6 +31,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -87,13 +89,26 @@ public record HederaEvmTransactionResult(
 
     /**
      * Converts this result to a {@link ContractFunctionResult} for a transaction based on the given
-     * {@link RootProxyWorldUpdater}.
+     * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
+     * @param ethTxData the Ethereum transaction data if relevant
      * @param updater the world updater
+     * @param callData the call data if relevant
      * @return the result
      */
-    public ContractFunctionResult asProtoResultOf(@NonNull final RootProxyWorldUpdater updater) {
-        return asProtoResultOf(null, updater);
+    public ContractFunctionResult asProtoResultOf(
+            @Nullable final EthTxData ethTxData,
+            @NonNull final RootProxyWorldUpdater updater,
+            @Nullable final Bytes callData) {
+        if (haltReason != null) {
+            return withMaybeEthFields(asUncommittedFailureResult(errorMessageFor(haltReason)), ethTxData, callData);
+        } else if (revertReason != null) {
+            // This curious presentation of the revert reason is needed for backward compatibility
+            return withMaybeEthFields(
+                    asUncommittedFailureResult(errorMessageForRevert(revertReason)), ethTxData, callData);
+        } else {
+            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData, callData);
+        }
     }
 
     /**
@@ -101,24 +116,24 @@ public record HederaEvmTransactionResult(
      * {@link RootProxyWorldUpdater} and maybe {@link EthTxData}.
      *
      * @param ethTxData the Ethereum transaction data if relevant
-     * @param updater   the world updater
+     * @param callData the call data if relevant
      * @return the result
      */
-    public ContractFunctionResult asProtoResultOf(
-            @Nullable final EthTxData ethTxData, @NonNull final RootProxyWorldUpdater updater) {
+    public EvmTransactionResult asEvmTxResultOf(@Nullable final EthTxData ethTxData, @Nullable final Bytes callData) {
         if (haltReason != null) {
-            return withMaybeEthFields(asUncommittedFailureResult(errorMessageFor(haltReason)), ethTxData);
+            return txWithMaybeEthFields(
+                    asUncommittedFailureResultBuilder(errorMessageFor(haltReason)), ethTxData, callData);
         } else if (revertReason != null) {
             // This curious presentation of the revert reason is needed for backward compatibility
-            return withMaybeEthFields(asUncommittedFailureResult(errorMessageForRevert(revertReason)), ethTxData);
+            return txWithMaybeEthFields(
+                    asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason)), ethTxData, callData);
         } else {
-            return withMaybeEthFields(asSuccessResultForCommitted(updater), ethTxData);
+            return txWithMaybeEthFields(asSuccessResultForCommittedBuilder(), ethTxData, callData);
         }
     }
 
     /**
      * Converts this result to a {@link ContractFunctionResult} for a query response.
-     *
      * @return the result
      */
     public ContractFunctionResult asQueryResult(@NonNull final ProxyWorldUpdater updater) {
@@ -129,6 +144,22 @@ public record HederaEvmTransactionResult(
                     .build();
         } else {
             return asSuccessResultForQuery(updater);
+        }
+    }
+
+    /**
+     * Converts this result to a {@link ContractFunctionResult} for a query response.
+     * @return the result
+     */
+    public EvmTransactionResult asEvmQueryResult() {
+        if (haltReason != null) {
+            return asUncommittedFailureResultBuilder(errorMessageFor(haltReason))
+                    .build();
+        } else if (revertReason != null) {
+            return asUncommittedFailureResultBuilder(errorMessageForRevert(revertReason))
+                    .build();
+        } else {
+            return txAsSuccessResultForQuery();
         }
     }
 
@@ -321,13 +352,36 @@ public record HederaEvmTransactionResult(
                 null);
     }
 
+    /**
+     * Returns the EVM address of the recipient if it was created in the given updater.
+     * @param updater the updater to check for created contracts
+     * @return the EVM address of the recipient if it was created in the updater, or null if not
+     */
+    public @Nullable Bytes evmAddressIfCreatedIn(@NonNull final RootProxyWorldUpdater updater) {
+        return recipientEvmAddressIfCreatedIn(updater.getCreatedContractIds());
+    }
+
     private ContractFunctionResult withMaybeEthFields(
-            @NonNull final ContractFunctionResult.Builder builder, @Nullable final EthTxData ethTxData) {
+            @NonNull final ContractFunctionResult.Builder builder,
+            @Nullable final EthTxData ethTxData,
+            @Nullable final Bytes callData) {
         if (ethTxData != null) {
             builder.gas(ethTxData.gasLimit())
                     .amount(ethTxData.getAmount())
                     .senderId(senderId)
-                    .functionParameters(Bytes.wrap(ethTxData.callData()));
+                    .functionParameters(requireNonNull(callData));
+        }
+        return builder.build();
+    }
+
+    private EvmTransactionResult txWithMaybeEthFields(
+            @NonNull final EvmTransactionResult.Builder builder,
+            @Nullable final EthTxData ethTxData,
+            @Nullable final Bytes callData) {
+        if (ethTxData != null) {
+            builder.senderId(senderId)
+                    .internalCallContext(new InternalCallContext(
+                            ethTxData.gasLimit(), ethTxData.getAmount(), requireNonNull(callData)));
         }
         return builder.build();
     }
@@ -349,6 +403,20 @@ public record HederaEvmTransactionResult(
         return builder;
     }
 
+    private EvmTransactionResult.Builder asUncommittedFailureResultBuilder(@NonNull final String errorMessage) {
+        requireNonNull(errorMessage);
+        final var builder = EvmTransactionResult.newBuilder().gasUsed(gasUsed).errorMessage(errorMessage);
+        // checking first action.callType is CREATE to indicate 'create contract' call
+        // we are not setting recipientId as contractID for create contract call  because failed block/receipt should
+        // not contain contractID
+        if (actions == null
+                || actions.isEmpty()
+                || !ContractActionType.CREATE.equals(actions.getFirst().callType())) {
+            builder.contractId(recipientId);
+        }
+        return builder;
+    }
+
     private ContractFunctionResult.Builder asSuccessResultForCommitted(@NonNull final RootProxyWorldUpdater updater) {
         final var createdIds = updater.getCreatedContractIds();
         return ContractFunctionResult.newBuilder()
@@ -364,6 +432,14 @@ public record HederaEvmTransactionResult(
                 .signerNonce(signerNonce);
     }
 
+    private EvmTransactionResult.Builder asSuccessResultForCommittedBuilder() {
+        return EvmTransactionResult.newBuilder()
+                .gasUsed(gasUsed)
+                .resultData(output)
+                .contractId(recipientId)
+                .errorMessage("");
+    }
+
     private ContractFunctionResult asSuccessResultForQuery(@NonNull final ProxyWorldUpdater updater) {
         return ContractFunctionResult.newBuilder()
                 .gasUsed(gasUsed)
@@ -373,6 +449,15 @@ public record HederaEvmTransactionResult(
                 .logInfo(pbjLogsFrom(updater.entityIdFactory(), logs))
                 .errorMessage("")
                 .signerNonce(signerNonce)
+                .build();
+    }
+
+    private EvmTransactionResult txAsSuccessResultForQuery() {
+        return EvmTransactionResult.newBuilder()
+                .gasUsed(gasUsed)
+                .resultData(output)
+                .contractId(recipientId)
+                .errorMessage("")
                 .build();
     }
 

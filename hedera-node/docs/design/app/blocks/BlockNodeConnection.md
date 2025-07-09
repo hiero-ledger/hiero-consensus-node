@@ -71,14 +71,31 @@ sequenceDiagram
 
 ### Consensus Node Behavior on EndOfStream Response Codes
 
-| Code                      | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                         EndOfStream limit within timespan                          |
-|:--------------------------|-----------------------|:----------------------------|---------------------|-----------------|------------------------------------------------------------------------------------|
-| `SUCCESS`                 | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `BEHIND` with block state | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `BEHIND` with block state | Yes                   | 1 second                    | Yes                 | 10 seconds      | CN sends EndStream to indicate the BN to look for the block from other Block Nodes |
-| `INTERNAL_ERROR`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `PERSISTENCE_FAILED`      | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                    |
-| `TIMEOUT`                 | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `OUT_OF_ORDER`            | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `BAD_STATE_PROOF`         | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                    |
-| `UNKOWN`                  | Only log statement    |                             |                     |                 |                                                                                    |
+| Code                          | Connect to Other Node | Retry Current Node Interval | Exponential Backoff | Max Retry Delay |                                          Special Behaviour                                          |
+|:------------------------------|-----------------------|:----------------------------|---------------------|-----------------|-----------------------------------------------------------------------------------------------------|
+| `SUCCESS`                     | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| `BEHIND` with block in buffer | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `BEHIND` w/o block in buffer  | Yes                   | 30 seconds                  | No                  | 10 seconds      | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN to look for the block from other Block Nodes |
+| `INTERNAL_ERROR`              | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| `PERSISTENCE_FAILED`          | Immediate             | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+| `TIMEOUT`                     | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `DUPLICATE_BLOCK`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `BAD_BLOCK_PROOF`             | No                    | 1 second                    | Yes                 | 10 seconds      |                                                                                                     |
+| `UNKNOWN`                     | Yes                   | 30 seconds                  | No                  | 10 seconds      |                                                                                                     |
+
+### EndOfStream Rate Limiting
+
+The connection implements a configurable rate limiting mechanism for EndOfStream responses to prevent rapid reconnection cycles and manage system resources effectively.
+
+### Configuration Parameters
+
+<dl>
+<dt>maxEndOfStreamsAllowed</dt>
+<dd>The maximum number of EndOfStream responses permitted within the configured time window.</dd>
+
+<dt>endOfStreamTimeFrame</dt>
+<dd>The duration of the sliding window in which EndOfStream responses are counted.</dd>
+
+<dt>endOfStreamScheduleDelay</dt>
+<dd>The delay duration before attempting reconnection when the rate limit is exceeded.</dd>
+</dl>

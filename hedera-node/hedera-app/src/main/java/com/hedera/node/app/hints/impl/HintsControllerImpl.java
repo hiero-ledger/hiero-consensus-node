@@ -40,6 +40,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -228,6 +229,8 @@ public class HintsControllerImpl implements HintsController {
             } else if (crsState.nextContributingNodeIdOrThrow() == selfId && crsPublicationFuture == null && isActive) {
                 submitUpdatedCRS(hintsStore);
             }
+        } catch (CancellationException ignore) {
+            // Normal operations may include cancelling ongoing work
         } catch (Exception e) {
             log.error("Failed to advance CRS work", e);
         }
@@ -361,6 +364,8 @@ public class HintsControllerImpl implements HintsController {
                         submissions
                                 .submitCrsUpdate(newCrs.crs(), newCrs.proof())
                                 .join();
+                    } catch (CancellationException ignore) {
+                        // Normal operations may include cancelling ongoing work
                     } catch (Exception e) {
                         log.error("Failed to submit updated CRS", e);
                     }
@@ -665,6 +670,8 @@ public class HintsControllerImpl implements HintsController {
                             submissions
                                     .submitHintsKey(selfPartyId, numParties, hints)
                                     .join();
+                        } catch (CancellationException ignore) {
+                            // Normal operations may include cancelling ongoing work
                         } catch (Exception e) {
                             log.error("Failed to publish hinTS key", e);
                         }
@@ -720,6 +727,8 @@ public class HintsControllerImpl implements HintsController {
                                     .submitHintsVote(construction.constructionId(), preprocessedKeys)
                                     .join();
                         }
+                    } catch (CancellationException ignore) {
+                        // Normal operations may include cancelling ongoing work
                     } catch (Exception e) {
                         log.error("Failed to submit preprocessing vote", e);
                     }

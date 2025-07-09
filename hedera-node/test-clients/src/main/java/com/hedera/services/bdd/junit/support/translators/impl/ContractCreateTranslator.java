@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
+import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.resultBuilderFrom;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -16,6 +17,7 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,6 +33,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
             @NonNull final BlockTransactionParts parts,
             @NonNull final BaseTranslator baseTranslator,
             @NonNull final List<StateChange> remainingStateChanges,
+            @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<TraceData> followingUnitTraces) {
         requireNonNull(parts);
         requireNonNull(baseTranslator);
@@ -41,28 +44,37 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                     parts.outputIfPresent(TransactionOutput.TransactionOneOfType.CONTRACT_CREATE)
                             .map(TransactionOutput::contractCreateOrThrow)
                             .ifPresent(createContractOutput -> {
-                                final var resultBuilder = createContractOutput
-                                        .contractCreateResultOrThrow()
-                                        .copyBuilder();
+                                final var derivedBuilder =
+                                        resultBuilderFrom(createContractOutput.evmTransactionResultOrThrow());
                                 if (parts.status() == SUCCESS) {
-                                    // If all sidecars are disabled and there were no logs for a top-level creation,
-                                    // for parity we still need to fill in the result with empty logs and implied bloom
-                                    if (!parts.hasTraces()
-                                            && parts.transactionIdOrThrow().nonce() == 0) {
-                                        resultBuilder
-                                                .logInfo(List.of())
-                                                .bloom(bloomForAll(List.of()))
-                                                .build();
-                                    } else {
-                                        mapTracesToVerboseLogs(resultBuilder, parts.traces());
+                                    if (parts.isTopLevel() || parts.inBatch()) {
+                                        // If all sidecars are disabled and there were no logs for a top-level creation,
+                                        // for parity we still need to fill in the result with empty logs and implied
+                                        // bloom
+                                        if (!parts.hasTraces()
+                                                && parts.transactionIdOrThrow().nonce() == 0) {
+                                            derivedBuilder
+                                                    .logInfo(List.of())
+                                                    .bloom(bloomForAll(List.of()))
+                                                    .build();
+                                        } else {
+                                            mapTracesToVerboseLogs(derivedBuilder, parts.traces());
+                                        }
+                                        baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
+                                        baseTranslator.addChangedContractNonces(derivedBuilder, remainingStateChanges);
                                     }
+                                    final var createdId = createContractOutput
+                                            .evmTransactionResultOrThrow()
+                                            .contractIdOrThrow();
+                                    baseTranslator.addCreatedEvmAddressTo(
+                                            derivedBuilder, createdId, remainingStateChanges);
                                 }
-                                recordBuilder.contractCreateResult(resultBuilder.build());
+                                recordBuilder.contractCreateResult(derivedBuilder.build());
                             });
                     if (parts.status() == SUCCESS) {
                         final var output = parts.createContractOutputOrThrow();
-                        final var contractNum = output.contractCreateResultOrThrow()
-                                .contractIDOrThrow()
+                        final var contractNum = output.evmTransactionResultOrThrow()
+                                .contractIdOrThrow()
                                 .contractNumOrThrow();
                         if (baseTranslator.entityCreatedThisUnit(contractNum)) {
                             long createdNum = baseTranslator.nextCreatedNum(ACCOUNT);

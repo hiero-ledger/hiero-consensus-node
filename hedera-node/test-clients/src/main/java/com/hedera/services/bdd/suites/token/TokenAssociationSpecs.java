@@ -235,6 +235,27 @@ public class TokenAssociationSpecs {
     }
 
     @HapiTest
+    final Stream<DynamicTest> associateNeedsAccountSignature() {
+        String token = "someToken";
+        String alice = "alice";
+        String bob = "bob";
+        return hapiTest(
+                // create token with admin = alice
+                newKeyNamed(alice),
+                tokenCreate(token).adminKey(alice),
+                // create account bob
+                cryptoCreate(bob).balance(0L).maxAutomaticTokenAssociations(0),
+                // associate token *without* the account key
+                tokenAssociate(bob, token).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE),
+                // associate token *with* the account key
+                tokenAssociate(bob, token).signedBy(DEFAULT_PAYER, bob).hasKnownStatus(SUCCESS),
+                // dissociate token *without* the account key
+                tokenDissociate(bob, token).signedBy(DEFAULT_PAYER).hasKnownStatus(INVALID_SIGNATURE),
+                // dissociate token *with* the account key
+                tokenDissociate(bob, token).signedBy(DEFAULT_PAYER, bob).hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> contractInfoQueriesAsExpected() {
         final var contract = "contract";
         return defaultHapiSpec("ContractInfoQueriesAsExpected")

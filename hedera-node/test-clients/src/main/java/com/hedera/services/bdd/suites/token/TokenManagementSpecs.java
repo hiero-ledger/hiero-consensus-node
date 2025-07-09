@@ -71,6 +71,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_MINT_METADATA;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
@@ -522,6 +523,9 @@ public class TokenManagementSpecs {
                 wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1)
                         .signedBy(GENESIS)
                         .hasKnownStatus(INVALID_SIGNATURE),
+                wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, 1)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(INVALID_SIGNATURE),
                 wipeTokenAccount(wipeableToken, TOKEN_TREASURY, 1).hasKnownStatus(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT),
                 wipeTokenAccount(anotherWipeableToken, "misc", 501).hasKnownStatus(INVALID_WIPING_AMOUNT),
                 wipeTokenAccount(anotherWipeableToken, "misc", -1).hasPrecheck(INVALID_WIPING_AMOUNT),
@@ -791,5 +795,21 @@ public class TokenManagementSpecs {
                         burnToken(SUPPLE, 2).hasKnownStatus(INVALID_TOKEN_BURN_AMOUNT),
                         burnToken(SUPPLE, 0).hasPrecheck(OK),
                         burnToken(SUPPLE, -1).hasPrecheck(INVALID_TOKEN_BURN_AMOUNT));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> requireCorrectSupplyKeys() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(TOKEN),
+                tokenCreate(TOKEN).supplyKey(SUPPLY_KEY).initialSupply(1),
+                // mint without the supply key
+                mintToken(TOKEN, 1).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // mint with the supply key
+                mintToken(TOKEN, 1).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS),
+                // burn without the supply key
+                burnToken(TOKEN, 1).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                // burn with the supply key
+                burnToken(TOKEN, 1).signedBy(GENESIS, SUPPLY_KEY).hasKnownStatus(SUCCESS));
     }
 }

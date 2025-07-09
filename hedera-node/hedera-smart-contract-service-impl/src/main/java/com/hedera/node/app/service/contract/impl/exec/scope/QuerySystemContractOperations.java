@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
@@ -78,7 +79,8 @@ public class QuerySystemContractOperations implements SystemContractOperations {
     public void externalizeResult(
             @NonNull final ContractFunctionResult result,
             @NonNull final ResponseCodeEnum responseStatus,
-            @Nullable Transaction transaction) {
+            @Nullable final Transaction transaction,
+            @NonNull final EvmTransactionResult txResult) {
         // No-op
     }
 
