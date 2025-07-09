@@ -35,10 +35,7 @@ public final class PbjConverter {
                 accessor.getLatestFreezeRound(),
                 Optional.ofNullable(accessor.getLegacyRunningEventHash())
                         .map(Hash::getBytes)
-                        .orElse(null),
-                accessor.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                accessor.getLastRoundBeforeBirthRoundMode(),
-                accessor.getFirstVersionInBirthRoundMode());
+                        .orElse(null));
     }
 
     /**
@@ -98,23 +95,6 @@ public final class PbjConverter {
             } else {
                 builder.legacyRunningEventHash(
                         accumulator.getLegacyRunningEventHash().getBytes());
-            }
-        }
-
-        if (accumulator.isLowestJudgeGenerationBeforeBirthRoundModeUpdated()) {
-            builder.lowestJudgeGenerationBeforeBirthRoundMode(
-                    accumulator.getLowestJudgeGenerationBeforeBirthRoundMode());
-        }
-
-        if (accumulator.isLastRoundBeforeBirthRoundModeUpdated()) {
-            builder.lastRoundBeforeBirthRoundMode(accumulator.getLastRoundBeforeBirthRoundMode());
-        }
-
-        if (accumulator.isFirstVersionInBirthRoundModeUpdated()) {
-            if (accumulator.getFirstVersionInBirthRoundMode() == null) {
-                builder.firstVersionInBirthRoundMode((SemanticVersion) null);
-            } else {
-                builder.firstVersionInBirthRoundMode(accumulator.getFirstVersionInBirthRoundMode());
             }
         }
 

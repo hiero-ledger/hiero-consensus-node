@@ -164,14 +164,6 @@ public class SwirldsPlatform implements Platform {
 
         final PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
 
-        // Set these fields to zero so they can be removed in a future version.
-        // These fields were required for birth round migration which has taken place.
-        blocks.platformStateFacade().bulkUpdateOf(initialState.getState(), v -> {
-            v.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().build());
-            v.setLastRoundBeforeBirthRoundMode(0);
-            v.setLowestJudgeGenerationBeforeBirthRoundMode(0);
-        });
-
         selfId = blocks.selfId();
 
         // This will be initialized to a non-null value if birth round migration is performed. This is necessary

@@ -136,27 +136,6 @@ class PlatformStateFacadeTest {
     }
 
     @Test
-    void testFirstVersionInBirthRoundModeOf() {
-        assertEquals(
-                platformStateModifier.getFirstVersionInBirthRoundMode(),
-                platformStateFacade.firstVersionInBirthRoundModeOf(state));
-    }
-
-    @Test
-    void testLastRoundBeforeBirthRoundModeOf() {
-        assertEquals(
-                platformStateModifier.getLastRoundBeforeBirthRoundMode(),
-                platformStateFacade.lastRoundBeforeBirthRoundModeOf(state));
-    }
-
-    @Test
-    void testLowestJudgeGenerationBeforeBirthRoundModeOf() {
-        assertEquals(
-                platformStateModifier.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                platformStateFacade.lowestJudgeGenerationBeforeBirthRoundModeOf(state));
-    }
-
-    @Test
     void testConsensusTimestampOf() {
         assertEquals(platformStateModifier.getConsensusTimestamp(), platformStateFacade.consensusTimestampOf(state));
     }
