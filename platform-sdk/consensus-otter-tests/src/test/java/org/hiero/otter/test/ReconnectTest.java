@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.test;
 
+import static org.assertj.core.api.Fail.fail;
 import static org.assertj.core.data.Percentage.withPercentage;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
@@ -65,8 +66,10 @@ public class ReconnectTest {
         nodeToReconnect.getPlatformStatusResults().clear();
 
         // Wait for the node we just killed to fall behind
-        timeManager.waitForCondition(
-                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(30));
+        if (!timeManager.waitForCondition(
+                () -> network.nodeIsBehindByNodeCount(nodeToReconnect, 0.5), Duration.ofSeconds(30))) {
+            fail("Node did not fall behind in the time allotted.");
+        }
 
         // Restart the node that was killed
         nodeToReconnect.start();
