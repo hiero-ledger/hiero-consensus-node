@@ -49,7 +49,7 @@ public class JrsTestReaderReportCommand extends AbstractCommand {
     @CommandLine.Option(
             names = {"-r", "--bucket-replacement"},
             description = "The replacement for bucket prefix in order to convert bucket URLs to web links."
-                    + " Defaults to "+DEFAULT_BUCKET_PREFIX_REPLACEMENT)
+                    + " Defaults to " + DEFAULT_BUCKET_PREFIX_REPLACEMENT)
     private void setBucketPrefixReplacement(@NonNull final String bucketPrefix) {
         this.bucketPrefixReplacement = bucketPrefix;
     }
