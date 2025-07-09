@@ -195,12 +195,11 @@ public class EventMetadata extends AbstractHashable {
                 throw new IllegalStateException("The hash of the event must be set before creating the descriptor");
             }
 
-            descriptor = new EventDescriptorWrapper(
-                    EventDescriptor.newBuilder()
-                            .hash(getHash().getBytes())
-                            .creatorNodeId(creatorId.id())
-                            .birthRound(getBirthRound())
-                            .build());
+            descriptor = new EventDescriptorWrapper(EventDescriptor.newBuilder()
+                    .hash(getHash().getBytes())
+                    .creatorNodeId(creatorId.id())
+                    .birthRound(getBirthRound())
+                    .build());
         }
 
         return descriptor;

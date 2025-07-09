@@ -4,7 +4,6 @@ package org.hiero.consensus.model.event;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;

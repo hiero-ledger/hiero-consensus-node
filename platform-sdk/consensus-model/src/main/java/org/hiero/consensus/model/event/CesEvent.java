@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;

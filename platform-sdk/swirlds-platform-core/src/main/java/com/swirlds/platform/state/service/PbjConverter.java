@@ -4,7 +4,6 @@ package com.swirlds.platform.state.service;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.PlatformStateAccessor;

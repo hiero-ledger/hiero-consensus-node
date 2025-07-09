@@ -142,7 +142,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
         update(previousState.copyBuilder().latestFreezeRound(latestFreezeRound));
     }
 
-
     /**
      * {@inheritDoc}
      */

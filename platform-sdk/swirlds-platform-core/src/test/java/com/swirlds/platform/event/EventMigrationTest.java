@@ -3,7 +3,6 @@ package com.swirlds.platform.event;
 
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.event.preconsensus.PcesConfig_;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
@@ -17,7 +16,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -30,7 +28,6 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -43,14 +40,7 @@ public class EventMigrationTest {
     }
 
     public static Stream<Arguments> migrationTestArguments() {
-        return Stream.of(
-                Arguments.of(
-                        FileType.PCES,
-                        "eventFiles/release64/",
-                        321,
-                        2
-                )
-        );
+        return Stream.of(Arguments.of(FileType.PCES, "eventFiles/release64/", 321, 2));
     }
 
     /**
@@ -87,16 +77,13 @@ public class EventMigrationTest {
             case PCES -> {
                 final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
                         TestPlatformContextBuilder.create()
-                                .withConfiguration(
-                                        new TestConfigBuilder()
-                                                .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
-                                                .getOrCreateConfig()
-                                )
+                                .withConfiguration(new TestConfigBuilder()
+                                        .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
+                                        .getOrCreateConfig())
                                 .build(),
                         path,
                         0L,
-                        false
-                );
+                        false);
                 try (final IOIterator<PlatformEvent> iterator = fileTracker.getEventIterator(0l, 0l)) {
                     while (iterator.hasNext()) {
                         eventsRead.add(iterator.next());

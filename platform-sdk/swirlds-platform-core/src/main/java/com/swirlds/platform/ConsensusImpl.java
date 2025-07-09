@@ -238,8 +238,8 @@ public class ConsensusImpl implements Consensus {
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
         final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
-                    .map(judge -> new Hash(judge.judgeHash()))
-                    .collect(toSet());
+                .map(judge -> new Hash(judge.judgeHash()))
+                .collect(toSet());
 
         initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
