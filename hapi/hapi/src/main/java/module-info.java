@@ -87,6 +87,7 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.block.stream.trace.protoc;
     opens com.hedera.hapi.node.state.tss.legacy;
     opens com.hedera.hapi.platform.state.legacy;
+    opens com.hedera.hapi.services.auxiliary.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
     opens com.hedera.node.internal.network.legacy;
