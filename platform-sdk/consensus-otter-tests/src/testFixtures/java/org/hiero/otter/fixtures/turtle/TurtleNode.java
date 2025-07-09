@@ -160,14 +160,18 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     /**
      * {@inheritDoc}
+     *
+     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
-    public void startSyntheticBottleneck() {
+    public void startSyntheticBottleneck(@NotNull final Duration delayPerRound) {
         throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
     }
 
     /**
      * {@inheritDoc}
+     *
+     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
      */
     @Override
     public void stopSyntheticBottleneck() {
@@ -425,8 +429,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
          * {@inheritDoc}
          */
         @Override
-        public void startSyntheticBottleneck() {
-            TurtleNode.this.startSyntheticBottleneck();
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
         }
 
         /**
@@ -434,7 +438,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
          */
         @Override
         public void stopSyntheticBottleneck() {
-            TurtleNode.this.startSyntheticBottleneck();
+            throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
         }
 
         /**

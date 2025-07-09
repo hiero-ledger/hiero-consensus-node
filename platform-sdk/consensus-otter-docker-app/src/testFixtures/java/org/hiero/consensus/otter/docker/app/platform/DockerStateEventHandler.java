@@ -11,6 +11,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,6 +30,8 @@ import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
 public class DockerStateEventHandler implements ConsensusStateEventHandler<TurtleAppState> {
 
     private static final Logger LOGGER = LogManager.getLogger(DockerStateEventHandler.class);
+
+    private final AtomicLong syntheticBottleneckMillis = new AtomicLong(0);
 
     /**
      * {@inheritDoc}
@@ -59,6 +62,19 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
                     LOGGER.warn("Failed to parse transaction", ex);
                 }
             });
+        }
+        maybeDoBottleneck();
+    }
+
+    private void maybeDoBottleneck() {
+        final long millisToSleep = syntheticBottleneckMillis.get();
+        if (millisToSleep > 0) {
+            try {
+                Thread.sleep(millisToSleep);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOGGER.warn("Synthetic bottleneck interrupted", e);
+            }
         }
     }
 
@@ -94,4 +110,8 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
      */
     @Override
     public void onNewRecoveredState(@NonNull final TurtleAppState recoveredState) {}
+
+    public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
+        this.syntheticBottleneckMillis.set(millisToSleepPerRound);
+    }
 }

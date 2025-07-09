@@ -38,7 +38,11 @@ public interface Node {
      */
     void killImmediately() throws InterruptedException;
 
-    void startSyntheticBottleneck();
+    default void startSyntheticBottleneck() {
+        startSyntheticBottleneck(Duration.ofMillis(100));
+    }
+
+    void startSyntheticBottleneck(@NonNull Duration delayPerRound);
 
     void stopSyntheticBottleneck();
 
@@ -102,7 +106,34 @@ public interface Node {
      * @return {@code true} if the node is active, {@code false} otherwise
      */
     default boolean isActive() {
-        return platformStatus() == PlatformStatus.ACTIVE;
+        return isInStatus(PlatformStatus.ACTIVE);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#CHECKING}.
+     *
+     * @return {@code true} if the node is checking, {@code false} otherwise
+     */
+    default boolean isChecking() {
+        return isInStatus(PlatformStatus.CHECKING);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@link PlatformStatus#BEHIND}.
+     *
+     * @return {@code true} if the node is behind, {@code false} otherwise
+     */
+    default boolean isBehind() {
+        return isInStatus(PlatformStatus.BEHIND);
+    }
+
+    /**
+     * Checks if the node's {@link PlatformStatus} is {@code status}.
+     *
+     * @return {@code true} if the node is in the supplied status, {@code false} otherwise
+     */
+    default boolean isInStatus(@NonNull final PlatformStatus status) {
+        return platformStatus() == status;
     }
 
     /**

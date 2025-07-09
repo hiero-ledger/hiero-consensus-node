@@ -24,7 +24,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -60,6 +59,7 @@ public class ConsensusNodeManager {
     private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
     private static final String SWIRLD_NAME = "123";
 
+    private DockerStateEventHandler dockerStateEventHandler;
     private final Platform platform;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
@@ -106,7 +106,7 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
 
-        final ConsensusStateEventHandler<TurtleAppState> consensusStateEventHandler = new DockerStateEventHandler();
+        dockerStateEventHandler = new DockerStateEventHandler();
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
@@ -130,7 +130,7 @@ public class ConsensusNodeManager {
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        consensusStateEventHandler,
+                        dockerStateEventHandler,
                         oldSelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -208,5 +208,9 @@ public class ConsensusNodeManager {
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
+    }
+
+    public void updateSyntheticBottleneck(@NonNull final long millisToSleepPerRound) {
+        dockerStateEventHandler.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

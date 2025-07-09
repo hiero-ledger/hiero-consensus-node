@@ -27,13 +27,13 @@ public class CheckingRecoveryTest {
 
         // Setup simulation
 
-        // Add more than 3 nodes with balanced weights so that one node can be taken down without halting consensus
+        // Add more than 3 nodes with balanced weights so that one node can be lost without halting consensus
         network.addNodes(4, WeightGenerators.BALANCED);
 
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
         network.start();
 
-        // Wait for thirty seconds minutes
+        // Run the nodes for some time
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         final Node nodeToThrottle = network.getNodes().getLast();
@@ -43,17 +43,13 @@ public class CheckingRecoveryTest {
 
         // Throttle the last node for a period of time so that it falls into CHECKING
         nodeToThrottle.startSyntheticBottleneck();
-        if (!timeManager.waitForCondition(
-                () -> nodeToThrottle.getPlatformStatusResults().currentStatus() == PlatformStatus.CHECKING,
-                Duration.ofSeconds(30L))) {
+        if (!timeManager.waitForCondition(nodeToThrottle::isChecking, Duration.ofSeconds(30L))) {
             fail("Node did not enter CHECKING status within the expected time frame after synthetic bottleneck was enabled.");
         }
         nodeToThrottle.stopSyntheticBottleneck();
 
         // Verify that the node recovers when the bottleneck is lifted
-        if (!timeManager.waitForCondition(
-                () -> nodeToThrottle.getPlatformStatusResults().currentStatus() == PlatformStatus.ACTIVE,
-                Duration.ofSeconds(30L))) {
+        if (!timeManager.waitForCondition(nodeToThrottle::isActive, Duration.ofSeconds(30L))) {
             fail("Node did not recover from CHECKING status within the expected time frame after synthetic bottleneck was disabled.");
         }
     }

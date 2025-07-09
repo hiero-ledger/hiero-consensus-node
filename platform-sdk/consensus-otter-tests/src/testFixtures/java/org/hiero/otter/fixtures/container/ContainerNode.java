@@ -36,6 +36,7 @@ import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -127,13 +128,13 @@ public class ContainerNode extends AbstractNode implements Node {
     }
 
     @Override
-    public void startSyntheticBottleneck() {
-        throw new UnsupportedOperationException("startSyntheticBottleneck() is not yet supported in ContainerNode.");
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+        defaultAsyncAction.startSyntheticBottleneck(delayPerRound);
     }
 
     @Override
     public void stopSyntheticBottleneck() {
-        throw new UnsupportedOperationException("stopSyntheticBottleneck() is not yet supported in ContainerNode.");
+        defaultAsyncAction.stopSyntheticBottleneck();
     }
 
     /**
@@ -343,14 +344,24 @@ public class ContainerNode extends AbstractNode implements Node {
             }
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
-        public void startSyntheticBottleneck() {
-
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            blockingStub.syntheticBottleneckUpdate(
+                    SyntheticBottleneckRequest.newBuilder().setSleepMillisPerRound(delayPerRound.toMillis()).build()
+            );
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void stopSyntheticBottleneck() {
-
+            blockingStub.syntheticBottleneckUpdate(
+                    SyntheticBottleneckRequest.newBuilder().setSleepMillisPerRound(0).build()
+            );
         }
     }
 

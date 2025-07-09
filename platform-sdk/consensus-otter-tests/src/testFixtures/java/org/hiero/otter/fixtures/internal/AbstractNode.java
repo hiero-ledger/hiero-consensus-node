@@ -118,16 +118,4 @@ public abstract class AbstractNode implements Node {
             throw new IllegalStateException(message);
         }
     }
-
-    /**
-     * Throws an {@link IllegalStateException} if the node is not in the specified lifecycle state.
-     *
-     * @param expected the expected lifecycle state
-     * @param message the message for the exception
-     */
-    protected void throwIfNotIn(@NonNull final LifeCycle expected, @NonNull final String message) {
-        if (lifeCycle != expected) {
-            throw new IllegalStateException(message);
-        }
-    }
 }
