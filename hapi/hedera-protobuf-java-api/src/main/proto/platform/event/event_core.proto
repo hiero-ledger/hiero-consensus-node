@@ -72,7 +72,7 @@ message EventCore {
   reserved 4;
 
   /**
-   * Used to be the software version of the node that created this event.
+   * Previously used as the software version of the node that created this event.
    */
   reserved 17;
 }

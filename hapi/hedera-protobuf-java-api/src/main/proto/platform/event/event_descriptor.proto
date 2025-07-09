@@ -73,7 +73,7 @@ message EventDescriptor {
   int64 birth_round = 3;
 
   /**
-  * Used to indicate the generation of the event.
+  * Previously used to indicate the generation of the event.
   */
   reserved 17;
 }

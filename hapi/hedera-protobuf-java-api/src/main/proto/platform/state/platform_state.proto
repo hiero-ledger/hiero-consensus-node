@@ -86,30 +86,18 @@ message PlatformState {
      bytes legacy_running_event_hash = 10000 [deprecated = true];
 
     /**
-     * A consensus generation.<br/>
-     * The lowest judge generation before birth round mode was enabled.
-     * <p>
-     * This SHALL be `MAX_UNSIGNED` if birth round mode has not yet been enabled.
+     * Previously used to indicate the lowest judge generation before birth round mode was enabled.
      */
     reserved 10001;
 
     /**
-     * A consensus round.<br/>
-     * The last round before the birth round mode was enabled.
-     * Will be removed after the birth round migration.
-     * <p>
-     * This SHALL be `MAX_UNSIGNED` if birth round mode has not yet been enabled.
+     * Previously used to indicate the last round before the birth round mode was enabled.
      */
     reserved 10002;
 
     /**
-     * A consensus node semantic version.<br/>
-     * The software version that enabled birth round mode.
-     * <p>
-     * This SHALL be unset if birth round migration has not yet happened.<br/>
-     * If birth round migration is complete, this SHALL be the _first_ software
-     * version that enabled birth round mode.
-    */
+     * Previously used to indicate the software version that enabled birth round mode.
+     */
     reserved 10003;
 
     reserved 10004;
@@ -134,7 +122,7 @@ message ConsensusSnapshot {
      */
     uint64 round = 1;
     /**
-     * Used to be judge hashes, replaced by judge ids which contain creator node ID and judge hash.<br/>
+     * Previously used to be judge hashes, replaced by judge ids which contain creator node ID and judge hash.<br/>
      */
     reserved 2;
 
