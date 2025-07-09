@@ -13,10 +13,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
@@ -29,10 +29,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
+import static com.hedera.services.bdd.suites.integration.RepeatableHip1064Tests.validateRecordFees;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,11 +44,9 @@ import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
-import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,16 +67,18 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
 /**
- * Critical missing test cases for HIP-1064 Daily Rewards for Active Nodes.
- *
- * This class focuses on critical boundary conditions and edge cases:
- * 1. Precise active node threshold boundaries (exactly at/below threshold)
- * 2. Extreme configuration values (0 rewards, etc.)
- * 3. Node eligibility edge cases (all decline, all inactive, single winner)
- * 4. Fee redirection boundary conditions (threshold = 0, balance = threshold)
- * 5. Balance edge cases (zero balance)
- * 6. Security and malicious behavior (invalid activity data, overflow protection)
- */
+ * Boundary condition and edge case tests for HIP-1064 Daily Rewards for Active Nodes.
+ * <p>
+ * Includes:
+ * <ol>
+ *   <li>Precise active node threshold boundaries (exactly at/below threshold)</li>
+ *   <li> Extreme configuration values (0 rewards, etc.)</li>
+ *   <li> Node eligibility edge cases (all decline, all inactive, single winner)</li>
+ *   <li> Fee redirection boundary conditions (threshold = 0, balance = threshold)</li>
+ *   <li> Balance edge cases (zero balance)</li>
+ *   <li> Security and malicious behavior (invalid activity data, overflow protection)</li>
+ * </ol>
+ **/
 @Order(8)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
@@ -107,8 +107,6 @@ public class AdditionalHip1064Tests {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(1)
     final Stream<DynamicTest> nodeWithMinimalActivityReceivesRewards() {
-        final AtomicLong expectedNodeRewards = new AtomicLong(0);
-        final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
         return hapiTest(
@@ -121,39 +119,23 @@ public class AdditionalHip1064Tests {
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
-                doWithStartupConfig(
-                        "nodes.targetYearlyNodeRewardsUsd",
-                        target -> doWithStartupConfig(
-                                "nodes.numPeriodsToTargetUsd",
-                                numPeriods -> doingContextual(spec -> {
-                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
-                                            / Integer.parseInt(numPeriods);
-                                    final long targetTinybars =
-                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
-                                    expectedNodeRewards.set(targetTinybars);
-                                }))),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set nodes with minimal activity: missing 9 out of 10 rounds = 10% active
                 // This should still get rewards since they're not 100% inactive
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .numRoundsInStakingPeriod(10)
-                            .nodeActivities(NodeActivity.newBuilder()
-                                    .nodeId(1)
-                                    .numMissedJudgeRounds(9)
-                                    .build()) // 10% active
-                            .build();
-                }),
-                getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(nodeRewardBalance::set)
-                        .logged(),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.numRoundsInStakingPeriod(10)
+						.nodeActivities(NodeActivity.newBuilder()
+								.nodeId(1)
+								.numMissedJudgeRounds(9)
+								.build()) // 10% active
+						.build()),
                 waitUntilStartOfNextStakingPeriod(1),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                nodeRewardsValidatorForThresholdTest(expectedNodeRewards::get, nodeRewardBalance::get),
+                                nodeRewardsValidatorForThresholdTest(),
                                 1,
                                 (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
                                                 .anyMatch(
@@ -189,7 +171,7 @@ public class AdditionalHip1064Tests {
                 // Set all eligible nodes to miss ALL rounds (100% inactive)
                 // Based on working tests, this is what makes nodes inactive
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
+                    final int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(
@@ -226,7 +208,6 @@ public class AdditionalHip1064Tests {
     @Order(3)
     final Stream<DynamicTest> systemBehaviorWhenAllNodesInactive() {
         final AtomicLong initialBalance = new AtomicLong(0);
-        final AtomicLong finalBalance = new AtomicLong(0);
 
         return hapiTest(
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
@@ -245,7 +226,7 @@ public class AdditionalHip1064Tests {
 
                 // Set all nodes to be inactive (miss all rounds)
                 mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
+                    final int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(
@@ -265,33 +246,29 @@ public class AdditionalHip1064Tests {
                 }),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("nobody").payingWith(GENESIS),
-                getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(finalBalance::set)
-                        .logged(),
+				// Verify system handles all-inactive scenario gracefully
+                getAccountBalance(NODE_REWARD).exposingBalanceTo(balance -> {
+					// System should handle all-inactive nodes without crashing.
+					// The key test is that the system doesn't crash or behave unexpectedly
+					// Exact reward distribution behavior with all inactive nodes may vary
+					assertTrue(balance >= 0, "Node reward account balance should remain non-negative");
 
-                // Verify system handles all-inactive scenario gracefully
-                doingContextual(spec -> {
-                    long balanceChange = finalBalance.get() - initialBalance.get();
-
-                    // System should handle all-inactive nodes without crashing
-                    assertTrue(finalBalance.get() >= 0, "Node reward account balance should remain non-negative");
-
-                    if (balanceChange < 0) {
-                        // If balance decreased, it means something was debited (possibly fees or minimal rewards)
-                        System.out.println("Account 801 debited " + Math.abs(balanceChange)
-                                + " tinybars with all nodes inactive - this may be due to fees or system operations");
-                    } else if (balanceChange > 0) {
-                        // If balance increased, fees were added to the account
-                        System.out.println("Account 801 credited " + balanceChange
-                                + " tinybars with all nodes inactive - likely due to fee collection");
-                    } else {
-                        // If balance unchanged, no activity
-                        System.out.println("Account 801 balance unchanged with all nodes inactive");
-                    }
-
-                    // The key test is that the system doesn't crash or behave unexpectedly
-                    // Exact reward distribution behavior with all inactive nodes may vary
-                }));
+					final long balanceChange = balance - initialBalance.get();
+					logIt(ignore -> {
+						if (balanceChange < 0) {
+							// If balance decreased, it means something was debited (possibly fees or minimal rewards)
+							return "Account 801 debited " + Math.abs(balanceChange)
+									+ " tinybars with all nodes inactive - this may be due to fees or system operations";
+						} else if (balanceChange > 0) {
+							// If balance increased, fees were added to the account
+									return "Account 801 credited " + balanceChange
+									+ " tinybars with all nodes inactive - likely due to fee collection";
+						} else {
+							// If balance unchanged, no activity
+								return	"Account 801 balance unchanged with all nodes inactive";
+						}
+					});
+				}));
     }
 
     /**
@@ -301,7 +278,6 @@ public class AdditionalHip1064Tests {
     @Order(4)
     final Stream<DynamicTest> noRewardsWhenAccountHasInsufficientBalance() {
         final AtomicLong balanceAfterFees = new AtomicLong(0);
-        final AtomicLong finalBalance = new AtomicLong(0);
 
         return hapiTest(
                 nodeUpdate("0").declineReward(true),
@@ -323,15 +299,13 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up active nodes
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(NodeActivity.newBuilder()
-                                    .nodeId(1)
-                                    .numMissedJudgeRounds(0) // Active node
-                                    .build())
-                            .build();
-                }),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.nodeActivities(NodeActivity.newBuilder()
+								.nodeId(1)
+								.numMissedJudgeRounds(0) // Active node
+								.build())
+						.build()),
 
                 // Set balance to zero AFTER fee calculation but BEFORE reward payment
                 EmbeddedVerbs.mutateAccount(NODE_REWARD, account -> account.tinybarBalance(0)),
@@ -344,28 +318,15 @@ public class AdditionalHip1064Tests {
 
                 // Check final balance - should not have gone significantly negative
                 getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(finalBalance::set)
-                        .logged(),
-
-                // Verify system behavior with zero balance
-                doingContextual(spec -> {
-                    System.out.println("Balance after fees: " + balanceAfterFees.get());
-                    System.out.println("Final balance: " + finalBalance.get());
-
-                    // Test that system handles zero balance gracefully
-                    // Allow small negative values due to system behavior, but not large reward payments
-                    assertTrue(
-                            finalBalance.get() >= -100000, // Allow small overdraft but not full rewards
-                            "With zero balance, system should not pay large rewards. Final balance: "
-                                    + finalBalance.get());
-
-                    if (finalBalance.get() < 0) {
-                        System.out.println("System went negative by " + Math.abs(finalBalance.get())
-                                + " tinybars - this may be acceptable minimal overdraft");
-                    } else {
-                        System.out.println("System maintained non-negative balance - good!");
-                    }
-                }));
+                        .exposingBalanceTo(finalBalance -> {
+							// Test that system handles zero balance gracefully
+							// Allow small negative values due to system behavior, but not large reward payments
+							assertTrue(
+									finalBalance >= -100000, // Allow small overdraft but not full rewards
+									"With zero balance, system should not pay large rewards. Balance after fees: " + balanceAfterFees.get() + ", final balance: " + finalBalance);
+							logIt(finalBalance < 0 ? "System went negative by " + Math.abs(finalBalance) + " tinybars - this may be acceptable minimal overdraft" : "System maintained non-negative balance - good!");
+						})
+                );
     }
 
     /**
@@ -435,16 +396,14 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set numRoundsInStakingPeriod to 0 - edge case that could cause division by zero
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .numRoundsInStakingPeriod(0) // Zero rounds - test graceful handling
-                            .nodeActivities(NodeActivity.newBuilder()
-                                    .nodeId(1)
-                                    .numMissedJudgeRounds(0)
-                                    .build()) // 0/0 = undefined
-                            .build();
-                }),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.numRoundsInStakingPeriod(0) // Zero rounds - test graceful handling
+						.nodeActivities(NodeActivity.newBuilder()
+								.nodeId(1)
+								.numMissedJudgeRounds(0)
+								.build()) // 0/0 = undefined
+						.build()),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("nobody").payingWith(GENESIS),
                 getAccountBalance(NODE_REWARD)
@@ -453,7 +412,7 @@ public class AdditionalHip1064Tests {
 
                 // Test passes if system doesn't crash with division by zero
                 // The system may or may not distribute rewards, but should handle gracefully
-                doingContextual(spec -> {
+                doingContextual(ignore -> {
                     // Just verify the system didn't crash
                     assertTrue(finalBalance.get() >= 0, "System should handle zero rounds without crashing");
                 }));
@@ -495,24 +454,22 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set nodes to have perfect activity - no missed rounds
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(
-                                    NodeActivity.newBuilder()
-                                            .nodeId(1)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // 100% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(2)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // 100% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(3)
-                                            .numMissedJudgeRounds(0)
-                                            .build()) // 100% active
-                            .build();
-                }),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.nodeActivities(
+								NodeActivity.newBuilder()
+										.nodeId(1)
+										.numMissedJudgeRounds(0)
+										.build(), // 100% active
+								NodeActivity.newBuilder()
+										.nodeId(2)
+										.numMissedJudgeRounds(0)
+										.build(), // 100% active
+								NodeActivity.newBuilder()
+										.nodeId(3)
+										.numMissedJudgeRounds(0)
+										.build()) // 100% active
+						.build()),
                 getAccountBalance(NODE_REWARD)
                         .exposingBalanceTo(nodeRewardBalance::set)
                         .logged(),
@@ -556,28 +513,26 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up active nodes (but they all decline)
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(
-                                    NodeActivity.newBuilder()
-                                            .nodeId(0)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // Active but declines
-                                    NodeActivity.newBuilder()
-                                            .nodeId(1)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // Active but declines
-                                    NodeActivity.newBuilder()
-                                            .nodeId(2)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // Active but declines
-                                    NodeActivity.newBuilder()
-                                            .nodeId(3)
-                                            .numMissedJudgeRounds(0)
-                                            .build()) // Active but declines
-                            .build();
-                }),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.nodeActivities(
+								NodeActivity.newBuilder()
+										.nodeId(0)
+										.numMissedJudgeRounds(0)
+										.build(), // Active but declines
+								NodeActivity.newBuilder()
+										.nodeId(1)
+										.numMissedJudgeRounds(0)
+										.build(), // Active but declines
+								NodeActivity.newBuilder()
+										.nodeId(2)
+										.numMissedJudgeRounds(0)
+										.build(), // Active but declines
+								NodeActivity.newBuilder()
+										.nodeId(3)
+										.numMissedJudgeRounds(0)
+										.build()) // Active but declines
+						.build()),
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // Expect no rewards since all nodes decline
@@ -611,20 +566,18 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set up active nodes
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(
-                                    NodeActivity.newBuilder()
-                                            .nodeId(1)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // Active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(2)
-                                            .numMissedJudgeRounds(0)
-                                            .build()) // Active
-                            .build();
-                }),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.nodeActivities(
+								NodeActivity.newBuilder()
+										.nodeId(1)
+										.numMissedJudgeRounds(0)
+										.build(), // Active
+								NodeActivity.newBuilder()
+										.nodeId(2)
+										.numMissedJudgeRounds(0)
+										.build()) // Active
+						.build()),
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // Expect no rewards since target is zero
@@ -691,7 +644,6 @@ public class AdditionalHip1064Tests {
     @Order(11)
     final Stream<DynamicTest> singleActiveNodeEdgeCaseBehavior() {
         final AtomicLong initialBalance = new AtomicLong(0);
-        final AtomicLong finalBalance = new AtomicLong(0);
 
         return hapiTest(
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
@@ -731,24 +683,15 @@ public class AdditionalHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("nobody").payingWith(GENESIS),
                 getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(finalBalance::set)
-                        .logged(),
+						// Test the system behavior with single active node - may or may not distribute rewards
+                        .exposingBalanceTo(balance -> {
+							// System should handle single active node gracefully
+							final long rewardsPaid = balance - initialBalance.get();
+							assertTrue(rewardsPaid >= 0, "System should handle single active node without issues");
 
-                // Test the system behavior with single active node - may or may not distribute rewards
-                doingContextual(spec -> {
-                    long rewardsPaid = finalBalance.get() - initialBalance.get();
-                    // System should handle single active node gracefully
-                    assertTrue(rewardsPaid >= 0, "System should handle single active node without issues");
-
-                    if (rewardsPaid > 0) {
-                        // If rewards were paid, log for analysis
-                        System.out.println("Single active node received rewards: " + rewardsPaid + " tinybars");
-                    } else {
-                        // If no rewards were paid, that's also valid behavior
-                        System.out.println(
-                                "No rewards distributed to single active node - this may be expected behavior");
-                    }
-                }));
+							// If rewards were paid, log for analysis. If no rewards were paid, that's also valid behavior
+							logIt(rewardsPaid > 0 ? "Single active node received rewards: " + rewardsPaid + " tinybars" : "No rewards distributed to single active node - this may be expected behavior");
+						}));
     }
 
     // ================================
@@ -856,16 +799,6 @@ public class AdditionalHip1064Tests {
                         .exposingBalanceTo(initialNode3Balance::set),
 
                 // Debug configuration
-                doingContextual(spec -> {
-                    System.out.println("=== CONFIGURATION VERIFICATION ===");
-                    System.out.println(
-                            "nodeRewardsEnabled: " + spec.startupProperties().get("nodes.nodeRewardsEnabled"));
-                    System.out.println(
-                            "activeRoundsPercent: " + spec.startupProperties().get("nodes.activeRoundsPercent"));
-                    System.out.println(
-                            "minNodeRewardBalance: " + spec.startupProperties().get("nodes.minNodeRewardBalance"));
-                    System.out.println("Initial reward balance: " + initialRewardBalance.get() + " tinybars");
-                }),
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -892,10 +825,9 @@ public class AdditionalHip1064Tests {
                                     final long prePaidRewards = expectedNodeFees.get() / 4;
                                     expectedNodeRewards.set(targetTinybars - prePaidRewards);
 
-                                    System.out.println("=== EXPECTED REWARDS ===");
-                                    System.out.println("Target yearly USD: " + target);
-                                    System.out.println(
-                                            "Expected per-node reward: " + expectedNodeRewards.get() + " tinybars");
+									logIt("=== EXPECTED REWARDS ===");
+									logIt("Target yearly USD: " + target);
+									logIt("Expected per-node reward: " + expectedNodeRewards.get() + " tinybars");
                                 }))),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
@@ -906,11 +838,11 @@ public class AdditionalHip1064Tests {
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
 
-                    System.out.println("=== ACTIVITY THRESHOLD SETUP ===");
-                    System.out.println("Total rounds: " + nodeRewards.numRoundsInStakingPeriod());
-                    System.out.println("Node 1: missed 2/3 rounds (33% active) → should get rewards if threshold ≤33%");
-                    System.out.println("Node 2: missed 3/3 rounds (0% active) → should NOT get rewards");
-                    System.out.println("Node 3: missed 0/3 rounds (100% active) → should get rewards");
+                    logIt("=== ACTIVITY THRESHOLD SETUP ===");
+                    logIt("Total rounds: " + nodeRewards.numRoundsInStakingPeriod());
+                    logIt("Node 1: missed 2/3 rounds (33% active) → should get rewards if threshold ≤33%");
+                    logIt("Node 2: missed 3/3 rounds (0% active) → should NOT get rewards");
+                    logIt("Node 3: missed 0/3 rounds (100% active) → should get rewards");
 
                     return nodeRewards
                             .copyBuilder()
@@ -955,64 +887,40 @@ public class AdditionalHip1064Tests {
 
                 // RELIABLE VERIFICATION USING BALANCE CHANGES
                 doingContextual(spec -> {
-                    long rewardAccountChange = finalRewardBalance.get() - initialRewardBalance.get();
-                    long node1Reward = finalNode1Balance.get() - initialNode1Balance.get();
-                    long node2Reward = finalNode2Balance.get() - initialNode2Balance.get();
-                    long node3Reward = finalNode3Balance.get() - initialNode3Balance.get();
+                    final long rewardAccountChange = finalRewardBalance.get() - initialRewardBalance.get();
+                    final long node1Reward = finalNode1Balance.get() - initialNode1Balance.get();
+                    final long node2Reward = finalNode2Balance.get() - initialNode2Balance.get();
+                    final long node3Reward = finalNode3Balance.get() - initialNode3Balance.get();
 
-                    System.out.println("=== ACTIVITY THRESHOLD TEST RESULTS ===");
-                    System.out.println("Reward account change: " + rewardAccountChange + " tinybars");
-                    System.out.println("Node 1 (33% active) reward: " + node1Reward + " tinybars");
-                    System.out.println("Node 2 (0% active) reward: " + node2Reward + " tinybars");
-                    System.out.println("Node 3 (100% active) reward: " + node3Reward + " tinybars");
+                    logIt("=== ACTIVITY THRESHOLD TEST RESULTS ===");
+                    logIt("Reward account change: " + rewardAccountChange + " tinybars");
+                    logIt("Node 1 (33% active) reward: " + node1Reward + " tinybars");
+                    logIt("Node 2 (0% active) reward: " + node2Reward + " tinybars");
+                    logIt("Node 3 (100% active) reward: " + node3Reward + " tinybars");
 
-                    // ALWAYS PASSES: System stability
+                    // SHOULD ALWAYS PASS: System stability
                     assertTrue(finalRewardBalance.get() >= 0, "Reward account should remain non-negative");
                     assertTrue(finalNode1Balance.get() >= 0, "Node 1 balance should be non-negative");
                     assertTrue(finalNode2Balance.get() >= 0, "Node 2 balance should be non-negative");
                     assertTrue(finalNode3Balance.get() >= 0, "Node 3 balance should be non-negative");
 
-                    if (node1Reward > 0 || node3Reward > 0) {
-                        // SUCCESS CASE: Rewards were paid
-                        System.out.println("REWARDS WERE PAID!");
-
-                        // Verify activity threshold logic
+					if (node1Reward > 0 || node3Reward > 0) {
+                        // SUCCESS CASE: Rewards were paid. Verify activity threshold logic
                         assertTrue(node1Reward > 0, "Node 1 (33% active) should receive rewards with 10% threshold");
                         assertTrue(node3Reward > 0, "Node 3 (100% active) should receive rewards with 10% threshold");
                         assertEquals(
                                 0L, node2Reward, "Node 2 (0% active) should NOT receive rewards with 10% threshold");
 
                         // Verify reward account was debited approximately
-                        long totalPaid = node1Reward + node2Reward + node3Reward;
                         assertTrue(rewardAccountChange <= 0, "Reward account should be debited when paying rewards");
 
-                        long tolerance = Math.max(100000000L, totalPaid / 10); // 10% tolerance
+                        final long totalPaid = node1Reward + node2Reward + node3Reward;
+                        final long tolerance = Math.max(100000000L, totalPaid / 10); // 10% tolerance (activity threshold)
                         assertTrue(
                                 Math.abs(-rewardAccountChange - totalPaid) <= tolerance,
                                 "Reward account debit should approximately equal total node rewards");
-
-                        System.out.println("HIP-1064 ACTIVITY THRESHOLD TEST PASSED!");
-                        System.out.println("33% activity (Node 1): Got rewards ✓");
-                        System.out.println("0% activity (Node 2): No rewards ✓");
-                        System.out.println("100% activity (Node 3): Got rewards ✓");
-                        System.out.println("Activity threshold (10%) is working correctly!");
-
-                    } else {
-                        // CI LIMITATION: No rewards paid - still provide value
-                        System.out.println("NO REWARDS PAID: CI environment differences");
-                        System.out.println("However, test successfully verified:");
-                        System.out.println("System handles node activity mutations without crashing");
-                        System.out.println("Balance preservation logic working (sufficient funding)");
-                        System.out.println("Fee distribution working correctly");
-                        System.out.println("Core HIP-1064 infrastructure is functional");
-
-                        // Check if it's just fee activity
-                        if (rewardAccountChange > 0) {
-                            System.out.println("Only fees processed (expected if rewards disabled)");
-                        }
                     }
-
-                    System.out.println("=== TEST COMPLETED SUCCESSFULLY ===");
+					// There are cases where no rewards are paid, but it doesn't mean the test fails
                 }));
     }
 
@@ -1046,25 +954,22 @@ public class AdditionalHip1064Tests {
                                     try {
                                         final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
                                                 / Integer.parseInt(numPeriods);
-                                        final long targetTinybars =
-                                                spec.ratesProvider().toTbWithActiveRates(targetReward);
-                                        // If we get here without overflow, system handled it correctly
+                                        // If we calculate this without overflow, system handles it correctly
+										spec.ratesProvider().toTbWithActiveRates(targetReward);
                                     } catch (ArithmeticException e) {
-                                        // System should handle overflow gracefully, not crash
-                                        System.out.println("Overflow detected and handled: " + e.getMessage());
+										// System should handle overflow gracefully, not crash
+										logIt("Warn: Overflow detected in reward calculation: " + e.getMessage());
                                     }
                                 }))),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> {
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(NodeActivity.newBuilder()
-                                    .nodeId(1)
-                                    .numMissedJudgeRounds(0)
-                                    .build())
-                            .build();
-                }),
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+						.copyBuilder()
+						.nodeActivities(NodeActivity.newBuilder()
+								.nodeId(1)
+								.numMissedJudgeRounds(0)
+								.build())
+						.build()),
                 waitUntilStartOfNextStakingPeriod(1),
 
                 // System should handle this gracefully without overflow
@@ -1079,12 +984,7 @@ public class AdditionalHip1064Tests {
                 cryptoCreate("nobody").payingWith(GENESIS));
     }
 
-    // ================================
-    // HELPER VALIDATORS
-    // ================================
-
-    static VisibleItemsValidator nodeRewardsValidatorForThresholdTest(
-            @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
+    private static VisibleItemsValidator nodeRewardsValidatorForThresholdTest() {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No reward payments found");
@@ -1114,7 +1014,7 @@ public class AdditionalHip1064Tests {
         };
     }
 
-    static VisibleItemsValidator allNodesActiveValidator(
+    private static VisibleItemsValidator allNodesActiveValidator(
             @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
@@ -1163,98 +1063,5 @@ public class AdditionalHip1064Tests {
                     Math.abs(totalCredits + nodeRewardDebit) <= tolerance,
                     "Total credits should approximately equal node reward debit");
         };
-    }
-
-    static VisibleItemsValidator singleNodeRewardValidator(
-            @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
-        return (spec, records) -> {
-            final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No reward payments found");
-            assertEquals(1, items.size());
-            final var payment = items.getFirst();
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
-
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-
-            // Should have reward for only one node
-            assertEquals(2, bodyAdjustments.size());
-
-            long expectedReward = expectedPerNodeReward.getAsLong();
-            long expectedDebit = -expectedReward;
-
-            if (Math.abs(expectedDebit) > nodeRewardBalance.getAsLong()) {
-                expectedReward = nodeRewardBalance.getAsLong();
-                expectedDebit = -expectedReward;
-            }
-
-            final long nodeRewardDebit =
-                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
-            assertEquals(expectedDebit, nodeRewardDebit, "Expected debit for single active node");
-
-            // Only node 2 should get a reward (node 5)
-            assertEquals(expectedReward, bodyAdjustments.get(5L), "Single active node should get full reward");
-        };
-    }
-
-    static VisibleItemsValidator minimalActivityComparisonValidator(
-            @NonNull final LongSupplier expectedPerNodeReward, @NonNull final LongSupplier nodeRewardBalance) {
-        return (spec, records) -> {
-            final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No reward payments found");
-            assertEquals(1, items.size());
-            final var payment = items.getFirst();
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
-
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-
-            // Only 2 nodes should get rewards (nodes 1 and 3)
-            // Node 2 with 0% activity should NOT get rewards
-            assertEquals(3, bodyAdjustments.size()); // NODE_REWARD debit + 2 node credits
-
-            long expectedPerNode = expectedPerNodeReward.getAsLong();
-            long expectedDebit = -2 * expectedPerNode; // Only 2 nodes get rewards
-
-            if (Math.abs(expectedDebit) > nodeRewardBalance.getAsLong()) {
-                expectedPerNode = nodeRewardBalance.getAsLong() / 2;
-                expectedDebit = 2 * -expectedPerNode;
-            }
-
-            final long nodeRewardDebit =
-                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
-            assertEquals(expectedDebit, nodeRewardDebit, "Expected debit for 2 active nodes");
-
-            // Node 1 (33% active) should get reward - proves even minimal activity is enough
-            assertEquals(expectedPerNode, bodyAdjustments.get(4L), "Node 1 with 33% activity should get reward");
-
-            // Node 3 (100% active) should get reward
-            assertEquals(expectedPerNode, bodyAdjustments.get(6L), "Node 3 with 100% activity should get reward");
-
-            // Node 2 (0% active) should NOT be in the adjustments
-            assertFalse(bodyAdjustments.containsKey(5L), "Node 2 with 0% activity should not receive any reward");
-        };
-    }
-
-    static SpecOperation validateRecordFees(final String record, List<Long> expectedFeeAccounts) {
-        return UtilVerbs.withOpContext((spec, opLog) -> {
-            var fileCreate = getTxnRecord(record);
-            allRunFor(spec, fileCreate);
-            var response = fileCreate.getResponseRecord();
-            assertEquals(
-                    response.getTransferList().getAccountAmountsList().stream()
-                            .filter(aa -> aa.getAmount() < 0)
-                            .count(),
-                    1);
-            assertEquals(
-                    expectedFeeAccounts,
-                    response.getTransferList().getAccountAmountsList().stream()
-                            .filter(aa -> aa.getAmount() > 0)
-                            .map(aa -> aa.getAccountID().getAccountNum())
-                            .sorted()
-                            .toList());
-        });
     }
 }
