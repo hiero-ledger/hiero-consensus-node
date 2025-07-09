@@ -20,6 +20,7 @@ import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -42,7 +43,7 @@ class OnDiskTest extends MerkleTestBase {
 
     private Schema schema;
     private StateDefinition<AccountID, Account> def;
-    private VirtualMap virtualMap;
+    private TestVirtualMapBinaryState binaryState;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -69,26 +70,25 @@ class OnDiskTest extends MerkleTestBase {
                 0);
 
         final var builder = new MerkleDbDataSourceBuilder(storageDir, tableConfig, CONFIGURATION);
-        virtualMap =
-                new VirtualMap(StateMetadata.computeLabel(TokenService.NAME, ACCOUNTS_KEY), builder, CONFIGURATION);
-
+        binaryState = new TestVirtualMapBinaryState(
+                new VirtualMap(StateMetadata.computeLabel(TokenService.NAME, ACCOUNTS_KEY), builder, CONFIGURATION));
         Configuration config = mock(Configuration.class);
         final var hederaConfig = mock(HederaConfig.class);
         lenient().when(config.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
     }
 
-    VirtualMap copyHashAndFlush(VirtualMap map) {
+    TestVirtualMapBinaryState copyHashAndFlush(TestVirtualMapBinaryState binaryState) {
         // Make the fast copy
-        final var copy = map.copy();
+        final var copy = binaryState.copy();
 
         // Hash the now immutable map
-        map.getHash();
+        binaryState.getHash();
 
         // Flush to disk
-        map.enableFlush();
-        map.release();
+        binaryState.getVirtualMap().enableFlush();
+        binaryState.release();
         try {
-            map.waitUntilFlushed();
+            binaryState.getVirtualMap().waitUntilFlushed();
         } catch (InterruptedException e) {
             System.err.println("Unable to complete the test, the root node never flushed!");
             throw new RuntimeException(e);
@@ -102,7 +102,7 @@ class OnDiskTest extends MerkleTestBase {
     void populateTheMapAndFlushToDiskAndReadBack() throws IOException {
         // Populate the data set and flush it all to disk
         final var ws = new OnDiskWritableKVState<>(
-                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, binaryState);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = Account.newBuilder()
@@ -114,29 +114,29 @@ class OnDiskTest extends MerkleTestBase {
             ws.put(id, acct);
         }
         ws.commit();
-        virtualMap = copyHashAndFlush(virtualMap);
+        binaryState = copyHashAndFlush(binaryState);
 
         // We will now make another fast copy of our working copy of the tree.
         // Then we will hash the immutable copy and write it out. Then we will
         // release the immutable copy.
-        VirtualMap copy = virtualMap.copy(); // throw away the copy, we won't use it
+        TestVirtualMapBinaryState copy = binaryState.copy(); // throw away the copy, we won't use it
         copy.release();
-        virtualMap.getHash();
+        binaryState.getHash();
 
         final var snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
-        final byte[] serializedBytes = writeTree(virtualMap, snapshotDir);
+        final byte[] serializedBytes = writeTree(binaryState.getVirtualMap(), snapshotDir);
 
         // Before we can read the data back, we need to register the data types
         // I plan to deserialize.
         final var r = new MerkleSchemaRegistry(TokenService.NAME, new SchemaApplications());
         r.register(schema);
 
-        virtualMap.release();
+        binaryState.release();
 
         // read it back now as our map and validate the data come back fine
-        virtualMap = parseTree(serializedBytes, snapshotDir);
+        binaryState = new TestVirtualMapBinaryState((VirtualMap) parseTree(serializedBytes, snapshotDir));
         final var rs = new OnDiskReadableKVState<>(
-                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, binaryState);
         for (int i = 0; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = rs.get(id);
@@ -150,7 +150,7 @@ class OnDiskTest extends MerkleTestBase {
     @Test
     void populateFlushToDisk() {
         final var ws = new OnDiskWritableKVState<>(
-                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, binaryState);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = Account.newBuilder()
@@ -161,10 +161,10 @@ class OnDiskTest extends MerkleTestBase {
             ws.put(id, acct);
         }
         ws.commit();
-        virtualMap = copyHashAndFlush(virtualMap);
+        binaryState = copyHashAndFlush(binaryState);
 
         final var rs = new OnDiskReadableKVState<>(
-                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, virtualMap);
+                TokenService.NAME, ACCOUNTS_KEY, AccountID.PROTOBUF, Account.PROTOBUF, binaryState);
         for (int i = 1; i < 10; i++) {
             final var id = AccountID.newBuilder().accountNum(i).build();
             final var acct = rs.get(id);
@@ -177,6 +177,26 @@ class OnDiskTest extends MerkleTestBase {
 
     @AfterEach
     void tearDown() {
-        virtualMap.release();
+        binaryState.release();
+    }
+
+    private static class TestVirtualMapBinaryState extends VirtualMapBinaryState {
+        public TestVirtualMapBinaryState(VirtualMap virtualMap) {
+            super(virtualMap);
+        }
+
+        public TestVirtualMapBinaryState(TestVirtualMapBinaryState that) {
+            super(that);
+        }
+
+        @Override
+        protected VirtualMap getVirtualMap() {
+            return super.getVirtualMap();
+        }
+
+        @Override
+        public TestVirtualMapBinaryState copy() {
+            return new TestVirtualMapBinaryState(this);
+        }
     }
 }

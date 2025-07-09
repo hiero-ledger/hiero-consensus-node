@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -14,12 +16,9 @@ import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
-import com.swirlds.common.merkle.utility.MerkleTreeSnapshotWriter;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.BinaryStateUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -66,7 +65,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.json.JSONObject;
 
@@ -113,27 +111,16 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
 
     private LongSupplier roundSupplier;
 
-    private VirtualMap virtualMap;
-
     /**
      * Used to track the status of the Platform.
      * It is set to {@code true} if Platform status is not {@code PlatformStatus.ACTIVE}
      */
     private boolean startupMode = true;
 
-    public VirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
-        final MerkleDbDataSourceBuilder dsBuilder;
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final var tableConfig = new MerkleDbTableConfig(
-                (short) 1,
-                DigestType.SHA_384,
-                // FUTURE WORK: drop StateDefinition.maxKeysHint and load VM size from VirtualMapConfig.size instead
-                merkleDbConfig.maxNumOfKeys(),
-                merkleDbConfig.hashesRamToDiskThreshold());
-        dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+    private VirtualMapBinaryState binaryState;
 
-        this.virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
-        this.virtualMap.registerMetrics(metrics);
+    public VirtualMapState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+        binaryState = new VirtualMapBinaryState(configuration, metrics);
     }
 
     /**
@@ -141,8 +128,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      *
      * @param virtualMap the virtual map with pre-registered metrics
      */
-    public VirtualMapState(@NonNull final VirtualMap virtualMap) {
-        this.virtualMap = virtualMap;
+    public VirtualMapState(VirtualMap virtualMap) {
+        binaryState = new VirtualMapBinaryState(virtualMap);
     }
 
     /**
@@ -151,7 +138,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * @param from The other state to fast-copy from. Cannot be null.
      */
     protected VirtualMapState(@NonNull final VirtualMapState<T> from) {
-        this.virtualMap = from.virtualMap.copy();
+        this.binaryState = from.binaryState.copy();
         this.configuration = from.configuration;
         this.roundSupplier = from.roundSupplier;
         this.startupMode = from.startupMode;
@@ -208,7 +195,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     @Override
     @NonNull
     public WritableStates getWritableStates(@NonNull final String serviceName) {
-        virtualMap.throwIfImmutable();
+        binaryState.throwIfImmutable();
         return writableStatesMap.computeIfAbsent(serviceName, s -> {
             final var stateMetadata = services.getOrDefault(s, Map.of());
             return new MerkleWritableStates(serviceName, stateMetadata);
@@ -241,11 +228,11 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public void computeHash() {
-        virtualMap.throwIfMutable("Hashing should only be done on immutable states");
-        virtualMap.throwIfDestroyed("Hashing should not be done on destroyed states");
+        binaryState.throwIfMutable("Hashing should only be done on immutable states");
+        binaryState.throwIfDestroyed("Hashing should not be done on destroyed states");
 
         // this call will result in synchronous hash computation
-        virtualMap.getHash();
+        binaryState.getHash();
     }
 
     /**
@@ -255,10 +242,24 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     public void createSnapshot(@NonNull final Path targetPath) {
         requireNonNull(time);
         requireNonNull(snapshotMetrics);
-        virtualMap.throwIfMutable();
-        virtualMap.throwIfDestroyed();
+        long round = roundSupplier.getAsLong();
+        logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for round {}", targetPath, round);
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(virtualMap, targetPath, roundSupplier.getAsLong());
+        try {
+            BinaryStateSnapshotUtils.createSnapshot(targetPath, binaryState);
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    "Successfully created a snapshot on demand in {}  for round {}",
+                    targetPath,
+                    round);
+        } catch (final Throwable e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Unable to write a snapshot on demand for round {} to {}.",
+                    round,
+                    targetPath,
+                    e);
+        }
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 
@@ -304,7 +305,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         // Validate the inputs
-        virtualMap.throwIfImmutable();
+        binaryState.throwIfImmutable();
         requireNonNull(md);
 
         // Put this metadata into the map
@@ -358,7 +359,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * @param stateKey The state key
      */
     public void removeServiceState(@NonNull final String serviceName, @NonNull final String stateKey) {
-        virtualMap.throwIfImmutable();
+        binaryState.throwIfImmutable();
         requireNonNull(serviceName);
         requireNonNull(stateKey);
 
@@ -398,7 +399,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * For more detailed docs, see {@code MerkleNodeState#getRoot()}.
      */
     public MerkleNode getRoot() {
-        return virtualMap;
+        return binaryState.getVirtualMap();
     }
 
     /**
@@ -416,7 +417,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
     @Override
     @Nullable
     public Hash getHash() {
-        return virtualMap.getHash();
+        return binaryState.getHash();
     }
 
     /**
@@ -432,7 +433,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public boolean isMutable() {
-        return virtualMap.isMutable();
+        return binaryState.isMutable();
     }
 
     /**
@@ -440,7 +441,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public boolean isImmutable() {
-        return virtualMap.isImmutable();
+        return binaryState.isImmutable();
     }
 
     /**
@@ -448,7 +449,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public boolean isDestroyed() {
-        return virtualMap.isDestroyed();
+        return binaryState.isDestroyed();
     }
 
     /**
@@ -457,21 +458,16 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      * @return true if this call to release() caused the Virtual Map to become destroyed
      */
     public boolean release() {
-        return virtualMap.release();
+        return binaryState.release();
     }
 
     // Clean up
 
     /**
-     * To be called ONLY at node shutdown. Attempts to gracefully close the Virtual Map.
+     * To be called ONLY at node shutdown. Attempts to gracefully close the Virtual Map State.
      */
     public void close() {
-        logger.info("Closing VirtualMapState");
-        try {
-            virtualMap.getDataSource().close();
-        } catch (IOException e) {
-            logger.warn("Unable to close data source for the Virtual Map", e);
-        }
+        binaryState.close();
     }
 
     /**
@@ -607,21 +603,21 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         protected ReadableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
             return new OnDiskReadableKVState<>(
-                    md.serviceName(), extractStateKey(md), extractKeyCodec(md), extractValueCodec(md), virtualMap);
+                    md.serviceName(), extractStateKey(md), extractKeyCodec(md), extractValueCodec(md), binaryState);
         }
 
         @Override
         @NonNull
         protected ReadableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
             return new OnDiskReadableSingletonState<>(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+                    md.serviceName(), extractStateKey(md), extractValueCodec(md), binaryState);
         }
 
         @NonNull
         @Override
         protected ReadableQueueState createReadableQueueState(@NonNull StateMetadata md) {
             return new OnDiskReadableQueueState(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+                    md.serviceName(), extractStateKey(md), extractValueCodec(md), binaryState);
         }
     }
 
@@ -653,13 +649,13 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
          */
         public void copyAndReleaseVirtualMap(@NonNull final String stateKey) {
             final var md = stateMetadata.get(stateKey);
-            final var mutableCopy = virtualMap.copy();
+            final var mutableCopy = binaryState.copy();
             if (metrics != null) {
-                mutableCopy.registerMetrics(metrics);
+                mutableCopy.getVirtualMap().registerMetrics(metrics);
             }
-            virtualMap.release();
+            binaryState.release();
 
-            virtualMap = mutableCopy; // so createReadableKVState below will do the job with updated map (copy)
+            binaryState = mutableCopy; // so createReadableKVState below will do the job with updated map (copy)
             kvInstances.put(stateKey, createReadableKVState(md));
         }
 
@@ -685,7 +681,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         protected WritableKVState<?, ?> createReadableKVState(@NonNull final StateMetadata md) {
             final var state = new OnDiskWritableKVState<>(
-                    md.serviceName(), extractStateKey(md), extractKeyCodec(md), extractValueCodec(md), virtualMap);
+                    md.serviceName(), extractStateKey(md), extractKeyCodec(md), extractValueCodec(md), binaryState);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(MAP)) {
                     registerKVListener(serviceName, state, listener);
@@ -698,7 +694,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @NonNull
         protected WritableSingletonState<?> createReadableSingletonState(@NonNull final StateMetadata md) {
             final var state = new OnDiskWritableSingletonState<>(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+                    md.serviceName(), extractStateKey(md), extractValueCodec(md), binaryState);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(SINGLETON)) {
                     registerSingletonListener(serviceName, state, listener);
@@ -711,7 +707,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
         @Override
         protected WritableQueueState<?> createReadableQueueState(@NonNull final StateMetadata md) {
             final var state = new OnDiskWritableQueueState<>(
-                    md.serviceName(), extractStateKey(md), extractValueCodec(md), virtualMap);
+                    md.serviceName(), extractStateKey(md), extractValueCodec(md), binaryState);
             listeners.forEach(listener -> {
                 if (listener.stateTypes().contains(QUEUE)) {
                     registerQueueListener(serviceName, state, listener);
@@ -814,13 +810,14 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
      */
     @Override
     public boolean isHashed() {
-        return virtualMap.isHashed();
+        return binaryState.isHashed();
     }
 
     @Override
     public String getInfoJson() {
         final JSONObject rootJson = new JSONObject();
 
+        VirtualMap virtualMap = binaryState.getVirtualMap();
         final RecordAccessorImpl recordAccessor = (RecordAccessorImpl) virtualMap.getRecords();
         final VirtualMapMetadata virtualMapMetadata = virtualMap.getState();
 
@@ -840,7 +837,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                 final String stateKey = stateDefinition.stateKey();
 
                 if (stateDefinition.singleton()) {
-                    final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
+                    final Bytes keyBytes = BinaryStateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
                     if (leafBytes != null) {
                         final var hash = recordAccessor.findHash(leafBytes.path());
@@ -854,10 +851,10 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                             singletonJson.put("value", "ParseException: " + e.getMessage());
                         }
 
-                        singletons.put(StateUtils.computeLabel(serviceName, stateKey), singletonJson);
+                        singletons.put(BinaryStateUtils.computeLabel(serviceName, stateKey), singletonJson);
                     }
                 } else if (stateDefinition.queue()) {
-                    final Bytes keyBytes = StateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
+                    final Bytes keyBytes = BinaryStateUtils.getVirtualMapKeyForSingleton(serviceName, stateKey);
                     final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(keyBytes);
                     if (leafBytes != null) {
                         final QueueState queueState = new QueueState(leafBytes.valueBytes());
@@ -865,7 +862,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements S
                         queueJson.put("head", queueState.getHead());
                         queueJson.put("tail", queueState.getTail());
                         queueJson.put("path", leafBytes.path());
-                        queues.put(StateUtils.computeLabel(serviceName, stateKey), queueJson);
+                        queues.put(BinaryStateUtils.computeLabel(serviceName, stateKey), queueJson);
                     }
                 }
             });

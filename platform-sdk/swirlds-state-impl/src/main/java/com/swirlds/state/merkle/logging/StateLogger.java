@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -219,6 +220,47 @@ public class StateLogger {
             final var spliterator = Spliterators.spliterator(
                     virtualMap.treeIterator(), virtualMap.size(), Spliterator.SIZED & Spliterator.ORDERED);
             final long size = virtualMap.size();
+            if (size == 0) {
+                logger.debug("      ITERATE keys of {} state size 0 keys:EMPTY", label);
+            } else {
+                AtomicInteger count = new AtomicInteger(0);
+                String keys = StreamSupport.stream(spliterator, false)
+                        .map(merkleNode -> {
+                            if (merkleNode instanceof VirtualLeafNode leaf) {
+                                final var k = leaf.getKey();
+                                String result = null;
+                                try {
+                                    result = keyCodec.parse(k).toString();
+                                    count.incrementAndGet();
+                                } catch (final ParseException e) {
+                                    // ignore, return null
+                                }
+                                return result;
+                            } else {
+                                return null;
+                            }
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.joining(",\n"));
+                logger.debug("      ITERATE keys of {} state (size {}) keys:\n{}", label, count.get(), keys);
+            }
+        }
+    }
+
+    /**
+     * Log the iteration of values of a map.
+     *
+     * @param binaryState The map that was iterated
+     * @param <K> The type of the key
+     */
+    public static <K> void logMapIterate(
+            @NonNull final String label,
+            @NonNull final VirtualMapBinaryState binaryState,
+            @NonNull final Codec<K> keyCodec) {
+        if (logger.isDebugEnabled()) {
+            final var spliterator = Spliterators.spliterator(
+                    binaryState.treeIterator(), binaryState.size(), Spliterator.SIZED & Spliterator.ORDERED);
+            final long size = binaryState.size();
             if (size == 0) {
                 logger.debug("      ITERATE keys of {} state size 0 keys:EMPTY", label);
             } else {
