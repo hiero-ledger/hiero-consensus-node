@@ -185,8 +185,8 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      * @param responseObserver The observer used to confirm the update.
      */
     @Override
-    public synchronized void syntheticBottleneckUpdate(@NonNull final SyntheticBottleneckRequest request,
-            @NonNull final StreamObserver<Empty> responseObserver) {
+    public synchronized void syntheticBottleneckUpdate(
+            @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         nodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();

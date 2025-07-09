@@ -349,9 +349,9 @@ public class ContainerNode extends AbstractNode implements Node {
          */
         @Override
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
-            blockingStub.syntheticBottleneckUpdate(
-                    SyntheticBottleneckRequest.newBuilder().setSleepMillisPerRound(delayPerRound.toMillis()).build()
-            );
+            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                    .setSleepMillisPerRound(delayPerRound.toMillis())
+                    .build());
         }
 
         /**
@@ -359,9 +359,9 @@ public class ContainerNode extends AbstractNode implements Node {
          */
         @Override
         public void stopSyntheticBottleneck() {
-            blockingStub.syntheticBottleneckUpdate(
-                    SyntheticBottleneckRequest.newBuilder().setSleepMillisPerRound(0).build()
-            );
+            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                    .setSleepMillisPerRound(0)
+                    .build());
         }
     }
 
