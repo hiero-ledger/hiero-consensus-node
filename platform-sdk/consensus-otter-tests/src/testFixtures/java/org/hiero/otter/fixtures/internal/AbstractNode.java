@@ -33,7 +33,7 @@ public abstract class AbstractNode implements Node {
     /** Current software version of the platform  */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
 
-    /** Saves current state of the platform, can be set asynchronously  */
+    /** The current state of the platform. Volatile because it is set by the container callback thread and read by the test thread.  */
     @Nullable
     protected volatile PlatformStatus platformStatus = null;
 
