@@ -27,7 +27,7 @@ public abstract class AbstractNode implements Node {
 
     protected final NodeId selfId;
 
-    /** Saves current state in the lifeCycle, can be set asynchronously  */
+    /** The current state of the node's life cycle. Volatile because it is set by the test thread and read by the container callback thread.  */
     protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
 
     /** Current software version of the platform  */
