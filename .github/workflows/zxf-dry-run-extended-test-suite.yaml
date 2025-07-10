@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: Extended Test Suite - Dry Run"
+name: "ZXF: [CITR] Extended Test Suite - Dry Run"
 on:
   workflow_dispatch:
     inputs:
@@ -115,3 +115,7 @@ jobs:
     with:
       ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the JRS panel for checkout
       custom-job-name: "Dry-Run: SDK TCK Regression"
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}

@@ -66,6 +66,14 @@ message PlatformState {
      */
     proto.Timestamp last_frozen_time = 5;
 
+    /**
+     * The number of the latest round that was a freeze round. If this round
+     * is a freeze round, then the value is the same as the current round. It
+     * is set after executing all transactions in this round. <br/>
+     * If there has never been a freeze round, this SHALL be zero.<br/>
+     */
+    uint64 latest_freeze_round = 6;
+
     // Fields below are to be deprecated in the foreseeable future.
 
     /**

@@ -15,16 +15,14 @@ import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 
 /**
  * {@link NodeConfiguration} implementation for a Turtle node.
  */
-public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConfiguration> {
+public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
-    private final Map<String, String> overriddenProperties = new HashMap<>();
     private final String outputDirectory;
 
     /**
@@ -34,6 +32,14 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
      */
     public TurtleNodeConfiguration(@NonNull final Path outputDirectory) {
         this.outputDirectory = outputDirectory.toString();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public TurtleNodeConfiguration self() {
+        return this;
     }
 
     /**
@@ -52,32 +58,6 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
      */
     @NonNull
     Configuration createConfiguration() {
-        return createBasicConfigBuilder()
-                .withSource(new SimpleConfigSource(overriddenProperties))
-                .getOrCreateConfig();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public TurtleNodeConfiguration set(@NonNull final String key, final boolean value) {
-        overriddenProperties.put(key, Boolean.toString(value));
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public TurtleNodeConfiguration set(@NonNull final String key, @NonNull final String value) {
-        overriddenProperties.put(key, value);
-        return this;
-    }
-
-    private TestConfigBuilder createBasicConfigBuilder() {
         return new TestConfigBuilder()
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
@@ -86,6 +66,8 @@ public class TurtleNodeConfiguration implements NodeConfiguration<TurtleNodeConf
                 .withValue(FileSystemManagerConfig_.ROOT_PATH, outputDirectory)
                 .withValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory)
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
-                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString());
+                .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString())
+                .withSource(new SimpleConfigSource(overriddenProperties))
+                .getOrCreateConfig();
     }
 }

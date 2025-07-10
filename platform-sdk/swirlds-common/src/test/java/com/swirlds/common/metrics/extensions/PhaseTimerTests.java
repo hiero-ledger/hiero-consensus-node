@@ -16,11 +16,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.FunctionGauge.Config;
 import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.units.TimeUnit;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
@@ -61,12 +59,9 @@ class PhaseTimerTests {
             return mock(Metric.class);
         });
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withMetrics(metrics).build();
         final FakeTime time = new FakeTime();
 
-        final PhaseTimer<TestPhases> timer =
-                new PhaseTimerBuilder<>(platformContext, time, "test", TestPhases.class).build();
+        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class).build();
 
         // No metrics should have been registered
         assertEquals(0, registeredConfigs.size());
@@ -108,11 +103,9 @@ class PhaseTimerTests {
             }
         });
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withMetrics(metrics).build();
         final FakeTime time = new FakeTime();
 
-        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(platformContext, time, "test", TestPhases.class)
+        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class)
                 .enableFractionalMetrics()
                 .build();
 
@@ -220,11 +213,9 @@ class PhaseTimerTests {
             }
         });
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withMetrics(metrics).build();
         final FakeTime time = new FakeTime();
 
-        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(platformContext, time, "test", TestPhases.class)
+        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class)
                 .enableAbsoluteTimeMetrics()
                 .setAbsoluteUnit(TimeUnit.UNIT_SECONDS) // extra chonky
                 .build();
@@ -328,11 +319,9 @@ class PhaseTimerTests {
             }
         });
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withMetrics(metrics).build();
         final FakeTime time = new FakeTime();
 
-        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(platformContext, time, "test", TestPhases.class)
+        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class)
                 .enableFractionalMetrics()
                 .enableAbsoluteTimeMetrics()
                 .setAbsoluteUnit(TimeUnit.UNIT_SECONDS)
@@ -479,11 +468,9 @@ class PhaseTimerTests {
             }
         });
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withMetrics(metrics).build();
         final FakeTime time = new FakeTime();
 
-        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(platformContext, time, "test", TestPhases.class)
+        final PhaseTimer<TestPhases> timer = new PhaseTimerBuilder<>(metrics, time, "test", TestPhases.class)
                 .enableFractionalMetrics()
                 .enableAbsoluteTimeMetrics()
                 .setAbsoluteUnit(TimeUnit.UNIT_MILLISECONDS)

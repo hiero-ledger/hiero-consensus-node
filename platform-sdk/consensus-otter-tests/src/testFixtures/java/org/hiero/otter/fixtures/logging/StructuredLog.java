@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.logging;
 
+import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -20,6 +21,7 @@ import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
  * @param loggerName  The name of the logger that produced the event.
  * @param threadName  The name of the thread that generated the log.
  * @param marker      An optional marker associated with the log event.
+ * @param nodeId      The {@link NodeId} of the node that generated the log event, or {@code null} if unknown.
  *
  * @see InMemoryAppender
  */
@@ -30,9 +32,10 @@ public record StructuredLog(
         @NonNull String loggerName,
         @NonNull String threadName,
         @Nullable Marker marker,
-        long nodeId) {
+        @Nullable NodeId nodeId) {
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    @Nullable
     private static String abbreviateClassName(final String fullClassName) {
         if (fullClassName == null || fullClassName.isEmpty()) {
             return fullClassName;
@@ -51,14 +54,15 @@ public record StructuredLog(
     }
 
     @Override
+    @NonNull
     public String toString() {
         final ZonedDateTime dateTime = Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault());
 
         return String.format(
-                "%s [%s] [%s] (%s) [%s] (%s) - %s\n",
+                "%s [%s] [%s] (%s) [%s] (%s) - %s%n",
                 dateTime.format(FORMATTER),
                 level,
-                nodeId >= 0 ? nodeId : "unknown",
+                nodeId != null ? nodeId : "unknown",
                 threadName,
                 marker,
                 abbreviateClassName(loggerName),

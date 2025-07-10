@@ -3,7 +3,7 @@ package org.hiero.consensus.event.creator.impl.rules;
 
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.OVERLOADED;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -25,14 +25,13 @@ public class BackpressureRule implements EventCreationRule {
     /**
      * Constructor.
      *
-     * @param platformContext      the platform's context
+     * @param configuration        provides the configuration for the event creator
      * @param eventIntakeQueueSize provides the size of the event intake queue
      */
     public BackpressureRule(
-            @NonNull final PlatformContext platformContext, @NonNull final LongSupplier eventIntakeQueueSize) {
+            @NonNull final Configuration configuration, @NonNull final LongSupplier eventIntakeQueueSize) {
 
-        final EventCreationConfig eventCreationConfig =
-                platformContext.getConfiguration().getConfigData(EventCreationConfig.class);
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         eventIntakeThrottle = eventCreationConfig.eventIntakeThrottle();
 

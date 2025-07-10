@@ -549,7 +549,7 @@ public class PlatformWiring {
                 stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::addReservedState));
 
         stateSnapshotManagerWiring
-                .getTransformedOutput(StateSnapshotManager::extractOldestMinimumGenerationOnDisk)
+                .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
                 .solderTo(
                         pcesInlineWriterWiring.getInputWire(InlinePcesWriter::setMinimumAncientIdentifierToStore),
                         INJECT);
@@ -853,6 +853,16 @@ public class PlatformWiring {
         return action -> statusStateMachineWiring
                 .getInputWire(StatusStateMachine::submitStatusAction)
                 .put(action);
+    }
+
+    /**
+     * Get the output wire for the status state machine.
+     *
+     * @return the output wire for the status state machine
+     */
+    @NonNull
+    public OutputWire<PlatformStatus> getStatusStateMachineOutputWire() {
+        return statusStateMachineWiring.getOutputWire();
     }
 
     /**

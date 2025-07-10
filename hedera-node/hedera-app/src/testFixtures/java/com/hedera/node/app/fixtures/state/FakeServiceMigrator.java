@@ -21,9 +21,6 @@ import java.util.List;
 import java.util.Map;
 
 public class FakeServiceMigrator implements ServiceMigrator {
-    private static final String NAME_OF_ENTITY_ID_SERVICE = "EntityIdService";
-    private static final String NAME_OF_ENTITY_ID_SINGLETON = "ENTITY_ID";
-
     @Override
     public List<StateChanges.Builder> doMigrations(
             @NonNull final MerkleNodeState state,

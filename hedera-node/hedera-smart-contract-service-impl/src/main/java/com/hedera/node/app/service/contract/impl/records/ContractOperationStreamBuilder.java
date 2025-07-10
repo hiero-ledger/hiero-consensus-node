@@ -5,8 +5,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -70,9 +73,18 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
         if (outcome.hasStateChanges()) {
             addContractStateChanges(requireNonNull(outcome.stateChanges()), false);
         }
-        // No-op for the RecordStreamBuilder
+        // No-ops for the RecordStreamBuilder
         if (outcome.hasSlotUsages()) {
             addContractSlotUsages(outcome.slotUsagesOrThrow());
+        }
+        if (outcome.hasLogs()) {
+            addLogs(outcome.logsOrThrow());
+        }
+        if (outcome.hasChangedNonces()) {
+            changedNonceInfo(outcome.changedNonceInfosOrThrow());
+        }
+        if (outcome.hasCreatedContractIds()) {
+            createdContractIds(outcome.createdContractIdsOrThrow());
         }
         return this;
     }
@@ -138,4 +150,26 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      */
     @NonNull
     ContractOperationStreamBuilder addContractSlotUsages(@NonNull List<ContractSlotUsage> slotUsages);
+
+    /**
+     * Tracks the EVM logs of a top-level contract transaction.
+     * @param logs the list of {@link EvmTransactionLog}s to track
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder addLogs(@NonNull List<EvmTransactionLog> logs);
+
+    /**
+     * Tracks the contract ids that have changed nonce values as a result of this contract creation.
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder changedNonceInfo(@NonNull List<ContractNonceInfo> nonceInfos);
+
+    /**
+     * Tracks the contract ids that were created during a top-level EVM transaction.
+     * @return this builder
+     */
+    @NonNull
+    ContractOperationStreamBuilder createdContractIds(@NonNull List<ContractID> contractIds);
 }

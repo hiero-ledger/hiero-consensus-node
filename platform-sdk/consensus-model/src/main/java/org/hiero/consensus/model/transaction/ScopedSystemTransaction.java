@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.transaction;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -12,9 +10,8 @@ import org.hiero.consensus.model.node.NodeId;
  * it impossible for a transaction to lie and claim to be submitted by a node that did not actually submit it.
  *
  * @param submitterId     the ID of the node that submitted the transaction
- * @param softwareVersion the software version of the event that contained the transaction
+ * @param eventBirthRound the birth round of the event that contained the transaction
  * @param transaction     the transaction
  * @param <T>             the type of transaction
  */
-public record ScopedSystemTransaction<T>(
-        @NonNull NodeId submitterId, @Nullable SemanticVersion softwareVersion, @NonNull T transaction) {}
+public record ScopedSystemTransaction<T>(@NonNull NodeId submitterId, long eventBirthRound, @NonNull T transaction) {}

@@ -98,7 +98,7 @@ public final class RosterServiceStateMock {
             roundRosterPairs.add(new RoundRosterPair(0, previousRosterHash));
         }
 
-        final RosterState rosterState = new RosterState(Bytes.EMPTY, roundRosterPairs);
+        final RosterState rosterState = new RosterState(Bytes.EMPTY, roundRosterPairs, false);
         final ReadableSingletonState<RosterState> rosterReadableState = mock(ReadableSingletonState.class);
         when(readableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATES_KEY))
                 .thenReturn(rosterReadableState);
