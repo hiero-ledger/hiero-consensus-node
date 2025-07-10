@@ -210,7 +210,6 @@ public class ContainerNode extends AbstractNode implements Node {
     void destroy() {
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
-            blockingStub.destroyContainer(DestroyRequest.newBuilder().build());
             channel.shutdownNow();
             container.stop();
         }

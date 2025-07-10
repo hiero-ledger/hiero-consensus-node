@@ -207,9 +207,6 @@ service TestControl {
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
-  // RCP to destroy the consensus node.
-  rpc DestroyNode(DestroyRequest) returns (google.protobuf.Empty);
-
-  // RCP to destroy the container and clean up resources.
-  rpc DestroyContainer(DestroyRequest) returns (google.protobuf.Empty);
+  // RCP to destroy the consensus node app, but not shutdown the container.
+  rpc DestroyConsensusNode(DestroyRequest) returns (google.protobuf.Empty);
 }

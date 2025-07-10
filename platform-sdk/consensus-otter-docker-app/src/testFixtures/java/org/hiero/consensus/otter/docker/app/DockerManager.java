@@ -184,7 +184,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      * @throws RuntimeException if the termination process is interrupted.
      */
     @Override
-    public synchronized void destroyNode(final DestroyRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void destroyConsensusNode(final DestroyRequest request, final StreamObserver<Empty> responseObserver) {
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();
@@ -195,24 +195,5 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         } catch (final InterruptedException ie) {
             throw new RuntimeException(ie);
         }
-    }
-
-    /**
-     * Destroys the container and cleans up resources.
-     * <p>
-     * This method stops the dispatcher and releases any resources associated with the container.
-     *
-     * @param request The request to destroy the container.
-     * @param responseObserver The observer used to confirm destruction.
-     */
-    @Override
-    public synchronized void destroyContainer(
-            final DestroyRequest request, final StreamObserver<Empty> responseObserver) {
-        if (dispatcher != null) {
-            dispatcher.shutdown();
-        }
-
-        responseObserver.onNext(Empty.getDefaultInstance());
-        responseObserver.onCompleted();
     }
 }
