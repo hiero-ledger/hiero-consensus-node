@@ -48,7 +48,6 @@ public class CheckingRecoveryTest {
         final Node nodeToThrottle = network.getNodes().getLast();
         assertThat(nodeToThrottle.getPlatformStatusResults())
                 .hasSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
-        nodeToThrottle.getPlatformStatusResults().clear();
 
         // Throttle the last node for a period of time so that it falls into CHECKING
         nodeToThrottle.startSyntheticBottleneck(Duration.ofSeconds(30));
