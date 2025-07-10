@@ -201,6 +201,7 @@ public class AtomicLeakyContractTestsSuite {
                 "cryptoCreateWithAlias.enabled",
                 "false"));
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+        // dummy change
     }
 
     @HapiTest
