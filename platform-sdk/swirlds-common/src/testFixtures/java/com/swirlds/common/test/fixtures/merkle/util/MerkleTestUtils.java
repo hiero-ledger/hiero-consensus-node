@@ -42,6 +42,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1016,6 +1018,21 @@ public final class MerkleTestUtils {
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }
 
+    private static Function<Throwable, Boolean> createSuppressedExceptionListener(Function<Throwable, Boolean> originalListener) {
+        return t -> {
+            boolean handled = originalListener.apply(t);
+            if (handled) {
+                return true;
+            }
+            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+            if (cause instanceof IOException || cause instanceof UncheckedIOException
+                    || cause instanceof ExecutionException || cause instanceof MerkleSynchronizationException) {
+                return true; // Suppress print/log for simulated
+            }
+            return false; // Allow print/log for unexpected
+        };
+    }
+
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
@@ -1052,7 +1069,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-learning-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1077,7 +1094,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-teaching-synchronizer",
                                         breakConnection,
-                                        exceptionListener,
+                                        createSuppressedExceptionListener(exceptionListener),
                                         true);
                             }
                         };
@@ -1100,7 +1117,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-learning-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1124,7 +1141,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-teaching-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1133,6 +1150,13 @@ public final class MerkleTestUtils {
             final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
             final Function<Throwable, Boolean> exceptionListener = t -> {
                 firstReconnectException.compareAndSet(null, t);
+                Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+                // Suppress simulated (return true: handled, no log/print)
+                if (cause instanceof IOException || cause instanceof UncheckedIOException || cause instanceof MerkleSynchronizationException
+                || cause instanceof ExecutionException) {
+                    return true;
+                }
+                // Unexpected: return false (log/print for debug)
                 return false;
             };
             final StandardWorkGroup workGroup = new StandardWorkGroup(

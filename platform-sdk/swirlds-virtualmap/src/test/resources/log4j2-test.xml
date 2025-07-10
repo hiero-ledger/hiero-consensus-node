@@ -32,14 +32,18 @@
 			</Policies>
 			<DefaultRolloverStrategy max="1"/>
 		</RollingRandomAccessFile>
-		<Console name="Console" target="SYSTEM_OUT">
+		<Console name="Console2" target="SYSTEM_OUT">
 			<PatternLayout pattern="%d{HH:mm:ss.SSS} %6r %t %msg%n"/>
 		</Console>
 	</Appenders>
 	<Loggers>
+		<Logger name="com.swirlds.virtualmap.internal.merkle.VirtualRootNode" level="OFF"/>
+		<Logger name="com.swirlds.virtualmap.internal.pipeline.VirtualPipeline" level="OFF"/>
+		<Logger name="com.swirlds.common.merkle.synchronization.task.LearnerPushTask" level="OFF"/>
 		<Root level="trace">
 			<AppenderRef ref="SwirldsPrimaryLog"/>
-			<AppenderRef ref="Console"/>
+<!--			<AppenderRef ref="Console"/>-->
+			<AppenderRef ref="Console2"/>
 		</Root>
 	</Loggers>
 </Configuration>
