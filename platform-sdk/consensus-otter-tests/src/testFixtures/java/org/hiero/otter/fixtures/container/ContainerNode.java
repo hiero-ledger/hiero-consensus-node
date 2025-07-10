@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -48,7 +48,6 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -60,10 +59,9 @@ public class ContainerNode extends AbstractNode implements Node {
     private static final Logger log = LogManager.getLogger();
 
     public static final int GOSSIP_PORT = 5777;
-    private static final int CONTROL_PORT = 8080;
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
-    private final GenericContainer<?> container;
+    private final ContainerImage container;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final ManagedChannel channel;
@@ -94,13 +92,8 @@ public class ContainerNode extends AbstractNode implements Node {
 
         this.resultsCollector = new NodeResultsCollector(selfId);
 
-        final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
-
         //noinspection resource
-        this.container = new GenericContainer<>(dockerImage)
-                .withNetwork(network)
-                .withNetworkAliases(alias)
-                .withExposedPorts(CONTROL_PORT);
+        container = new ContainerImage(dockerImage, network, selfId);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -291,15 +284,11 @@ public class ContainerNode extends AbstractNode implements Node {
                 }
 
                 private static boolean isExpectedError(final @NonNull Throwable error) {
-                    boolean expected;
                     if (error instanceof StatusRuntimeException sre) {
-                        final var code = sre.getStatus().getCode();
-                        expected = code == Code.UNAVAILABLE || code == Code.CANCELLED;
-                    } else {
-                        final String msg = error.getMessage();
-                        expected = msg != null && (msg.startsWith("UNAVAILABLE") || msg.startsWith("CANCELLED"));
+                        final Code code = sre.getStatus().getCode();
+                        return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
                     }
-                    return expected;
+                    return false;
                 }
 
                 @Override

@@ -40,9 +40,9 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     private final ExecutorService executor;
 
     /** Manages the consensus nodes and platform lifecycle */
-    private volatile ConsensusNodeManager nodeManager;
+    private ConsensusNodeManager nodeManager;
 
-    /** Handles outgoing messages */
+    /** Handles outgoing messages, may get called from different threads/callbacks */
     private volatile OutboundDispatcher dispatcher;
 
     /**
