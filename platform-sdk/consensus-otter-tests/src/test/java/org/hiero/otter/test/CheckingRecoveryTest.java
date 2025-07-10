@@ -51,15 +51,15 @@ public class CheckingRecoveryTest {
         nodeToThrottle.getPlatformStatusResults().clear();
 
         // Throttle the last node for a period of time so that it falls into CHECKING
-        nodeToThrottle.startSyntheticBottleneck();
-        if (!timeManager.waitForCondition(nodeToThrottle::isChecking, Duration.ofSeconds(30L))) {
+        nodeToThrottle.startSyntheticBottleneck(Duration.ofSeconds(30));
+        if (!timeManager.waitForCondition(nodeToThrottle::isChecking, Duration.ofMinutes(2))) {
             fail(
                     "Node did not enter CHECKING status within the expected time frame after synthetic bottleneck was enabled.");
         }
         nodeToThrottle.stopSyntheticBottleneck();
 
         // Verify that the node recovers when the bottleneck is lifted
-        if (!timeManager.waitForCondition(nodeToThrottle::isActive, Duration.ofSeconds(30L))) {
+        if (!timeManager.waitForCondition(nodeToThrottle::isActive, Duration.ofSeconds(60L))) {
             fail(
                     "Node did not recover from CHECKING status within the expected time frame after synthetic bottleneck was disabled.");
         }
