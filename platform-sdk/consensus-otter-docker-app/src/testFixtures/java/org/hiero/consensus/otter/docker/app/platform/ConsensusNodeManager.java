@@ -84,7 +84,7 @@ public class ConsensusNodeManager {
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
-        final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
+        final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
         final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
         if (overriddenProperties != null) {
             overriddenProperties.forEach(configurationBuilder::withValue);
@@ -96,7 +96,7 @@ public class ConsensusNodeManager {
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
@@ -104,7 +104,7 @@ public class ConsensusNodeManager {
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
         dockerStateEventHandler = new DockerStateEventHandler();
 
@@ -117,7 +117,7 @@ public class ConsensusNodeManager {
                 () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                oldSelfId,
+                legacySelfId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -131,7 +131,7 @@ public class ConsensusNodeManager {
                         version,
                         initialState,
                         dockerStateEventHandler,
-                        oldSelfId,
+                        legacySelfId,
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade)
@@ -157,15 +157,14 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Starts the consensus node application. This method triggers the underlying platform
-     * to begin processing consensus rounds and other operations.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start receiving transactions.
      */
     public void start() {
         platform.start();
     }
 
     /**
-     * Shuts down the consensus node application. Once destroyed, the application cannot be restarted.
+     * Shuts down the consensus node. Once destroyed, it cannot be restarted.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */

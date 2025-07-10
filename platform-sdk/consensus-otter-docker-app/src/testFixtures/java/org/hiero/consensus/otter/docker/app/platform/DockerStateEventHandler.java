@@ -58,7 +58,7 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
                 try {
                     final TurtleTransaction transaction = TurtleTransaction.parseFrom(payload.toInputStream());
                     TransactionHandlers.handleTransaction(state, event, transaction, callback);
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     LOGGER.warn("Failed to parse transaction", ex);
                 }
             });
