@@ -6,7 +6,6 @@ import static com.hedera.node.app.ids.schemas.V0490EntityIdSchema.ENTITY_ID_STAT
 import static com.hedera.node.app.ids.schemas.V0590EntityIdSchema.ENTITY_COUNTS_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_KEY;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager.DEFAULT_STAKING_PERIOD_MINS;
-import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -29,28 +28,29 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
-import com.hedera.node.app.service.token.records.TokenContext;
-import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class NodeStakeUpdatesTest {
+public class StakePeriodChangesTest {
     private static final Instant CONSENSUS_TIME_1234567 = Instant.ofEpochSecond(1_234_5670L, 1357);
 
     @Mock
@@ -60,16 +60,16 @@ public class NodeStakeUpdatesTest {
     private ExchangeRateManager exchangeRateManager;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
-    private TokenContext context;
+    private TokenContextImpl context;
 
     @Mock
     private ReadableBlockRecordStore blockStore;
 
+    @Mock
+    private ParentTxn parentTxn;
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     private SavepointStackImpl stack;
-
-    @Mock
-    private Dispatch dispatch;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private WritableStates writableStates;
@@ -94,19 +94,6 @@ public class NodeStakeUpdatesTest {
 
     private StakePeriodChanges subject;
 
-    @BeforeEach
-    void setUp() {
-        given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
-
-        subject = new StakePeriodChanges(
-                configProvider, stakingPeriodCalculator, exchangeRateManager, blockRecordManager, blockStreamManager);
-
-        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
-        given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(entityCountsState);
-        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)).willReturn(entityIdState);
-    }
-
     @Test
     void processUpdateSkippedForPreviousPeriod() {
         verifyNoInteractions(stakingPeriodCalculator);
@@ -116,8 +103,9 @@ public class NodeStakeUpdatesTest {
     @Test
     @SuppressWarnings("unchecked")
     void processUpdateCalledForGenesisTxn() {
+        setupSubjectWith(newConfig(RECORDS));
+
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
         given(blockStore.getLastBlockInfo())
@@ -126,7 +114,11 @@ public class NodeStakeUpdatesTest {
                         .build());
         given(context.consensusTime()).willReturn(CONSENSUS_TIME_1234567);
 
-        subject.process(stack, context, RECORDS, Instant.EPOCH);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.tokenContextImpl()).willReturn(context);
+        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+
+        subject.advanceTimeTo(parentTxn, true);
 
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
@@ -134,6 +126,8 @@ public class NodeStakeUpdatesTest {
 
     @Test
     void processUpdateSkippedForPreviousConsensusTime() {
+        setupSubjectWith(newConfig(RECORDS));
+
         final var beforeLastConsensusTime = CONSENSUS_TIME_1234567.minusSeconds(1);
         given(context.consensusTime()).willReturn(beforeLastConsensusTime);
         given(blockStore.getLastBlockInfo())
@@ -142,8 +136,11 @@ public class NodeStakeUpdatesTest {
                                 .seconds(CONSENSUS_TIME_1234567.getEpochSecond())
                                 .nanos(CONSENSUS_TIME_1234567.getNano()))
                         .build());
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.tokenContextImpl()).willReturn(context);
+        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
 
-        subject.process(stack, context, RECORDS, Instant.EPOCH);
+        subject.advanceTimeTo(parentTxn, true);
 
         verifyNoInteractions(stakingPeriodCalculator);
         verifyNoInteractions(exchangeRateManager);
@@ -152,7 +149,8 @@ public class NodeStakeUpdatesTest {
     @Test
     @SuppressWarnings("unchecked")
     void processUpdateCalledForNextPeriodWithRecordsStreamMode() {
-        given(context.configuration()).willReturn(newPeriodMinsConfig());
+        setupSubjectWith(newConfig(RECORDS));
+
         // Use any number of seconds that gets isNextPeriod(...) to return true
         final var currentConsensusTime = CONSENSUS_TIME_1234567.plusSeconds(500_000);
         given(blockStore.getLastBlockInfo())
@@ -171,7 +169,10 @@ public class NodeStakeUpdatesTest {
                 .isTrue();
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
 
-        subject.process(stack, context, RECORDS, Instant.EPOCH);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.tokenContextImpl()).willReturn(context);
+        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
+        subject.advanceTimeTo(parentTxn, true);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -183,7 +184,7 @@ public class NodeStakeUpdatesTest {
     @Test
     @SuppressWarnings("unchecked")
     void processUpdateCalledForNextPeriodWithBlocksStreamMode() {
-        given(context.configuration()).willReturn(newPeriodMinsConfig());
+        setupSubjectWith(DEFAULT_CONFIG);
         // Use any number of seconds that gets isNextPeriod(...) to return true
         final var currentConsensusTime = CONSENSUS_TIME_1234567.plusSeconds(500_000);
         given(context.consensusTime()).willReturn(currentConsensusTime);
@@ -195,8 +196,11 @@ public class NodeStakeUpdatesTest {
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.tokenContextImpl()).willReturn(context);
+        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
 
-        subject.process(stack, context, BLOCKS, CONSENSUS_TIME_1234567);
+        subject.advanceTimeTo(parentTxn, true);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -208,6 +212,7 @@ public class NodeStakeUpdatesTest {
     @Test
     @SuppressWarnings("unchecked")
     void processUpdateExceptionIsCaught() {
+        setupSubjectWith(newConfig(RECORDS));
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         doThrow(new RuntimeException("test exception"))
                 .when(stakingPeriodCalculator)
@@ -220,8 +225,11 @@ public class NodeStakeUpdatesTest {
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.tokenContextImpl()).willReturn(context);
+        given(blockStreamManager.lastHandleTime()).willReturn(Instant.EPOCH);
 
-        Assertions.assertThatNoException().isThrownBy(() -> subject.process(stack, context, RECORDS, Instant.EPOCH));
+        Assertions.assertThatNoException().isThrownBy(() -> subject.advanceTimeTo(parentTxn, true));
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
     }
@@ -284,6 +292,19 @@ public class NodeStakeUpdatesTest {
         Assertions.assertThat(result).isTrue();
     }
 
+    private void setupSubjectWith(@NonNull final Configuration config) {
+        given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(context.configuration()).willReturn(config);
+
+        subject = new StakePeriodChanges(
+                configProvider, stakingPeriodCalculator, exchangeRateManager, blockRecordManager, blockStreamManager);
+
+        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(entityCountsState);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_KEY)).willReturn(entityIdState);
+    }
+
     private Configuration newPeriodMinsConfig() {
         return newPeriodMinsConfig(DEFAULT_STAKING_PERIOD_MINS);
     }
@@ -297,6 +318,14 @@ public class NodeStakeUpdatesTest {
                 .withConfigDataType(StakingConfig.class)
                 .withValue("staking.periodMins", periodMins)
                 .withValue("tss.keyCandidateRoster", keyCandidateRoster)
+                .getOrCreateConfig();
+    }
+
+    private Configuration newConfig(@NonNull final StreamMode streamMode) {
+        return HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(StakingConfig.class)
+                .withValue("blockStream.streamMode", streamMode)
                 .getOrCreateConfig();
     }
 }

@@ -34,9 +34,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
- * Orchestrates changes that happen before the first transaction in a new staking period. See
- * {@link #process(SavepointStackImpl, TokenContext, StreamMode, Instant)}
- * for details.
+ * Orchestrates changes that happen as a side effect of a transaction crossing a staking period boundary. See
+ * {@link #advanceTimeTo(ParentTxn, boolean)} for details.
  */
 @Singleton
 public class StakePeriodChanges {
@@ -69,17 +68,27 @@ public class StakePeriodChanges {
     }
 
     /**
-     * Manages time-based side effects for the given user transaction and dispatch.
+     * Orchestrates changes that happen as side effects of a transaction crossing a staking period boundary, as follows:
+     * <ol>
+     *     <li>Saves the current exchange rates as the "midnight rates" that tether the rates within the
+     *     following period to a bounded interval, barring an explicit admin override.</li>
+     *     <li>Updates node staking metadata (in particular, the nodes' reward rates earned for the just-ending
+     *     period and their weight for the just-starting period); and exports this to the block stream.</li>
+     *     <li>If appropriate, triggers rekeying a new candidate roster based on a snapshot of the node
+     *     information computed in the previous step, and all dynamic address book (DAB) transactions
+     *     handled up to this consensus time.</li>
+     * </ol>
+     * <p>
+     * There is an edge case where we don't want to process the stake period changes, which is when we are at genesis;
+     * at that point the system entities involved in the stake period changes will not yet exist.
      *
-     * @param parentTxn the user transaction to manage time for
+     * @param parentTxn the user transaction whose consensus time is being reached
      * @param includeStakePeriodSideEffects if true, includes stake period boundary side effects
      */
     public void advanceTimeTo(@NonNull final ParentTxn parentTxn, final boolean includeStakePeriodSideEffects) {
         if (includeStakePeriodSideEffects) {
             try {
-                // WARNING: The check below relies on the BlockStreamManager's last-handled time not being updated yet,
-                // so we must not call setLastHandleTime() until after them
-                process(
+                processSideEffects(
                         parentTxn.stack(),
                         parentTxn.tokenContextImpl(),
                         streamMode,
@@ -113,18 +122,19 @@ public class StakePeriodChanges {
      * @param stack the savepoint stack
      * @param tokenContext the token context
      * @param streamMode the stream mode
-     * @param lastHandleTime the last instant at which a transaction was handled
+     * @param lastHandleTimeFromBlockStream the last instant at which a transaction was handled per block stream
      */
-    public void process(
+    private void processSideEffects(
             @NonNull final SavepointStackImpl stack,
             @NonNull final TokenContext tokenContext,
             @NonNull final StreamMode streamMode,
-            @NonNull final Instant lastHandleTime) {
+            @NonNull final Instant lastHandleTimeFromBlockStream) {
         requireNonNull(stack);
         requireNonNull(tokenContext);
         requireNonNull(streamMode);
-        requireNonNull(lastHandleTime);
-        final var isStakePeriodBoundary = isStakingPeriodBoundary(streamMode, tokenContext, lastHandleTime);
+        requireNonNull(lastHandleTimeFromBlockStream);
+        final var isStakePeriodBoundary =
+                isStakingPeriodBoundary(streamMode, tokenContext, lastHandleTimeFromBlockStream);
         if (isStakePeriodBoundary) {
             try {
                 exchangeRateManager.updateMidnightRates(stack);
@@ -172,7 +182,7 @@ public class StakePeriodChanges {
     private boolean isStakingPeriodBoundary(
             @NonNull final StreamMode streamMode,
             @NonNull final TokenContext tokenContext,
-            @NonNull final Instant lastHandleTime) {
+            @NonNull final Instant lastHandleTimeFromBlockStream) {
         final var consensusTime = tokenContext.consensusTime();
         if (streamMode == RECORDS) {
             final var blockStore = tokenContext.readableStore(ReadableBlockRecordStore.class);
@@ -184,8 +194,8 @@ public class StakePeriodChanges {
                         tokenContext);
             }
         } else {
-            if (isNextSecond(lastHandleTime, consensusTime)) {
-                return isNextStakingPeriod(consensusTime, lastHandleTime, tokenContext);
+            if (isNextSecond(lastHandleTimeFromBlockStream, consensusTime)) {
+                return isNextStakingPeriod(consensusTime, lastHandleTimeFromBlockStream, tokenContext);
             }
         }
         return false;

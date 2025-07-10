@@ -671,11 +671,10 @@ public class RepeatableHip1064Tests {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
                 waitUntilStartOfNextStakingPeriod(1),
-                // This round should be the first across the stake period boundary, hence trigger rewards and side
-                // effects
+                // Close a block whose only chance of exporting a NodeStakeUpdate is the node reward payment
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 sleepForBlockPeriod(),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 sleepForBlockPeriod(),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 exposeLatestBlock(

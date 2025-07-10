@@ -890,23 +890,6 @@ public class HandleWorkflow {
     }
 
     /**
-     * Processes any side effects of crossing a stake period boundary.
-     *
-     * @param parentTxn the user transaction that crossed the boundary
-     */
-    private void processStakePeriodChanges(@NonNull final ParentTxn parentTxn) {
-        try {
-            stakePeriodChanges.process(
-                    parentTxn.stack(), parentTxn.tokenContextImpl(), streamMode, blockStreamManager.lastHandleTime());
-        } catch (final Exception e) {
-            // We don't propagate a failure here to avoid a catastrophic scenario
-            // where we are "stuck" trying to process node stake updates and never
-            // get back to user transactions
-            logger.error("Failed to process stake period changes", e);
-        }
-    }
-
-    /**
      * Configure the TSS callbacks for the given state.
      *
      * @param state the latest state
