@@ -35,9 +35,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -96,13 +98,7 @@ public class AtomicBatchInvalidSignaturesTests {
                             .via("failedBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and inner transaction was recorded
-                    getTxnRecord("failedBatch").logged(),
-                    getTxnRecord(associateTxnId).assertingNothingAboutHashes().logged(),
-
                     // Verify token and contract exist but no association occurred
-                    getTokenInfo(misc).logged(),
-                    getContractInfo(contract).logged(),
                     getContractInfo(contract).hasNoTokenRelationship(misc));
         }
 
@@ -145,16 +141,10 @@ public class AtomicBatchInvalidSignaturesTests {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
                     // Verify the first transaction would have succeeded but was reverted due to batch failure
-                    getTxnRecord(associate1TxnId)
-                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                    getTxnRecord(associate1TxnId).hasPriority(recordWith().status(REVERTED_SUCCESS)),
 
                     // Verify the second transaction failed as expected (causing the batch to fail)
-                    getTxnRecord(associate2TxnId)
-                            .hasPriority(recordWith().status(INVALID_SIGNATURE))
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                    getTxnRecord(associate2TxnId).hasPriority(recordWith().status(INVALID_SIGNATURE)),
 
                     // Verify the contracts exist but associations were rolled back
                     getContractInfo(contractWithKey).hasNoTokenRelationship(token1),
@@ -212,23 +202,14 @@ public class AtomicBatchInvalidSignaturesTests {
                             .signedByPayerAnd(batchOperator, adminKey1, adminKey2)
                             .via("complexAssocBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    getTxnRecord("complexAssocBatch").logged(),
+                    getTxnRecord("complexAssocBatch"),
 
                     // Verify the first two transactions would have succeeded but were reverted
-                    getTxnRecord(associate1TxnId)
-                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
-                            .assertingNothingAboutHashes()
-                            .logged(),
-                    getTxnRecord(associate2TxnId)
-                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                    getTxnRecord(associate1TxnId).hasPriority(recordWith().status(REVERTED_SUCCESS)),
+                    getTxnRecord(associate2TxnId).hasPriority(recordWith().status(REVERTED_SUCCESS)),
 
                     // Verify the third transaction failed as expected (causing the batch to fail)
-                    getTxnRecord(associate3TxnId)
-                            .hasPriority(recordWith().status(INVALID_SIGNATURE))
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                    getTxnRecord(associate3TxnId).hasPriority(recordWith().status(INVALID_SIGNATURE)),
 
                     // Verify contracts exist but associations were rolled back
                     getContractInfo(contract1).hasNoTokenRelationship(token1),
@@ -269,16 +250,10 @@ public class AtomicBatchInvalidSignaturesTests {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
                     // Verify the first transaction (contract deletion) would have succeeded but was reverted
-                    getTxnRecord(deleteTxnId)
-                            .hasPriority(recordWith().status(REVERTED_SUCCESS))
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                    getTxnRecord(deleteTxnId).hasPriority(recordWith().status(REVERTED_SUCCESS)),
 
                     // Verify the second transaction failed as expected (trying to associate with deleted contract)
-                    getTxnRecord(associateTxnId)
-                            .hasPriority(recordWith().status(ACCOUNT_DELETED))
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                    getTxnRecord(associateTxnId).hasPriority(recordWith().status(ACCOUNT_DELETED)),
 
                     // Verify contract still exists due to batch rollback
                     getContractInfo(contract).hasNoTokenRelationship(misc));
@@ -320,16 +295,10 @@ public class AtomicBatchInvalidSignaturesTests {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
                 // Verify the first transaction (token deletion) would have succeeded but was reverted
-                getTxnRecord(deleteTokenTxnId)
-                        .hasPriority(recordWith().status(REVERTED_SUCCESS))
-                        .assertingNothingAboutHashes()
-                        .logged(),
+                getTxnRecord(deleteTokenTxnId).hasPriority(recordWith().status(REVERTED_SUCCESS)),
 
                 // Verify the second transaction failed as expected (trying to associate deleted token)
-                getTxnRecord(associateTxnId)
-                        .hasPriority(recordWith().status(TOKEN_WAS_DELETED))
-                        .assertingNothingAboutHashes()
-                        .logged());
+                getTxnRecord(associateTxnId).hasPriority(recordWith().status(TOKEN_WAS_DELETED)));
     }
 
     @Nested
@@ -365,11 +334,10 @@ public class AtomicBatchInvalidSignaturesTests {
                             .via("invalidNameBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("invalidNameBatch").logged(),
+                    // Verify inner transaction failed signature check
                     getTxnRecord(invalidTokenTxnId)
-                            .assertingNothingAboutHashes()
-                            .logged(),
+                            .logged()
+                            .hasPriority(recordWith().status(INVALID_SIGNATURE)),
 
                     // Batch with missing treasury signature (threshold key)
                     atomicBatch(tokenCreate("invalidSigToken")
@@ -380,11 +348,10 @@ public class AtomicBatchInvalidSignaturesTests {
                             .via("invalidSigBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("invalidSigBatch").logged(),
-                    getTxnRecord(invalidSigTokenTxnId)
-                            .assertingNothingAboutHashes()
-                            .logged());
+                    // Verify inner transaction failed signature check
+                    getTxnRecord(invalidTokenTxnId)
+                            .logged()
+                            .hasPriority(recordWith().status(INVALID_SIGNATURE)));
         }
 
         @HapiTest
@@ -415,9 +382,10 @@ public class AtomicBatchInvalidSignaturesTests {
                             .via("treasuryBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("treasuryBatch").logged(),
-                    getTxnRecord(tokenCreateTxnId).assertingNothingAboutHashes().logged());
+                    // Verify inner transaction failed signature check
+                    getTxnRecord(tokenCreateTxnId)
+                            .logged()
+                            .hasPriority(recordWith().status(INVALID_SIGNATURE)));
         }
 
         @HapiTest
@@ -459,8 +427,9 @@ public class AtomicBatchInvalidSignaturesTests {
                                     batchOperator, DEFAULT_PAYER, TOKEN_TREASURY) // Missing tokenCollector signature
                             .via("feeCollectorBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    getTxnRecord("feeCollectorBatch").logged(),
-                    getTxnRecord(token1TxnId).assertingNothingAboutHashes().logged());
+
+                    // Verify inner transaction failed signature check
+                    getTxnRecord(token1TxnId).hasPriority(recordWith().status(INVALID_SIGNATURE)));
         }
     }
 
@@ -502,24 +471,17 @@ public class AtomicBatchInvalidSignaturesTests {
                     cryptoTransfer(moving(500, anotherWipeableToken).between(TOKEN_TREASURY, "misc")),
                     // Verify initial setup
                     getAccountBalance("misc").hasTokenBalance(anotherWipeableToken, 500),
-                    // Verify initial setup
-                    getAccountBalance("misc").hasTokenBalance(anotherWipeableToken, 500),
-                    getTokenInfo(unwipeableToken).logged(),
-                    getTokenInfo(wipeableToken).logged(),
 
                     // Batch with treasury wipe attempt - should fail entire batch
-                    atomicBatch(
-                                    wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, List.of(1L))
-                                            .via(wipe1TxnId)
-                                            .batchKey(batchOperator) // CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT
-                                    )
+                    atomicBatch(wipeTokenAccount(wipeableUniqueToken, TOKEN_TREASURY, List.of(1L))
+                                    .via(wipe1TxnId)
+                                    .batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
                             .via("wipeBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("wipeBatch").logged(),
-                    getTxnRecord(wipe1TxnId).assertingNothingAboutHashes().logged(),
+                    // Verify inner transaction failed
+                    getTxnRecord(wipe1TxnId).hasPriority(recordWith().status(CANNOT_WIPE_TOKEN_TREASURY_ACCOUNT)),
 
                     // Verify token balances unchanged (atomicity check)
                     getAccountBalance("misc").hasTokenBalance(anotherWipeableToken, 500));
@@ -548,13 +510,12 @@ public class AtomicBatchInvalidSignaturesTests {
                     atomicBatch(grantTokenKyc(withoutKycKey, TOKEN_TREASURY)
                                     .via(kyc1TxnId)
                                     .batchKey(batchOperator))
-                            .signedByPayerAnd(batchOperator, GENESIS) // TOKEN_HAS_NO_KYC_KEY
+                            .signedByPayerAnd(batchOperator, GENESIS)
                             .via("kycBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("kycBatch").logged(),
-                    getTxnRecord(kyc1TxnId).assertingNothingAboutHashes().logged());
+                    // Verify inner transaction failed
+                    getTxnRecord(kyc1TxnId).hasPriority(recordWith().status(TOKEN_HAS_NO_KYC_KEY)));
         }
     }
 
@@ -605,12 +566,10 @@ public class AtomicBatchInvalidSignaturesTests {
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
                     // Verify batch failed and check transaction records
-                    getTxnRecord("metadataBatch").logged(),
-                    getTxnRecord(updateTxnId).assertingNothingAboutHashes().logged(),
+                    getTxnRecord(updateTxnId).hasPriority(recordWith().status(INVALID_SIGNATURE)),
 
                     // Verify NFT metadata unchanged
-                    getTokenNftInfo(nftToken, 1L).hasMetadata(copyFromUtf8("a")) // Original metadata
-                    );
+                    getTokenNftInfo(nftToken, 1L).hasMetadata(copyFromUtf8("a")));
         }
 
         @HapiTest
@@ -651,13 +610,11 @@ public class AtomicBatchInvalidSignaturesTests {
                             .via("autoRenewBatch")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                    // Verify batch failed and check transaction records
-                    getTxnRecord("autoRenewBatch").logged(),
-                    getTxnRecord(updateTxnId).assertingNothingAboutHashes().logged(),
+                    // Verify inner transaction failed signature check
+                    getTxnRecord(updateTxnId).hasPriority(recordWith().status(INVALID_SIGNATURE)),
 
                     // Verify auto renew account unchanged
-                    getTokenInfo(tokenName).hasAutoRenewAccount("autoRenew") // Should remain unchanged
-                    );
+                    getTokenInfo(tokenName).hasAutoRenewAccount("autoRenew"));
         }
     }
 }
