@@ -14,8 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
-import org.hiero.otter.fixtures.container.proto.DestroyRequest;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
@@ -184,7 +184,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      * @throws RuntimeException if the termination process is interrupted.
      */
     @Override
-    public synchronized void destroyConsensusNode(final DestroyRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void killImmediately(final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();

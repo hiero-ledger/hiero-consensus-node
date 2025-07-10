@@ -194,7 +194,7 @@ message TransactionRequestAnswer {
   bool result = 1;
 }
 
-message DestroyRequest {
+message KillImmediatelyRequest {
   google.protobuf.Empty ignore = 1;
 }
 
@@ -207,6 +207,6 @@ service TestControl {
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
-  // RCP to destroy the consensus node app, but not shutdown the container.
-  rpc DestroyConsensusNode(DestroyRequest) returns (google.protobuf.Empty);
+  // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
+  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
 }

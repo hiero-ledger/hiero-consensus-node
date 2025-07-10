@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.junit.jupiter.api.Assertions.fail;
-
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
@@ -31,8 +23,8 @@ import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
-import org.hiero.otter.fixtures.container.proto.DestroyRequest;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
@@ -49,6 +41,14 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Implementation of {@link Node} for a container environment.
@@ -199,7 +199,8 @@ public class ContainerNode extends AbstractNode implements Node {
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from destroyContainer
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    // ignoring the Empty answer from destroyContainer
     void destroy() {
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
@@ -252,8 +253,8 @@ public class ContainerNode extends AbstractNode implements Node {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
                         case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS ->
-                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
+                        case CONSENSUS_ROUNDS -> resultsCollector.addConsensusRounds(
+                                ProtobufConverter.toPbj(value.getConsensusRounds()));
                         default -> {
                             final String message = String.format(
                                     "Received unknown message type from node %s: %s", selfId, value.getEventCase());
@@ -308,9 +309,9 @@ public class ContainerNode extends AbstractNode implements Node {
                 // conditions with the stream observer receiving an error.
                 lifeCycle = SHUTDOWN;
 
-                final DestroyRequest request = DestroyRequest.getDefaultInstance();
+                final KillImmediatelyRequest request = KillImmediatelyRequest.getDefaultInstance();
                 // Unary call – will throw if server returns an error.
-                blockingStub.destroyNode(request);
+                blockingStub.killImmediately(request);
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }

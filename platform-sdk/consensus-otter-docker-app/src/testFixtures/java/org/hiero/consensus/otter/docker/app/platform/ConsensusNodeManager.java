@@ -164,7 +164,7 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Shuts down the consensus node. Once destroyed, it cannot be restarted.
+     * Shuts down the consensus node.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
