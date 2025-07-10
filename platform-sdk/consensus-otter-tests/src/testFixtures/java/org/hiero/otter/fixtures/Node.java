@@ -38,12 +38,38 @@ public interface Node {
      */
     void killImmediately() throws InterruptedException;
 
+    /**
+     * Start a synthetic bottleneck on the node.
+     *
+     * <p>This method simulates a delay in processing rounds of consensus, which can be used to test the node's
+     * behavior when the handle thread cannot keep up.
+     *
+     * <p>Equivalent to calling {@link #startSyntheticBottleneck(Duration)} with a delay of 100 milliseconds.
+     * @see #startSyntheticBottleneck(Duration)
+     */
     default void startSyntheticBottleneck() {
         startSyntheticBottleneck(Duration.ofMillis(100));
     }
 
+    /**
+     * Start a synthetic bottleneck on the node.
+     *
+     * <p>This method simulates a delay in processing rounds of consensus, which can be used to test the node's
+     * behavior when the handle thread cannot keep up.
+     *
+     * @param delayPerRound the duration to sleep on the handle thread after processing each round
+     * @see #startSyntheticBottleneck()
+     */
     void startSyntheticBottleneck(@NonNull Duration delayPerRound);
 
+    /**
+     * Stop the synthetic bottleneck on the node.
+     *
+     * <p>This method stops the delay in processing rounds of consensus that was started by
+     * {@link #startSyntheticBottleneck(Duration)}.
+     * @see #startSyntheticBottleneck(Duration)
+     * @see #startSyntheticBottleneck()
+     */
     void stopSyntheticBottleneck();
 
     /**

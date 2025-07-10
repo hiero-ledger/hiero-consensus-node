@@ -49,9 +49,9 @@ import org.hiero.otter.fixtures.turtle.TransactionFactory;
 import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 
 /**
- * Manages the lifecycle and operations of a consensus node within a container-based network.
- * This class initializes the platform, handles configuration, and provides methods for interacting
- * with the consensus process, including submitting transactions and listening for consensus rounds.
+ * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
+ * platform, handles configuration, and provides methods for interacting with the consensus process, including
+ * submitting transactions and listening for consensus rounds.
  */
 public class ConsensusNodeManager {
     private static final Logger LOGGER = LogManager.getLogger(ConsensusNodeManager.class);
@@ -65,13 +65,13 @@ public class ConsensusNodeManager {
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
     /**
-     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters.
-     * This constructor initializes the platform, sets up all necessary parts for the consensus node.
+     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
+     * initializes the platform, sets up all necessary parts for the consensus node.
      *
-     * @param selfId               the unique identifier for this node, must not be {@code null}
-     * @param version              the semantic version of the application, must not be {@code null}
-     * @param genesisRoster        the initial roster of nodes in the network, must not be {@code null}
-     * @param keysAndCerts         the keys and certificates for this node, must not be {@code null}
+     * @param selfId the unique identifier for this node, must not be {@code null}
+     * @param version the semantic version of the application, must not be {@code null}
+     * @param genesisRoster the initial roster of nodes in the network, must not be {@code null}
+     * @param keysAndCerts the keys and certificates for this node, must not be {@code null}
      * @param overriddenProperties optional properties to override in the configuration, may be {@code null}
      */
     public ConsensusNodeManager(
@@ -157,7 +157,8 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Starts the consensus node. This method starts the consensus node platform and application so that it can start receiving transactions.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start
+     * receiving transactions.
      */
     public void start() {
         platform.start();
@@ -209,7 +210,16 @@ public class ConsensusNodeManager {
         consensusRoundListeners.add(listener);
     }
 
-    public void updateSyntheticBottleneck(@NonNull final long millisToSleepPerRound) {
+    /**
+     * Updates the synthetic bottleneck duration engages on the handle thread. Setting this value to zero disables the
+     * bottleneck.
+     *
+     * @param millisToSleepPerRound the number of milliseconds to sleep per round, must be non-negative
+     */
+    public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
+        if (millisToSleepPerRound < 0) {
+            throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
+        }
         dockerStateEventHandler.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

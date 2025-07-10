@@ -31,6 +31,13 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
 
     private static final Logger LOGGER = LogManager.getLogger(DockerStateEventHandler.class);
 
+    /**
+     * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
+     * will cause a backup of data in the platform as cause it to fall into CHECKING or even BEHIND.
+     * <p>
+     * Held in an {@link AtomicLong} because value is set by the container handler thread and is read by the consensus
+     * node's handle thread.
+     */
     private final AtomicLong syntheticBottleneckMillis = new AtomicLong(0);
 
     /**
@@ -66,6 +73,10 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
         maybeDoBottleneck();
     }
 
+    /**
+     * Engages a bottleneck by sleeping for the configured number of milliseconds. Does nothing if the number of
+     * milliseconds to sleep is zero or negative.
+     */
     private void maybeDoBottleneck() {
         final long millisToSleep = syntheticBottleneckMillis.get();
         if (millisToSleep > 0) {
@@ -111,6 +122,11 @@ public class DockerStateEventHandler implements ConsensusStateEventHandler<Turtl
     @Override
     public void onNewRecoveredState(@NonNull final TurtleAppState recoveredState) {}
 
+    /**
+     * Updates the synthetic bottleneck value.
+     *
+     * @param millisToSleepPerRound the number of milliseconds to sleep per round
+     */
     public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
         this.syntheticBottleneckMillis.set(millisToSleepPerRound);
     }

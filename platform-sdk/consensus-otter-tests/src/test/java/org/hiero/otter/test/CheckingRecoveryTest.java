@@ -19,12 +19,14 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 
 /**
- * Tests to verify that a node can recover from CHECKING status after a period of synthetic bottlenecking.
+ * Tests to verify that a node can recover from {@link org.hiero.consensus.model.status.PlatformStatus#CHECKING} status
+ * after a period of synthetic bottlenecking.
  */
 public class CheckingRecoveryTest {
 
     /**
-     * Test to verify that a node can recover from CHECKING status after a period of synthetic bottlenecking.
+     * Test to verify that a node can recover from {@link org.hiero.consensus.model.status.PlatformStatus#CHECKING}
+     * status after a period of synthetic bottlenecking.
      *
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
