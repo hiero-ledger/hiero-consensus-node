@@ -184,7 +184,8 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      * @throws RuntimeException if the termination process is interrupted.
      */
     @Override
-    public synchronized void killImmediately(final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void killImmediately(
+            final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();
