@@ -23,10 +23,12 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.KVStateChangeListener;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
@@ -47,12 +49,16 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import com.swirlds.state.lifecycle.info.NodeInfo;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -163,6 +169,21 @@ class HandleWorkflowTest {
     @Mock
     private NodeRewardManager nodeRewardManager;
 
+    @Mock
+    private PlatformStateFacade platformStateFacade;
+
+    @Mock
+    private BlockBufferService blockBufferService;
+
+    @Mock
+    private ReadableStates readableStates;
+
+    @Mock
+    private EventCore eventCore;
+
+    @Mock
+    private ReadableSingletonState<Object> platformStateReadableSingletonState;
+
     private HandleWorkflow subject;
 
     @Test
@@ -171,6 +192,11 @@ class HandleWorkflowTest {
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+        given(platformStateReadableSingletonState.get())
+                .willReturn(PlatformState.newBuilder().latestFreezeRound(0L).build());
+        given(eventFromMissingCreator.getEventCore()).willReturn(eventCore);
         given(round.iterator())
                 .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
                         .iterator());
@@ -182,7 +208,7 @@ class HandleWorkflowTest {
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
 
-        givenSubjectWith(RECORDS, emptyList());
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
 
         subject.handleRound(state, round, txns -> {});
 
@@ -193,6 +219,9 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         given(round.iterator()).willReturn(List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.restartSystemChangesTimeAt(any())).willReturn(NOW);
@@ -200,7 +229,7 @@ class HandleWorkflowTest {
         final var secondBuilder =
                 StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT, StateChange.DEFAULT));
         final var builders = List.of(firstBuilder, secondBuilder);
-        givenSubjectWith(BOTH, builders);
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, builders);
 
         subject.handleRound(state, round, txns -> {});
 
@@ -212,6 +241,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithNoParentEvents() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.allParentsIterator())
@@ -230,7 +262,7 @@ class HandleWorkflowTest {
                 .willReturn(List.<ConsensusTransaction>of().iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -254,6 +286,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsInCurrentBlock() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
@@ -281,7 +316,7 @@ class HandleWorkflowTest {
         given(round.iterator()).willReturn(List.of(event).iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -310,6 +345,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithParentEventsNotInCurrentBlock() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Create event hash and parent hash
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentHash = CryptoRandomUtils.randomHash();
@@ -338,7 +376,7 @@ class HandleWorkflowTest {
         given(round.iterator()).willReturn(List.of(event).iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -367,6 +405,9 @@ class HandleWorkflowTest {
 
     @Test
     void writeEventHeaderWithMixedParentEvents() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
         // Create event hash and parent hashes
         Hash eventHash = CryptoRandomUtils.randomHash();
         Hash parentInBlockHash = CryptoRandomUtils.randomHash();
@@ -404,7 +445,7 @@ class HandleWorkflowTest {
         given(round.iterator()).willReturn(List.of(event).iterator());
 
         // Create subject with BLOCKS mode
-        givenSubjectWith(StreamMode.BLOCKS, List.of());
+        givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         // WHEN
         subject.handleRound(state, round, txns -> {});
@@ -438,9 +479,12 @@ class HandleWorkflowTest {
     }
 
     private void givenSubjectWith(
-            @NonNull final StreamMode mode, @NonNull final List<StateChanges.Builder> migrationStateChanges) {
+            @NonNull final StreamMode mode,
+            @NonNull BlockStreamWriterMode streamWriterMode,
+            @NonNull final List<StateChanges.Builder> migrationStateChanges) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "" + mode)
+                .withValue("blockStream.writerMode", "" + streamWriterMode)
                 .withValue("tss.hintsEnabled", "false")
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
@@ -475,6 +519,34 @@ class HandleWorkflowTest {
                 () -> PlatformStatus.ACTIVE,
                 blockHashSigner,
                 null,
-                nodeRewardManager);
+                nodeRewardManager,
+                platformStateFacade,
+                blockBufferService);
+    }
+
+    @Test
+    void startRoundShouldCallEnsureNewBlocksPermitted() {
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.getSingleton(any())).willReturn(platformStateReadableSingletonState);
+
+        // Mock the round iterator and event
+        final NodeId creatorId = NodeId.of(0);
+        final Hash eventHash = CryptoRandomUtils.randomHash();
+        given(event.getHash()).willReturn(eventHash);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.getSignature()).willReturn(Bytes.wrap(new byte[64]));
+        given(event.allParentsIterator())
+                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(round.iterator()).willReturn(List.of(event).iterator());
+
+        // Create subject with streamToBlockNodes enabled
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
+
+        subject.handleRound(state, round, txn -> {});
+
+        verify(blockBufferService).ensureNewBlocksPermitted();
     }
 }

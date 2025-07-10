@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.hapi.block.stream.BlockItem.ItemOneOfType.TRACE_DATA;
-import static com.hedera.hapi.block.stream.BlockItem.ItemOneOfType.TRANSACTION_OUTPUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
-import static com.hedera.services.bdd.spec.HapiPropertySource.NODE_BLOCK_STREAM_DIR;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.output.TransactionOutput;
-import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
-import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -35,18 +28,12 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var validator = new BlockContentsValidator();
-        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
-                node0Dir.resolve("data/block-streams/" + NODE_BLOCK_STREAM_DIR));
+        final var blocks =
+                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
         validator.validateBlocks(blocks);
     }
 
-    public static final Factory FACTORY = new Factory() {
-        @NonNull
-        @Override
-        public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            return new BlockContentsValidator();
-        }
-    };
+    public static final Factory FACTORY = spec -> new BlockContentsValidator();
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
@@ -60,7 +47,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         }
     }
 
-    private static void validate(Block block, final int blocksRemaining) {
+    private void validate(Block block, final int blocksRemaining) {
         final var items = block.items();
         if (items.isEmpty()) {
             Assertions.fail("Block is empty");
@@ -93,7 +80,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
         }
     }
 
-    private static void validateRounds(final List<BlockItem> roundItems) {
+    private void validateRounds(final List<BlockItem> roundItems) {
         int currentIndex = 0;
         while (currentIndex < roundItems.size()) {
             currentIndex = validateSingleRound(roundItems, currentIndex);
@@ -104,86 +91,32 @@ public class BlockContentsValidator implements BlockStreamValidator {
      * Validates a single round within a block, starting at the given index.
      * Returns the index of the next item after this round.
      */
-    private static int validateSingleRound(final List<BlockItem> items, int startIndex) {
+    private int validateSingleRound(final List<BlockItem> items, int startIndex) {
         // Validate round header
         if (!items.get(startIndex).hasRoundHeader()) {
             logger.error("Expected round header at index {}, found: {}", startIndex, items.get(startIndex));
             Assertions.fail("Round must start with a round header");
         }
-
         int currentIndex = startIndex + 1;
         boolean hasEventOrStateChange = false;
-
         // Process items in this round until we hit the next round header or end of items
         while (currentIndex < items.size() && !items.get(currentIndex).hasRoundHeader()) {
-            BlockItem item = items.get(currentIndex);
-
-            if (item.hasEventHeader() || item.hasStateChanges()) {
-                hasEventOrStateChange = true;
-                currentIndex++;
-            } else if (item.hasEventTransaction()) {
-                currentIndex = validateTransactionGroup(items, currentIndex);
-            } else if (item.hasTransactionResult() || item.hasTransactionOutput()) {
-                logger.error(
-                        "Found transaction result or output without preceding transaction at index {}", currentIndex);
-                Assertions.fail(
-                        "Found transaction result or output without preceding transaction at index " + currentIndex);
-            } else {
-                logger.error("Invalid item type at index {}: {}", currentIndex, item);
-                Assertions.fail("Invalid item type at index " + currentIndex + ": " + item);
+            final var item = items.get(currentIndex);
+            final var kind = item.item().kind();
+            switch (kind) {
+                case EVENT_HEADER, STATE_CHANGES -> hasEventOrStateChange = true;
+                case RECORD_FILE, FILTERED_ITEM_HASH ->
+                    Assertions.fail("Unexpected item type " + kind + " at index " + currentIndex);
+                default -> {
+                    // No-op
+                }
             }
+            currentIndex++;
         }
-
         if (!hasEventOrStateChange) {
             logger.error("Round starting at index {} has no event headers or state changes", startIndex);
             Assertions.fail("Round starting at index " + startIndex + " has no event headers or state changes");
         }
-
-        return currentIndex;
-    }
-
-    private static final Set<BlockItem.ItemOneOfType> OPTIONAL_ITEM_TYPES = Set.of(TRANSACTION_OUTPUT, TRACE_DATA);
-
-    /**
-     * Validates a transaction group (transaction + result + optional outputs).
-     * Returns the index of the next item after this group.
-     */
-    private static int validateTransactionGroup(final List<BlockItem> items, int transactionIndex) {
-        if (transactionIndex + 1 >= items.size()) {
-            Assertions.fail("Event transaction at end of block with no result");
-        }
-
-        // Check for transaction result
-        BlockItem nextItem = items.get(transactionIndex + 1);
-        if (!nextItem.hasTransactionResult()) {
-            logger.error("Expected transaction result at index {}, found: {}", transactionIndex + 1, nextItem);
-            Assertions.fail("Event transaction must be followed by transaction result");
-        }
-
-        // Check for optional transaction outputs
-        int currentIndex = transactionIndex + 2;
-        while (currentIndex < items.size()
-                && OPTIONAL_ITEM_TYPES.contains(items.get(currentIndex).item().kind())) {
-            final var item = items.get(currentIndex);
-            switch (item.item().kind()) {
-                case TRANSACTION_OUTPUT -> {
-                    if (TransactionOutput.DEFAULT.equals(item.transactionOutputOrThrow())) {
-                        Assertions.fail("Transaction output at index " + currentIndex
-                                + " is equal to TransactionOutput.DEFAULT");
-                    }
-                }
-                case TRACE_DATA -> {
-                    if (TraceData.DEFAULT.equals(item.traceDataOrThrow())) {
-                        Assertions.fail("Found default trace data at index " + currentIndex);
-                    }
-                }
-                default ->
-                    throw new IllegalStateException("Should be unreachable, but got "
-                            + items.get(currentIndex).item());
-            }
-            currentIndex++;
-        }
-
         return currentIndex;
     }
 }

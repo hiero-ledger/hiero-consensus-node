@@ -11,9 +11,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATO
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asHeadlongAddress;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.realm;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.shard;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,10 +28,8 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 
 class IsApprovedForAllCallTest extends CallTestBase {
-    private final Address THE_OWNER =
-            asHeadlongAddress(asEvmAddress(shard, realm, A_NEW_ACCOUNT_ID.accountNumOrThrow()));
-    private final Address THE_OPERATOR =
-            asHeadlongAddress(asEvmAddress(shard, realm, B_NEW_ACCOUNT_ID.accountNumOrThrow()));
+    private final Address THE_OWNER = asHeadlongAddress(asEvmAddress(A_NEW_ACCOUNT_ID.accountNumOrThrow()));
+    private final Address THE_OPERATOR = asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
     private IsApprovedForAllCall subject;
 
     @Test

@@ -32,10 +32,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -53,7 +51,6 @@ public class TestIntake {
     private final Queue<Throwable> componentExceptions = new LinkedList<>();
     private final WiringModel model;
     private final int roundsNonAncient;
-    private final AncientMode ancientMode;
     private final FreezeCheckHolder freezeCheckHolder;
 
     /**
@@ -66,12 +63,8 @@ public class TestIntake {
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
                 .roundsNonAncient();
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
 
-        output = new ConsensusOutput(ancientMode);
+        output = new ConsensusOutput();
 
         model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
@@ -83,7 +76,8 @@ public class TestIntake {
                 new PassThroughWiring(model, "PlatformEvent", "postHashCollector", TaskSchedulerType.DIRECT);
 
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, intakeEventCounter);
+        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
+                platformContext.getConfiguration(), platformContext.getMetrics(), intakeEventCounter);
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, directScheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
@@ -141,7 +135,7 @@ public class TestIntake {
     }
 
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
-        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, ancientMode, roundsNonAncient);
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
 
         orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
         consensusEngineWiring

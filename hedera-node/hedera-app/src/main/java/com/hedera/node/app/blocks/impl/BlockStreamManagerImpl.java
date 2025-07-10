@@ -37,6 +37,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
+import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -47,8 +48,11 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
+import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.state.State;
@@ -120,9 +124,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long blockNumber;
     private int eventIndex = 0;
     private final Map<Hash, Integer> eventIndexInBlock = new HashMap<>();
-
-    // Set to the round number of the last round handled before entering a freeze period
-    private long freezeRoundNumber = -1;
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private long lastRoundOfPrevBlock;
     private Bytes lastBlockHash;
@@ -142,11 +143,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
      *
-     * @param number        the block number
-     * @param contentsPath  the path to the block contents file, if not null
-     * @param blockHash     the block hash
-     * @param proofBuilder  the block proof builder
-     * @param writer        the block item writer
+     * @param number the block number
+     * @param contentsPath the path to the block contents file, if not null
+     * @param blockHash the block hash
+     * @param proofBuilder the block proof builder
+     * @param writer the block item writer
      * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
      */
     private record PendingBlock(
@@ -159,6 +160,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         /**
          * Flushes this pending block to disk, optionally including the sibling hashes needed
          * for an indirect proof of its preceding block(s).
+         *
          * @param withSiblingHashes whether to include sibling hashes for an indirect proof
          */
         public void flushPending(final boolean withSiblingHashes) {
@@ -193,6 +195,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
      */
     private boolean hasCheckedForPendingBlocks = false;
+    /**
+     * The counter for the number of blocks closed with indirect proofs.
+     */
+    private final Counter indirectProofCounter;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -205,7 +211,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
             @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Lifecycle lifecycle) {
+            @NonNull final Lifecycle lifecycle,
+            @NonNull final Metrics metrics) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.networkInfo = requireNonNull(networkInfo);
         this.version = requireNonNull(version);
@@ -231,6 +238,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
+        indirectProofCounter = requireNonNull(metrics)
+                .getOrCreate(new Counter.Config("block", "numIndirectProofs")
+                        .withDescription("Number of blocks closed with indirect proofs"));
         log.info(
                 "Initialized BlockStreamManager from round {} with end-of-round hash {}",
                 lastRoundOfPrevBlock,
@@ -259,11 +269,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         // In case we hash this round, include a future for the end-of-round state hash
         endRoundStateHashes.put(round.getRoundNum(), new CompletableFuture<>());
-
-        if (platformStateFacade.isFreezeRound(state, round)) {
-            // Track freeze round numbers because they always end a block
-            freezeRoundNumber = round.getRoundNum();
-        }
 
         // Writer will be null when beginning a new block
         if (writer == null) {
@@ -382,7 +387,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
-        final boolean closesBlock = shouldCloseBlock(roundNum, roundsPerBlock);
+        final var storeFactory = new ReadableStoreFactory(state);
+        final var platformStateStore = storeFactory.getStore(ReadablePlatformStateStore.class);
+        final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
+        final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // Flush all boundary state changes besides the BlockStreamInfo
@@ -460,19 +468,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     new MerkleSiblingHash(false, depth2Node1),
                     new MerkleSiblingHash(false, depth1Node1)));
 
-            if (streamToBlockNodes) {
-                // Write any pre-block proof block items
-                writer.writePreBlockProofItems();
-            }
-
             // Update in-memory state to prepare for the next block
             lastBlockHash = blockHash;
             writer = null;
+
             // Special case when signing with hinTS and this is the freeze round; we have to wait
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
-                // In case the id of the next hinTS construction changed since a block ended
+                // In case the id of the next hinTS construction changed since a block endede
                 pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
             } else {
                 final var schemeId = blockHashSigner.schemeId();
@@ -576,6 +580,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Write proofs for all pending blocks up to and including the signed block number
         while (!pendingBlocks.isEmpty() && pendingBlocks.peek().number() <= blockNumber) {
             final var block = pendingBlocks.poll();
+            // Update the metrics, if the block is closed with a sibling hash (indirect proof).
+            if (!siblingHashes.isEmpty()) {
+                indirectProofCounter.increment();
+            }
             final var proof = block.proofBuilder()
                     .blockSignature(blockSignature)
                     .siblingHashes(siblingHashes.stream().flatMap(List::stream).toList());
@@ -597,7 +605,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * software version.
      *
      * @param blockStreamInfo the block stream info
-     * @param version         the version
+     * @param version the version
      * @return the type of pending work given the block stream info and version
      */
     @VisibleForTesting
@@ -625,7 +633,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return requireNonNull(blockStreamInfoState.get());
     }
 
-    private boolean shouldCloseBlock(final long roundNumber, final int roundsPerBlock) {
+    private boolean shouldCloseBlock(final long roundNumber, final long freezeRoundNumber) {
         if (fatalShutdownFuture != null) {
             return true;
         }
@@ -746,6 +754,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             next.send();
             return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            log.error("Error occurred while executing task", t);
         }
 
         void send(SequentialTask next) {

@@ -97,7 +97,8 @@ public class HgcaaLogValidator {
                 List.of("Forcing handoff to construction", "with different target roster"),
                 List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
                 List.of("Ignoring invalid partial signature"),
-                List.of("Action stack prematurely empty"));
+                List.of("Action stack prematurely empty"),
+                List.of("BlockNodeConnectionManager", "No active connections available for streaming"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

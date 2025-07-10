@@ -12,7 +12,8 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 /**
  * A validator that ensures that the internal state of two rounds from different nodes are equal.
  */
-public class RoundInternalEqualityValidation implements ConsensusRoundValidation {
+public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonValidation {
+    INSTANCE;
 
     /**
      * Validates that the internal state of two rounds from different nodes are equal.

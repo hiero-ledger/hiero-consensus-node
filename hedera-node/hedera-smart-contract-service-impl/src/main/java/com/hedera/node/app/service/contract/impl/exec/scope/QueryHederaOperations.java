@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -262,7 +263,15 @@ public class QueryHederaOperations implements HederaOperations {
         return configValidated(contractId, hederaConfig);
     }
 
-    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
+    @Override
+    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @NonNull Bytes evmAddress) {
         throw new UnsupportedOperationException("Queries cannot create accounts");
+    }
+
+    @Override
+    @Nullable
+    public ThrottleAdviser getThrottleAdviser() {
+        // Queries do not have a throttle adviser
+        return null;
     }
 }

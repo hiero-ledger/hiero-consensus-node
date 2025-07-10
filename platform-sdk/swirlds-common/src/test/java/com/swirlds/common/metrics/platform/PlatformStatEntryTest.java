@@ -80,7 +80,7 @@ class PlatformStatEntryTest {
                 getAndReset,
                 statEntry.getResetStatsStringSupplier(),
                 "The get-and-reset-lambda was not set correctly in the constructor");
-        assertEquals(buffered, statEntry.getStatsBuffered(), "StatsBuffered was not set correctly in the constructor");
+        assertEquals(buffered, statEntry.getBuffered(), "StatsBuffered was not set correctly in the constructor");
         assertThat(statEntry.getValueTypes()).containsExactly(VALUE, MAX, MIN, STD_DEV);
     }
 

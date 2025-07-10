@@ -74,6 +74,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
@@ -150,7 +151,7 @@ public class ContractCallSuite {
     private static final String ALICE = "Alice";
 
     private static final long DEPOSIT_AMOUNT = 1000;
-    private static final long GAS_TO_OFFER = 2_000_000L;
+    private static final long GAS_TO_OFFER = 1_000_000L;
 
     public static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
     public static final String SIMPLE_UPDATE_CONTRACT = "SimpleUpdate";
@@ -595,7 +596,7 @@ public class ContractCallSuite {
                         contractCall(WHITELISTER, "addToWhitelist", asHeadlongAddress(childEip1014.get()))
                                 .payingWith(DEFAULT_PAYER),
                         contractCallWithFunctionAbi(
-                                        asContractString(contractIdFromHexedMirrorAddress(childMirror.get())),
+                                        asContractString(contractIdFromHexedMirrorAddress(spec, childMirror.get())),
                                         getABIFor(FUNCTION, "isWhitelisted", WHITELISTER),
                                         asHeadlongAddress(getNestedContractAddress(WHITELISTER, spec)))
                                 .payingWith(DEFAULT_PAYER)
@@ -1788,9 +1789,8 @@ public class ContractCallSuite {
                 getContractInfo(TRANSFERRING_CONTRACT + to).saveToRegistry("contract_to"),
                 getAccountInfo(ACCOUNT).savingSnapshot(ACCOUNT_INFO),
                 withOpContext((spec, log) -> {
-                    var cto = spec.registry()
-                            .getContractInfo(TRANSFERRING_CONTRACT + to)
-                            .getContractAccountID();
+                    var cto = asSolidityAddress(
+                            spec.registry().getContractInfo("contract_to").getContractID());
                     var transferCall = contractCall(
                                     TRANSFERRING_CONTRACT,
                                     TRANSFER_TO_ADDRESS,

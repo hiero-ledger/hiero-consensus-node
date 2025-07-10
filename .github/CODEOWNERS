@@ -10,13 +10,10 @@
 /example-apps/**/module-info.java               @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /example-apps/swirlds-platform-base-example/    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
-#########################
-##### HAPI protobuf #####
-#########################
-
-/hapi/                                          @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
-/hapi/hedera-protobufs/services                 @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
-
+############################
+##### State Validator ######
+############################
+/hedera-state-validator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 #########################
 ##### Hedera Node  ######
@@ -46,6 +43,7 @@
 /hedera-node/hedera-util*/                      @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/hedera-staking*/                   @hiero-ledger/hiero-consensus-node-execution-codeowners
 /hedera-node/test-clients/                      @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+/hedera-node/test-clients/src/main/java/com/hedera/services/bdd/suites/contract/  @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
 
 # Documentation
 /hedera-node/docs/design/services/smart-contract-service    @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
@@ -89,7 +87,11 @@
 ####################
 #####   HAPI  ######
 ####################
+
 /hapi/                                              @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+
+# Protobuf
+/hapi/hedera-protobuf-java-api/src/main/proto/services/ @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
 
 # Documentation
 /platform-sdk/docs/platformWiki.md                  @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners

@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 
 /**
  * As the name suggest, the sole purpose of this class is to accumulate changes, so that they could be applied to the
@@ -72,6 +71,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     private Instant freezeTime;
 
     private boolean freezeTimeUpdated;
+
+    private long latestFreezeRound;
+
+    private boolean latestFreezeRoundUpdated;
 
     /**
      * the last time when a freeze was performed
@@ -189,8 +192,7 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
      * than this value are ancient.
      *
      * <p>
-     * When running in {@link AncientMode#GENERATION_THRESHOLD}, this value is the minimum generation non-ancient. When
-     * running in {@link AncientMode#BIRTH_ROUND_THRESHOLD}, this value is the minimum birth round non-ancient.
+     * This value is the minimum birth round non-ancient.
      * </p>
      *
      * @return the ancient threshold after this round has reached consensus
@@ -285,6 +287,11 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         return lastFrozenTime;
     }
 
+    @Override
+    public long getLatestFreezeRound() {
+        return latestFreezeRound;
+    }
+
     /**
      * Sets the last freezeTime based on which the nodes were frozen.
      *
@@ -294,6 +301,12 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
     public void setLastFrozenTime(@Nullable final Instant lastFrozenTime) {
         this.lastFrozenTime = lastFrozenTime;
         lastFrozenTimeUpdated = true;
+    }
+
+    @Override
+    public void setLatestFreezeRound(final long latestFreezeRound) {
+        this.latestFreezeRound = latestFreezeRound;
+        latestFreezeRoundUpdated = true;
     }
 
     /**
@@ -393,6 +406,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     public boolean isLastFrozenTimeUpdated() {
         return lastFrozenTimeUpdated;
+    }
+
+    public boolean isLatestFreezeRoundUpdated() {
+        return latestFreezeRoundUpdated;
     }
 
     public boolean isFirstVersionInBirthRoundModeUpdated() {

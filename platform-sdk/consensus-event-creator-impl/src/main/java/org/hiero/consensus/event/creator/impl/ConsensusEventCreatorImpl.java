@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.event.creator.ConsensusEventCreator;
@@ -98,7 +100,10 @@ public class ConsensusEventCreatorImpl implements ConsensusEventCreator {
     @Override
     @NonNull
     public ConsensusEventCreator initialize(
-            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final WiringModel model) {
         throw new UnsupportedOperationException("Not implemented");
     }
 

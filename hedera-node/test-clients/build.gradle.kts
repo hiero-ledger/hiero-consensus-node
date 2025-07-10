@@ -13,10 +13,7 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-sourceSets {
-    create("rcdiff")
-    create("yahcli")
-}
+sourceSets { create("rcdiff") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
@@ -126,72 +123,6 @@ tasks {
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
 }
 
-tasks.register<Test>("testSubprocessWithBlockNodeSimulator") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-
-    // Choose a different initial port for each test task if running as PR check
-    val initialPort =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckStartPorts[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("")
-    systemProperty("hapi.spec.initial.port", initialPort)
-
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    // Use the same configuration as testSubprocess
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for an ISS case
-            else if (ciTagExpression.contains("ISS")) "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
-        )
-    }
-
-    // Set the block node mode to simulator
-    systemProperty("hapi.spec.blocknode.mode", "SIM")
-
-    // Default to false for manyToOne mode, can be overridden with
-    // -Dhapi.spec.blocknode.simulator.manyToOne=true
-    systemProperty(
-        "hapi.spec.blocknode.simulator.manyToOne",
-        System.getProperty("hapi.spec.blocknode.simulator.manyToOne") ?: "false",
-    )
-
-    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
-    systemProperty(
-        "hapi.spec.quiet.mode",
-        System.getProperty("hapi.spec.quiet.mode")
-            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
-    )
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
-    maxParallelForks = 1
-}
-
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
@@ -295,6 +226,7 @@ tasks.register<Test>("testSubprocess") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
+    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
@@ -410,6 +342,7 @@ tasks.register<Test>("testEmbedded") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    modularity.inferModulePath.set(false)
 }
 
 val prRepeatableCheckTags = mapOf("hapiRepeatableMisc" to "REPEATABLE")
@@ -453,6 +386,7 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
@@ -461,17 +395,6 @@ application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 tasks.withType<ShadowJar>().configureEach { isZip64 = true }
 
 tasks.shadowJar { archiveFileName.set("SuiteRunner.jar") }
-
-val yahCliJar =
-    tasks.register<ShadowJar>("yahCliJar") {
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
-        from(sourceSets["main"].output)
-        from(sourceSets["yahcli"].output)
-        archiveClassifier.set("yahcli")
-        configurations = listOf(project.configurations.getByName("yahcliRuntimeClasspath"))
-
-        manifest { attributes("Main-Class" to "com.hedera.services.yahcli.Yahcli") }
-    }
 
 val rcdiffJar =
     tasks.register<ShadowJar>("rcdiffJar") {
@@ -512,21 +435,4 @@ val cleanValidation =
         delete(File(project.file("validation-scenarios"), "ValidationScenarios.jar"))
     }
 
-val copyYahCli =
-    tasks.register<Copy>("copyYahCli") {
-        group = "copy"
-        from(yahCliJar)
-        into(project.file("yahcli"))
-        rename { "yahcli.jar" }
-    }
-
-val cleanYahCli =
-    tasks.register<Delete>("cleanYahCli") {
-        group = "copy"
-        delete(File(project.file("yahcli"), "yahcli.jar"))
-    }
-
-tasks.clean {
-    dependsOn(cleanYahCli)
-    dependsOn(cleanValidation)
-}
+tasks.clean { dependsOn(cleanValidation) }

@@ -23,6 +23,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -40,6 +41,7 @@ import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -378,14 +380,19 @@ public class HandleHederaOperations implements HederaOperations {
     }
 
     @Override
-    public void externalizeHollowAccountMerge(@NonNull ContractID contractId, @Nullable Bytes evmAddress) {
+    public void externalizeHollowAccountMerge(@NonNull final ContractID contractId, @NonNull final Bytes evmAddress) {
+        requireNonNull(contractId);
+        requireNonNull(evmAddress);
         final var recordBuilder = context.savepointStack()
                 .addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE)
-                .contractID(contractId)
+                .createdContractID(contractId)
+                .createdEvmAddress(evmAddress)
                 .status(SUCCESS)
                 .transaction(transactionWith(TransactionBody.newBuilder()
                         .contractCreateInstance(synthContractCreationForExternalization(contractId))
                         .build()))
+                .evmCreateTransactionResult(
+                        EvmTransactionResult.newBuilder().contractId(contractId).build())
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(contractId)
                         .evmAddress(evmAddress)
@@ -441,7 +448,11 @@ public class HandleHederaOperations implements HederaOperations {
         final var newContractId = contractID.copyBuilder().build();
         pendingCreationMetadataRef.set(newContractId, pendingCreationMetadata);
         streamBuilder
-                .contractID(newContractId)
+                .createdContractID(newContractId)
+                .createdEvmAddress(evmAddress)
+                .evmCreateTransactionResult(EvmTransactionResult.newBuilder()
+                        .contractId(newContractId)
+                        .build())
                 .contractCreateResult(ContractFunctionResult.newBuilder()
                         .contractID(newContractId)
                         .evmAddress(evmAddress)
@@ -523,5 +534,11 @@ public class HandleHederaOperations implements HederaOperations {
 
     private boolean needsStandardization(@NonNull final ContractCreateTransactionBody op) {
         return op.hasInitcode() || op.gas() > 0L || op.initialBalance() > 0L;
+    }
+
+    @Override
+    @Nullable
+    public ThrottleAdviser getThrottleAdviser() {
+        return context.throttleAdviser();
     }
 }

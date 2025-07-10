@@ -151,7 +151,7 @@ public class StatsSigningTestingToolConsensusStateEventHandler
             final StateSignatureTransaction stateSignatureTransaction =
                     StateSignatureTransaction.PROTOBUF.parse(strippedSystemTransactionBytes);
             stateSignatureTransactionCallback.accept(new ScopedSystemTransaction<>(
-                    event.getCreatorId(), event.getSoftwareVersion(), stateSignatureTransaction));
+                    event.getCreatorId(), event.getBirthRound(), stateSignatureTransaction));
         } catch (final ParseException e) {
             logger.error("Failed to parse StateSignatureTransaction", e);
         }

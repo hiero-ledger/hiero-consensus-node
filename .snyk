@@ -11,3 +11,5 @@ exclude:
       hedera-node/test-clients/src/main/java/com/hedera/services/bdd/suites/contract/opcodes/Create2OperationSuite.java
     - >-
       hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/keys/deterministic/Bip0032.java
+    - >-
+      platform-sdk/consensus-otter-docker-app/src/testFixtures/java/org/hiero/consensus/otter/docker/app/DockerManager.java

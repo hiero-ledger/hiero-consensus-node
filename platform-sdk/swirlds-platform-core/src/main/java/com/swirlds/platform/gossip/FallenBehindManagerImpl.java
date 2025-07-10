@@ -47,11 +47,22 @@ public class FallenBehindManagerImpl implements FallenBehindManager {
         this.config = Objects.requireNonNull(config, "config must not be null");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public synchronized void reportFallenBehind(@NonNull final NodeId id) {
         if (reportFallenBehind.add(id)) {
             checkAndNotifyFallingBehind();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public synchronized void clearFallenBehind(@NonNull final NodeId id) {
+        reportFallenBehind.remove(id);
     }
 
     private void checkAndNotifyFallingBehind() {

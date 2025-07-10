@@ -22,9 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.SignatureType;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.config.TransactionConfig;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -52,20 +50,16 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
 
     private final TransactionConfig transactionConfig;
 
-    private final AncientMode ancientMode;
-
     private final RateLimitedLogger nullFieldLogger;
     private final RateLimitedLogger fieldLengthLogger;
     private final RateLimitedLogger tooManyTransactionBytesLogger;
     private final RateLimitedLogger invalidParentsLogger;
-    private final RateLimitedLogger invalidGenerationLogger;
     private final RateLimitedLogger invalidBirthRoundLogger;
 
     private final LongAccumulator nullFieldAccumulator;
     private final LongAccumulator fieldLengthAccumulator;
     private final LongAccumulator tooManyTransactionBytesAccumulator;
     private final LongAccumulator invalidParentsAccumulator;
-    private final LongAccumulator invalidGenerationAccumulator;
     private final LongAccumulator invalidBirthRoundAccumulator;
 
     /**
@@ -84,17 +78,12 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.transactionConfig = platformContext.getConfiguration().getConfigData(TransactionConfig.class);
-        this.ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
 
         this.nullFieldLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.fieldLengthLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.tooManyTransactionBytesLogger =
                 new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.invalidParentsLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.invalidGenerationLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.invalidBirthRoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
 
         this.nullFieldAccumulator = platformContext
@@ -117,11 +106,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
                 .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidParents")
                         .withDescription("Events that have invalid parents")
                         .withUnit("events"));
-        this.invalidGenerationAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidGeneration")
-                        .withDescription("Events with an invalid generation")
-                        .withUnit("events"));
         this.invalidBirthRoundAccumulator = platformContext
                 .getMetrics()
                 .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidBirthRound")
@@ -143,8 +127,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
             nullField = "eventCore";
         } else if (eventCore.timeCreated() == null) {
             nullField = "timeCreated";
-        } else if (eventCore.version() == null) {
-            nullField = "version";
         } else if (gossipEvent.parents().stream().anyMatch(Objects::isNull)) {
             nullField = "parent";
         } else if (gossipEvent.transactions().stream().anyMatch(DefaultInternalEventValidator::isTransactionNull)) {

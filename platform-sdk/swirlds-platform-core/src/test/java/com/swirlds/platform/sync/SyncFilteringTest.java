@@ -28,7 +28,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.base.CompareTo;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -183,9 +182,9 @@ class SyncFilteringTest {
 
     private static void assertTopologicalOrder(
             final PlatformContext platformContext, final List<PlatformEvent> events) {
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, new NoOpIntakeEventCounter());
-        orphanBuffer.setEventWindow(
-                new EventWindow(1, 1, events.getFirst().getBirthRound(), 1, AncientMode.BIRTH_ROUND_THRESHOLD));
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(
+                platformContext.getConfiguration(), platformContext.getMetrics(), new NoOpIntakeEventCounter());
+        orphanBuffer.setEventWindow(new EventWindow(1, 1, events.getFirst().getBirthRound(), 1));
         // Verify topological ordering.
         for (final PlatformEvent event : events) {
             final List<PlatformEvent> nonOrphans = orphanBuffer.handleEvent(event);

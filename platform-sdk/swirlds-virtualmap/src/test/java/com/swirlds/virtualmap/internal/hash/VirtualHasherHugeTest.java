@@ -56,6 +56,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
                         .iterator(),
                 firstLeafPath,
                 lastLeafPath,
+                null,
                 CONFIGURATION.getConfigData(VirtualMapConfig.class));
         assertNotNull(rootHash, "No hash produced");
     }
