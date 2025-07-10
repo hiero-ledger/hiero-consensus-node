@@ -22,14 +22,18 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.ids.EntityIdService;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -79,13 +83,24 @@ public class NodeStakeUpdatesTest {
     @Mock
     private WritableSingletonState<EntityNumber> entityIdState;
 
+    @Mock
+    private BlockRecordManager blockRecordManager;
+
+    @Mock
+    private BlockStreamManager blockStreamManager;
+
+    @Mock
+    private ConfigProvider configProvider;
+
     private StakePeriodChanges subject;
 
     @BeforeEach
     void setUp() {
         given(context.readableStore(ReadableBlockRecordStore.class)).willReturn(blockStore);
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1L));
 
-        subject = new StakePeriodChanges(stakingPeriodCalculator, exchangeRateManager);
+        subject = new StakePeriodChanges(
+                configProvider, stakingPeriodCalculator, exchangeRateManager, blockRecordManager, blockStreamManager);
 
         given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_KEY)).willReturn(entityCountsState);
@@ -111,7 +126,7 @@ public class NodeStakeUpdatesTest {
                         .build());
         given(context.consensusTime()).willReturn(CONSENSUS_TIME_1234567);
 
-        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
+        subject.process(stack, context, RECORDS, Instant.EPOCH);
 
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
@@ -128,7 +143,7 @@ public class NodeStakeUpdatesTest {
                                 .nanos(CONSENSUS_TIME_1234567.getNano()))
                         .build());
 
-        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
+        subject.process(stack, context, RECORDS, Instant.EPOCH);
 
         verifyNoInteractions(stakingPeriodCalculator);
         verifyNoInteractions(exchangeRateManager);
@@ -156,7 +171,7 @@ public class NodeStakeUpdatesTest {
                 .isTrue();
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
 
-        subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH);
+        subject.process(stack, context, RECORDS, Instant.EPOCH);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -181,7 +196,7 @@ public class NodeStakeUpdatesTest {
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
 
-        subject.process(dispatch, stack, context, BLOCKS, CONSENSUS_TIME_1234567);
+        subject.process(stack, context, BLOCKS, CONSENSUS_TIME_1234567);
 
         verify(stakingPeriodCalculator)
                 .updateNodes(
@@ -206,8 +221,7 @@ public class NodeStakeUpdatesTest {
         given(stack.getWritableStates(AddressBookService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityNumber, Node>get(NODES_KEY)).willReturn(nodesState);
 
-        Assertions.assertThatNoException()
-                .isThrownBy(() -> subject.process(dispatch, stack, context, RECORDS, Instant.EPOCH));
+        Assertions.assertThatNoException().isThrownBy(() -> subject.process(stack, context, RECORDS, Instant.EPOCH));
         verify(stakingPeriodCalculator).updateNodes(eq(context), eq(ExchangeRateSet.DEFAULT));
         verify(exchangeRateManager).updateMidnightRates(stack);
     }

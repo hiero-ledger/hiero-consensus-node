@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.time.ZoneOffset.UTC;
@@ -10,14 +11,17 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
-import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,7 +35,7 @@ import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
  * Orchestrates changes that happen before the first transaction in a new staking period. See
- * {@link #process(Dispatch, SavepointStackImpl, TokenContext, StreamMode, Instant)}
+ * {@link #process(SavepointStackImpl, TokenContext, StreamMode, Instant)}
  * for details.
  */
 @Singleton
@@ -43,13 +47,55 @@ public class StakePeriodChanges {
 
     private final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater;
     private final ExchangeRateManager exchangeRateManager;
+    private final BlockRecordManager blockRecordManager;
+    private final BlockStreamManager blockStreamManager;
+    private final StreamMode streamMode;
 
     @Inject
     public StakePeriodChanges(
+            @NonNull final ConfigProvider configProvider,
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
-            @NonNull final ExchangeRateManager exchangeRateManager) {
+            @NonNull final ExchangeRateManager exchangeRateManager,
+            @NonNull final BlockRecordManager blockRecordManager,
+            @NonNull final BlockStreamManager blockStreamManager) {
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
+        this.blockRecordManager = requireNonNull(blockRecordManager);
+        this.blockStreamManager = requireNonNull(blockStreamManager);
+        this.streamMode = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
+    }
+
+    /**
+     * Manages time-based side effects for the given user transaction and dispatch.
+     *
+     * @param parentTxn the user transaction to manage time for
+     * @param includeStakePeriodSideEffects if true, includes stake period boundary side effects
+     */
+    public void advanceTimeTo(@NonNull final ParentTxn parentTxn, final boolean includeStakePeriodSideEffects) {
+        if (includeStakePeriodSideEffects) {
+            try {
+                // WARNING: The check below relies on the BlockStreamManager's last-handled time not being updated yet,
+                // so we must not call setLastHandleTime() until after them
+                process(
+                        parentTxn.stack(),
+                        parentTxn.tokenContextImpl(),
+                        streamMode,
+                        blockStreamManager.lastHandleTime());
+            } catch (final Exception e) {
+                // We don't propagate a failure here to avoid a catastrophic scenario
+                // where we are "stuck" trying to process node stake updates and never
+                // get back to user transactions
+                logger.error("Failed to process stake period changes", e);
+            }
+        }
+        blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
+        if (streamMode != BLOCKS) {
+            // This updates consTimeOfLastHandledTxn as a side effect
+            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
+        }
     }
 
     /**
@@ -64,20 +110,17 @@ public class StakePeriodChanges {
      *     handled up to this consensus time.</li>
      * </ol>
      *
-     * @param dispatch the dispatch
      * @param stack the savepoint stack
      * @param tokenContext the token context
      * @param streamMode the stream mode
      * @param lastHandleTime the last instant at which a transaction was handled
      */
     public void process(
-            @NonNull final Dispatch dispatch,
             @NonNull final SavepointStackImpl stack,
             @NonNull final TokenContext tokenContext,
             @NonNull final StreamMode streamMode,
             @NonNull final Instant lastHandleTime) {
         requireNonNull(stack);
-        requireNonNull(dispatch);
         requireNonNull(tokenContext);
         requireNonNull(streamMode);
         requireNonNull(lastHandleTime);
@@ -104,8 +147,8 @@ public class StakePeriodChanges {
                 final var rosterStore = new WritableRosterStore(stack.getWritableStates(RosterService.NAME));
                 // Unless the candidate roster is for a pending upgrade, we set a new one with the latest weights
                 if (rosterStore.getCandidateRosterHash() == null || rosterStore.candidateIsWeightRotation()) {
-                    final var weightFunction = dispatch.readableStoreFactory()
-                            .getStore(ReadableStakingInfoStore.class)
+                    final var weightFunction = tokenContext
+                            .readableStore(ReadableStakingInfoStore.class)
                             .weightFunction();
                     final var reweightedRoster =
                             new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()

@@ -31,6 +31,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -38,6 +39,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static java.util.Comparator.comparing;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -657,31 +659,36 @@ public class RepeatableHip1064Tests {
     @Order(7)
     @RepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     Stream<DynamicTest> nodeRewardPaymentsAlsoTriggersStakePeriodBoundarySideEffects() {
-        final AtomicLong highestBlockBeforeEmptyRound = new AtomicLong();
         return hapiTest(
-                // Ensure a node is not declining rewards and there is a 801 balance
-                nodeUpdate("0").declineReward(true),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 waitUntilStartOfNextStakingPeriod(1),
+                nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
-                // Record the highest block number now
-                exposeLatestBlockNumber(highestBlockBeforeEmptyRound::set, Duration.ofSeconds(1)),
-                // Start a new block with a round w/o user transactions
+                // Hack to make nodes appear active
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .nodeActivities(List.of())
+                        .build()),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
+                // Move into a new staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                // This round should be the first across the stake period boundary, hence trigger rewards and side
+                // effects
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 sleepForBlockPeriod(),
-                // Finish the block with another round w/o user transaction
-                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
+                sleepForBlockPeriod(),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 exposeLatestBlock(
                         b -> {
-                            final var number =
-                                    b.items().getFirst().blockHeaderOrThrow().number();
-                            assertEquals(
-                                    highestBlockBeforeEmptyRound.get() + 1,
-                                    number,
-                                    "New block should have been created");
                             final var rewardPayment = findFirst(b, CRYPTO_TRANSFER);
                             assertTrue(
                                     rewardPayment.isPresent(), "Node rewards payment should be present in the block");
+                            final var rewardPaymentTx =
+                                    rewardPayment.orElseThrow().body().cryptoTransferOrThrow();
+                            final var hasNodeRewardDebit =
+                                    requireNonNull(rewardPaymentTx.transfers()).accountAmounts().stream()
+                                            .anyMatch(aa -> aa.amount() < 0);
+                            assertTrue(hasNodeRewardDebit, "Node rewards payment should be present in the block");
                             final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
                             assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
                         },
@@ -708,6 +715,7 @@ public class RepeatableHip1064Tests {
             Uninterruptable.tryToSleep(after);
             try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
                 final var lastPath = stream.filter(BlockStreamAccess::isBlockFile)
+                        .peek(System.out::println)
                         .max(comparing(BlockStreamAccess::extractBlockNumber))
                         .orElseThrow();
                 cb.accept(blockFrom(lastPath));
