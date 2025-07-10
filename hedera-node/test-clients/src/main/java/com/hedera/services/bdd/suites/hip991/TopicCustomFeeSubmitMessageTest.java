@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isEndOfStakingPeriodRecord;
@@ -35,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.hbarLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.htsLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.maxCustomFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.expectedCustomFeeLimit;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
@@ -1968,6 +1970,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                         .designatingPayer(SUBMITTER)
                         .via("scheduleTxn")
                         .hasKnownStatus(SUCCESS),
+                getScheduleInfo("schedule").hasCustomFeeLimit(expectedCustomFeeLimit(SUBMITTER, 1)),
                 scheduleSign("schedule").payingWith(SUBMITTER).hasKnownStatus(SUCCESS),
                 withOpContext((spec, opLog) -> {
                     var scheduledTxnRecord = getTxnRecord("scheduleTxn").scheduled();
