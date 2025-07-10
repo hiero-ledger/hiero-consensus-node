@@ -33,7 +33,8 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "256") @Min(0) @NetworkProperty int blockItemBatchSize,
         @ConfigProperty(defaultValue = "5m") @Min(0) @NetworkProperty Duration blockBufferTtl,
-        @ConfigProperty(defaultValue = "1s") @Min(0) @NetworkProperty Duration blockBufferPruneInterval) {
+        @ConfigProperty(defaultValue = "1s") @Min(0) @NetworkProperty Duration blockBufferPruneInterval,
+        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration) {
 
     /**
      * Whether to stream to block nodes.

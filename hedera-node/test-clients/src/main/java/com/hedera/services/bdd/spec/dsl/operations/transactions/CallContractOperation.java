@@ -30,10 +30,6 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
     private long sendValue;
     private String txnName;
     private Consumer<Object[]> resultObserver;
-    private boolean wrappedInBatchOperation = false;
-    private String batchOperator = null;
-    private ResponseCodeEnum batchExpectedPreCheckStatus = null;
-    private ResponseCodeEnum[] batchExpectedKnownStatus = null;
 
     public CallContractOperation(
             @NonNull final SpecContract target, @NonNull final String function, @NonNull final Object... parameters) {
