@@ -51,7 +51,7 @@ public class GetApprovedCallTest extends CallTestBase {
     }
 
     @Test
-    void getApprovedErc() {
+    void successGetApprovedErc() {
         subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, 123L, true, false);
 
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 123)).willReturn(CIVILIAN_OWNED_NFT);
@@ -68,7 +68,7 @@ public class GetApprovedCallTest extends CallTestBase {
     }
 
     @Test
-    void getApprovedErcNegativeSerial() {
+    void successGetApprovedErcNegativeSerial() {
         subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, -1, true, false);
 
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
@@ -79,7 +79,7 @@ public class GetApprovedCallTest extends CallTestBase {
     }
 
     @Test
-    void getApprovedHapi() {
+    void successGetApprovedHapi() {
         subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, 123L, false, false);
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 123)).willReturn(CIVILIAN_OWNED_NFT);
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
@@ -95,7 +95,7 @@ public class GetApprovedCallTest extends CallTestBase {
     }
 
     @Test
-    void getApprovedHapiNegativeSerial() {
+    void successGetApprovedHapiNegativeSerial() {
         subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, -1, false, false);
 
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);

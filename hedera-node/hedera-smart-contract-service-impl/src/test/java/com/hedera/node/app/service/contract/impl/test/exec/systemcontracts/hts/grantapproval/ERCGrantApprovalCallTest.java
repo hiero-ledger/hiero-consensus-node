@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.grantapproval;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
@@ -82,7 +77,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(status);
-        if (status == ResponseCodeEnum.SUCCESS) {
+        if (status == SUCCESS) {
             given(nativeOperations.readableAccountStore()).willReturn(accountStore);
             given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
             given(account.accountIdOrThrow())
@@ -94,15 +89,16 @@ class ERCGrantApprovalCallTest extends CallTestBase {
     @Test
     void erc20approve() {
         // given
-        prepareErc20approve(100L, ResponseCodeEnum.SUCCESS);
+        prepareErc20approve(100L, SUCCESS);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState(), "State did not match");
         assertEquals(
                 asBytesResult(
                         GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encode(Tuple.singleton(true))),
-                result.getOutput());
+                result.getOutput(),
+                "Output did not match");
     }
 
     @Test
@@ -112,8 +108,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.getState(), "State did not match");
+        assertEquals(ordinalRevertOutputFor(NEGATIVE_ALLOWANCE_AMOUNT), result.getOutput(), "Output did not match");
     }
 
     void prepareErc721approve(final AccountID spenderId, final long serial, final ResponseCodeEnum... statuses) {
@@ -133,7 +129,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         BDDMyOngoingStubbing<ResponseCodeEnum> given = given(recordBuilder.status());
-        for (ResponseCodeEnum status : statuses) {
+        for (final ResponseCodeEnum status : statuses) {
             given = given.willReturn(status);
         }
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serial)).willReturn(nft);
@@ -153,12 +149,13 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState(), "State did not match");
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
                         .encode(Tuple.EMPTY)),
-                result.getOutput());
+                result.getOutput(),
+                "Output did not match");
     }
 
     @Test
@@ -168,8 +165,9 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), "State did not match");
+        assertEquals(
+                ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), "Output did not match");
     }
 
     @Test
@@ -179,8 +177,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), "State did not match");
+        assertEquals(ordinalRevertOutputFor(INVALID_ALLOWANCE_SPENDER_ID), result.getOutput(), "Output did not match");
     }
 
     @Test
@@ -194,8 +192,9 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), "State did not match");
+        assertEquals(
+                ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput(), "Output did not match");
         verify(recordBuilder).status(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
     }
 
@@ -206,8 +205,9 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), "State did not match");
+        assertEquals(
+                ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), "Output did not match");
     }
 
     @Test
@@ -217,11 +217,12 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState(), "State did not match");
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
                         .encode(Tuple.EMPTY)),
-                result.getOutput());
+                result.getOutput(),
+                "Output did not match");
     }
 }
