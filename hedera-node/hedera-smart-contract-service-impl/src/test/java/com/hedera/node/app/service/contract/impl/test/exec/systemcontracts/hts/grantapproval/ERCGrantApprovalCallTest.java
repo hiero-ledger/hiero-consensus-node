@@ -65,7 +65,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
     @Mock
     private ReadableAccountStore accountStore;
 
-   private void prepareErc20approve(final long amount, final ResponseCodeEnum status) {
+    private void prepareErc20approve(final long amount, final ResponseCodeEnum status) {
         subject = new ERCGrantApprovalCall(
                 mockEnhancement(),
                 systemContractGasCalculator,
@@ -116,7 +116,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         assertEquals(ordinalRevertOutputFor(NEGATIVE_ALLOWANCE_AMOUNT), result.getOutput());
     }
 
-    private void prepareErc721approve(final AccountID spenderId, final long serial, final ResponseCodeEnum... statuses) {
+    private void prepareErc721approve(
+            final AccountID spenderId, final long serial, final ResponseCodeEnum... statuses) {
         subject = new ERCGrantApprovalCall(
                 mockEnhancement(),
                 systemContractGasCalculator,
@@ -169,8 +170,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState());
-        assertEquals(
-                ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 
     @Test
@@ -196,8 +196,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState());
-        assertEquals(
-                ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput());
+        assertEquals(ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput());
         verify(recordBuilder).status(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
     }
 
@@ -209,8 +208,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState());
-        assertEquals(
-                ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 
     @Test
