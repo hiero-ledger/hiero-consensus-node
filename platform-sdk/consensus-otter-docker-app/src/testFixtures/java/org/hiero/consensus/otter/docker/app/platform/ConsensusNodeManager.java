@@ -5,7 +5,10 @@ import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticT
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
+import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -23,6 +26,11 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.event.preconsensus.PcesConfig;
+import com.swirlds.platform.event.preconsensus.PcesFile;
+import com.swirlds.platform.event.preconsensus.PcesFileIterator;
+import com.swirlds.platform.event.preconsensus.PcesFileReader;
+import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
@@ -34,8 +42,11 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -62,7 +73,10 @@ public class ConsensusNodeManager {
     private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
     private static final String SWIRLD_NAME = "123";
 
+    private final NodeId selfId;
     private final Platform platform;
+    private final Configuration platformConfig;
+    private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
@@ -82,6 +96,7 @@ public class ConsensusNodeManager {
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
             @Nullable final Map<String, String> overriddenProperties) {
+        this.selfId = requireNonNull(selfId);
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
@@ -91,7 +106,7 @@ public class ConsensusNodeManager {
         if (overriddenProperties != null) {
             overriddenProperties.forEach(configurationBuilder::withValue);
         }
-        final Configuration platformConfig = configurationBuilder.getOrCreateConfig();
+        platformConfig = configurationBuilder.getOrCreateConfig();
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
@@ -108,7 +123,7 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
-        final PlatformContext platformContext = PlatformContext.create(
+        platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
         final HashedReservedSignedState reservedState = loadInitialState(
@@ -210,7 +225,17 @@ public class ConsensusNodeManager {
         consensusRoundListeners.add(listener);
     }
 
-    public List<Path> getPcesFilePaths() {
-        return Collections.emptyList();
+    public List<Path> getPcesFilePaths() throws IOException {
+        final Path databaseDirectory = getDatabaseDirectory(platformContext,
+                org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+        final PcesFileTracker tracker = PcesFileReader.readFilesFromDisk(
+                platformContext, databaseDirectory, NO_LOWER_BOUND,
+                platformConfig.getConfigData(PcesConfig.class).permitGaps());
+        final List<Path> pcesPaths = new ArrayList<>();
+        for (final Iterator<PcesFile> it = tracker.getFileIterator(); it.hasNext(); ) {
+            final PcesFile file = it.next();
+            pcesPaths.add(file.getPath());
+        }
+        return pcesPaths;
     }
 }

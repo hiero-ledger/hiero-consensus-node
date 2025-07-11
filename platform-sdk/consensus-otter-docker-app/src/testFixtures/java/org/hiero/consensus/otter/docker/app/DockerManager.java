@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -201,15 +202,28 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         }
     }
 
+    /**
+     * Retrieves the file paths of all PCES files on disk.
+     *
+     * @param request the empty request
+     * @param responseObserver the observer to send the response back to the test framework
+     */
     @Override
-    public synchronized void getPcesFilePaths(final Empty request, final StreamObserver<PcesFilePaths> responseObserver) {
-//        try {
-//            final List<Path> pcesFilePathList = nodeManager.getPcesFilePaths();
+    public synchronized void getPcesFilePaths(final Empty request,
+            final StreamObserver<PcesFilePaths> responseObserver) {
+        final List<Path> pcesFilePathList;
+        try {
+            pcesFilePathList = nodeManager.getPcesFilePaths();
+        } catch (final IOException e) {
+            responseObserver.onError(Status.INTERNAL.withCause(e).asException());
+            return;
+        }
 
-//            responseObserver.onNext(Empty.getDefaultInstance());
-//            responseObserver.onCompleted();
-//        } catch (final InterruptedException ie) {
-//            throw new RuntimeException(ie);
-//        }
+        final PcesFilePaths.Builder responseBuilder = PcesFilePaths.newBuilder();
+
+        pcesFilePathList.forEach(path -> responseBuilder.addFilePaths(path.toAbsolutePath().toString()));
+
+        responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
     }
 }
