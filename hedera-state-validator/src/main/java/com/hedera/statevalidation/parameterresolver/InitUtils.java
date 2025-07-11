@@ -230,8 +230,7 @@ public class InitUtils {
                                             md.onDiskValueClassId(),
                                             md.stateDefinition().valueCodec());
                                     final var ds = new RestoringMerkleDbDataSourceBuilder<>(stateDirPath, tableConfig);
-                                    final var vm =
-                                            new VirtualMap(label, keySerializer, valueSerializer, ds, CONFIGURATION);
+                                    final var vm = new VirtualMap(label, ds, CONFIGURATION);
                                     virtualMaps.add(new VirtualMapAndDataSourceRecord<>(
                                             label,
                                             (MerkleDbDataSource) vm.getDataSource(),
