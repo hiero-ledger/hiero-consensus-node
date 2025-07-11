@@ -13,6 +13,8 @@ import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isEndOfStakingPeriodRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -20,6 +22,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -32,12 +36,14 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.hbarLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.htsLimit;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.maxCustomFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.expectedCustomFeeLimit;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -1934,5 +1940,45 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // assert topic fee collector balance
                     assertAllCollectorsBalances(9)));
         }
+    }
+
+    @HapiTest
+    @DisplayName("Schedule Submit Message with maxFee")
+    final Stream<DynamicTest> scheduleSubmitMessageWithMaxFee() {
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(COLLECTOR),
+                cryptoCreate(SUBMITTER),
+                createTopic(TOPIC).adminKeyName(ADMIN_KEY).withConsensusCustomFee(fixedConsensusHbarFee(2, COLLECTOR)),
+
+                // Testing Raw SubmitMessage to Topic w/ Low Max Fee
+                submitMessageTo(TOPIC)
+                        .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                        .message("Test")
+                        .payingWith(SUBMITTER)
+                        .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED),
+                getTopicInfo(TOPIC).hasSeqNo(0),
+
+                // Testing Scheduled SubmitMessage to Topic w/ Low Max Fee
+                scheduleCreate(
+                                "schedule",
+                                submitMessageTo(TOPIC)
+                                        .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                                        .message("Test")
+                                        .payingWith(SUBMITTER))
+                        .payingWith(DEFAULT_PAYER)
+                        .designatingPayer(SUBMITTER)
+                        .via("scheduleTxn")
+                        .hasKnownStatus(SUCCESS),
+                getScheduleInfo("schedule").hasCustomFeeLimit(expectedCustomFeeLimit(SUBMITTER, 1)),
+                scheduleSign("schedule").payingWith(SUBMITTER).hasKnownStatus(SUCCESS),
+                withOpContext((spec, opLog) -> {
+                    var scheduledTxnRecord = getTxnRecord("scheduleTxn").scheduled();
+                    allRunFor(spec, scheduledTxnRecord);
+                    var scheduledTxnStatus =
+                            scheduledTxnRecord.getResponseRecord().getReceipt().getStatus();
+                    assertEquals(MAX_CUSTOM_FEE_LIMIT_EXCEEDED, scheduledTxnStatus);
+                }),
+                getTopicInfo(TOPIC).hasSeqNo(0));
     }
 }

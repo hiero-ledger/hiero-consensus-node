@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCre
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.getRelativeExpiry;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -15,6 +16,7 @@ import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
@@ -28,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
@@ -39,6 +42,8 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
 
     private static final Comparator<Key> KEY_COMPARATOR =
             (a, b) -> ByteString.unsignedLexicographicalComparator().compare(a.toByteString(), b.toByteString());
+    private static final Comparator<CustomFeeLimit> CUSTOM_FEE_LIMIT_COMPARATOR = Comparator.comparing(
+            limit -> limit.hasAccountId() ? limit.getAccountId().toString() : "");
 
     String schedule;
 
@@ -61,6 +66,7 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     Optional<String> expectedAdminKey = Optional.empty();
     Optional<String> expectedEntityMemo = Optional.empty();
     Optional<List<String>> expectedSignatories = Optional.empty();
+    private List<BiConsumer<HapiSpec, List<CustomFeeLimit>>> expectedCustomFeeLimits = new ArrayList<>();
     private long expectedExpiry = -1;
 
     public HapiGetScheduleInfo hasScheduledTxnIdSavedBy(String creation) {
@@ -143,6 +149,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         return this;
     }
 
+    public HapiGetScheduleInfo hasCustomFeeLimit(BiConsumer<HapiSpec, List<CustomFeeLimit>> limitAssertion) {
+        expectedCustomFeeLimits.add(limitAssertion);
+        return this;
+    }
+
     public HapiGetScheduleInfo hasSignatories(String... s) {
         expectedSignatories = Optional.of(List.of(s));
         return this;
@@ -174,7 +185,7 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         }
 
         if (shouldBeExecuted) {
-            Assertions.assertTrue(actualInfo.hasExecutionTime(), "Wasn't already executed!");
+            assertTrue(actualInfo.hasExecutionTime(), "Wasn't already executed!");
         }
 
         if (shouldNotBeExecuted) {
@@ -188,6 +199,11 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
         if (deletionTxn.isPresent()) {
             assertTimestampMatches(
                     deletionTxn.get(), 0, actualInfo.getDeletionTime(), "Wrong consensus deletion time!", spec);
+        }
+
+        final var actualLimits = actualInfo.getScheduledTransactionBody().getMaxCustomFeesList();
+        for (var expectedFee : expectedCustomFeeLimits) {
+            expectedFee.accept(spec, actualLimits);
         }
 
         var registry = spec.registry();
