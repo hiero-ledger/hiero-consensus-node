@@ -7,8 +7,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_A
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CIVILIAN_OWNED_NFT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.revertOutputFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.headlongAddressOf;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -54,7 +54,7 @@ public class GetApprovedCallTest extends CallTestBase {
     void getApprovedErc() {
         subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, 123L, true, false);
 
-        given(nativeOperations.getNft(entityIdFactory.newTokenId(9898L), 123)).willReturn(CIVILIAN_OWNED_NFT);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 123)).willReturn(CIVILIAN_OWNED_NFT);
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
 
         final var result = subject.execute().fullResult().result();
@@ -68,9 +68,21 @@ public class GetApprovedCallTest extends CallTestBase {
     }
 
     @Test
+    void getApprovedErcNegativeSerial() {
+        subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, -1, true, false);
+
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
+
+        final var result = subject.execute().fullResult().result();
+        assertEquals(MessageFrame.State.REVERT, result.getState());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                result.getOutput());
+    }
+
+    @Test
     void getApprovedHapi() {
         subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, 123L, false, false);
-        given(nativeOperations.getNft(entityIdFactory.newTokenId(9898L), 123)).willReturn(CIVILIAN_OWNED_NFT);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, 123)).willReturn(CIVILIAN_OWNED_NFT);
         given(nativeOperations.getAccount(B_NEW_ACCOUNT_ID)).willReturn(OPERATOR);
 
         final var result = subject.execute().fullResult().result();
@@ -80,6 +92,18 @@ public class GetApprovedCallTest extends CallTestBase {
                         .getOutputs()
                         .encode(Tuple.of(SUCCESS.getNumber(), headlongAddressOf(OPERATOR)))
                         .array()),
+                result.getOutput());
+    }
+
+    @Test
+    void getApprovedHapiNegativeSerial() {
+        subject = new GetApprovedCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, -1, false, false);
+
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
+
+        final var result = subject.execute().fullResult().result();
+        assertEquals(MessageFrame.State.REVERT, result.getState());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 result.getOutput());
     }
 }

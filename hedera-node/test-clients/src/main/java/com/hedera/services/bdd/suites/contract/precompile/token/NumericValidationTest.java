@@ -373,8 +373,8 @@ public class NumericValidationTest {
                             new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED),
                             new UintTestCase(BigInteger.ONE, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
-                            .call("tokenURI", nftToken, testCase.amount)
-                            .andAssert(txn -> txn.hasKnownStatus(testCase.status))));
+                            .call("tokenURI", nftToken, testCase.amount())
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -516,6 +516,7 @@ public class NumericValidationTest {
     @DisplayName("Exchange Rate System contract functions")
     class ExchangeRateSystemContractTests {
 
+        //TODO Glib
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("0x168 tinycentsToTinybars(uint256)")
         public Stream<DynamicTest> convertTinycentsToTinybars() {

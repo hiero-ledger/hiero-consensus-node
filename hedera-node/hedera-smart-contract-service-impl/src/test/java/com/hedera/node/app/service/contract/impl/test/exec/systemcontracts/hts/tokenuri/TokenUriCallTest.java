@@ -37,11 +37,10 @@ class TokenUriCallTest extends CallTestBase {
                 result.getOutput());
     }
 
-    @Test
-    void returnNonExistingTokenErrorMetadata() {
+    void returnErrorMetadata(final long serialNo) {
         // given
-        subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN.tokenId(), NFT_SERIAL_NO))
+        subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, serialNo);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serialNo))
                 .willReturn(null);
         // when
         final var result = subject.execute(frame).fullResult().result();
@@ -53,5 +52,15 @@ class TokenUriCallTest extends CallTestBase {
                         .encode(Tuple.singleton(TokenUriCall.URI_QUERY_NON_EXISTING_TOKEN_ERROR))
                         .array()),
                 result.getOutput());
+    }
+
+    @Test
+    void returnNonExistingTokenErrorMetadata() {
+        returnErrorMetadata(NFT_SERIAL_NO);
+    }
+
+    @Test
+    void returnNegativeSerialErrorMetadata() {
+        returnErrorMetadata(-1);
     }
 }
