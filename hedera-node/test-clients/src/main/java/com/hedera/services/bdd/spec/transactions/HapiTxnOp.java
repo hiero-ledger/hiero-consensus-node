@@ -325,7 +325,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return !deferStatusResolution;
     }
 
-    private void resolveStatus(HapiSpec spec) throws Throwable {
+    public void resolveStatus(HapiSpec spec) throws Throwable {
         actualStatus = resolvedStatusOfSubmission(spec);
         spec.updateResolvedCounts(actualStatus);
         if (actualStatus == INSUFFICIENT_PAYER_BALANCE) {

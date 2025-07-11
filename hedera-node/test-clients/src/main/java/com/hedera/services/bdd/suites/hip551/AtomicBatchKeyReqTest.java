@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -53,7 +54,8 @@ public class AtomicBatchKeyReqTest {
                                 .memo("new memo")
                                 .batchKey("batchOperator")
                                 .payingWith(DEFAULT_PAYER)
-                                .signedBy(DEFAULT_PAYER))
+                                .signedBy(DEFAULT_PAYER)
+                                .hasKnownStatus(INVALID_SIGNATURE))
                         .payingWith("batchOperator")
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // account key signature, so should succeed
