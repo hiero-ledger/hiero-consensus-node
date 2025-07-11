@@ -222,6 +222,7 @@ public class BlockNodeSimulatorController {
             final int port = server.getPort();
             shutdownSimulatorPorts.put(nodeId, port);
             server.stop();
+            server.markAsShutdown();
         }
         log.info("Shutdown all {} simulators to simulate connection drops", simulatedBlockNodes.size());
     }
@@ -238,6 +239,7 @@ public class BlockNodeSimulatorController {
             final int port = server.getPort();
             shutdownSimulatorPorts.put(index, port);
             server.stop();
+            server.markAsShutdown();
             log.info("Shutdown simulator {} on port {} to simulate connection drop", index, port);
         } else {
             log.error("Invalid simulator index: {}, valid range is 0-{}", index, simulatedBlockNodes.size() - 1);

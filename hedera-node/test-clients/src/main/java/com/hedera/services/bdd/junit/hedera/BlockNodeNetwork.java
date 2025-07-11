@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
@@ -206,6 +207,10 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeMode> getBlockNodeModeById() {
         return blockNodeModeById;
+    }
+
+    public Set<Long> nodeIds() {
+        return getBlockNodeModeById().keySet();
     }
 
     public Map<Long, SimulatedBlockNodeServer> getSimulatedBlockNodeById() {

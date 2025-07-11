@@ -54,6 +54,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle isBufferSaturatedHandle;
     private static final VarHandle highestAckedBlockNumberHandle;
     private static final MethodHandle checkBufferHandle;
+    public static final int PUBLISH_STREAM_REQUEST_MAX_SIZE_BYTES = 4194304;
 
     static {
         try {
@@ -361,7 +362,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.addItem(10, newBlockProofItem());
         final BlockState block = blockBufferService.getBlockState(10);
         assertThat(block).isNotNull();
-        block.processPendingItems(10); // process the items to create a request
+        block.processPendingItems(10, PUBLISH_STREAM_REQUEST_MAX_SIZE_BYTES); // process the items to create a request
         block.markRequestSent(0); // mark the request that was created as sent
         assertThat(block.isBlockProofSent()).isTrue();
 
