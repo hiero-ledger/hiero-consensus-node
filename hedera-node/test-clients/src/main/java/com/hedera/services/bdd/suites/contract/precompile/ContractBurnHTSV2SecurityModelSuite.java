@@ -30,18 +30,24 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.AccountInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
+@HapiTestLifecycle
 @SuppressWarnings("java:S1192")
 public class ContractBurnHTSV2SecurityModelSuite {
     private static final long GAS_TO_OFFER = 4_000_000L;
@@ -91,6 +97,19 @@ public class ContractBurnHTSV2SecurityModelSuite {
     private static final String ORDINARY_CALLS_CONTRACT = "HTSCalls";
     private static final String ADMIN_KEY = "ADMIN_KEY";
     private static final String SUPPLY_KEY = "SUPPLY_KEY";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> V2Security004FungibleTokenBurnPositive() {
@@ -172,6 +191,128 @@ public class ContractBurnHTSV2SecurityModelSuite {
                                 .hasRetryPrecheckFrom(BUSY)
                                 .payingWith(SIGNER)
                                 .signedBy(SIGNER),
+                        // Assert that the token is burned - total supply should be decreased with the amount that was
+                        // burned
+                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 4 * amountToBurn))),
+                // Verify that each test case has 1 successful child record
+                getTxnRecord(SIGNER_BURNS_WITH_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)),
+                getTxnRecord(SIGNER_BURNS_WITH_TRESHOLD_KEY)
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(SUCCESS)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicV2Security004FungibleTokenBurnPositive() {
+        final var initialAmount = 20L;
+        final var amountToBurn = 5L;
+        final AtomicReference<TokenID> fungible = new AtomicReference<>();
+        // sync
+        return hapiTest(
+                //  overriding(CONTRACTS_MAX_NUM_WITH_HAPI_SIGS_ACCESS,
+                // CONTRACTS_V2_SECURITY_MODEL_BLOCK_CUTOFF),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(SIGNER2),
+                cryptoCreate(SIGNER).balance(ONE_MILLION_HBARS),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .initialSupply(initialAmount)
+                        .treasury(TOKEN_TREASURY)
+                        .adminKey(TOKEN_TREASURY)
+                        .supplyKey(TOKEN_TREASURY)
+                        .exposingCreatedIdTo(idLit -> fungible.set(asToken(idLit))),
+                uploadInitCode(MIXED_BURN_TOKEN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCreate(
+                                MIXED_BURN_TOKEN,
+                                HapiParserUtil.asHeadlongAddress(
+                                        asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN)))),
+                        // Create a key with shape contract and the contractId of MIXED_BURN_TOKEN contract
+                        newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(MIXED_BURN_TOKEN)),
+                        // Update the token supply key to with the created key
+                        tokenUpdate(FUNGIBLE_TOKEN).supplyKey(CONTRACT_KEY).signedByPayerAnd(TOKEN_TREASURY),
+                        // Test Case 1: Signer paying and signing a token burn transaction
+                        // SIGNER → call → CONTRACT → call → PRECOMPILE
+                        // The signer will have a key with the contractId (key type CONTRACT)
+                        atomicBatch(contractCall(
+                                                MIXED_BURN_TOKEN,
+                                                "burnToken",
+                                                BigInteger.valueOf(amountToBurn),
+                                                new long[0])
+                                        .via(SIGNER_BURNS_WITH_CONTRACT_ID)
+                                        .gas(GAS_TO_OFFER)
+                                        .hasRetryPrecheckFrom(BUSY)
+                                        .payingWith(SIGNER)
+                                        .signedBy(SIGNER)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        // Assert that the token is burdned - total supply should be decreased with the amount that was
+                        // burned
+                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - amountToBurn),
+                        // Test Case 2: the Treasury account is paying and signing a token burn transaction,
+                        // SIGNER → call → CONTRACT → call → PRECOMPILE
+                        atomicBatch(contractCall(
+                                                MIXED_BURN_TOKEN,
+                                                "burnToken",
+                                                BigInteger.valueOf(amountToBurn),
+                                                new long[0])
+                                        .via(SIGNER_HAS_KEY_WITH_CORRECT_CONTRACT_ID)
+                                        .gas(GAS_TO_OFFER)
+                                        .hasRetryPrecheckFrom(BUSY)
+                                        .payingWith(TOKEN_TREASURY)
+                                        .signedBy(TOKEN_TREASURY)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        // Assert that the token is burned - total supply should be increased with the amount to burn.
+                        // NOTE: it is multiplied by 2 because of the burned amount in the previous test
+                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 2 * amountToBurn),
+                        // Test Case 3: one account  paying and another one signing a token burn transaction
+                        // SIGNER → call → CONTRACT → call → PRECOMPILE
+                        atomicBatch(contractCall(
+                                                MIXED_BURN_TOKEN,
+                                                "burnToken",
+                                                BigInteger.valueOf(amountToBurn),
+                                                new long[0])
+                                        .via(SIGNER_AND_PAYER_ARE_DIFFERENT)
+                                        .gas(GAS_TO_OFFER)
+                                        .hasRetryPrecheckFrom(BUSY)
+                                        .payingWith(SIGNER2)
+                                        .signedBy(SIGNER2, SIGNER)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        // Assert that the token is burned - total supply should be increased with the amount to burn.
+                        // NOTE: it is multiplied by 3 because of the burned amount in the previous tests
+                        getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 3 * amountToBurn),
+                        // Create a key with thresh 1/2 with sigs: new ed25519 key, contractId of burnToken contract
+                        newKeyNamed(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
+                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, MIXED_BURN_TOKEN))),
+                        // Update the token supply key to with the created key
+                        tokenUpdate(FUNGIBLE_TOKEN)
+                                .supplyKey(TRESHOLD_KEY_CORRECT_CONTRACT_ID)
+                                .signedByPayerAnd(TOKEN_TREASURY),
+                        // Test Case 4: Signer paying and signing a token burn transaction.
+                        // SIGNER → call → CONTRACT → call → PRECOMPILE
+                        // The signer will have a key with the contractId (key type TRESHOLD_KEY)
+                        atomicBatch(contractCall(
+                                                MIXED_BURN_TOKEN,
+                                                "burnToken",
+                                                BigInteger.valueOf(amountToBurn),
+                                                new long[0])
+                                        .via(SIGNER_BURNS_WITH_TRESHOLD_KEY)
+                                        .gas(GAS_TO_OFFER)
+                                        .hasRetryPrecheckFrom(BUSY)
+                                        .payingWith(SIGNER)
+                                        .signedBy(SIGNER)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
                         // Assert that the token is burned - total supply should be decreased with the amount that was
                         // burned
                         getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(initialAmount - 4 * amountToBurn))),

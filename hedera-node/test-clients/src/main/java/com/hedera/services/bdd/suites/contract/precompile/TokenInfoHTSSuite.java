@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -39,6 +40,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.UPDATED_TREASURY;
@@ -53,6 +55,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.queries.token.HapiGetTokenInfo;
@@ -79,12 +83,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class TokenInfoHTSSuite {
     private static final String TOKEN_INFO_CONTRACT = "TokenInfoContract";
@@ -141,6 +148,19 @@ public class TokenInfoHTSSuite {
     private static final int MAXIMUM_TO_COLLECT = 400;
     private static final int MAX_SUPPLY = 1000;
     public static final String GET_CUSTOM_FEES_FOR_TOKEN = "getCustomFeesForToken";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> happyPathGetTokenInfo() {
@@ -197,6 +217,107 @@ public class TokenInfoHTSSuite {
                                                 asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME))))
                                 .via(TOKEN_INFO_TXN)
                                 .gas(1_000_000L),
+                        contractCallLocal(
+                                TOKEN_INFO_CONTRACT,
+                                GET_INFORMATION_FOR_TOKEN,
+                                HapiParserUtil.asHeadlongAddress(
+                                        asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME)))))),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
+                withOpContext((spec, opLog) -> {
+                    final var getTokenInfoQuery = getTokenInfo(PRIMARY_TOKEN_NAME);
+                    allRunFor(spec, getTokenInfoQuery);
+                    final var expirySecond = getTokenInfoQuery
+                            .getResponse()
+                            .getTokenGetInfo()
+                            .getTokenInfo()
+                            .getExpiry()
+                            .getSeconds();
+
+                    allRunFor(
+                            spec,
+                            getTxnRecord(TOKEN_INFO_TXN).andAllChildRecords().logged(),
+                            childRecordsCheck(
+                                    TOKEN_INFO_TXN,
+                                    SUCCESS,
+                                    recordWith()
+                                            .status(SUCCESS)
+                                            .contractCallResult(resultWith()
+                                                    .contractCallResult(htsPrecompileResult()
+                                                            .forFunction(FunctionType.HAPI_GET_TOKEN_INFO)
+                                                            .withStatus(SUCCESS)
+                                                            .withTokenInfo(
+                                                                    getTokenInfoStructForFungibleToken(
+                                                                            spec,
+                                                                            PRIMARY_TOKEN_NAME,
+                                                                            SYMBOL,
+                                                                            MEMO,
+                                                                            spec.registry()
+                                                                                    .getAccountID(TOKEN_TREASURY),
+                                                                            getTokenKeyFromSpec(
+                                                                                    spec, TokenKeyType.ADMIN_KEY),
+                                                                            expirySecond,
+                                                                            targetLedgerId.get(),
+                                                                            TokenKycStatus.Revoked))))));
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicHappyPathGetTokenInfo() {
+        final AtomicReference<ByteString> targetLedgerId = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                cryptoCreate(HTS_COLLECTOR),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed(FREEZE_KEY),
+                newKeyNamed(KYC_KEY),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(WIPE_KEY),
+                newKeyNamed(FEE_SCHEDULE_KEY),
+                newKeyNamed(PAUSE_KEY),
+                newKeyNamed(TokenKeyType.METADATA_KEY.name()),
+                uploadInitCode(TOKEN_INFO_CONTRACT),
+                contractCreate(TOKEN_INFO_CONTRACT).gas(4_000_000L),
+                tokenCreate(PRIMARY_TOKEN_NAME)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(MEMO)
+                        .symbol(SYMBOL)
+                        .name(PRIMARY_TOKEN_NAME)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                        .maxSupply(MAX_SUPPLY)
+                        .initialSupply(500L)
+                        .adminKey(ADMIN_KEY)
+                        .freezeKey(FREEZE_KEY)
+                        .kycKey(KYC_KEY)
+                        .supplyKey(SUPPLY_KEY)
+                        .wipeKey(WIPE_KEY)
+                        .feeScheduleKey(FEE_SCHEDULE_KEY)
+                        .pauseKey(PAUSE_KEY)
+                        .metadataKey(TokenKeyType.METADATA_KEY.name())
+                        .metaData("metadata")
+                        .withCustom(fixedHbarFee(500L, HTS_COLLECTOR))
+                        // Include a fractional fee with no minimum to collect
+                        .withCustom(fractionalFee(NUMERATOR, DENOMINATOR * 2L, 0, OptionalLong.empty(), TOKEN_TREASURY))
+                        .withCustom(fractionalFee(
+                                NUMERATOR,
+                                DENOMINATOR,
+                                MINIMUM_TO_COLLECT,
+                                OptionalLong.of(MAXIMUM_TO_COLLECT),
+                                TOKEN_TREASURY))
+                        .via(CREATE_TXN),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCall(
+                                                TOKEN_INFO_CONTRACT,
+                                                GET_INFORMATION_FOR_TOKEN,
+                                                HapiParserUtil.asHeadlongAddress(asAddress(
+                                                        spec.registry().getTokenID(PRIMARY_TOKEN_NAME))))
+                                        .via(TOKEN_INFO_TXN)
+                                        .gas(1_000_000L)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
                         contractCallLocal(
                                 TOKEN_INFO_CONTRACT,
                                 GET_INFORMATION_FOR_TOKEN,

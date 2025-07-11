@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -34,10 +35,12 @@ import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -61,6 +64,7 @@ import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -96,6 +100,20 @@ public class TokenExpiryInfoSuite {
     @FungibleToken(name = "mutableToken", useAutoRenewAccount = true)
     static SpecFungibleToken mutableToken;
 
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
+
     @HapiTest
     @DisplayName("cannot update a missing token's expiry info")
     final Stream<DynamicTest> cannotUpdateMissingToken() {
@@ -105,6 +123,19 @@ public class TokenExpiryInfoSuite {
                 // metadata; when expiry second is zero like here, it is ignored
                 tokenExpiryContract
                         .call("updateExpiryInfoForToken", ZERO_ADDRESS, 0L, newAutoRenewAccount, MONTH_IN_SECONDS)
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
+    }
+
+    @HapiTest
+    @DisplayName("atomic cannot update a missing token's expiry info")
+    final Stream<DynamicTest> atomicCannotUpdateMissingToken() {
+        return hapiTest(
+                // This function takes four arguments---a token address, an expiry second, an auto-renew account
+                // address, and an auto-renew period---and tries to update the token at that address with the given
+                // metadata; when expiry second is zero like here, it is ignored
+                tokenExpiryContract
+                        .call("updateExpiryInfoForToken", ZERO_ADDRESS, 0L, newAutoRenewAccount, MONTH_IN_SECONDS)
+                        .wrappedInBatchOperation(BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
     }
 

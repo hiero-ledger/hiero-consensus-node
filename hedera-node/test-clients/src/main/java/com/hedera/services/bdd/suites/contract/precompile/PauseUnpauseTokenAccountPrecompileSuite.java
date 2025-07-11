@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -27,6 +28,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
@@ -34,6 +36,7 @@ import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_K
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
@@ -44,14 +47,20 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenID;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class PauseUnpauseTokenAccountPrecompileSuite {
     public static final String PAUSE_UNPAUSE_CONTRACT = "PauseUnpauseTokenAccount";
@@ -76,6 +85,19 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
     private static final String INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
     public static final String UNPAUSE_TX = "UnpauseTx";
     public static final String PAUSE_TX = "PauseTx";
+    private static final String BATCH_OPERATOR = "batchOperator";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
+    }
 
     @HapiTest
     final Stream<DynamicTest> pauseFungibleToken() {
@@ -128,6 +150,83 @@ public class PauseUnpauseTokenAccountPrecompileSuite {
                                 .via("pauseFungibleAccountIsDeletedFailingTxn")
                                 .gas(GAS_TO_OFFER)
                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED))),
+                childRecordsCheck(
+                        "pauseFungibleAccountDoesNotOwnPauseKeyFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(htsPrecompileResult()
+                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                childRecordsCheck(
+                        "pauseFungibleAccountIsDeletedFailingTxn",
+                        CONTRACT_REVERT_EXECUTED,
+                        recordWith()
+                                .status(TOKEN_WAS_DELETED)
+                                .contractCallResult(resultWith()
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(TOKEN_WAS_DELETED)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> atomicPauseFungibleToken() {
+        final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
+        return hapiTest(
+                newKeyNamed(MULTI_KEY),
+                cryptoCreate(TOKEN_TREASURY),
+                cryptoCreate(ACCOUNT).balance(INITIAL_BALANCE),
+                tokenCreate(VANILLA_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .treasury(TOKEN_TREASURY)
+                        .pauseKey(MULTI_KEY)
+                        .adminKey(MULTI_KEY)
+                        .initialSupply(1_000)
+                        .exposingCreatedIdTo(id -> vanillaTokenID.set(asToken(id))),
+                uploadInitCode(PAUSE_UNPAUSE_CONTRACT),
+                contractCreate(PAUSE_UNPAUSE_CONTRACT),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        atomicBatch(contractCall(
+                                                PAUSE_UNPAUSE_CONTRACT,
+                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .via("pauseFungibleAccountDoesNotOwnPauseKeyFailingTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        newKeyNamed(THRESHOLD_KEY)
+                                .shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, PAUSE_UNPAUSE_CONTRACT))),
+                        tokenUpdate(VANILLA_TOKEN).pauseKey(THRESHOLD_KEY).signedByPayerAnd(MULTI_KEY),
+                        cryptoUpdate(ACCOUNT).key(THRESHOLD_KEY),
+                        atomicBatch(contractCall(
+                                                PAUSE_UNPAUSE_CONTRACT,
+                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .via(PAUSE_FUNGIBLE_TXN)
+                                        .gas(GAS_TO_OFFER)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR),
+                        getTokenInfo(VANILLA_TOKEN).hasPauseStatus(Paused),
+                        tokenUnpause(VANILLA_TOKEN),
+                        tokenDelete(VANILLA_TOKEN),
+                        atomicBatch(contractCall(
+                                                PAUSE_UNPAUSE_CONTRACT,
+                                                PAUSE_TOKEN_ACCOUNT_FUNCTION_NAME,
+                                                asHeadlongAddress(asHexedAddress(vanillaTokenID.get())))
+                                        .signedBy(GENESIS, ACCOUNT)
+                                        .alsoSigningWithFullPrefix(ACCOUNT)
+                                        .via("pauseFungibleAccountIsDeletedFailingTxn")
+                                        .gas(GAS_TO_OFFER)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED))),
                 childRecordsCheck(
                         "pauseFungibleAccountDoesNotOwnPauseKeyFailingTxn",
                         CONTRACT_REVERT_EXECUTED,

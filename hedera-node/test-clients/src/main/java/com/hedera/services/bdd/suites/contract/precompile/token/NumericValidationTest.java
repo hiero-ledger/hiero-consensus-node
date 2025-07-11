@@ -9,10 +9,13 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KE
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -35,6 +38,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,6 +52,8 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
 public class NumericValidationTest {
+
+    private static final String BATCH_OPERATOR = "batchOperator";
 
     @Contract(contract = "NumericContract", creationGas = 8_000_000L)
     static SpecContract numericContract;
@@ -115,6 +121,15 @@ public class NumericValidationTest {
                 // ApproveTests
                 nftToken.treasury().transferNFTsTo(numericContract, nftToken, NFT_SERIAL_FOR_APPROVE.longValue()),
                 nftToken.treasury().transferNFTsTo(numericContract, nftToken, NFT_SERIAL_FOR_WIPE.longValue()));
+
+        lifecycle.overrideInClass(Map.of(
+                "atomicBatch.isEnabled",
+                "true",
+                "atomicBatch.maxNumberOfTransactions",
+                "50",
+                "contracts.throttle.throttleByGas",
+                "false"));
+        lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
     /**
@@ -134,6 +149,21 @@ public class NumericValidationTest {
                             new UintTestCase(BigInteger.ZERO, SUCCESS))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("approveRedirect", fungibleToken, numericContractComplex, testCase.amount())
+                            .gas(1_000_000L)
+                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+        }
+
+        @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+        @DisplayName("Atomic FT redirect proxy approve(address,uint256)")
+        public Stream<DynamicTest> atomicFailToApproveViaProxyFungibleToken() {
+            return Stream.of(
+                            // java.lang.ArithmeticException: BigInteger out of long range
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
+                            // See CryptoApproveAllowanceHandler.pureChecks
+                            new UintTestCase(BigInteger.ZERO, SUCCESS))
+                    .flatMap(testCase -> hapiTest(numericContract
+                            .call("approveRedirect", fungibleToken, numericContractComplex, testCase.amount())
+                            .wrappedInBatchOperation(BATCH_OPERATOR, OK, SUCCESS, INNER_TRANSACTION_FAILED)
                             .gas(1_000_000L)
                             .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
         }
