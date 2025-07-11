@@ -375,4 +375,15 @@ public class BlockNodeSimulatorController {
     public boolean areAnySimulatorsShutdown() {
         return !shutdownSimulatorPorts.isEmpty();
     }
+
+    /**
+     * Updates whether block acknowledgements should be sent from the specified block node.
+     *
+     * @param nodeIdx the index of the block node to update (0-based)
+     * @param sendBlockAcknowledgementsEnabled true if block acknowledgements should be sent from the simulator node, otherwise they will not
+     */
+    public void setSendBlockAcknowledgementsEnabled(
+            final long nodeIdx, final boolean sendBlockAcknowledgementsEnabled) {
+        simulatedBlockNodes.get(nodeIdx).setSendingBlockAcknowledgementsEnabled(sendBlockAcknowledgementsEnabled);
+    }
 }

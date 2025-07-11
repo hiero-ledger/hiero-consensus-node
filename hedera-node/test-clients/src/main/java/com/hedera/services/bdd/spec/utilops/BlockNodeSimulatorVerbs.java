@@ -171,6 +171,17 @@ public class BlockNodeSimulatorVerbs {
                     .exposingLastVerifiedBlockNumber(lastVerifiedBlockConsumer)
                     .build();
         }
+
+        /**
+         * Updates whether block acknowledgements should be sent by the block node simulator.
+         *
+         * @param sendBlockAcknowledgementsEnabled true if acknowledgements should be sent, else they will not be sent
+         * @return the operation
+         */
+        public BlockNodeSimulatorOp updateSendingBlockAcknowledgements(final boolean sendBlockAcknowledgementsEnabled) {
+            return BlockNodeSimulatorOp.updateSendingBlockAcknowledgements(nodeIndex, sendBlockAcknowledgementsEnabled)
+                    .build();
+        }
     }
 
     /**
