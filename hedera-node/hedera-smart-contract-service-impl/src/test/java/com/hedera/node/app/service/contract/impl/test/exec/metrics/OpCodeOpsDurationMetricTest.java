@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.metrics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.within;
 
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpCodeOpsDurationMetric;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;

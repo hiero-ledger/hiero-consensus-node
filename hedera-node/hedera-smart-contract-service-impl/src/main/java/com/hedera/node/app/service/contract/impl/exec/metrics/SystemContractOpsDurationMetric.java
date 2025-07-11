@@ -16,8 +16,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class SystemContractOpsDurationMetric {
-    private static final String CONTRACT_CATEGORY = "system_contract";
-
     private final Map<SystemContractMethod, CountAccumulateAverageMetricTriplet> operationDurations = new HashMap<>();
     private final Metrics metrics;
 
@@ -36,8 +34,10 @@ public class SystemContractOpsDurationMetric {
                 method,
                 unused -> CountAccumulateAverageMetricTriplet.create(
                         metrics,
-                        CONTRACT_CATEGORY,
-                        method.methodName(),
+                        ContractMetrics.METRIC_CATEGORY,
+                        String.format(
+                                "%s:OpsDuration_BySystemContractMethod_%s",
+                                ContractMetrics.METRIC_SERVICE, method.methodName()),
                         "Ops duration of system contract method " + method.methodName() + " in nanoseconds"));
         metric.recordObservation(durationNanos);
     }

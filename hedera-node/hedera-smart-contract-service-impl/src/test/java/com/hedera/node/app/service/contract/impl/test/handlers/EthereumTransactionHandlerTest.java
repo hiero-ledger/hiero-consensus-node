@@ -36,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
+import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
@@ -164,12 +165,15 @@ class EthereumTransactionHandlerTest {
     private final ContractMetrics contractMetrics =
             new ContractMetrics(metrics, () -> contractsConfig, systemContractMethodRegistry);
 
+    private HederaOpsDurationCounter opsDurationCounter;
+
     @BeforeEach
     void setUp() {
         contractMetrics.createContractPrimaryMetrics();
         given(contractServiceComponent.contractMetrics()).willReturn(contractMetrics);
         subject = new EthereumTransactionHandler(
                 ethereumSignatures, callDataHydration, () -> factory, gasCalculator, contractServiceComponent);
+        opsDurationCounter = new HederaOpsDurationCounter(0L);
     }
 
     void setUpTransactionProcessing() {
@@ -187,7 +191,8 @@ class EthereumTransactionHandlerTest {
                 hevmTransactionFactory,
                 transactionProcessor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()
@@ -199,7 +204,12 @@ class EthereumTransactionHandlerTest {
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
-                        HEVM_CREATION, baseProxyWorldUpdater, hederaEvmContext, tracer, DEFAULT_CONFIG))
+                        HEVM_CREATION,
+                        baseProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        DEFAULT_CONFIG,
+                        opsDurationCounter))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
     }
 

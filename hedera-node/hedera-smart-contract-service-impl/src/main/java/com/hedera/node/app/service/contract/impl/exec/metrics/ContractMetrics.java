@@ -16,12 +16,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.common.metrics.platform.prometheus.NameConverter;
 import com.swirlds.metrics.api.*;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -79,7 +74,7 @@ public class ContractMetrics {
     }
 
     public record TransactionProcessingSummary(
-            long durationNs, long opsDurationUnitsConsumed, long gasUsed, long gasPrice, boolean success) {}
+            long durationMs, long opsDurationUnitsConsumed, long gasUsed, Optional<Long> gasPrice, boolean success) {}
 
     // Counters that are the P2 metrics, and maps that take `SystemContractMethods` into the specific counters
 
@@ -106,8 +101,8 @@ public class ContractMetrics {
 
     // String templates and other stringish things used to create metrics' names and descriptions
 
-    private static final String METRIC_CATEGORY = "app";
-    private static final String METRIC_SERVICE = "SmartContractService";
+    static final String METRIC_CATEGORY = "app";
+    static final String METRIC_SERVICE = "SmartContractService";
     private static final String METRIC_TXN_UNIT = "txs";
 
     // Templates:  %1$s - HederaFunctionality name
@@ -132,7 +127,7 @@ public class ContractMetrics {
     //             %2$s = METRIC_SERVICE
     //             %3$s - METHOD_METRIC_TYPE
     //             %4%s - clarification
-    private static final String METHOD_METRIC_NAME_TEMPLATE = "%2$s:Method_%1$s_%3$s";
+    private static final String METHOD_METRIC_NAME_TEMPLATE = "%2$s:SystemContractMethodCall_%1$s_%3$s";
     private static final String METHOD_METRIC_DESCR_TEMPLATE = "system contract method %1$s %3$s %4$s";
 
     @Inject
@@ -199,26 +194,25 @@ public class ContractMetrics {
             transactionDuration = CountAccumulateAverageMetricTriplet.create(
                     metrics,
                     METRIC_CATEGORY,
-                    METRIC_SERVICE + "_transaction_duration",
-                    "Actual duration of processed smart contract transactions in nanoseconds");
+                    METRIC_SERVICE + ":TransactionDuration",
+                    "Actual duration of processed smart contract transactions in milliseconds");
             successfulTransactionDuration = CountAccumulateAverageMetricTriplet.create(
                     metrics,
                     METRIC_CATEGORY,
-                    METRIC_SERVICE + "_successful_transaction_duration",
-                    "Actual duration of successful smart contract transactions in nanoseconds");
+                    METRIC_SERVICE + ":SuccessfulTransactionDuration",
+                    "Actual duration of successful smart contract transactions in milliseconds");
             failedTransactionDuration = CountAccumulateAverageMetricTriplet.create(
                     metrics,
                     METRIC_CATEGORY,
-                    METRIC_SERVICE + "_failed_transaction_duration",
-                    "Actual duration of failed smart contract transactions in nanoseconds");
+                    METRIC_SERVICE + ":FailedTransactionDuration",
+                    "Actual duration of failed smart contract transactions in milliseconds");
             transactionGasUsed = CountAccumulateAverageMetricTriplet.create(
                     metrics,
                     METRIC_CATEGORY,
-                    METRIC_SERVICE + "_transaction_gas_used",
+                    METRIC_SERVICE + ":TransactionGasUsed",
                     "Actual gas used by smart contract transactions");
-            gasPrice =
-                    metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + "_transaction_gas_price")
-                            .withDescription("Gas price of the latest processed smart contract transaction"));
+            gasPrice = metrics.getOrCreate(new LongGauge.Config(METRIC_CATEGORY, METRIC_SERVICE + ":LatestGasPrice")
+                    .withDescription("Gas price of the latest processed smart contract transaction"));
         }
     }
 
@@ -398,14 +392,16 @@ public class ContractMetrics {
 
     public void recordProcessedTransaction(final TransactionProcessingSummary summary) {
         if (p1MetricsEnabled) {
-            this.transactionDuration.recordObservation(summary.durationNs());
+            this.transactionDuration.recordObservation(summary.durationMs());
             if (summary.success()) {
-                this.successfulTransactionDuration.recordObservation(summary.durationNs());
+                this.successfulTransactionDuration.recordObservation(summary.durationMs());
             } else {
-                this.failedTransactionDuration.recordObservation(summary.durationNs());
+                this.failedTransactionDuration.recordObservation(summary.durationMs());
             }
             this.transactionGasUsed.recordObservation(summary.gasUsed());
-            this.gasPrice.set(summary.gasPrice());
+            summary.gasPrice().ifPresent(gasPrice -> {
+                this.gasPrice.set(gasPrice);
+            });
         }
 
         this.opsDurationMetrics.recordTxnTotalOpsDuration(summary.opsDurationUnitsConsumed());

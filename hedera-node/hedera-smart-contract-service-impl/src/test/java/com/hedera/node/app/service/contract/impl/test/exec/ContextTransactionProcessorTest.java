@@ -27,7 +27,9 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
+import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
@@ -94,6 +96,9 @@ class ContextTransactionProcessorTest {
     @Mock
     private HederaOpsDuration hederaOpsDuration;
 
+    @Mock
+    private ContractMetrics contractMetrics;
+
     @Test
     void callsComponentInfraAsExpectedForValidEthTx() {
         final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
@@ -110,12 +115,18 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        new HederaOpsDurationCounter(0L)))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
@@ -154,12 +165,18 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         givenSenderAccount();
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        new HederaOpsDurationCounter(0L)))
                 .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
 
         final var protoResult = SUCCESS_RESULT_WITH_SIGNER_NONCE.asProtoResultOf(
@@ -197,11 +214,17 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        new HederaOpsDurationCounter(0L)))
                 .willReturn(SUCCESS_RESULT);
         given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
@@ -238,11 +261,17 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         givenBodyWithTxnIdWillReturnHEVM();
         given(processor.processTransaction(
-                        HEVM_CREATION, rootProxyWorldUpdater, hederaEvmContext, tracer, CONFIGURATION))
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        new HederaOpsDurationCounter(0L)))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
 
         subject.call();
@@ -266,7 +295,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -299,7 +329,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -331,7 +362,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -366,7 +398,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -401,7 +434,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
@@ -431,7 +465,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                hederaOpsDuration);
+                hederaOpsDuration,
+                contractMetrics);
 
         assertFailsWith(INVALID_ETHEREUM_TRANSACTION, subject::call);
     }

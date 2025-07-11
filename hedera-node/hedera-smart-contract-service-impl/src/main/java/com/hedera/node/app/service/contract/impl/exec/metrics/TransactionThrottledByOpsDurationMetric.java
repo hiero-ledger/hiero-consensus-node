@@ -10,7 +10,9 @@ import javax.inject.Singleton;
 
 @Singleton
 public class TransactionThrottledByOpsDurationMetric {
-    private static final Counter.Config CONFIG = new Counter.Config("transaction", "throttled_by_ops_duration")
+    private static final Counter.Config CONFIG = new Counter.Config(
+                    ContractMetrics.METRIC_CATEGORY,
+                    String.format("%s:OpsDuration_TxnsThrottled", ContractMetrics.METRIC_SERVICE))
             .withDescription("Count of transactions throttled by ops duration limit");
     private final Counter metrics;
 

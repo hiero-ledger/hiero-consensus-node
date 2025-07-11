@@ -87,16 +87,9 @@ public interface V064Module {
             @ServicesV064 @NonNull final CustomMessageCallProcessor messageCallProcessor,
             @ServicesV064 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
-            @ServicesV064 @NonNull final FeatureFlags featureFlags,
-            @NonNull final ContractMetrics contractMetrics) {
+            @ServicesV064 @NonNull final FeatureFlags featureFlags) {
         return new TransactionProcessor(
-                frameBuilder,
-                frameRunner,
-                gasCharging,
-                messageCallProcessor,
-                contractCreationProcessor,
-                featureFlags,
-                contractMetrics);
+                frameBuilder, frameRunner, gasCharging, messageCallProcessor, contractCreationProcessor, featureFlags);
     }
 
     @Provides

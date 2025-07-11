@@ -12,8 +12,10 @@ import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
 import com.hedera.node.app.service.contract.impl.exec.tracers.EvmActionTracer;
+import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -32,10 +34,12 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A small utility that runs the * {@code #processTransaction()} call implied by the
@@ -60,6 +64,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
     private final HederaOpsDuration hederaOpsDuration;
+    private final ContractMetrics contractMetrics;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -87,7 +92,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging,
-            @NonNull final HederaOpsDuration hederaOpsDuration) {
+            @NonNull final HederaOpsDuration hederaOpsDuration,
+            @NotNull final ContractMetrics contractMetrics) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -100,10 +106,14 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
         this.hederaOpsDuration = requireNonNull(hederaOpsDuration);
+        this.contractMetrics = requireNonNull(contractMetrics);
     }
 
     @Override
     public CallOutcome call() {
+        // ONLY USED FOR METRICS: Measure the actual execution time.
+        final var startTimeMs = System.currentTimeMillis();
+
         // Apply the latest ops duration schedule from the configuration
         setOpsDurationValues();
 
@@ -115,20 +125,31 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         // the error.
         final var hevmTransaction = safeCreateHevmTransaction();
         if (hevmTransaction.isException()) {
-            return maybeChargeFeesAndReturnOutcome(
+            final var outcome = maybeChargeFeesAndReturnOutcome(
                     hevmTransaction,
                     context.body().transactionIDOrThrow().accountIDOrThrow(),
                     null,
                     contractsConfig.chargeGasOnEvmHandleException());
+
+            final var elapsedMs = System.currentTimeMillis() - startTimeMs;
+            recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedMs, 0L);
+
+            return outcome;
         }
 
         // Process the transaction and return its outcome
+        final var opsDurationCounter = new HederaOpsDurationCounter(0L);
         try {
             final var tracer = addOnTracers != null
                     ? new AddOnEvmActionTracer(evmActionTracer, addOnTracers.get())
                     : evmActionTracer;
             var result = processor.processTransaction(
-                    hevmTransaction, rootProxyWorldUpdater, hederaEvmContext, tracer, configuration);
+                    hevmTransaction,
+                    rootProxyWorldUpdater,
+                    hederaEvmContext,
+                    tracer,
+                    configuration,
+                    opsDurationCounter);
 
             if (hydratedEthTxData != null) {
                 final var sender = requireNonNull(rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()));
@@ -151,23 +172,45 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             final var callData = (hydratedEthTxData != null && hydratedEthTxData.ethTxData() != null)
                     ? Bytes.wrap(hydratedEthTxData.ethTxData().callData())
                     : null;
-            return CallOutcome.fromResultsWithMaybeSidecars(
+            final var outcome = CallOutcome.fromResultsWithMaybeSidecars(
                     result.asProtoResultOf(ethTxDataIfApplicable(), rootProxyWorldUpdater, callData),
                     result.asEvmTxResultOf(ethTxDataIfApplicable(), callData),
                     result.isSuccess() ? rootProxyWorldUpdater.getUpdatedContractNonces() : null,
                     result.isSuccess() ? rootProxyWorldUpdater.getCreatedContractIds() : null,
                     result.isSuccess() ? result.evmAddressIfCreatedIn(rootProxyWorldUpdater) : null,
                     result);
+
+            final var elapsedMs = System.currentTimeMillis() - startTimeMs;
+            recordProcessedTransactionToMetrics(
+                    hevmTransaction, outcome, elapsedMs, opsDurationCounter.getOpsDurationCounter());
+
+            return outcome;
         } catch (HandleException e) {
             final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
             final var senderId = sender != null ? sender.hederaId() : hevmTransaction.senderId();
 
-            return maybeChargeFeesAndReturnOutcome(
+            final var outcome = maybeChargeFeesAndReturnOutcome(
                     hevmTransaction.withException(e),
                     senderId,
                     sender,
                     hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
+
+            final var elapsedMs = System.currentTimeMillis() - startTimeMs;
+            recordProcessedTransactionToMetrics(
+                    hevmTransaction, outcome, elapsedMs, opsDurationCounter.getOpsDurationCounter());
+
+            return outcome;
         }
+    }
+
+    private void recordProcessedTransactionToMetrics(
+            HederaEvmTransaction hevmTxn, CallOutcome outcome, long elapsedMs, long opsDurationUnitsConsumed) {
+        contractMetrics.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(
+                elapsedMs,
+                opsDurationUnitsConsumed,
+                outcome.result().gasUsed(),
+                hevmTxn.hasOfferedGasPrice() ? Optional.of(hevmTxn.offeredGasPrice()) : Optional.empty(),
+                outcome.isSuccess()));
     }
 
     private HederaEvmTransaction safeCreateHevmTransaction() {

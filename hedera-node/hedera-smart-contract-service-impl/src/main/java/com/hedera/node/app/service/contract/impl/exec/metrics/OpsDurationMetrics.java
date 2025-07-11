@@ -9,18 +9,20 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class OpsDurationMetrics {
     private final SystemContractOpsDurationMetric systemContractOpsDurationMetric;
-    private final OpCodeOpsDurationMetric opCodeOpsDurationMetric;
     private final PrecompileOpsDurationMetric precompileOpsDurationMetric;
-    private final OpsDurationPerTransactionMetrics opsDurationPerTransactionMetrics;
     private final TransactionThrottledByOpsDurationMetric transactionThrottledByOpsDurationMetric;
+    private final CountAccumulateAverageMetricTriplet perTransactionOpsDuration;
 
     public OpsDurationMetrics(@NonNull final Metrics metrics) {
         requireNonNull(metrics, "Metrics cannot be null");
         this.systemContractOpsDurationMetric = new SystemContractOpsDurationMetric(metrics);
-        this.opCodeOpsDurationMetric = new OpCodeOpsDurationMetric(metrics);
         this.precompileOpsDurationMetric = new PrecompileOpsDurationMetric(metrics);
-        this.opsDurationPerTransactionMetrics = new OpsDurationPerTransactionMetrics(metrics);
         this.transactionThrottledByOpsDurationMetric = new TransactionThrottledByOpsDurationMetric(metrics);
+        this.perTransactionOpsDuration = CountAccumulateAverageMetricTriplet.create(
+                metrics,
+                ContractMetrics.METRIC_CATEGORY,
+                String.format("%s:OpsDuration_PerTxn", ContractMetrics.METRIC_SERVICE),
+                "Ops duration of all transaction in nanoseconds");
     }
 
     /**
@@ -61,45 +63,6 @@ public class OpsDurationMetrics {
      */
     public long getTotalSystemContractOpsDuration(@NonNull final SystemContractMethod method) {
         return systemContractOpsDurationMetric.getSystemContractOpsTotalDuration(method);
-    }
-
-    /**
-     * Records the duration of an EVM operation in nanoseconds
-     *
-     * @param opCode the EVM op code that was executed
-     * @param durationNanos the duration in nanoseconds
-     */
-    public void recordOpCodeOpsDuration(final int opCode, final long durationNanos) {
-        opCodeOpsDurationMetric.recordOpCodeOpsDurationMetric(opCode, durationNanos);
-    }
-
-    /**
-     * Gets the current average duration for a specific op code
-     *
-     * @param opCode the EVM op code to get duration for
-     * @return the average duration in nanoseconds
-     */
-    public double getAverageOpCodeOpsDuration(final int opCode) {
-        return opCodeOpsDurationMetric.getAverageOpCodeOpsDuration(opCode);
-    }
-
-    /**
-     * Gets the total count of operations for a specific EVM op code
-     *
-     * @param opCode the EVM op code to get count for
-     * @return the count of operations executed
-     */
-    public long getOpCodeOpsDurationCount(final int opCode) {
-        return opCodeOpsDurationMetric.getOpCodeOpsDurationCount(opCode);
-    }
-
-    /**
-     * Gets the total duration for a specific EVM op code
-     * @param opCode the EVM op code to get total duration for
-     * @return the total duration in nanoseconds
-     */
-    public long getTotalOpCodeOpsDuration(final int opCode) {
-        return opCodeOpsDurationMetric.getTotalOpCodeOpsDuration(opCode);
     }
 
     /**
@@ -147,7 +110,7 @@ public class OpsDurationMetrics {
      * @param opsDurationNanos the duration in nanoseconds
      */
     public void recordTxnTotalOpsDuration(final long opsDurationNanos) {
-        opsDurationPerTransactionMetrics.recordTxnTotalOpsDuration(opsDurationNanos);
+        perTransactionOpsDuration.recordObservation(opsDurationNanos);
     }
 
     /**
@@ -156,7 +119,7 @@ public class OpsDurationMetrics {
      * @return the average duration in nanoseconds
      */
     public double getAverageTransactionOpsDuration() {
-        return opsDurationPerTransactionMetrics.getAverage();
+        return perTransactionOpsDuration.average().get();
     }
 
     /**
@@ -165,7 +128,7 @@ public class OpsDurationMetrics {
      * @return the count of transactions
      */
     public long getTransactionOpsDurationCount() {
-        return opsDurationPerTransactionMetrics.getCount();
+        return perTransactionOpsDuration.counter().get();
     }
 
     /**
@@ -174,7 +137,7 @@ public class OpsDurationMetrics {
      * @return the total duration in nanoseconds
      */
     public long getTotalTransactionOpsDuration() {
-        return opsDurationPerTransactionMetrics.getTotalOpsDuration();
+        return perTransactionOpsDuration.accumulator().get();
     }
 
     /**

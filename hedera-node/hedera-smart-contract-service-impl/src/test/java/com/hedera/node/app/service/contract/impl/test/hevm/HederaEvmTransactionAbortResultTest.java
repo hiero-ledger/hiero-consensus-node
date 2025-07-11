@@ -29,7 +29,8 @@ class HederaEvmTransactionAbortResultTest {
                 SENDER_ID,
                 GAS_LIMIT / 2,
                 WEI_NETWORK_GAS_PRICE.toLong(),
-                ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED);
+                ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED,
+                0);
         assertEquals(ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED, subject.finalStatus());
         final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
         final var traditionalMessage = Bytes.wrap(
@@ -41,7 +42,7 @@ class HederaEvmTransactionAbortResultTest {
     @Test
     void translatesResourceExhaustionResultForTotalStorageExceeded() {
         final var subject = HederaEvmTransactionResult.resourceExhaustionFrom(
-                SENDER_ID, GAS_LIMIT / 2, WEI_NETWORK_GAS_PRICE.toLong(), MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED);
+                SENDER_ID, GAS_LIMIT / 2, WEI_NETWORK_GAS_PRICE.toLong(), MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED, 0);
         assertEquals(MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED, subject.finalStatus());
         final var protoResult = subject.asProtoResultOf(null, rootProxyWorldUpdater, null);
         final var traditionalMessage = Bytes.wrap(

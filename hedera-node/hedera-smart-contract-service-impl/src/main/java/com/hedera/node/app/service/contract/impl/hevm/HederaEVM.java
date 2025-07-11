@@ -227,8 +227,6 @@ public class HederaEVM extends EVM {
                 usedOpsDuration = opsDurationArray[opcode] == 0
                         ? result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR
                         : opsDurationArray[opcode];
-                // Record the operation duration in the metrics
-                contractMetrics.opsDurationMetrics().recordOpCodeOpsDuration(opcode, usedOpsDuration);
 
                 // Check the duration of the operations every durationCheckShift opcodes.
                 // This is to avoid checking the duration too frequently and slowing down execution.

@@ -54,9 +54,9 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
-import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -134,23 +134,17 @@ class TransactionProcessorTest {
     @Mock
     private ContractOperationStreamBuilder recordBuilder;
 
-    @Mock
-    private ContractMetrics contractMetrics;
-
     private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private TransactionProcessor subject;
 
+    private HederaOpsDurationCounter opsDurationCounter;
+
     @BeforeEach
     void setUp() {
         subject = new TransactionProcessor(
-                frameBuilder,
-                frameRunner,
-                gasCharging,
-                messageCallProcessor,
-                contractCreationProcessor,
-                featureFlags,
-                contractMetrics);
+                frameBuilder, frameRunner, gasCharging, messageCallProcessor, contractCreationProcessor, featureFlags);
+        opsDurationCounter = new HederaOpsDurationCounter(0L);
     }
 
     @Test
@@ -215,6 +209,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
@@ -231,7 +226,8 @@ class TransactionProcessorTest {
                 .willReturn(SUCCESS_RESULT);
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertSame(SUCCESS_RESULT, result);
         verify(worldUpdater).setupTopLevelLazyCreate(expectedToAddress);
@@ -265,6 +261,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
@@ -284,7 +281,8 @@ class TransactionProcessorTest {
         given(senderAccount.getNonce()).willReturn(NONCE);
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertSame(SUCCESS_RESULT, result);
         verify(worldUpdater).setupTopLevelLazyCreate(expectedToAddress);
@@ -318,6 +316,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
@@ -337,7 +336,8 @@ class TransactionProcessorTest {
         given(senderAccount.getNonce()).willReturn(NONCE);
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertSame(SUCCESS_RESULT, result);
     }
@@ -361,7 +361,8 @@ class TransactionProcessorTest {
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
 
         final var handleException = catchThrowableOfType(
-                () -> subject.processTransaction(transaction, worldUpdater, context, tracer, config),
+                () -> subject.processTransaction(
+                        transaction, worldUpdater, context, tracer, config, opsDurationCounter),
                 HandleException.class);
         assertThat(handleException.getStatus()).isEqualTo(INVALID_ACCOUNT_ID);
     }
@@ -386,7 +387,8 @@ class TransactionProcessorTest {
         given(worldUpdater.getHederaAccount(INVALID_CONTRACT_ADDRESS)).willThrow(IllegalArgumentException.class);
 
         final var handleException = catchThrowableOfType(
-                () -> subject.processTransaction(transaction, worldUpdater, context, tracer, config),
+                () -> subject.processTransaction(
+                        transaction, worldUpdater, context, tracer, config, opsDurationCounter),
                 HandleException.class);
         assertThat(handleException.getStatus()).isEqualTo(INVALID_TRANSACTION_BODY);
     }
@@ -425,6 +427,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
@@ -445,7 +448,8 @@ class TransactionProcessorTest {
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         inOrder.verify(worldUpdater)
                 .setupAliasedTopLevelCreate(ContractCreateTransactionBody.DEFAULT, expectedToAddress);
@@ -456,6 +460,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         expectedToAddress,
@@ -501,6 +506,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -517,7 +523,8 @@ class TransactionProcessorTest {
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         inOrder.verify(worldUpdater).setupTopLevelCreate(ContractCreateTransactionBody.DEFAULT);
         inOrder.verify(gasCharging).chargeForGas(senderAccount, null, context, worldUpdater, transaction);
@@ -527,6 +534,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -570,6 +578,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -586,7 +595,8 @@ class TransactionProcessorTest {
         given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         inOrder.verify(gasCharging).chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction);
         inOrder.verify(frameBuilder)
@@ -595,6 +605,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -642,6 +653,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -662,7 +674,8 @@ class TransactionProcessorTest {
                 .willReturn(true);
         given(senderAccount.getNonce()).willReturn(NONCE);
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         inOrder.verify(gasCharging).chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction);
         inOrder.verify(frameBuilder)
@@ -671,6 +684,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -716,6 +730,7 @@ class TransactionProcessorTest {
                         worldUpdater,
                         context,
                         config,
+                        opsDurationCounter,
                         featureFlags,
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
@@ -736,7 +751,8 @@ class TransactionProcessorTest {
                 .given(worldUpdater)
                 .commit();
 
-        final var result = subject.processTransaction(transaction, worldUpdater, context, tracer, config);
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertResourceExhaustion(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES, result);
     }
@@ -763,7 +779,8 @@ class TransactionProcessorTest {
                         worldUpdater,
                         wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
                         tracer,
-                        config));
+                        config,
+                        opsDurationCounter));
     }
 
     private void givenSenderAccountWithNoHederaAccount() {

@@ -83,6 +83,7 @@ public class FrameBuilder {
             @NonNull final HederaWorldUpdater worldUpdater,
             @NonNull final HederaEvmContext context,
             @NonNull final Configuration config,
+            @NonNull final HederaOpsDurationCounter opsDurationCounter,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final Address from,
             @NonNull final Address to,
@@ -90,7 +91,7 @@ public class FrameBuilder {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
-        final var contextVariables = contextVariablesFrom(config, context, intrinsicGas);
+        final var contextVariables = contextVariablesFrom(config, opsDurationCounter, context, intrinsicGas);
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -116,7 +117,10 @@ public class FrameBuilder {
     }
 
     private Map<String, Object> contextVariablesFrom(
-            @NonNull final Configuration config, @NonNull final HederaEvmContext context, final long intrinsicGas) {
+            @NonNull final Configuration config,
+            @NonNull final HederaOpsDurationCounter opsDurationCounter,
+            @NonNull final HederaEvmContext context,
+            final long intrinsicGas) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
@@ -137,11 +141,11 @@ public class FrameBuilder {
             contextEntries.put(BYTECODE_SIDECARS_VARIABLE, true);
         }
         contextEntries.put(THROTTLE_BY_OPS_DURATION, contractConfig.throttleThrottleByOpsDuration());
-        contextEntries.put(HEDERA_OPS_DURATION, new HederaOpsDurationCounter(0L));
         if (context.isTransaction()) {
             contextEntries.put(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE, context.streamBuilder());
             contextEntries.put(
                     PENDING_CREATION_BUILDER_CONTEXT_VARIABLE, context.pendingCreationRecordBuilderReference());
+            contextEntries.put(HEDERA_OPS_DURATION, opsDurationCounter);
         }
         return contextEntries;
     }
