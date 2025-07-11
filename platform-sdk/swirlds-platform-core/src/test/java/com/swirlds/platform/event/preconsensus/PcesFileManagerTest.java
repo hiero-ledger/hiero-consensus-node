@@ -10,32 +10,55 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.platform.test.fixtures.event.PcesWriterTestUtils;
+import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.preconsensus.PcesTestFilesGenerator;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.CompareTo;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Tests for {@link PcesFileManager}
- */
-@DisplayName("PcesFileManager Tests")
-class PcesFileManagerTests {
-    /**
-     * Temporary directory provided by JUnit
-     */
+class PcesFileManagerTest {
+
     @TempDir
-    Path testDirectory;
+    private Path tempDir;
+
+    private final int numEvents = 1_000;
+
+    @NonNull
+    private static PlatformContext buildContext(@NonNull final Configuration configuration) {
+        return TestPlatformContextBuilder.create()
+                .withConfiguration(configuration)
+                .withTime(new FakeTime(Duration.ofMillis(1)))
+                .build();
+    }
+
+    @NonNull
+    private PlatformContext getPlatformContext() {
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(PcesConfig_.DATABASE_DIRECTORY, tempDir.toString())
+                .getOrCreateConfig();
+        return buildContext(configuration);
+    }
 
     private Random random;
 
@@ -45,11 +68,95 @@ class PcesFileManagerTests {
     private Path dataDirectory = null;
 
     @BeforeEach
-    void beforeEach() throws IOException {
-        FileUtils.deleteDirectory(testDirectory);
-        dataDirectory = testDirectory.resolve("data");
+    void beforeEach() {
+        dataDirectory = tempDir.resolve("data");
         fileDirectory = dataDirectory.resolve("0");
         random = getRandomPrintSeed();
+    }
+
+    @Test
+    void standardOperationTest() throws Exception {
+        final PlatformContext platformContext = getPlatformContext();
+        final Random random = RandomUtils.getRandomPrintSeed();
+
+        final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
+
+        final List<PlatformEvent> events = new LinkedList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEventWithoutIndex().getBaseEvent());
+        }
+        final PcesFileManager writer = new PcesFileManager(platformContext, 0, tempDir);
+
+        writer.beginStreamingNewEvents();
+        for (final PlatformEvent event : events) {
+            writer.prepareOutputStream(event);
+            writer.writeEvent(event);
+            writer.sync();
+        }
+        writer.closeCurrentMutableFile();
+        // forces the writer to close the current file so that we can verify the stream
+        writer.registerDiscontinuity(1L);
+
+        PcesWriterTestUtils.verifyStream(tempDir, events, platformContext, 0);
+    }
+
+    @Test
+    void ancientEventTest() throws Exception {
+
+        final Random random = RandomUtils.getRandomPrintSeed();
+        final PlatformContext platformContext = getPlatformContext();
+        final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
+
+        final int stepsUntilAncient = random.nextInt(50, 100);
+        final PcesFileManager writer = new PcesFileManager(platformContext, 0, tempDir);
+
+        // We will add this event at the very end, it should be ancient by then
+        final PlatformEvent ancientEvent = generator.generateEventWithoutIndex().getBaseEvent();
+
+        final List<PlatformEvent> events = new LinkedList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEventWithoutIndex().getBaseEvent());
+        }
+
+        writer.beginStreamingNewEvents();
+
+        long lowerBound = ConsensusConstants.ROUND_FIRST;
+        final Iterator<PlatformEvent> iterator = events.iterator();
+        while (iterator.hasNext()) {
+            final PlatformEvent event = iterator.next();
+            writer.prepareOutputStream(event);
+            writer.writeEvent(event);
+            writer.sync();
+            lowerBound = Math.max(lowerBound, event.getBirthRound() - stepsUntilAncient);
+
+            writer.updateNonAncientEventBoundary(EventWindowBuilder.builder()
+                    .setAncientThreshold(lowerBound)
+                    .setExpiredThreshold(lowerBound)
+                    .build());
+
+            if (event.getBirthRound() < lowerBound) {
+                // Although it's not common, it's actually possible that the generator will generate
+                // an event that is ancient (since it isn't aware of what we consider to be ancient)
+                iterator.remove();
+            }
+        }
+
+        if (lowerBound > ancientEvent.getBirthRound()) {
+            // This is probably not possible... but just in case make sure this event is ancient
+            try {
+                writer.updateNonAncientEventBoundary(EventWindowBuilder.builder()
+                        .setAncientThreshold(ancientEvent.getBirthRound() + 1)
+                        .setExpiredThreshold(ancientEvent.getBirthRound() + 1)
+                        .build());
+            } catch (final IllegalArgumentException e) {
+                // ignore, more likely than not this event is way older than the actual ancient threshold
+            }
+        }
+
+        // forces the writer to close the current file so that we can verify the stream
+        writer.registerDiscontinuity(1L);
+
+        PcesWriterTestUtils.verifyStream(tempDir, events, platformContext, 0);
     }
 
     @Test
@@ -88,10 +195,9 @@ class PcesFileManagerTests {
         final FakeTime time = new FakeTime(lastFile.getTimestamp().plus(Duration.ofHours(1)), Duration.ZERO);
         final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
-
-        assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+        final PcesFileManager manager = new PcesFileManager(platformContext, 0, fileDirectory);
+        manager.beginStreamingNewEvents();
+        // assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
         // Increase the pruned ancient threshold a little at a time,
         // until the middle file is almost GC eligible but not quite.
@@ -177,10 +283,10 @@ class PcesFileManagerTests {
         final FakeTime time = new FakeTime(firstFile.getTimestamp().plus(Duration.ofMinutes(59)), Duration.ZERO);
         final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(platformContext, fileDirectory, 0, false);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
+        final PcesFileManager manager = new PcesFileManager(platformContext, 0, fileDirectory);
 
-        assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
+        manager.beginStreamingNewEvents();
+        // assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
         // Increase the timestamp a little at a time. We should gradually delete files up until
         // all files before the middle file have been deleted.

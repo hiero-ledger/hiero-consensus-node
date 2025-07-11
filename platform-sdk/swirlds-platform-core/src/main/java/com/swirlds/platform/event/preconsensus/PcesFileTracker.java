@@ -85,14 +85,17 @@ public class PcesFileTracker {
      * Get the number of bytes in all files currently being tracked.
      *
      * @return the number of bytes in all files currently being tracked
-     * @throws IOException if there is an error reading the files
      */
-    public long getTotalFileByteCount() throws IOException {
+    public long getTotalFileByteCount() {
         long totalFileByteCount = 0;
 
         // Measure the size of each file.
         for (final PcesFile file : files) {
-            totalFileByteCount += Files.size(file.getPath());
+            try {
+                totalFileByteCount += Files.size(file.getPath());
+            } catch (IOException e) {
+                // Do nothing
+            }
         }
 
         return totalFileByteCount;

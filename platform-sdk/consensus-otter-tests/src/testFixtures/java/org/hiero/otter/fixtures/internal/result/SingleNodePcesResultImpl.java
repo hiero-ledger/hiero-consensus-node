@@ -40,11 +40,10 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
 
         final Configuration configuration = platformContext.getConfiguration();
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
+        final Path databaseDirectory =
+                getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
 
         try {
-
-            final Path databaseDirectory =
-                    getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
 
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
                     platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps());

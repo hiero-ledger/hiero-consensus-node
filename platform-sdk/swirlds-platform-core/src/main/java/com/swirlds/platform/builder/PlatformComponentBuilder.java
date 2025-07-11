@@ -28,8 +28,6 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.resubmitter.DefaultTransactionResubmitter;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
@@ -68,8 +66,6 @@ import com.swirlds.platform.system.status.StatusStateMachine;
 import com.swirlds.platform.util.MetricsDocUtils;
 import com.swirlds.platform.wiring.components.Gossip;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
@@ -700,18 +696,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public InlinePcesWriter buildInlinePcesWriter() {
         if (inlinePcesWriter == null) {
-            try {
-                final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        blocks.platformContext(),
-                        blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(blocks.platformContext(), blocks.selfId()),
-                        blocks.initialState().get().getRound());
-                inlinePcesWriter = new DefaultInlinePcesWriter(
-                        blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
-
-            } catch (final IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            inlinePcesWriter = new DefaultInlinePcesWriter(
+                    blocks.platformContext(), blocks.initialState().get().getRound(), blocks.selfId());
         }
         return inlinePcesWriter;
     }

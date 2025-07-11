@@ -18,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -42,12 +43,13 @@ public class PcesReplayer {
     private final Supplier<ReservedSignedState> latestImmutableState;
     private final Supplier<Boolean> isSystemHealthy;
 
-    private final PcesConfig config;
+    private final PlatformContext platformContext;
+    private final Path databaseDir;
 
     /**
      * Constructor
      *
-     * @param context                  the platform context
+     * @param platformContext                  the platform context
      * @param eventOutputWire          the wire to put events on, to be replayed
      * @param flushIntake              a runnable that flushes the intake pipeline
      * @param flushTransactionHandling a runnable that flushes the transaction handling pipeline
@@ -56,21 +58,22 @@ public class PcesReplayer {
      *                                 overwhelmed
      */
     public PcesReplayer(
-            final @NonNull PlatformContext context,
+            final @NonNull Path databaseDir,
+            final @NonNull PlatformContext platformContext,
             final @NonNull StandardOutputWire<PlatformEvent> eventOutputWire,
             final @NonNull Runnable flushIntake,
             final @NonNull Runnable flushTransactionHandling,
             final @NonNull Supplier<ReservedSignedState> latestImmutableState,
             final @NonNull Supplier<Boolean> isSystemHealthy) {
 
-        this.time = context.getTime();
+        this.platformContext = platformContext;
+        this.time = platformContext.getTime();
         this.eventOutputWire = Objects.requireNonNull(eventOutputWire);
         this.flushIntake = Objects.requireNonNull(flushIntake);
         this.flushTransactionHandling = Objects.requireNonNull(flushTransactionHandling);
         this.latestImmutableState = Objects.requireNonNull(latestImmutableState);
         this.isSystemHealthy = Objects.requireNonNull(isSystemHealthy);
-
-        this.config = context.getConfiguration().getConfigData(PcesConfig.class);
+        this.databaseDir = Objects.requireNonNull(databaseDir);
     }
 
     /**
@@ -133,14 +136,12 @@ public class PcesReplayer {
     /**
      * Replays preconsensus events from disk.
      *
-     * @param eventIterator an iterator over the events in the preconsensus stream
      * @return a trigger object indicating when the replay is complete
      */
     @NonNull
-    public NoInput replayPces(@NonNull final IOIterator<PlatformEvent> eventIterator) {
-        Objects.requireNonNull(eventIterator);
+    public NoInput replayPces(@NonNull final PcesReplayerInput input) {
 
-        final Instant start = time.now();
+        final Instant start = platformContext.getTime().now();
         final Instant timestampBeforeReplay;
         final long roundBeforeReplay;
         try (final ReservedSignedState startState = latestImmutableState.get()) {
@@ -153,17 +154,28 @@ public class PcesReplayer {
             }
         }
 
-        final RateLimiter rateLimiter = new RateLimiter(time, config.maxEventReplayFrequency());
+        final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final RateLimiter rateLimiter =
+                new RateLimiter(platformContext.getTime(), pcesConfig.maxEventReplayFrequency());
 
         int eventCount = 0;
         int transactionCount = 0;
+
         try {
+            // When we perform the migration to using birth round bounding, we will need to read
+            // the old type and start writing the new type.
+            var initialPcesFiles = PcesFileReader.readFilesFromDisk(
+                    platformContext, databaseDir, roundBeforeReplay, pcesConfig.permitGaps());
+
+            final IOIterator<PlatformEvent> eventIterator =
+                    initialPcesFiles.getEventIterator(input.pcesReplayLowerBound(), input.startingRound());
+
             while (eventIterator.hasNext()) {
                 // If the system is not keeping up with the rate at which we are replaying PCES, we need to wait
                 // until it catches up before we can continue.
                 waitUntilHealthy();
 
-                if (config.limitReplayFrequency() && !rateLimiter.requestAndTrigger()) {
+                if (pcesConfig.limitReplayFrequency() && !rateLimiter.requestAndTrigger()) {
                     continue;
                 }
 
@@ -202,4 +214,6 @@ public class PcesReplayer {
             }
         }
     }
+
+    public record PcesReplayerInput(long pcesReplayLowerBound, long startingRound) {}
 }

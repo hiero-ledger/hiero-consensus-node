@@ -8,7 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -23,9 +22,6 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -43,8 +39,6 @@ import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.util.RandomBuilder;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -408,24 +402,6 @@ public final class PlatformBuilder {
             intakeEventCounter = new NoOpIntakeEventCounter();
         }
 
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
-
-        final PcesFileTracker initialPcesFiles;
-        try {
-            final Path databaseDirectory = getDatabaseDirectory(platformContext, selfId);
-
-            // When we perform the migration to using birth round bounding, we will need to read
-            // the old type and start writing the new type.
-            initialPcesFiles = PcesFileReader.readFilesFromDisk(
-                    platformContext,
-                    databaseDirectory,
-                    initialState.get().getRound(),
-                    preconsensusEventStreamConfig.permitGaps());
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
         final Scratchpad<IssScratchpad> issScratchpad =
                 Scratchpad.create(platformContext, selfId, IssScratchpad.class, "platform.iss");
         issScratchpad.logContents();
@@ -495,7 +471,6 @@ public final class PlatformBuilder {
                 transactionPoolNexus,
                 new FreezeCheckHolder(),
                 new AtomicReference<>(),
-                initialPcesFiles,
                 consensusEventStreamName,
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),

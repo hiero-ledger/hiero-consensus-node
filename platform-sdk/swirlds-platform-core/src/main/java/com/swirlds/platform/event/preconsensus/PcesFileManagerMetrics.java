@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
+import static com.swirlds.common.metrics.IntegerPairAccumulator.AVERAGE;
+import static org.apache.logging.log4j.Level.CATEGORY;
+
+import com.swirlds.base.time.Time;
+import com.swirlds.base.units.UnitConstants;
+import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 
 /**
  * Metrics for preconsensus events.
  */
-public class PcesMetrics {
+public class PcesFileManagerMetrics {
 
     private static final String CATEGORY = "platform";
 
@@ -68,13 +75,25 @@ public class PcesMetrics {
             .withUnit("seconds")
             .withDescription("The age of the oldest preconsensus event file, in seconds.");
     private final LongGauge preconsensusEventFileOldestSeconds;
+    private static final IntegerPairAccumulator.Config<Double> PCES_AVG_EVENT_SIZE =
+            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgEventSize", Double.class, AVERAGE)
+                    .withDescription("The average length in bytes of an event written in a pces file");
+    private static final IntegerPairAccumulator.Config<Double> PCES_AVG_SYNC_DURATION =
+            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgSyncDuration", Double.class, AVERAGE)
+                    .withDescription("The amount of time it takes to complete a flush operation");
+    private static final IntegerPairAccumulator.Config<Double> PCES_AVG_WRITE_DURATION =
+            new IntegerPairAccumulator.Config<>(CATEGORY, "pcesAvgWriteDuration", Double.class, AVERAGE)
+                    .withDescription("The amount of time it takes to complete a single write operation");
+    private final IntegerPairAccumulator<Double> avgWriteMetric;
+    private final IntegerPairAccumulator<Double> avgSyncMetric;
+    private final IntegerPairAccumulator<Double> avgEventSizeMetric;
 
     /**
      * Construct preconsensus event metrics.
      *
      * @param metrics the metrics manager for the platform
      */
-    public PcesMetrics(final @NonNull Metrics metrics) {
+    public PcesFileManagerMetrics(final @NonNull Metrics metrics) {
         preconsensusEventFileCount = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_COUNT_CONFIG);
         preconsensusEventFileAverageSizeMB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_AVERAGE_SIZE_MB_CONFIG);
         preconsensusEventFileTotalSizeGB = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_TOTAL_SIZE_GB_CONFIG);
@@ -86,6 +105,9 @@ public class PcesMetrics {
         preconsensusEventFileYoungestIdentifier =
                 metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_YOUNGEST_IDENTIFIER_CONFIG);
         preconsensusEventFileOldestSeconds = metrics.getOrCreate(PRECONSENSUS_EVENT_FILE_OLDEST_SECONDS_CONFIG);
+        this.avgWriteMetric = metrics.getOrCreate(PCES_AVG_WRITE_DURATION);
+        this.avgSyncMetric = metrics.getOrCreate(PCES_AVG_SYNC_DURATION);
+        this.avgEventSizeMetric = metrics.getOrCreate(PCES_AVG_EVENT_SIZE);
     }
 
     /**
@@ -149,5 +171,62 @@ public class PcesMetrics {
      */
     public LongGauge getPreconsensusEventFileOldestSeconds() {
         return preconsensusEventFileOldestSeconds;
+    }
+
+    /**
+     * Initialize metrics given the files currently on disk.
+     *
+     * @param files
+     */
+    void initializeMetrics(PcesFileTracker files, Time time) {
+        if (files.getFileCount() > 0) {
+            getPreconsensusEventFileOldestIdentifier().set(files.getFirstFile().getLowerBound());
+            getPreconsensusEventFileYoungestIdentifier().set(files.getLastFile().getUpperBound());
+            final Duration age = Duration.between(files.getFirstFile().getTimestamp(), time.now());
+            getPreconsensusEventFileOldestSeconds().set(age.toSeconds());
+        } else {
+            getPreconsensusEventFileOldestIdentifier().set(PcesFileManager.NO_LOWER_BOUND);
+            getPreconsensusEventFileYoungestIdentifier().set(PcesFileManager.NO_LOWER_BOUND);
+            getPreconsensusEventFileOldestSeconds().set(0);
+        }
+    }
+
+    /**
+     * Update metrics with the latest data on file size.
+     *
+     * @param files
+     */
+    void updateFileSizeMetrics(long totalFileByteCount, final PcesFileTracker files) {
+        getPreconsensusEventFileCount().set(files.getFileCount());
+        getPreconsensusEventFileTotalSizeGB().set(totalFileByteCount * UnitConstants.BYTES_TO_GIBIBYTES);
+
+        if (files.getFileCount() > 0) {
+            getPreconsensusEventFileAverageSizeMB()
+                    .set(((double) totalFileByteCount) / files.getFileCount() * UnitConstants.BYTES_TO_MEBIBYTES);
+        }
+    }
+
+    /**
+     * reports the duration of the write operation
+     */
+    void endFileWrite(long size, long duration) {
+        avgWriteMetric.update(asInt(duration), 1);
+        this.avgEventSizeMetric.update(asInt(size), 1);
+    }
+
+    /**
+     * reports the duration of the sync operation
+     */
+    void endFileSync(long duration) {
+        avgSyncMetric.update(asInt(duration), 1);
+    }
+
+    /**
+     * Returns the value of a long if is lower than Integer.MAX_VALUE or Integer.MAX_VALUE otherwise
+     * @param val the value to check
+     * @return the value of a long if is lower than Integer.MAX_VALUE or Integer.MAX_VALUE otherwise
+     */
+    private static int asInt(final long val) {
+        return val > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) val;
     }
 }

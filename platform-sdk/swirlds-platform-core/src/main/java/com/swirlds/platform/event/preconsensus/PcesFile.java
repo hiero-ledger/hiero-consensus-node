@@ -24,22 +24,19 @@ import org.hiero.base.utility.NonCryptographicHashing;
  * </p>
  *
  * <p>
- * Prior to the birth round migration, files have the following format. Deviation from this format is not allowed. A
- * {@link PcesFileManager} will be unable to correctly read files with a different format.
+ * Prior to the birth round migration, files have the following format. Deviation from this format is not allowed.
  * </p>
  * <pre>
  * [Instant.toString().replace(":", "+")]-seq[sequence number]-ming[minimum legal generation]-maxg[maximum legal generation]-orgn[origin round].pces
  * </pre>
  * <p>
- * After the birth round migration, files have the following format. Deviation from this format is not allowed. A
- * {@link PcesFileManager} will be unable to correctly read files with a different format.
+ * After the birth round migration, files have the following format. Deviation from this format is not allowed.
  * </p>
  * <pre>
  * [Instant.toString().replace(":", "+")]-seq[sequence number]-minr[minimum legal birth round]-maxr[maximum legal birth round]-orgn[origin round].pces
  * </pre>
  * <p>
- * By default, files are stored with the following directory structure. Note that files are not required to be stored
- * with this directory structure in order to be read by a {@link PcesFileManager}.
+ * By default, files are stored with the following directory structure.
  * </p>
  * <pre>
  * [root directory]/[4 digit year][2 digit month][2 digit day]/[file name]

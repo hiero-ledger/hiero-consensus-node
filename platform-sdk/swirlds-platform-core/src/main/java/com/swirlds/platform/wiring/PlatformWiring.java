@@ -12,7 +12,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
@@ -36,6 +35,7 @@ import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
+import com.swirlds.platform.event.preconsensus.PcesReplayer.PcesReplayerInput;
 import com.swirlds.platform.event.resubmitter.TransactionResubmitter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
@@ -731,12 +731,12 @@ public class PlatformWiring {
     }
 
     /**
-     * Get the input wire for passing a PCES iterator to the replayer.
+     * Get the input wire for passing a {@link PcesReplayerInput} to the replayer.
      *
-     * @return the input wire for passing a PCES iterator to the replayer
+     * @return the input wire for passing a {@link PcesReplayerInput} to the replayer
      */
     @NonNull
-    public InputWire<IOIterator<PlatformEvent>> getPcesReplayerIteratorInput() {
+    public InputWire<PcesReplayerInput> getPcesReplayerInput() {
         return pcesReplayerWiring.pcesIteratorInputWire();
     }
 
