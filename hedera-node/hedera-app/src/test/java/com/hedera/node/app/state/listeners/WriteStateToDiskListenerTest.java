@@ -5,7 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
@@ -40,21 +40,26 @@ class WriteStateToDiskListenerTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    @Mock
+    private BlockBufferService blockBufferService;
+
     private WriteStateToDiskListener subject;
 
     @BeforeEach
     void setUp() {
         subject = new WriteStateToDiskListener(
-                stateAccessor, executor, configProvider, startupNetworks, SemanticVersion.DEFAULT, entityIdFactory);
+                stateAccessor, executor, configProvider, startupNetworks, entityIdFactory, blockBufferService);
     }
 
     @Test
     void archivesStartupNetworkFilesOnceFileWrittenIfRoundNotZero() {
-        given(notification.getRoundNumber()).willReturn(0L, 1L);
+        given(notification.getRoundNumber()).willReturn(0L, 0L, 1L, 1L);
 
         subject.notify(notification);
         subject.notify(notification);
 
         verify(startupNetworks, times(1)).archiveStartupNetworks();
+        verify(blockBufferService).requestBufferPersist(0L);
+        verify(blockBufferService).requestBufferPersist(1L);
     }
 }
