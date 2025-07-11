@@ -1802,11 +1802,11 @@ class ModelTests implements SequentialTaskSchedulerAliveThreadCleanup {
     }
 
     @AfterEach
-    void tierDown() {
+    void tearDown() {
         if (model != null) {
             try {
                 model.stop();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Do nothing
             }
         }

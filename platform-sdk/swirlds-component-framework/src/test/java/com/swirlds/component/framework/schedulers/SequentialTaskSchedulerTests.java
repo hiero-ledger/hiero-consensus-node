@@ -2219,10 +2219,10 @@ class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThread
     }
 
     @AfterEach
-    void tierDown() {
+    void tearDown() {
         try {
             model.stop();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             // DO NOTHING
         }
     }

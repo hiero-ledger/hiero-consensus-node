@@ -17,7 +17,7 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 /**
  * {@link com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler}
  *  has the potential issue that if the {@link com.swirlds.component.framework.model.WiringModel} is not closed after the test finishes, it can leak the blocked thread up to when the JVM is shutdown.
- * To prevent this f this cleanup mechanism searches for blocked threads, attempts to finish them gracefully, and reports back if it fails, also failing the test.
+ * To prevent this situation, this cleanup mechanism searches for blocked threads, attempts to finish them gracefully, and reports back if it fails, also failing the test.
  *
  * NOTE: It also detects problems outside the threads created in the test (if any other test had the issue, and the sequentialTaskSchedulerTest executed after it).
  *  That's why all threads are printed with the stacktrace.
