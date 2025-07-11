@@ -76,10 +76,10 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 amount,
                 TokenType.FUNGIBLE_COMMON);
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(OWNER_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(OWNER_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(status);
         if (status == ResponseCodeEnum.SUCCESS) {
@@ -87,7 +87,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
             given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
             given(account.accountIdOrThrow())
                     .willReturn(AccountID.newBuilder().accountNum(1).build());
-            given(account.alias()).willReturn(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[]{1, 2, 3}));
+            given(account.alias()).willReturn(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {1, 2, 3}));
         }
     }
 
@@ -113,9 +113,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(
-                ordinalRevertOutputFor(ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT),
-                result.getOutput());
+        assertEquals(ordinalRevertOutputFor(ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT), result.getOutput());
     }
 
     void prepareErc721approve(final AccountID spenderId, final long serial, final ResponseCodeEnum... statuses) {
@@ -129,10 +127,10 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 serial,
                 TokenType.NON_FUNGIBLE_UNIQUE);
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(OWNER_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(OWNER_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         BDDMyOngoingStubbing<ResponseCodeEnum> given = given(recordBuilder.status());
         for (ResponseCodeEnum status : statuses) {
@@ -144,7 +142,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
             given(accountStore.getAccountById(any(AccountID.class))).willReturn(account);
             given(account.accountIdOrThrow())
                     .willReturn(AccountID.newBuilder().accountNum(1).build());
-            given(account.alias()).willReturn(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[]{1, 2, 3}));
+            given(account.alias()).willReturn(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[] {1, 2, 3}));
         }
     }
 
@@ -166,20 +164,18 @@ class ERCGrantApprovalCallTest extends CallTestBase {
     @Test
     void prepareErc721approveNegativeSerial() {
         // given
-        prepareErc721approve(UNAUTHORIZED_SPENDER_ID,-1, INVALID_TOKEN_NFT_SERIAL_NUMBER);
+        prepareErc721approve(UNAUTHORIZED_SPENDER_ID, -1, INVALID_TOKEN_NFT_SERIAL_NUMBER);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState());
-        assertEquals(
-                ordinalRevertOutputFor(ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER),
-                result.getOutput());
+        assertEquals(ordinalRevertOutputFor(ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 
     @Test
     void erc721approveFailsWithInvalidSpenderAllowance() {
         // given
-        prepareErc721approve(UNAUTHORIZED_SPENDER_ID,100L, INVALID_ALLOWANCE_SPENDER_ID);
+        prepareErc721approve(UNAUTHORIZED_SPENDER_ID, 100L, INVALID_ALLOWANCE_SPENDER_ID);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
@@ -190,7 +186,11 @@ class ERCGrantApprovalCallTest extends CallTestBase {
     @Test
     void erc721approveFailsWithSenderDoesNotOwnNFTSerialNumber() {
         // given
-        prepareErc721approve(UNAUTHORIZED_SPENDER_ID,100L, DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL, SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
+        prepareErc721approve(
+                UNAUTHORIZED_SPENDER_ID,
+                100L,
+                DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL,
+                SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
@@ -202,7 +202,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
     @Test
     void erc721approveFailsWithInvalidTokenNFTSerialNumber() {
         // given
-        prepareErc721approve(UNAUTHORIZED_SPENDER_ID,100L, INVALID_TOKEN_NFT_SERIAL_NUMBER);
+        prepareErc721approve(UNAUTHORIZED_SPENDER_ID, 100L, INVALID_TOKEN_NFT_SERIAL_NUMBER);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then

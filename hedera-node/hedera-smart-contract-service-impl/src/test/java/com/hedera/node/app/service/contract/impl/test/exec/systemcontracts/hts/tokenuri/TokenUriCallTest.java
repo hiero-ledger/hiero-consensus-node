@@ -40,8 +40,7 @@ class TokenUriCallTest extends CallTestBase {
     void returnErrorMetadata(final long serialNo) {
         // given
         subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, serialNo);
-        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serialNo))
-                .willReturn(null);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serialNo)).willReturn(null);
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then

@@ -27,7 +27,8 @@ public interface CallTranslator<T> {
      * @param attempt the selector to match (in the Attempt)
      * @return the SystemContractMethod for the attempt (or it can be empty if unknown)
      */
-    @NonNull Optional<SystemContractMethod> identifyMethod(@NonNull final T attempt);
+    @NonNull
+    Optional<SystemContractMethod> identifyMethod(@NonNull final T attempt);
 
     /**
      * Returns a call from the given attempt.

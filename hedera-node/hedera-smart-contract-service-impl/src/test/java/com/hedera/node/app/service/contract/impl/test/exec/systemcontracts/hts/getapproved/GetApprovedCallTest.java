@@ -75,8 +75,7 @@ public class GetApprovedCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
         assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER),
-                result.getOutput());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 
     @Test
@@ -103,7 +102,6 @@ public class GetApprovedCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
         assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER),
-                result.getOutput());
+        assertEquals(revertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 }
