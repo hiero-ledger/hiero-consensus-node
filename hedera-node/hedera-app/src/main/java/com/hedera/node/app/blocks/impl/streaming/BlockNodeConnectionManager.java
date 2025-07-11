@@ -181,7 +181,6 @@ public class BlockNodeConnectionManager {
             availableBlockNodes = new ArrayList<>(extractBlockNodesConfigurations(blockNodeConnectionConfigPath));
             logger.info("Loaded block node configuration from {}", blockNodeConnectionConfigPath);
             logger.info("Block node configuration: {}", availableBlockNodes);
-            blockStreamMetrics.registerMetrics();
         } else {
             logger.info("Block node streaming is disabled; will not setup connections to block nodes");
             availableBlockNodes = new ArrayList<>();
@@ -306,6 +305,17 @@ public class BlockNodeConnectionManager {
         scheduleConnectionAttempt(connection, initialDelay, null);
         // Immediately try to find and connect to the next available node
         selectNewBlockNodeForStreaming();
+    }
+
+    /**
+     * Checks if the given connection is the only known block node connection.
+     *
+     * @param connection the connection to check
+     * @return true if the connection is the only known block node connection, else false
+     */
+    public boolean isOnlyKnownConnection(@NonNull final BlockNodeConnection connection) {
+        requireNonNull(connection);
+        return connections.size() == 1 && connections.containsKey(connection.getNodeConfig());
     }
 
     /**
