@@ -24,7 +24,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -46,8 +45,9 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.turtle.TransactionFactory;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network.
@@ -106,15 +106,13 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
-        final ConsensusStateEventHandler<TurtleAppState> consensusStateEventHandler = new DockerStateEventHandler();
-
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
+                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacySelfId,
@@ -130,7 +128,7 @@ public class ConsensusNodeManager {
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        consensusStateEventHandler,
+                        OtterApp.INSTANCE,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
