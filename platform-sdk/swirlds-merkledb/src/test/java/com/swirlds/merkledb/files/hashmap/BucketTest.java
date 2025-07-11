@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKeyFixedSize;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKeyVariableSize;
 import com.swirlds.virtualmap.VirtualKey;
@@ -283,6 +284,48 @@ class BucketTest {
         final Bucket bucket = new ParsedBucket();
         assertDoesNotThrow(
                 () -> bucket.putValue(keyType.keySerializer.toBytes(key1), key1.hashCode(), INVALID_VALUE, 1));
+    }
+
+    @Test
+    void keyEqualsKeyTooShortTest() throws IOException {
+        final Bytes keyInBucket = Bytes.wrap(new byte[] {1, 2, 3, 4});
+        final Bytes keyToSearch = Bytes.wrap(new byte[] {1, 2});
+        // Let's pretend both keys have the same hash code
+        final int hashCode = 111;
+        final int value = 1;
+        try (final Bucket bucket = new Bucket()) {
+            bucket.putValue(keyInBucket, hashCode, value);
+            assertEquals(value, bucket.findValue(hashCode, keyInBucket, -1));
+            assertEquals(-1, bucket.findValue(hashCode, keyToSearch, -1));
+        }
+    }
+
+    @Test
+    void keyEqualsKeyTooLongTest() throws IOException {
+        final Bytes keyInBucket = Bytes.wrap(new byte[] {1, 2, 3, 4});
+        final Bytes keyToSearch = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6});
+        // Let's pretend both keys have the same hash code
+        final int hashCode = 111;
+        final int value = 1;
+        try (final Bucket bucket = new Bucket()) {
+            bucket.putValue(keyInBucket, hashCode, value);
+            assertEquals(value, bucket.findValue(hashCode, keyInBucket, -1));
+            assertEquals(-1, bucket.findValue(hashCode, keyToSearch, -1));
+        }
+    }
+
+    @Test
+    void keyEqualsKeyEmptyTest() throws IOException {
+        final Bytes keyInBucket = Bytes.wrap(new byte[] {1, 2, 3, 4});
+        final Bytes keyToSearch = Bytes.wrap(new byte[0]);
+        // Let's pretend both keys have the same hash code
+        final int hashCode = 111;
+        final int value = 1;
+        try (final Bucket bucket = new Bucket()) {
+            bucket.putValue(keyInBucket, hashCode, value);
+            assertEquals(value, bucket.findValue(hashCode, keyInBucket, -1));
+            assertEquals(-1, bucket.findValue(hashCode, keyToSearch, -1));
+        }
     }
 
     private void checkKey(KeyType keyType, Bucket bucket, VirtualKey key) {
