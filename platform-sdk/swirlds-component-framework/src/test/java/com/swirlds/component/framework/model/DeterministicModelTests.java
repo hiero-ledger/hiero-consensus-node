@@ -485,8 +485,12 @@ class DeterministicModelTests implements SequentialTaskSchedulerAliveThreadClean
                     break;
                 }
             }
-        } catch (Exception e) {
-            model.stop();
+        } finally {
+            try {
+                model.stop();
+            } catch (final Exception e) {
+                // do nothing
+            }
         }
     }
 }
