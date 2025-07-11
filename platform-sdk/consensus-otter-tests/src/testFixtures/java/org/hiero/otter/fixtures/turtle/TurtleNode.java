@@ -52,6 +52,9 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
@@ -60,8 +63,6 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
-import org.hiero.otter.fixtures.turtle.app.TurtleApp;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.jetbrains.annotations.NotNull;
@@ -343,7 +344,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version),
+                () -> OtterAppState.createGenesisState(currentConfiguration, roster, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacyNodeId,
@@ -360,7 +361,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        TurtleApp.INSTANCE,
+                        OtterApp.INSTANCE,
                         legacyNodeId,
                         eventStreamLoc,
                         rosterHistory,

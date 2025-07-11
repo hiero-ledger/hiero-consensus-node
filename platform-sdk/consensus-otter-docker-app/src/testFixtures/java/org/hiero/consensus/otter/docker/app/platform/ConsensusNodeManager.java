@@ -45,8 +45,9 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.turtle.TransactionFactory;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -59,7 +60,6 @@ public class ConsensusNodeManager {
     private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
     private static final String SWIRLD_NAME = "123";
 
-    private DockerStateEventHandler dockerStateEventHandler;
     private final Platform platform;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
@@ -106,15 +106,13 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
-        dockerStateEventHandler = new DockerStateEventHandler();
-
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
+                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacySelfId,
@@ -130,7 +128,7 @@ public class ConsensusNodeManager {
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        dockerStateEventHandler,
+                        OtterApp.INSTANCE,
                         legacySelfId,
                         selfId.toString(),
                         rosterHistory,
@@ -165,7 +163,7 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Shuts down the consensus node. Once destroyed, it cannot be restarted.
+     * Shuts down the consensus node.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
@@ -220,6 +218,6 @@ public class ConsensusNodeManager {
         if (millisToSleepPerRound < 0) {
             throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
         }
-        dockerStateEventHandler.updateSyntheticBottleneck(millisToSleepPerRound);
+        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

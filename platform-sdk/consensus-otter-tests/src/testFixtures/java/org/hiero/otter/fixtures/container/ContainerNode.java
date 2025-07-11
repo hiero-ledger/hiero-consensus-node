@@ -87,7 +87,7 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) {
-        super(selfId, roster);
+        super(selfId, getWeight(roster, selfId));
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
@@ -102,6 +102,14 @@ public class ContainerNode extends AbstractNode implements Node {
                 .build();
 
         blockingStub = TestControlGrpc.newBlockingStub(channel);
+    }
+
+    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
+        return roster.rosterEntries().stream()
+                .filter(entry -> entry.nodeId() == selfId.id())
+                .findFirst()
+                .map(RosterEntry::weight)
+                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
     }
 
     /**
@@ -207,11 +215,15 @@ public class ContainerNode extends AbstractNode implements Node {
     }
 
     /**
-     * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
-     * method is idempotent and can be called multiple times without any side effects.
+     * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
+     * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
+     * effects.
      */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    // ignoring the Empty answer from destroyContainer
     void destroy() {
         if (lifeCycle == RUNNING) {
+            log.info("Destroying container of node {}...", selfId);
             channel.shutdownNow();
             container.stop();
         }

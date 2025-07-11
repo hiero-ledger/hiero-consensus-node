@@ -24,8 +24,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -243,7 +243,7 @@ public class SteadyStateThrottlingTest {
 
     final Stream<DynamicTest> checkBalanceQps(int burstSize, double expectedQps) {
         return defaultHapiSpec("CheckBalanceQps")
-                .given(cryptoCreate("curious").payingWith(GENESIS))
+                .given(cryptoCreate(CIVILIAN), cryptoCreate("curious").payingWith(GENESIS), sleepForSeconds(1))
                 .when()
                 .then(withOpContext((spec, opLog) -> {
                     int numBusy = 0;
@@ -253,7 +253,7 @@ public class SteadyStateThrottlingTest {
                     int logScreen = 0;
                     while (watch.elapsed(SECONDS) < secsToRun) {
                         var subOps = IntStream.range(0, burstSize)
-                                .mapToObj(ignore -> getAccountBalance(DEFAULT_PAYER)
+                                .mapToObj(ignore -> getAccountBalance(CIVILIAN)
                                         .noLogging()
                                         .payingWith("curious")
                                         .hasAnswerOnlyPrecheckFrom(BUSY, OK))

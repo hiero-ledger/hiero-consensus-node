@@ -212,7 +212,7 @@ service TestControl {
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
   rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
 
-  // RPC to signal a kill of the app
+  // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
   rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
 
   // RPC to change the synthetic bottleneck of the handle thread.

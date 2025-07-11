@@ -13,8 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.turtle.TransactionFactory;
 
 /**
  * A {@link TransactionGenerator} for the container environment.

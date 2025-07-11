@@ -193,9 +193,8 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     }
 
     /**
-     * Immediately terminates the platform and cleans up resources.
-     * <p>
-     * This method stops the {@link ConsensusNodeManager} and shuts down the dispatcher.
+     * Immediately terminates the platform. The container and dispatcher are left intact to allow data to be gathered
+     * for verification.
      *
      * @param request The request to terminate the platform.
      * @param responseObserver The observer used to confirm termination.
@@ -207,11 +206,6 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();
-                nodeManager = null;
-            }
-
-            if (dispatcher != null) {
-                dispatcher.shutdown();
             }
 
             responseObserver.onNext(Empty.getDefaultInstance());
