@@ -27,11 +27,15 @@ public abstract class AbstractNode implements Node {
 
     protected final NodeId selfId;
 
-    protected LifeCycle lifeCycle = LifeCycle.INIT;
+    /** The current state of the node's life cycle. Volatile because it is set by the test thread and read by the container callback thread.  */
+    protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
+
+    /** Current software version of the platform  */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
 
+    /** The current state of the platform. Volatile because it is set by the container callback thread and read by the test thread.  */
     @Nullable
-    protected PlatformStatus platformStatus = null;
+    protected volatile PlatformStatus platformStatus = null;
 
     /**
      * Constructor for the AbstractNode class.

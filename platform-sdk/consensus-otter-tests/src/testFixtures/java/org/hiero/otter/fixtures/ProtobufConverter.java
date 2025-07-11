@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import static java.util.Comparator.comparingLong;
+
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -89,6 +91,7 @@ public class ProtobufConverter {
         return com.hedera.hapi.node.state.roster.Roster.newBuilder()
                 .rosterEntries(sourceRoster.getRosterEntriesList().stream()
                         .map(ProtobufConverter::toPbj)
+                        .sorted(comparingLong(com.hedera.hapi.node.state.roster.RosterEntry::nodeId))
                         .toList())
                 .build();
     }
@@ -104,6 +107,7 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.node.state.roster.Roster sourceRoster) {
         return com.hederahashgraph.api.proto.java.Roster.newBuilder()
                 .addAllRosterEntries(sourceRoster.rosterEntries().stream()
+                        .sorted(comparingLong(com.hedera.hapi.node.state.roster.RosterEntry::nodeId))
                         .map(ProtobufConverter::fromPbj)
                         .toList())
                 .build();
@@ -564,6 +568,12 @@ public class ProtobufConverter {
         return org.hiero.otter.fixtures.container.proto.ProtoConsensusRound.newBuilder()
                 .addAllConsensusEvents(gossipEvents)
                 .addAllStreamedEvents(streamedEvents)
+                .setEventWindow(fromPlatform(sourceRound.getEventWindow()))
+                .setNumAppTransactions(sourceRound.getNumAppTransactions())
+                .setSnapshot(fromPbj(sourceRound.getSnapshot()))
+                .setConsensusRoster(fromPbj(sourceRound.getConsensusRoster()))
+                .setPcesRound(sourceRound.isPcesRound())
+                .setReachedConsTimestamp(sourceRound.getReachedConsTimestamp().getEpochSecond())
                 .build();
     }
 
@@ -580,7 +590,7 @@ public class ProtobufConverter {
                         && sourceEvent.getRunningHash().getHash() != null
                 ? com.google.protobuf.ByteString.copyFrom(
                         sourceEvent.getRunningHash().getHash().copyToByteArray())
-                : null;
+                : com.google.protobuf.ByteString.EMPTY;
         return org.hiero.otter.fixtures.container.proto.CesEvent.newBuilder()
                 .setPlatformEvent(fromPbj(sourceEvent.getPlatformEvent().getGossipEvent()))
                 .setRunningHash(runningHash)
@@ -668,8 +678,8 @@ public class ProtobufConverter {
                 .setLoggerName(sourceLog.loggerName())
                 .setThread(sourceLog.threadName())
                 .setMessage(sourceLog.message())
-                .setMarker((sourceLog.marker() != null ? sourceLog.marker().toString() : null))
-                .setNodeId(sourceLog.nodeId().id())
+                .setMarker(sourceLog.marker() != null ? sourceLog.marker().toString() : "")
+                .setNodeId(sourceLog.nodeId() != null ? sourceLog.nodeId().id() : -1L)
                 .build();
     }
 }
