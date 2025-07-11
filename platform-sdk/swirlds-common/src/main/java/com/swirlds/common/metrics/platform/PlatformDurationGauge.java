@@ -4,7 +4,7 @@ package com.swirlds.common.metrics.platform;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.metrics.api.snapshot.Snapshot;
+import com.swirlds.metrics.api.Snapshot;
 import com.swirlds.metrics.impl.AbstractMetric;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
