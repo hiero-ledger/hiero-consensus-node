@@ -12,7 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -305,7 +305,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // when and then
         assertThatThrownBy(() -> blockBufferService.addItem(
-                        TEST_BLOCK_NUMBER, BlockItem.newBuilder().build()))
+                        TEST_BLOCK_NUMBER, PassThroughBlockItem.newBuilder().build()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Block state not found for block " + TEST_BLOCK_NUMBER);
     }
@@ -705,7 +705,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         isStreamingEnabled.set(false);
 
-        final BlockItem item = BlockItem.newBuilder()
+        final PassThroughBlockItem item = PassThroughBlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(10L).build())
                 .build();
 

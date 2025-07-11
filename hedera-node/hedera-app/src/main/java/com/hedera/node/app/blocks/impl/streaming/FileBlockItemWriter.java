@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
@@ -335,7 +336,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull BlockItem item) {
+    public void writePbjItem(@NonNull PassThroughBlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
 

@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
+import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.Optional;
@@ -31,9 +32,11 @@ public class HapiStateSignature extends HapiTxnOp<HapiStateSignature> {
                 .hash(Bytes.wrap("hash_123"))
                 .build();
         final var bytes = spec.embeddedHederaOrThrow().hedera().encodeSystemTransaction(stateSignatureTransaction);
-        final var transaction = Transaction.parseFrom(bytes.toByteArray());
+        final var signedTx = SignedTransaction.parseFrom(bytes.toByteArray());
 
-        fiddler = Optional.of(it -> transaction);
+        fiddler = Optional.of(ignore -> Transaction.newBuilder()
+                .setSignedTransactionBytes(signedTx.toByteString())
+                .build());
         return b -> {};
     }
 

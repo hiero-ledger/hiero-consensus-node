@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
@@ -61,7 +62,7 @@ public class BlockRecordSource implements RecordSource {
      *
      * @param action the action to apply
      */
-    public void forEachItem(@NonNull final Consumer<BlockItem> action) {
+    public void forEachItem(@NonNull final Consumer<PassThroughBlockItem> action) {
         requireNonNull(action);
         outputs.forEach(output -> output.forEachItem(action));
     }

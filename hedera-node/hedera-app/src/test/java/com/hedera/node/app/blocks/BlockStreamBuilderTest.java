@@ -7,11 +7,13 @@ import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.schema.BlockItemSchema;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -22,18 +24,22 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenTransferList;
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -50,13 +56,14 @@ public class BlockStreamBuilderTest {
     public static final long TRANSACTION_FEE = 6846513L;
     public static final int ENTROPY_NUMBER = 87372879;
     public static final String MEMO = "Yo Memo";
-    private Transaction transaction = Transaction.newBuilder()
-            .body(TransactionBody.newBuilder()
+    private final SignedTransaction signedTx = SignedTransaction.newBuilder()
+            .bodyBytes(TransactionBody.PROTOBUF.toBytes(TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().build())
-                    .build())
+                    .memo("ABCDEFG")
+                    .transactionFee(123)
+                    .build()))
             .build();
     private @Mock TransactionID transactionID;
-    private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock TransferList transferList;
     private @Mock TokenTransferList tokenTransfer;
     private @Mock ScheduleID scheduleRef;
@@ -66,8 +73,21 @@ public class BlockStreamBuilderTest {
     private @Mock AccountAmount accountAmount;
     private @Mock ResponseCodeEnum status;
     private @Mock ExchangeRateSet exchangeRate;
-    private @Mock ContractStateChanges contractStateChanges;
     private @Mock AccountID accountID;
+
+    @Test
+    void canManuallySerializeBytesByField() throws ParseException {
+        final var automatic = BlockItem.newBuilder().signedTransaction(signedTx).build();
+        final var serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+        final int serializedSignedTxLen = (int) serializedSignedTx.length();
+        final var raw = new byte[serializedSignedTxLen + 2];
+        final var buffer = BufferedData.wrap(raw);
+        ProtoWriterTools.writeTag(buffer, BlockItemSchema.SIGNED_TRANSACTION, ProtoConstants.WIRE_TYPE_DELIMITED);
+        buffer.writeVarInt(serializedSignedTxLen, false);
+        buffer.writeBytes(serializedSignedTx);
+        final var manual = BlockItem.PROTOBUF.parse(new ReadableStreamingData(raw));
+        assertEquals(automatic, manual);
+    }
 
     @Test
     void testBlockItemsWithCryptoTransferOutput() {
@@ -75,7 +95,7 @@ public class BlockStreamBuilderTest {
                 .assessedCustomFees(List.of(assessedCustomFee))
                 .functionality(HederaFunctionality.CRYPTO_TRANSFER);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -92,7 +112,7 @@ public class BlockStreamBuilderTest {
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyBytes(prngBytes);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -104,7 +124,7 @@ public class BlockStreamBuilderTest {
         } else {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyNumber(ENTROPY_NUMBER);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -126,7 +146,7 @@ public class BlockStreamBuilderTest {
                 .evmCallTransactionResult(evmTxResult)
                 .addContractSlotUsages(usages);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -148,7 +168,7 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder =
                 createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<PassThroughBlockItem> blockItems = itemsBuilder.build(false).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -158,7 +178,7 @@ public class BlockStreamBuilderTest {
         assertTrue(output.hasAccountCreate());
     }
 
-    private void validateTransactionResult(final List<BlockItem> blockItems) {
+    private void validateTransactionResult(final List<PassThroughBlockItem> blockItems) {
         final var resultBlockItem = blockItems.get(1);
         assertTrue(resultBlockItem.hasTransactionResult());
         final var result = resultBlockItem.transactionResult();
@@ -175,26 +195,23 @@ public class BlockStreamBuilderTest {
         assertEquals(10L, result.congestionPricingMultiplier());
     }
 
-    private void validateTransactionBlockItems(final List<BlockItem> blockItems) {
-        final var txnBlockItem = blockItems.get(0);
-        assertTrue(txnBlockItem.hasEventTransaction());
-        assertEquals(
-                Transaction.PROTOBUF.toBytes(transaction),
-                txnBlockItem.eventTransaction().applicationTransactionOrThrow());
+    private void validateTransactionBlockItems(final List<PassThroughBlockItem> blockItems) {
+        final var txnBlockItem = blockItems.getFirst();
+        assertTrue(txnBlockItem.hasSignedTransaction());
+        assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
     }
 
     private BlockStreamBuilder createBaseBuilder() {
         final List<TokenTransferList> tokenTransferLists = List.of(tokenTransfer);
         final List<AccountAmount> paidStakingRewards = List.of(accountAmount);
-        return new BlockStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER)
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
                 .status(status)
                 .consensusTimestamp(CONSENSUS_TIME)
                 .parentConsensus(PARENT_CONSENSUS_TIME)
                 .exchangeRate(exchangeRate)
                 .scheduleRef(scheduleRef)
                 .transactionFee(TRANSACTION_FEE)
-                .transaction(transaction)
-                .transactionBytes(transactionBytes)
+                .signedTx(signedTx)
                 .transactionID(transactionID)
                 .memo(MEMO)
                 .transactionFee(TRANSACTION_FEE)

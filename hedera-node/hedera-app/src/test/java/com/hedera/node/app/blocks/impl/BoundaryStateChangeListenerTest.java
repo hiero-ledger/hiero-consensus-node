@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -85,7 +84,7 @@ class BoundaryStateChangeListenerTest {
     void testFlushChanges() {
         listener.setBoundaryTimestamp(Instant.now());
         listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
-        BlockItem blockItem = listener.flushChanges();
+        final var blockItem = listener.flushChanges();
 
         assertNotNull(blockItem);
         assertTrue(listener.allStateChanges().isEmpty());

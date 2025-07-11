@@ -499,7 +499,7 @@ public class BaseTranslator {
             rebuiltSidecars = emptyList();
         }
         return new SingleTransactionRecord(
-                parts.transactionParts().wrapper(),
+                requireNonNull(parts.transactionParts()).wrapper(),
                 recordBuilder.receipt(receiptBuilder.build()).build(),
                 rebuiltSidecars,
                 new SingleTransactionRecord.TransactionOutputs(null));

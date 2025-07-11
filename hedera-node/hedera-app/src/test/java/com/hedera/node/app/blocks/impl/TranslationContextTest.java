@@ -16,19 +16,19 @@ import org.junit.jupiter.api.Test;
 class TranslationContextTest {
     @Test
     void hashIsOfSignedTransactionBytesIfSet() {
-        final var signedTransactionBytes = SignedTransaction.PROTOBUF.toBytes(
-                SignedTransaction.newBuilder().bodyBytes(Bytes.fromHex("0123")).build());
+        final var signedTx =
+                SignedTransaction.newBuilder().bodyBytes(Bytes.fromHex("0123")).build();
+        final var serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
 
         final var subject = new BaseOpContext(
                 "",
                 ExchangeRateSet.DEFAULT,
                 TransactionID.DEFAULT,
-                Transaction.newBuilder()
-                        .signedTransactionBytes(signedTransactionBytes)
-                        .build(),
-                HederaFunctionality.NONE);
+                signedTx,
+                HederaFunctionality.NONE,
+                serializedSignedTx);
 
-        assertEquals(Bytes.wrap(noThrowSha384HashOf(signedTransactionBytes.toByteArray())), subject.transactionHash());
+        assertEquals(Bytes.wrap(noThrowSha384HashOf(serializedSignedTx.toByteArray())), subject.transactionHash());
     }
 
     @Test
@@ -36,7 +36,12 @@ class TranslationContextTest {
         final var transactionBytes = Transaction.PROTOBUF.toBytes(Transaction.DEFAULT);
 
         final var subject = new BaseOpContext(
-                "", ExchangeRateSet.DEFAULT, TransactionID.DEFAULT, Transaction.DEFAULT, HederaFunctionality.NONE);
+                "",
+                ExchangeRateSet.DEFAULT,
+                TransactionID.DEFAULT,
+                SignedTransaction.DEFAULT,
+                HederaFunctionality.NONE,
+                null);
 
         assertEquals(Bytes.wrap(noThrowSha384HashOf(transactionBytes.toByteArray())), subject.transactionHash());
     }

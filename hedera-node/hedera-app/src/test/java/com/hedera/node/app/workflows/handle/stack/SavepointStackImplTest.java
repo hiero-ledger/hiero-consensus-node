@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_A
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -118,7 +118,7 @@ class SavepointStackImplTest extends StateTestBase {
                 baseState, 3, 50, roundStateChangeListener, kvStateChangeListener, StreamMode.BOTH);
         parent.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
         final var subject = SavepointStackImpl.newChildStack(
-                parent, REVERSIBLE, SCHEDULED, NOOP_TRANSACTION_CUSTOMIZER, StreamMode.BOTH);
+                parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
 
         final var presetId = subject.nextPresetTxnId(false);
         assertThat(presetId).isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
@@ -155,7 +155,7 @@ class SavepointStackImplTest extends StateTestBase {
                 parent,
                 REVERSIBLE,
                 HandleContext.TransactionCategory.CHILD,
-                NOOP_TRANSACTION_CUSTOMIZER,
+                NOOP_SIGNED_TX_CUSTOMIZER,
                 StreamMode.BOTH);
         assertThat(subject.permitsStakingRewards()).isFalse();
     }
@@ -166,7 +166,7 @@ class SavepointStackImplTest extends StateTestBase {
         given(savepoint.followingCapacity()).willReturn(123);
         given(parent.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
         final var subject = SavepointStackImpl.newChildStack(
-                parent, REVERSIBLE, SCHEDULED, NOOP_TRANSACTION_CUSTOMIZER, StreamMode.BOTH);
+                parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
         assertThat(subject.permitsStakingRewards()).isFalse();
     }
 
@@ -176,7 +176,7 @@ class SavepointStackImplTest extends StateTestBase {
         given(savepoint.followingCapacity()).willReturn(123);
         given(parent.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         final var subject = SavepointStackImpl.newChildStack(
-                parent, REVERSIBLE, SCHEDULED, NOOP_TRANSACTION_CUSTOMIZER, StreamMode.BOTH);
+                parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
         assertThat(subject.permitsStakingRewards()).isTrue();
     }
 

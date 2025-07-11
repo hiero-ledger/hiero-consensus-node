@@ -33,6 +33,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -40,7 +41,6 @@ import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -102,15 +102,16 @@ class BlockStreamManagerImplTest {
     private static final Bytes N_MINUS_2_BLOCK_HASH = Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA}));
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
-    private static final BlockItem FAKE_EVENT_TRANSACTION =
-            BlockItem.newBuilder().eventTransaction(EventTransaction.DEFAULT).build();
-    private static final BlockItem FAKE_TRANSACTION_RESULT =
-            BlockItem.newBuilder().transactionResult(TransactionResult.DEFAULT).build();
+    private static final PassThroughBlockItem FAKE_SIGNED_TRANSACTION =
+            PassThroughBlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
+    private static final PassThroughBlockItem FAKE_TRANSACTION_RESULT = PassThroughBlockItem.newBuilder()
+            .transactionResult(TransactionResult.DEFAULT)
+            .build();
     private static final Bytes FAKE_RESULT_HASH = noThrowSha384HashOfItem(FAKE_TRANSACTION_RESULT);
-    private static final BlockItem FAKE_STATE_CHANGES =
-            BlockItem.newBuilder().stateChanges(StateChanges.DEFAULT).build();
-    private static final BlockItem FAKE_RECORD_FILE_ITEM =
-            BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
+    private static final PassThroughBlockItem FAKE_STATE_CHANGES =
+            PassThroughBlockItem.newBuilder().stateChanges(StateChanges.DEFAULT).build();
+    private static final PassThroughBlockItem FAKE_RECORD_FILE_ITEM =
+            PassThroughBlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
     @Mock
@@ -306,7 +307,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -393,7 +394,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -443,7 +444,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -490,7 +491,7 @@ class BlockStreamManagerImplTest {
         assertEquals(FAKE_RESTART_BLOCK_HASH, subject.blockHashByBlockNumber(N_MINUS_1_BLOCK_NO));
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -537,7 +538,7 @@ class BlockStreamManagerImplTest {
         assertEquals(N_BLOCK_NO, subject.blockNo());
 
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         assertEquals(Bytes.fromHex("aa".repeat(48)), subject.prngSeed());
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         assertEquals(Bytes.fromHex("bb".repeat(48)), subject.prngSeed());
@@ -627,7 +628,7 @@ class BlockStreamManagerImplTest {
         // Start the round that will be block N
         subject.startRound(round, state);
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -646,7 +647,7 @@ class BlockStreamManagerImplTest {
         subject.notify(notification);
         subject.startRound(round, state);
         // Write some items to the block
-        subject.writeItem(FAKE_EVENT_TRANSACTION);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
         subject.writeItem(FAKE_TRANSACTION_RESULT);
         subject.writeItem(FAKE_STATE_CHANGES);
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
@@ -804,7 +805,7 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
-    void usesRoundsPerBlockWhenBlockPeriodIsZero() throws ParseException {
+    void usesRoundsPerBlockWhenBlockPeriodIsZero() {
         // Given blockPeriodSeconds=0 and roundsPerBlock=2
         givenSubjectWith(
                 2,
@@ -1034,7 +1035,8 @@ class BlockStreamManagerImplTest {
                 .build();
     }
 
-    private static Bytes noThrowSha384HashOfItem(@NonNull final BlockItem item) {
-        return Bytes.wrap(noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+    private static Bytes noThrowSha384HashOfItem(@NonNull final PassThroughBlockItem item) {
+        return Bytes.wrap(
+                noThrowSha384HashOf(PassThroughBlockItem.PROTOBUF.toBytes(item).toByteArray()));
     }
 }

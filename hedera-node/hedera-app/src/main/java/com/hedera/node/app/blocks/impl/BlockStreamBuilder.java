@@ -11,6 +11,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
@@ -54,7 +55,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -160,13 +160,13 @@ public class BlockStreamBuilder
     /**
      * The transaction "owning" the stream items we are building.
      */
-    private Transaction transaction;
+    private SignedTransaction signedTx;
     /**
-     * If set, the serialized form of the transaction; if not set, it will be serialized from the transaction.
+     * If set, the serialized form of the SignedTransaction; if not set, it will be serialized from the signedTx.
      * (We already have this pre-serialized when the transaction came from an event.)
      */
     @Nullable
-    private Bytes serializedTransaction;
+    private Bytes serializedSignedTx;
 
     // --- Fields used to build the TranslationContext ---
     /**
@@ -371,7 +371,7 @@ public class BlockStreamBuilder
     /**
      * The prebuild item for a UTIL_PRNG output.
      */
-    private BlockItem utilPrngOutputItem;
+    private PassThroughBlockItem utilPrngOutputItem;
 
     // --- Fields used to either build the TranslationContext or a TransactionOutput ---
     /**
@@ -413,7 +413,7 @@ public class BlockStreamBuilder
     /**
      * How the transaction should be customized before externalization to the stream.
      */
-    private final TransactionCustomizer customizer;
+    private final SignedTxCustomizer customizer;
 
     /**
      * the total duration of contract operations as calculated using the Hedera ops duration schedule
@@ -430,7 +430,7 @@ public class BlockStreamBuilder
      */
     public BlockStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final TransactionCustomizer customizer,
+            @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
         this.reversingBehavior = requireNonNull(reversingBehavior);
         this.customizer = requireNonNull(customizer);
@@ -444,7 +444,8 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<PassThroughBlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -454,7 +455,7 @@ public class BlockStreamBuilder
          * Exposes each {@link BlockItem} in the output to the given action.
          * @param action the action to apply
          */
-        public void forEachItem(@NonNull final Consumer<BlockItem> action) {
+        public void forEachItem(@NonNull final Consumer<PassThroughBlockItem> action) {
             requireNonNull(action);
             blockItems.forEach(action);
         }
@@ -556,17 +557,24 @@ public class BlockStreamBuilder
      * @return the list of block items
      */
     public Output build(final boolean topLevel) {
-        final var blockItems = new ArrayList<BlockItem>();
+        final var blockItems = new ArrayList<PassThroughBlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
         final var translationContext = translationContext();
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
         if (category != HandleContext.TransactionCategory.BATCH_INNER) {
-            blockItems.add(BlockItem.newBuilder()
-                    .eventTransaction(EventTransaction.newBuilder()
-                            .applicationTransaction(getSerializedTransaction())
-                            .build())
+            if (customizer != null) {
+                signedTx = customizer.apply(signedTx);
+            }
+            // The serialized bytes can only be null here if the transaction was synthetic (not submitted via HAPI)
+            if (serializedSignedTx == null) {
+                serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+            }
+            // Use a "pass-through" BlockItem variant to ensure we don't re-serialize the parsed
+            // SignedTransaction into something different from what the client submitted
+            blockItems.add(PassThroughBlockItem.newBuilder()
+                    .signedTransaction(serializedSignedTx)
                     .build());
         }
         blockItems.add(transactionResultBlockItem());
@@ -585,12 +593,12 @@ public class BlockStreamBuilder
             if (logs != null) {
                 builder.logs(logs);
             }
-            blockItems.add(BlockItem.newBuilder()
+            blockItems.add(PassThroughBlockItem.newBuilder()
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
                     .build());
         }
         if (!stateChanges.isEmpty() || topLevel) {
-            blockItems.add(BlockItem.newBuilder()
+            blockItems.add(PassThroughBlockItem.newBuilder()
                     .stateChanges(StateChanges.newBuilder()
                             .consensusTimestamp(asTimestamp(consensusNow))
                             .stateChanges(stateChanges)
@@ -656,20 +664,14 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public BlockStreamBuilder transaction(@NonNull final Transaction transaction) {
-        this.transaction = requireNonNull(transaction);
+    public BlockStreamBuilder signedTx(@NonNull final SignedTransaction signedTx) {
+        this.signedTx = requireNonNull(signedTx);
         return this;
     }
 
     @Override
-    public StreamBuilder serializedTransaction(@Nullable final Bytes serializedTransaction) {
-        this.serializedTransaction = serializedTransaction;
-        return this;
-    }
-
-    @Override
-    @NonNull
-    public BlockStreamBuilder transactionBytes(@NonNull final Bytes transactionBytes) {
+    public StreamBuilder serializedSignedTx(@Nullable final Bytes serializedSignedTx) {
+        this.serializedSignedTx = serializedSignedTx;
         return this;
     }
 
@@ -689,7 +691,7 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder syncBodyIdFromRecordId() {
-        this.transaction = StreamBuilder.transactionWith(
+        this.signedTx = StreamBuilder.signedTxWith(
                 inProgressBody().copyBuilder().transactionID(transactionId).build());
         return this;
     }
@@ -699,12 +701,6 @@ public class BlockStreamBuilder
     public BlockStreamBuilder memo(@NonNull final String memo) {
         this.memo = requireNonNull(memo);
         return this;
-    }
-
-    @Override
-    @NonNull
-    public Transaction transaction() {
-        return transaction;
     }
 
     @Override
@@ -1223,7 +1219,7 @@ public class BlockStreamBuilder
     }
 
     @NonNull
-    private BlockItem transactionResultBlockItem() {
+    private PassThroughBlockItem transactionResultBlockItem() {
         if (!automaticTokenAssociations.isEmpty()) {
             automaticTokenAssociations.sort(TOKEN_ASSOCIATION_COMPARATOR);
             transactionResultBuilder.automaticTokenAssociations(automaticTokenAssociations);
@@ -1231,7 +1227,7 @@ public class BlockStreamBuilder
         if (!assessedCustomFees.isEmpty()) {
             transactionResultBuilder.assessedCustomFees(assessedCustomFees);
         }
-        return BlockItem.newBuilder()
+        return PassThroughBlockItem.newBuilder()
                 .transactionResult(
                         transactionResultBuilder.transferList(transferList).build())
                 .build();
@@ -1239,15 +1235,13 @@ public class BlockStreamBuilder
 
     private TransactionBody inProgressBody() {
         try {
-            final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(
-                    transaction.signedTransactionBytes().toReadableSequentialData());
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }
     }
 
-    private void addOutputItemsTo(@NonNull final List<BlockItem> items) {
+    private void addOutputItemsTo(@NonNull final List<PassThroughBlockItem> items) {
         if (utilPrngOutputItem != null) {
             items.add(utilPrngOutputItem);
         }
@@ -1328,16 +1322,8 @@ public class BlockStreamBuilder
         return builder;
     }
 
-    private Bytes getSerializedTransaction() {
-        if (customizer != null) {
-            transaction = customizer.apply(transaction);
-            return Transaction.PROTOBUF.toBytes(transaction);
-        }
-        return serializedTransaction != null ? serializedTransaction : Transaction.PROTOBUF.toBytes(transaction);
-    }
-
-    private BlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
-        return BlockItem.newBuilder().transactionOutput(output).build();
+    private PassThroughBlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
+        return PassThroughBlockItem.newBuilder().transactionOutput(output).build();
     }
 
     /**
@@ -1352,7 +1338,7 @@ public class BlockStreamBuilder
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         contractId,
                         evmAddress.length() > 0 ? evmAddress : null,
@@ -1360,35 +1346,56 @@ public class BlockStreamBuilder
                         createdContractIds,
                         senderNonce,
                         evmTransactionResult == null ? null : evmTransactionResult.internalCallContext(),
-                        ethereumHash);
+                        ethereumHash,
+                        serializedSignedTx);
             case CRYPTO_CREATE, CRYPTO_UPDATE ->
                 new CryptoOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         accountId,
-                        evmAddress);
+                        evmAddress,
+                        serializedSignedTx);
             case FILE_CREATE ->
                 new FileOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, fileId);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        fileId,
+                        serializedSignedTx);
             case NODE_CREATE ->
                 new NodeOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, nodeId);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        nodeId,
+                        serializedSignedTx);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, scheduleId);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        scheduleId,
+                        serializedSignedTx);
             case CONSENSUS_SUBMIT_MESSAGE ->
                 new SubmitOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         runningHash,
                         runningHashVersion,
-                        sequenceNumber);
+                        sequenceNumber,
+                        serializedSignedTx);
             case TOKEN_AIRDROP -> {
                 if (!pendingAirdropRecords.isEmpty()) {
                     pendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
@@ -1397,35 +1404,56 @@ public class BlockStreamBuilder
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
-                        pendingAirdropRecords);
+                        pendingAirdropRecords,
+                        serializedSignedTx);
             }
             case TOKEN_MINT ->
                 new MintOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
                         serialNumbers,
-                        newTotalSupply);
+                        newTotalSupply,
+                        serializedSignedTx);
             case TOKEN_BURN, TOKEN_ACCOUNT_WIPE ->
                 new SupplyChangeOpContext(
                         memo,
                         translationContextExchangeRates,
                         transactionId,
-                        transaction,
+                        signedTx,
                         functionality,
-                        newTotalSupply);
+                        newTotalSupply,
+                        serializedSignedTx);
             case TOKEN_CREATE ->
                 new TokenOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, tokenId);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        tokenId,
+                        serializedSignedTx);
             case CONSENSUS_CREATE_TOPIC ->
                 new TopicOpContext(
-                        memo, translationContextExchangeRates, transactionId, transaction, functionality, topicId);
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        topicId,
+                        serializedSignedTx);
             default ->
-                new BaseOpContext(memo, translationContextExchangeRates, transactionId, transaction, functionality);
+                new BaseOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        serializedSignedTx);
         };
     }
 }

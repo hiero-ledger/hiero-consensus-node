@@ -105,7 +105,7 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
     public StreamBuilder createBuilder(
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final HandleContext.TransactionCategory txnCategory,
-            @NonNull final StreamBuilder.TransactionCustomizer customizer,
+            @NonNull final StreamBuilder.SignedTxCustomizer customizer,
             @NonNull final StreamMode streamMode,
             final boolean isBaseBuilder) {
         requireNonNull(reversingBehavior);

@@ -4,7 +4,6 @@ package com.swirlds.platform.event.stale;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.hedera.hapi.platform.event.EventTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
@@ -123,7 +122,7 @@ class TransactionResubmitterTests {
                 .setTransactionBytes(transactions)
                 .build();
 
-        final List<EventTransaction> transactionsToResubmit = resubmitter.resubmitStaleTransactions(event);
+        final List<Bytes> transactionsToResubmit = resubmitter.resubmitStaleTransactions(event);
         assertEquals(0, transactionsToResubmit.size());
     }
 
@@ -143,10 +142,10 @@ class TransactionResubmitterTests {
         resubmitter.updateEventWindow(eventWindow);
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
-                .setTransactions(Collections.emptyList())
+                .setTransactionBytes(Collections.emptyList())
                 .build();
 
-        final List<EventTransaction> transactionsToResubmit = resubmitter.resubmitStaleTransactions(event);
+        final List<Bytes> transactionsToResubmit = resubmitter.resubmitStaleTransactions(event);
         assertEquals(0, transactionsToResubmit.size());
     }
 
@@ -160,7 +159,7 @@ class TransactionResubmitterTests {
         final TransactionResubmitter resubmitter = new DefaultTransactionResubmitter(platformContext);
 
         final PlatformEvent event = new TestingEventBuilder(randotron)
-                .setTransactions(Collections.emptyList())
+                .setTransactionBytes(Collections.emptyList())
                 .build();
 
         assertThrows(IllegalStateException.class, () -> resubmitter.resubmitStaleTransactions(event));

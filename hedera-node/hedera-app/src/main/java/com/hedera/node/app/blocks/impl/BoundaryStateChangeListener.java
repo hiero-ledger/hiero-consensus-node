@@ -8,6 +8,7 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.PassThroughBlockItem;
 import com.hedera.hapi.block.stream.output.QueuePopChange;
 import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
@@ -153,12 +154,12 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      * Returns a {@link BlockItem} containing all the state changes that have been accumulated.
      * @return the block item
      */
-    public BlockItem flushChanges() {
+    public PassThroughBlockItem flushChanges() {
         requireNonNull(boundaryTimestamp);
         final var stateChanges = new StateChanges(boundaryTimestamp, allStateChanges());
         singletonUpdates.clear();
         queueUpdates.clear();
-        return BlockItem.newBuilder().stateChanges(stateChanges).build();
+        return PassThroughBlockItem.newBuilder().stateChanges(stateChanges).build();
     }
 
     /**
