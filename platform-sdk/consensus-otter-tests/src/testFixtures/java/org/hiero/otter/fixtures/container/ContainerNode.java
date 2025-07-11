@@ -87,7 +87,7 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) {
-        super(selfId, getWeight(roster, selfId));
+        super(selfId, roster);
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
@@ -102,14 +102,6 @@ public class ContainerNode extends AbstractNode implements Node {
                 .build();
 
         blockingStub = TestControlGrpc.newBlockingStub(channel);
-    }
-
-    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
-        return roster.rosterEntries().stream()
-                .filter(entry -> entry.nodeId() == selfId.id())
-                .findFirst()
-                .map(RosterEntry::weight)
-                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
     }
 
     /**
