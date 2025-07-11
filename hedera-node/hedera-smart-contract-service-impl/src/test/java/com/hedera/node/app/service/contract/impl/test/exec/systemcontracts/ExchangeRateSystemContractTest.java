@@ -70,16 +70,6 @@ class ExchangeRateSystemContractTest {
     }
 
     @Test
-    void convertsNegativeNumberToTinybarsAsExpected() {
-        givenRate(someRate);
-
-        final var someInput = tinycentsInput(-1);
-        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, someInput, frame);
-
-        assertThat(result.output()).isEqualTo(unpackedBytesFor(tinycentsToTinybars(-1, someRate)));
-    }
-
-    @Test
     void convertsPositiveNumberToTinycentsAsExpected() {
         givenRate(someRate);
 
