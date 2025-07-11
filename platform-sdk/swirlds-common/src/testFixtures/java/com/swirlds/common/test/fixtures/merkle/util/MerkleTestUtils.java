@@ -1018,21 +1018,6 @@ public final class MerkleTestUtils {
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }
 
-    private static Function<Throwable, Boolean> createSuppressedExceptionListener(Function<Throwable, Boolean> originalListener) {
-        return t -> {
-            boolean handled = originalListener.apply(t);
-            if (handled) {
-                return true;
-            }
-            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
-            if (cause instanceof IOException || cause instanceof UncheckedIOException
-                    || cause instanceof ExecutionException || cause instanceof MerkleSynchronizationException) {
-                return true; // Suppress print/log for simulated
-            }
-            return false; // Allow print/log for unexpected
-        };
-    }
-
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
@@ -1148,17 +1133,10 @@ public final class MerkleTestUtils {
             }
 
             final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = t -> {
+            final Function<Throwable, Boolean> exceptionListener = createSuppressedExceptionListener(t -> {
                 firstReconnectException.compareAndSet(null, t);
-                Throwable cause = (t.getCause() != null) ? t.getCause() : t;
-                // Suppress simulated (return true: handled, no log/print)
-                if (cause instanceof IOException || cause instanceof UncheckedIOException || cause instanceof MerkleSynchronizationException
-                || cause instanceof ExecutionException) {
-                    return true;
-                }
-                // Unexpected: return false (log/print for debug)
                 return false;
-            };
+            });
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
@@ -1334,5 +1312,29 @@ public final class MerkleTestUtils {
             next = next.asInternal().getChild(step);
         }
         return next;
+    }
+
+    /**
+     * Creates an exception listener that suppresses specific expected exceptions during testing.
+     *
+     * @param originalListener the original exception listener to delegate to first
+     * @return a listener that suppresses expected exceptions
+     */
+    private static Function<Throwable, Boolean> createSuppressedExceptionListener(
+            Function<Throwable, Boolean> originalListener) {
+        return t -> {
+            boolean handled = originalListener.apply(t);
+            if (handled) {
+                return true;
+            }
+            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+            if (cause instanceof IOException
+                    || cause instanceof UncheckedIOException
+                    || cause instanceof ExecutionException
+                    || cause instanceof MerkleSynchronizationException) {
+                return true; // Suppress print/log for simulated
+            }
+            return false; // Allow print/log for unexpected
+        };
     }
 }
