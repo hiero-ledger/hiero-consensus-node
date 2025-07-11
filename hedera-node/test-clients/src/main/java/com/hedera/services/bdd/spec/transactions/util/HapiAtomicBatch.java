@@ -119,6 +119,8 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
             // Overwrite the nodeId for inner transactions, so we can call the txnRecord query and resolve the status
             op.setNode(fixNodeFor(spec).getAccountNum());
             op.resolveStatus(spec);
+            // Reset the node to "0.0.0" if for some reason the op is used multiple times
+            op.setNode("0.0.0");
         }
         return result;
     }
