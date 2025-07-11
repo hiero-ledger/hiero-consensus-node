@@ -37,7 +37,7 @@ class TokenUriCallTest extends CallTestBase {
                 result.getOutput());
     }
 
-    void returnErrorMetadata(final long serialNo) {
+    private void returnErrorMetadata(final long serialNo) {
         // given
         subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, serialNo);
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serialNo)).willReturn(null);
