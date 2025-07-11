@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -34,12 +35,13 @@ import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
+import org.hiero.otter.fixtures.turtle.TurtleNode;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
- * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment.
- * This class provides a basic structure for a container network, but does not implement all functionalities yet.
+ * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment. This class provides a
+ * basic structure for a container network, but does not implement all functionalities yet.
  */
 public class ContainerNetwork extends AbstractNetwork {
 
@@ -53,6 +55,7 @@ public class ContainerNetwork extends AbstractNetwork {
 
     private final Network network = Network.newNetwork();
     private final RegularTimeManager timeManager;
+    private final Path rootOutputDirectory;
     private final ContainerTransactionGenerator transactionGenerator;
     private final List<ContainerNode> nodes = new ArrayList<>();
     private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
@@ -66,10 +69,12 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     public ContainerNetwork(
             @NonNull final RegularTimeManager timeManager,
-            @NonNull final ContainerTransactionGenerator transactionGenerator) {
+            @NonNull final ContainerTransactionGenerator transactionGenerator,
+            @NonNull final Path rootOutputDirectory) {
         super(DEFAULT_START_TIMEOUT, DEFAULT_FREEZE_TIMEOUT, DEFAULT_SHUTDOWN_TIMEOUT);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
+        this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.dockerImage = new ImageFromDockerfile()
                 .withDockerfile(Path.of("..", "consensus-otter-docker-app", "build", "data", "Dockerfile"));
     }
@@ -134,15 +139,23 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        for (final NodeId selfId : sortedNodeIds) {
-            final ContainerNode node =
-                    new ContainerNode(selfId, roster, keysAndCerts.get(selfId), network, dockerImage);
-            newNodes.add(node);
-        }
-        nodes.addAll(newNodes);
+        final List<ContainerNode> nodeList = roster.rosterEntries().stream()
+                .map(entry -> NodeId.newBuilder().id(entry.nodeId()).build())
+                .sorted(Comparator.comparing(NodeId::id))
+                .map(nodeId -> createContainerNode(nodeId, roster, keysAndCerts.get(nodeId)))
+                .toList();
+        nodes.addAll(nodeList);
+
         transactionGenerator.setNodesSupplier(() -> publicNodes);
 
         return Collections.unmodifiableList(newNodes);
+    }
+
+    private ContainerNode createContainerNode(@NonNull final NodeId nodeId, @NonNull final Roster roster,
+            @NonNull final KeysAndCerts keysAndCerts) {
+        final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
+        return new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
+
     }
 
     @NonNull

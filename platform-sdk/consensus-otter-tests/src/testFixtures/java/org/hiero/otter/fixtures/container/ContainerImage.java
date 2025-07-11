@@ -5,6 +5,7 @@ import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIE
 
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
@@ -28,7 +29,8 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
     public ContainerImage(
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Network network,
-            @NonNull final NodeId selfId) {
+            @NonNull final NodeId selfId,
+            @NonNull final Path mountedDir) {
         super(dockerImage);
 
         final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
@@ -36,6 +38,8 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
 
         // Apply the common configuration expected by tests
         withNetwork(network).withNetworkAliases(alias).withExposedPorts(CONTROL_PORT);
+
+        withFileSystemBind(mountedDir.toAbsolutePath().toString(), "/data");
 
         withEnv(
                 "JAVA_TOOL_OPTIONS",

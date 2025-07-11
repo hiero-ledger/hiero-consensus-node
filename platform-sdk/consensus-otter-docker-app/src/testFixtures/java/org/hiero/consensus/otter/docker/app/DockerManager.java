@@ -7,6 +7,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import org.apache.logging.log4j.LogManager;
@@ -17,6 +19,7 @@ import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
+import org.hiero.otter.fixtures.container.proto.PcesFilePaths;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -196,5 +199,17 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         } catch (final InterruptedException ie) {
             throw new RuntimeException(ie);
         }
+    }
+
+    @Override
+    public synchronized void getPcesFilePaths(final Empty request, final StreamObserver<PcesFilePaths> responseObserver) {
+//        try {
+//            final List<Path> pcesFilePathList = nodeManager.getPcesFilePaths();
+
+//            responseObserver.onNext(Empty.getDefaultInstance());
+//            responseObserver.onCompleted();
+//        } catch (final InterruptedException ie) {
+//            throw new RuntimeException(ie);
+//        }
     }
 }

@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Empty;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,6 +19,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -33,6 +35,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
+import org.hiero.otter.fixtures.container.proto.PcesFilePaths;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
@@ -84,7 +87,8 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final Roster roster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
-            @NonNull final ImageFromDockerfile dockerImage) {
+            @NonNull final ImageFromDockerfile dockerImage,
+            @NonNull final Path mountedDir) {
         super(selfId);
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
@@ -92,7 +96,7 @@ public class ContainerNode extends AbstractNode implements Node {
         this.resultsCollector = new NodeResultsCollector(selfId);
 
         //noinspection resource
-        container = new ContainerImage(dockerImage, network, selfId);
+        container = new ContainerImage(dockerImage, network, selfId, mountedDir);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -191,7 +195,10 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     @NonNull
     public SingleNodePcesResult getPcesResult() {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+
+        final PcesFilePaths pcesFilePaths = blockingStub.getPcesFilePaths(Empty.newBuilder().build());
+        return null;
     }
 
     /**
@@ -253,8 +260,8 @@ public class ContainerNode extends AbstractNode implements Node {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
                         case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS ->
-                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
+                        case CONSENSUS_ROUNDS -> resultsCollector.addConsensusRounds(
+                                ProtobufConverter.toPbj(value.getConsensusRounds()));
                         default -> {
                             final String message = String.format(
                                     "Received unknown message type from node %s: %s", selfId, value.getEventCase());

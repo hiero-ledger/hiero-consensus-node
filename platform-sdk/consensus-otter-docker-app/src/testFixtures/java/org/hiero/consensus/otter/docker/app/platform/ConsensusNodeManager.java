@@ -34,6 +34,8 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -50,9 +52,9 @@ import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
 
 /**
- * Manages the lifecycle and operations of a consensus node within a container-based network.
- * This class initializes the platform, handles configuration, and provides methods for interacting
- * with the consensus process, including submitting transactions and listening for consensus rounds.
+ * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
+ * platform, handles configuration, and provides methods for interacting with the consensus process, including
+ * submitting transactions and listening for consensus rounds.
  */
 public class ConsensusNodeManager {
     private static final Logger LOGGER = LogManager.getLogger(ConsensusNodeManager.class);
@@ -65,13 +67,13 @@ public class ConsensusNodeManager {
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
     /**
-     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters.
-     * This constructor initializes the platform, sets up all necessary parts for the consensus node.
+     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters. This constructor
+     * initializes the platform, sets up all necessary parts for the consensus node.
      *
-     * @param selfId               the unique identifier for this node, must not be {@code null}
-     * @param version              the semantic version of the application, must not be {@code null}
-     * @param genesisRoster        the initial roster of nodes in the network, must not be {@code null}
-     * @param keysAndCerts         the keys and certificates for this node, must not be {@code null}
+     * @param selfId the unique identifier for this node, must not be {@code null}
+     * @param version the semantic version of the application, must not be {@code null}
+     * @param genesisRoster the initial roster of nodes in the network, must not be {@code null}
+     * @param keysAndCerts the keys and certificates for this node, must not be {@code null}
      * @param overriddenProperties optional properties to override in the configuration, may be {@code null}
      */
     public ConsensusNodeManager(
@@ -155,7 +157,8 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Starts the consensus node. This method starts the consensus node platform and application so that it can start receiving transactions.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start
+     * receiving transactions.
      */
     public void start() {
         platform.start();
@@ -205,5 +208,9 @@ public class ConsensusNodeManager {
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
+    }
+
+    public List<Path> getPcesFilePaths() {
+        return Collections.emptyList();
     }
 }
