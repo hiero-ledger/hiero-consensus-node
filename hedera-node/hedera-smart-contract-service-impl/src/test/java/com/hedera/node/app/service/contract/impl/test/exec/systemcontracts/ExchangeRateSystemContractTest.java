@@ -16,14 +16,11 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.config.data.ContractsConfig;
 import java.math.BigInteger;
-import java.time.Instant;
-import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,8 +44,6 @@ class ExchangeRateSystemContractTest {
     @Mock
     private ContractsConfig contractsConfig;
 
-    private PrecompileContractResult invalidResult =
-            PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(ExceptionalHaltReason.INVALID_OPERATION));
     private ExchangeRateSystemContract subject;
 
     private MockedStatic<FrameUtils> frameUtils;
@@ -72,6 +67,16 @@ class ExchangeRateSystemContractTest {
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, someInput, frame);
 
         assertThat(result.output()).isEqualTo(unpackedBytesFor(someTinybarAmount));
+    }
+
+    @Test
+    void convertsNegativeNumberToTinybarsAsExpected() {
+        givenRate(someRate);
+
+        final var someInput = tinycentsInput(-1);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, someInput, frame);
+
+        assertThat(result.output()).isEqualTo(unpackedBytesFor(tinycentsToTinybars(-1, someRate)));
     }
 
     @Test
@@ -101,7 +106,7 @@ class ExchangeRateSystemContractTest {
 
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, underflowInput, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
+        assertThat(result.result().getHaltReason().orElse( null)).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     @Test
@@ -109,7 +114,7 @@ class ExchangeRateSystemContractTest {
         final var fragmentSelector = Bytes.of(0xab);
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, fragmentSelector, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
+        assertThat(result.result().getHaltReason().orElse( null)).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     @Test
@@ -118,7 +123,7 @@ class ExchangeRateSystemContractTest {
         final var input = Bytes.concatenate(fragmentSelector, Bytes32.ZERO);
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, input, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().get()).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
+        assertThat(result.result().getHaltReason().orElse( null)).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     private static Bytes tinycentsInput(final long validAmount) {
@@ -151,10 +156,6 @@ class ExchangeRateSystemContractTest {
         return Bytes32.wrap(word);
     }
 
-    private static Bytes argOf(final long amount) {
-        return Bytes.wrap(Longs.toByteArray(amount));
-    }
-
     private void givenRate(final ExchangeRate rate) {
         frameUtils.when(() -> proxyUpdaterFor(frame)).thenReturn(updater);
         given(updater.currentExchangeRate()).willReturn(rate);
@@ -170,8 +171,6 @@ class ExchangeRateSystemContractTest {
             .centEquiv(someCentEquiv)
             .build();
     private static final long someTinybarAmount = tinycentsToTinybars(someTinycentAmount, someRate);
-    private static final Instant now = Instant.ofEpochSecond(1_234_567, 890);
-    private static final long GAS_REQUIREMENT = 100L;
 
     private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.hbarEquiv();
