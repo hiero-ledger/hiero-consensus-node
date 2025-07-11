@@ -22,7 +22,6 @@ val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.72.0"
 val hederaCryptography = "0.2.3-SNAPSHOT"
-val helidon = "4.2.3"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.25.0"
@@ -34,11 +33,6 @@ val tuweni = "2.4.2"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
-    api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
-    api("io.helidon.webclient:helidon-webclient:$helidon") { because("io.helidon.webclient") }
-    api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
-        because("io.helidon.webclient.grpc")
-    }
     api("org.awaitility:awaitility:4.3.0") { because("awaitility") }
     api("com.fasterxml.jackson.core:jackson-core:$jackson") {
         because("com.fasterxml.jackson.core")
