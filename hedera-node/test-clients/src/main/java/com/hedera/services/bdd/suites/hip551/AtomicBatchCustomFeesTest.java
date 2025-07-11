@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -59,11 +60,13 @@ public class AtomicBatchCustomFeesTest {
     public Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))
+                .fee(ONE_HBAR)
                 .payingWith(SENDER)
                 .batchKey(BATCH_OPERATOR);
         // This transfer will fail because the account has no associations
         final var failingTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, ACCOUNT_WITH_NO_ASSOCIATIONS))
+                .fee(ONE_HBAR)
                 .payingWith(SENDER)
                 .batchKey(BATCH_OPERATOR);
 

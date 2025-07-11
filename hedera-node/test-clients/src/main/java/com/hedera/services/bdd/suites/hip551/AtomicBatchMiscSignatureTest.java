@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -110,7 +111,7 @@ public class AtomicBatchMiscSignatureTest {
                                             .signedBy("receiver")
                                             .batchKey("batchOperator"))
                             .payingWith("batchOperator")
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                            .hasPrecheck(INVALID_SIGNATURE));
         }
     }
 
