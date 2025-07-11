@@ -17,8 +17,6 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestKeySerializer;
@@ -242,18 +240,6 @@ class ReconnectHashListenerTest {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             // no op
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public KeySerializer getKeySerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public ValueSerializer getValueSerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
         }
     }
 }

@@ -16,9 +16,7 @@ import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -45,9 +43,7 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
@@ -113,9 +109,6 @@ public class MerkleTestBase extends StateTestBase {
      * the test code.
      */
     protected ConstructableRegistry registry;
-
-    @TempDir
-    private Path virtualDbPath;
 
     // The "FRUIT" Map is part of FIRST_SERVICE
     protected String fruitLabel;
@@ -255,6 +248,7 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("org.hiero");
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
+
             ConstructableRegistry.getInstance()
                     .registerConstructable(new ClassConstructorPair(
                             MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
@@ -286,8 +280,7 @@ public class MerkleTestBase extends StateTestBase {
                 new OnDiskKeySerializer<>(keySerializerClassId, keyClassId, keyCodec);
         final ValueSerializer<OnDiskValue<String>> valueSerializer =
                 new OnDiskValueSerializer<>(valueSerializerClassId, valueClassId, valueCodec);
-        final MerkleDbTableConfig merkleDbTableConfig = new MerkleDbTableConfig((short) 1, DigestType.SHA_384, 100, 0);
-        final var builder = new MerkleDbDataSourceBuilder(virtualDbPath, merkleDbTableConfig, CONFIGURATION);
+        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
         return new VirtualMap<>(label, keySerializer, valueSerializer, builder, CONFIGURATION);
     }
 
@@ -328,8 +321,6 @@ public class MerkleTestBase extends StateTestBase {
     /** A convenience method used to deserialize a merkle tree */
     protected <T extends MerkleNode> T parseTree(@NonNull final byte[] state, @NonNull final Path tempDir)
             throws IOException {
-        // Restore to a fresh MerkleDb instance
-        MerkleDb.resetDefaultInstancePath();
         final var byteInputStream = new ByteArrayInputStream(state);
         try (final var in = new MerkleDataInputStream(byteInputStream)) {
             return in.readMerkleTree(tempDir, 100);
@@ -346,12 +337,9 @@ public class MerkleTestBase extends StateTestBase {
 
     @AfterEach
     void cleanUp() {
-        MerkleDb.resetDefaultInstancePath();
-
         if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
             fruitVirtualMap.release();
         }
-
         MerkleDbTestUtils.assertAllDatabasesClosed();
     }
 }

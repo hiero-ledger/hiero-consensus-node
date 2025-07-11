@@ -43,10 +43,10 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * opposite way: the copied data source becomes active, while the original data source isn't
      * used any longer other than to re-initiate reconnect when failed.
      *
-     * @param snapshotMe
+     * @param dataSource
      * 		The dataSource to invoke snapshot on. Cannot be null
-     * @param makeCopyActive
-     *      Indicates whether to make the copy active or keep the original data source active
+     * @param compactionEnabled
+     *      Indicates whether background compaction should be enabled in the data source copy
      * @param offlineUse
      *      Indicates that the copied data source should use as little resources as possible. Data
      *      source copies created for offline use should not be used for performance critical tasks
@@ -54,7 +54,7 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * 		An opened {@link VirtualDataSource}
      */
     @NonNull
-    VirtualDataSource copy(VirtualDataSource snapshotMe, boolean makeCopyActive, boolean offlineUse);
+    VirtualDataSource copy(VirtualDataSource dataSource, boolean compactionEnabled, boolean offlineUse);
 
     /**
      * Builds a new {@link VirtualDataSource} using the configuration of this builder by creating
@@ -67,10 +67,10 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      *
      * @param destination
      * 		The base path into which to snapshot the database. Can be null
-     * @param snapshotMe
+     * @param dataSource
      * 		The dataSource to invoke snapshot on. Cannot be null
      */
-    void snapshot(@NonNull Path destination, VirtualDataSource snapshotMe);
+    void snapshot(@NonNull Path destination, VirtualDataSource dataSource);
 
     /**
      * Builds a new {@link VirtualDataSource} using the configuration of this builder and
@@ -82,11 +82,11 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      *
      * @param label
      * 		The label. Cannot be null. This label must be posix compliant
-     * @param source
+     * @param snapshotDir
      * 		The base path of the database from which to copy all the database files. Cannot be null
      * @return
      * 		An opened {@link VirtualDataSource}
      */
     @NonNull
-    VirtualDataSource restore(String label, Path source);
+    VirtualDataSource restore(String label, Path snapshotDir);
 }

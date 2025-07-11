@@ -1227,20 +1227,10 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         dataSourceBuilder = in.readSerializable();
         dataSource = dataSourceBuilder.restore(label, inputDirectory);
         if (version < ClassVersion.VERSION_2_KEYVALUE_SERIALIZERS) {
-            // In version 1, key and value serializers are stored in the data source
-            keySerializer = dataSource.getKeySerializer();
-            if (keySerializer == null) {
-                throw new IllegalStateException("No key serializer available");
-            }
-            valueSerializer = dataSource.getValueSerializer();
-            if (valueSerializer == null) {
-                throw new IllegalStateException("No value serializer available");
-            }
-        } else {
-            // In version 2 and later, the serializers are a part of VirtualRootNode
-            keySerializer = in.readSerializable();
-            valueSerializer = in.readSerializable();
+            throw new UnsupportedOperationException("Version " + version + " is not supported");
         }
+        keySerializer = in.readSerializable();
+        valueSerializer = in.readSerializable();
         if (version < ClassVersion.VERSION_3_NO_NODE_CACHE) {
             // Future work: once all states are version 3 or later, this code branch can be
             // removed alltogether, and cache may be a final field
@@ -1428,14 +1418,14 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     @Override
     public TeacherTreeView<Long> buildTeacherView(final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH -> new TeacherPushVirtualTreeView<>(
-                    getStaticThreadManager(), reconnectConfig, this, state, pipeline);
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TeacherPullVirtualTreeView<>(
-                    getStaticThreadManager(), reconnectConfig, this, state, pipeline);
-            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TeacherPullVirtualTreeView<>(
-                    getStaticThreadManager(), reconnectConfig, this, state, pipeline);
-            default -> throw new UnsupportedOperationException(
-                    "Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
+            case VirtualMapReconnectMode.PUSH ->
+                new TeacherPushVirtualTreeView<>(getStaticThreadManager(), reconnectConfig, this, state, pipeline);
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
+                new TeacherPullVirtualTreeView<>(getStaticThreadManager(), reconnectConfig, this, state, pipeline);
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
+                new TeacherPullVirtualTreeView<>(getStaticThreadManager(), reconnectConfig, this, state, pipeline);
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
     }
 
@@ -1522,8 +1512,15 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
                 originalState.getLastLeafPath(),
                 reconnectFlusher);
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH -> new LearnerPushVirtualTreeView<>(
-                    reconnectConfig, this, originalMap.records, originalState, reconnectState, nodeRemover, mapStats);
+            case VirtualMapReconnectMode.PUSH ->
+                new LearnerPushVirtualTreeView<>(
+                        reconnectConfig,
+                        this,
+                        originalMap.records,
+                        originalState,
+                        reconnectState,
+                        nodeRemover,
+                        mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> {
                 final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder();
                 yield new LearnerPullVirtualTreeView<>(
@@ -1548,8 +1545,8 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
                         twoPhasePessimistic,
                         mapStats);
             }
-            default -> throw new UnsupportedOperationException(
-                    "Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
     }
 

@@ -7,18 +7,19 @@ import static com.hedera.statevalidation.parameterresolver.InitUtils.initVirtual
 import static com.hedera.statevalidation.validators.Constants.STATE_DIR;
 
 import com.hedera.node.app.services.ServicesRegistryImpl;
-import com.swirlds.merkledb.MerkleDb;
-import com.swirlds.merkledb.MerkleDbTableConfig;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class VirtualMapHolder {
+
     private static VirtualMapHolder instance;
     private final List<VirtualMapAndDataSourceRecord<?, ?>> records;
-    private final Map<String, MerkleDbTableConfig> tableConfigByNames;
+    private final List<String> tableNames;
 
     private VirtualMapHolder() {
         initConfiguration();
@@ -26,14 +27,26 @@ public class VirtualMapHolder {
         final ServicesRegistryImpl servicesRegistry = initServiceRegistry();
 
         final Path stateDirPath = Paths.get(STATE_DIR);
-        final MerkleDb merkleDb = MerkleDb.getInstance(stateDirPath, InitUtils.CONFIGURATION);
-        tableConfigByNames = merkleDb.getTableConfigs();
 
         try {
+            tableNames = initTableNames(stateDirPath);
             records = initVirtualMapRecords(servicesRegistry);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private List<String> initTableNames(Path stateDirPath) throws IOException {
+        final Path dataDir = stateDirPath.resolve("data");
+        if (Files.isDirectory(dataDir)) {
+            try (final Stream<Path> s = Files.list(dataDir)) {
+                return s.filter(Files::isDirectory)
+                        .map(Path::getFileName)
+                        .map(Path::toString)
+                        .collect(Collectors.toList());
+            }
+        }
+        throw new RuntimeException("Failed to get table names");
     }
 
     public static VirtualMapHolder getInstance() {
@@ -42,14 +55,10 @@ public class VirtualMapHolder {
     }
 
     public List<String> getTableNames() {
-        return new ArrayList<>(tableConfigByNames.keySet());
+        return tableNames;
     }
 
     public List<VirtualMapAndDataSourceRecord<?, ?>> getRecords() {
         return records;
-    }
-
-    public Map<String, MerkleDbTableConfig> getTableConfigByNames() {
-        return tableConfigByNames;
     }
 }

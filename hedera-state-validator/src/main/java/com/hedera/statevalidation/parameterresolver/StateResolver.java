@@ -69,16 +69,15 @@ public class StateResolver implements ParameterResolver {
 
         if (deserializedSignedState == null) {
             try {
-
                 initState();
-            } catch (IOException e) {
+            } catch (ConstructableRegistryException | IOException e) {
                 throw new RuntimeException(e);
             }
         }
         return deserializedSignedState;
     }
 
-    public static DeserializedSignedState initState() throws IOException {
+    public static DeserializedSignedState initState() throws ConstructableRegistryException, IOException {
         initConfiguration();
         final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
         PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
@@ -90,7 +89,7 @@ public class StateResolver implements ParameterResolver {
         final MerkleStateRoot servicesState = (MerkleStateRoot)
                 deserializedSignedState.reservedSignedState().get().getState();
 
-        initServiceMigrator(servicesState, platformContext.getConfiguration(), serviceRegistry);
+        initServiceMigrator(servicesState, platformContext, serviceRegistry);
 
         return deserializedSignedState;
     }
@@ -124,23 +123,20 @@ public class StateResolver implements ParameterResolver {
         throw new IllegalArgumentException("Invalid version file content: " + versionFileContent);
     }
 
-    private static PlatformContext createPlatformContext() {
-        try {
-            ConstructableRegistry.getInstance().registerConstructables("com.hedera.services");
-            ConstructableRegistry.getInstance().registerConstructables("com.hedera.node.app");
-            ConstructableRegistry.getInstance().registerConstructables("com.hedera.hapi");
-            ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
-            ConstructableRegistry.getInstance().registerConstructables("org.hiero.base");
+    private static PlatformContext createPlatformContext() throws ConstructableRegistryException {
+        ConstructableRegistry.getInstance().registerConstructables("com.hedera.services");
+        ConstructableRegistry.getInstance().registerConstructables("com.hedera.node.app");
+        ConstructableRegistry.getInstance().registerConstructables("com.hedera.hapi");
+        ConstructableRegistry.getInstance().registerConstructables("com.swirlds");
+        ConstructableRegistry.getInstance().registerConstructables("org.hiero.base");
 
-            ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
-            BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
-            final SemanticVersion servicesVersion = readVersion();
+        ConstructableUtils.registerVirtualMapConstructables(getConfiguration());
+        BootstrapUtils.setupConstructableRegistryWithConfiguration(getConfiguration());
+        final SemanticVersion servicesVersion = readVersion();
 
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(MerkleStateRoot.class, HederaStateRoot::new));
-        } catch (ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
+        ConstructableRegistry.getInstance()
+                .registerConstructable(new ClassConstructorPair(MerkleStateRoot.class, HederaStateRoot::new));
+
         return new PlatformContext() {
 
             private final Configuration platformConfig = ConfigurationBuilder.create()
