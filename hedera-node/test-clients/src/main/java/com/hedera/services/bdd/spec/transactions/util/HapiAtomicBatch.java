@@ -107,6 +107,25 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     }
 
     @Override
+    protected boolean submitOp(HapiSpec spec) throws Throwable {
+        var result = super.submitOp(spec);
+        // Return early if the expected status is not SUCCESS, no need to resolve the status of inner transactions as
+        // the batch itself has failed.
+        if (expectedStatus.isPresent() && expectedStatus.get() != SUCCESS
+                || expectedPrecheck.isPresent() && expectedPrecheck.get() != SUCCESS) {
+            return result;
+        }
+        for (final var op : operationsToBatch) {
+            // Overwrite the nodeId for inner transactions, so we can call the txnRecord query and resolve the status
+            op.setNode(fixNodeFor(spec).getAccountNum());
+            op.resolveStatus(spec);
+            // Reset the node to "0.0.0" if for some reason the op is used multiple times
+            op.setNode("0.0.0");
+        }
+        return result;
+    }
+
+    @Override
     public void setTransactionSubmitted(final Transaction txn) {
         // Set the submitted outer (batch) transaction
         this.txnSubmitted = txn;

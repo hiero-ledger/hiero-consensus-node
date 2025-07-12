@@ -54,8 +54,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_P
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -168,11 +171,10 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> missingInnerTxnPayerSignatureFails() {
             final var batchOperator = "batchOperator";
             final var innerTxnPayer = "innerPayer";
-            final var innerTxnId = "innerId";
             // crete inner txn with innerTxnPayer, but sign only with DEFAULT_PAYER
             final var innerTxn = cryptoCreate("foo")
                     .balance(ONE_HBAR)
-                    .txnId(innerTxnId)
+                    .hasKnownStatus(INVALID_SIGNATURE)
                     .batchKey(batchOperator)
                     .payingWith(innerTxnPayer)
                     .signedBy(DEFAULT_PAYER);
@@ -180,7 +182,6 @@ public class AtomicBatchNegativeTest {
             return hapiTest(
                     cryptoCreate(batchOperator).balance(ONE_HBAR),
                     cryptoCreate(innerTxnPayer).balance(ONE_HBAR),
-                    usableTxnIdNamed(innerTxnId).payerId(innerTxnPayer),
                     // Since the inner txn is signed by DEFAULT_PAYER, it should fail
                     atomicBatch(innerTxn).payingWith(batchOperator).hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
@@ -197,7 +198,8 @@ public class AtomicBatchNegativeTest {
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId1)
                     .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
+                    .payingWith(innerTxnPayer)
+                    .hasKnownStatus(INVALID_TRANSACTION_START);
             final var validStart = Timestamp.newBuilder()
                     .setSeconds(Instant.now().getEpochSecond() + 1000)
                     .setNanos(1)
@@ -374,7 +376,8 @@ public class AtomicBatchNegativeTest {
                     contractCreate(contract).gas(1_000_000),
                     atomicBatch(contractCall(contract, function, payload)
                                     .gas(2000001)
-                                    .batchKey(batchOperator))
+                                    .batchKey(batchOperator)
+                                    .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED))
                             .signedByPayerAnd(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED));
         }
@@ -722,7 +725,8 @@ public class AtomicBatchNegativeTest {
                                                     .between("Bob", "receiver"))
                                             .batchKey("Alice")
                                             .payingWith("Bob")
-                                            .signedBy("Bob"))
+                                            .signedBy("Bob")
+                                            .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
                             .payingWith("Alice")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED)
                             .via("batchTxn"),
