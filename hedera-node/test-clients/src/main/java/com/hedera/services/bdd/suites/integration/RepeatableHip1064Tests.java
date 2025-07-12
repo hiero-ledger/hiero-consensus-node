@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
+import static com.hedera.services.bdd.junit.support.BlockStreamAccess.blockFrom;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -14,6 +19,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
@@ -25,15 +31,23 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static java.util.Comparator.comparing;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -42,7 +56,9 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.support.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -52,14 +68,21 @@ import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
+import org.hiero.base.concurrent.interrupt.Uninterruptable;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -633,16 +656,84 @@ public class RepeatableHip1064Tests {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
+    @Order(7)
+    @RepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    Stream<DynamicTest> nodeRewardPaymentsAlsoTriggersStakePeriodBoundarySideEffects() {
+        return hapiTest(
+                waitUntilStartOfNextStakingPeriod(1),
+                nodeUpdate("0").declineReward(false),
+                sleepForBlockPeriod(),
+                // Hack to make nodes appear active
+                mutateSingleton("TokenService", "NODE_REWARDS", (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .nodeActivities(List.of())
+                        .build()),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
+                // Move into a new staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                // Close a block whose only chance of exporting a NodeStakeUpdate is the node reward payment
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                sleepForBlockPeriod(),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                sleepForBlockPeriod(),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
+                exposeLatestBlock(
+                        b -> {
+                            final var rewardPayment = findFirst(b, CRYPTO_TRANSFER);
+                            assertTrue(
+                                    rewardPayment.isPresent(), "Node rewards payment should be present in the block");
+                            final var rewardPaymentTx =
+                                    rewardPayment.orElseThrow().body().cryptoTransferOrThrow();
+                            final var hasNodeRewardDebit =
+                                    requireNonNull(rewardPaymentTx.transfers()).accountAmounts().stream()
+                                            .anyMatch(aa -> aa.amount() < 0);
+                            assertTrue(hasNodeRewardDebit, "Node rewards payment should be present in the block");
+                            final var nodeStakeUpdate = findFirst(b, NODE_STAKE_UPDATE);
+                            assertTrue(nodeStakeUpdate.isPresent(), "Node stake update should be present in the block");
+                        },
+                        Duration.ofSeconds(1)));
+    }
+
+    private static Optional<TransactionParts> findFirst(
+            @NonNull final Block b, @NonNull final HederaFunctionality function) {
+        return b.items().stream()
+                .filter(BlockItem::hasEventTransaction)
+                .map(BlockItem::eventTransactionOrThrow)
+                .map(t -> TransactionParts.from(t.applicationTransactionOrThrow()))
+                .filter(parts -> parts.function() == function)
+                .findFirst();
+    }
+
+    static SpecOperation exposeLatestBlockNumber(LongConsumer cb, Duration after) {
+        return exposeLatestBlock(
+                b -> cb.accept(b.items().getFirst().blockHeaderOrThrow().number()), after);
+    }
+
+    static SpecOperation exposeLatestBlock(Consumer<Block> cb, Duration after) {
+        return UtilVerbs.doingContextual((spec) -> {
+            Uninterruptable.tryToSleep(after);
+            try (final var stream = Files.walk(spec.getNetworkNodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR))) {
+                final var lastPath = stream.filter(BlockStreamAccess::isBlockFile)
+                        .peek(System.out::println)
+                        .max(comparing(BlockStreamAccess::extractBlockNumber))
+                        .orElseThrow();
+                cb.accept(blockFrom(lastPath));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
     static SpecOperation validateRecordFees(final String record, List<Long> expectedFeeAccounts) {
         return UtilVerbs.withOpContext((spec, opLog) -> {
             var fileCreate = getTxnRecord(record);
             allRunFor(spec, fileCreate);
             var response = fileCreate.getResponseRecord();
             assertEquals(
+                    1,
                     response.getTransferList().getAccountAmountsList().stream()
                             .filter(aa -> aa.getAmount() < 0)
-                            .count(),
-                    1);
+                            .count());
             // When the feature is disabled the node fees go to node. Network fee is split between 98, 800 and 801
             assertEquals(
                     expectedFeeAccounts,
