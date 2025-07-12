@@ -18,10 +18,6 @@
 
 <Configuration status="WARN">
 	<Appenders>
-		<Console name="Console" target="SYSTEM_OUT">
-			<PatternLayout pattern="%style{%t}{bright} %highlight{%-1level} %style{%logger{0}}{cyan} %msg%n"
-						   disableAnsi="false"/>
-		</Console>
 		<RollingRandomAccessFile name="SwirldsPrimaryLog" fileName="swirlds.log" filePattern="swirlds.%i.log"
 								 immediateFlush="true" append="false">
 			<PatternLayout>
@@ -37,6 +33,11 @@
 		</Console>
 	</Appenders>
 	<Loggers>
+		<!-- To suppress a lot of expected exceptions in the output -->
+		<Logger name="com.swirlds.virtualmap.internal.merkle.VirtualRootNode" level="OFF"/>
+		<Logger name="com.swirlds.virtualmap.internal.pipeline.VirtualPipeline" level="OFF"/>
+		<Logger name="com.swirlds.virtualmap.internal.hash.VirtualHasher" level="OFF"/>
+		<Logger name="com.swirlds.common.merkle.synchronization.task.LearnerPushTask" level="OFF"/>
 		<Root level="trace">
 			<AppenderRef ref="SwirldsPrimaryLog"/>
 			<AppenderRef ref="Console"/>

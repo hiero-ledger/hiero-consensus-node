@@ -42,6 +42,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -49,6 +50,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1052,7 +1054,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-learning-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1077,7 +1079,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-teaching-synchronizer",
                                         breakConnection,
-                                        exceptionListener,
+                                        createSuppressedExceptionListener(exceptionListener),
                                         true);
                             }
                         };
@@ -1100,7 +1102,7 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-learning-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
@@ -1124,17 +1126,17 @@ public final class MerkleTestUtils {
                                         threadManager,
                                         "test-teaching-synchronizer",
                                         breakConnection,
-                                        reconnectExceptionListener,
+                                        createSuppressedExceptionListener(reconnectExceptionListener),
                                         true);
                             }
                         };
             }
 
             final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
-            final Function<Throwable, Boolean> exceptionListener = t -> {
+            final Function<Throwable, Boolean> exceptionListener = createSuppressedExceptionListener(t -> {
                 firstReconnectException.compareAndSet(null, t);
                 return false;
-            };
+            });
             final StandardWorkGroup workGroup = new StandardWorkGroup(
                     getStaticThreadManager(), "synchronization-test", null, exceptionListener, true);
             workGroup.execute("teaching-synchronizer-main", () -> teachingSynchronizerThread(teacher));
@@ -1310,5 +1312,29 @@ public final class MerkleTestUtils {
             next = next.asInternal().getChild(step);
         }
         return next;
+    }
+
+    /**
+     * Creates an exception listener that suppresses specific expected exceptions during testing.
+     *
+     * @param originalListener the original exception listener to delegate to first
+     * @return a listener that suppresses expected exceptions
+     */
+    private static Function<Throwable, Boolean> createSuppressedExceptionListener(
+            Function<Throwable, Boolean> originalListener) {
+        return t -> {
+            boolean handled = originalListener.apply(t);
+            if (handled) {
+                return true;
+            }
+            Throwable cause = (t.getCause() != null) ? t.getCause() : t;
+            if (cause instanceof IOException
+                    || cause instanceof UncheckedIOException
+                    || cause instanceof ExecutionException
+                    || cause instanceof MerkleSynchronizationException) {
+                return true; // Suppress print/log for simulated
+            }
+            return false; // Allow print/log for unexpected
+        };
     }
 }
