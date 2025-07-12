@@ -33,10 +33,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -95,9 +97,10 @@ public class BlockNodeConnectionManager {
      */
     private final BlockBufferService blockBufferService;
     /**
-     * Scheduled executor service that is used to scheduled asynchronous tasks such as reconnecting to block nodes.
+     * Scheduled executor service that is used to schedule asynchronous tasks such as reconnecting to block nodes.
+     * It is shared across all connections to block nodes, allowing periodic stream resets.
      */
-    private final ScheduledExecutorService executorService;
+    private final ScheduledExecutorService sharedExecutorService;
     /**
      * Metrics API for block stream-specific metrics.
      */
@@ -156,19 +159,19 @@ public class BlockNodeConnectionManager {
      * @param configProvider the configuration to use
      * @param blockBufferService the block stream state manager
      * @param blockStreamMetrics the block stream metrics to track
-     * @param executorService the scheduled executor service used to perform async connection operations (e.g. reconnect)
+     * @param sharedExecutorService the scheduled executor service used to perform async connection operations (e.g. reconnect,)
      */
     @Inject
     public BlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService) {
+            @NonNull final ScheduledExecutorService sharedExecutorService) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.lastVerifiedBlockPerConnection = new ConcurrentHashMap<>();
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
-        this.executorService = requireNonNull(executorService);
+        this.sharedExecutorService = requireNonNull(sharedExecutorService, "sharedExecutorService must not be null");
 
         final String endpoint =
                 BlockStreamPublishServiceGrpc.getPublishBlockStreamMethod().getBareMethodName();
@@ -335,7 +338,7 @@ public class BlockNodeConnectionManager {
 
         // Schedule the first attempt using the connectionExecutor
         try {
-            executorService.schedule(
+            sharedExecutorService.schedule(
                     new BlockNodeConnectionTask(connection, initialDelay, blockNumber),
                     delayMillis,
                     TimeUnit.MILLISECONDS);
@@ -500,7 +503,14 @@ public class BlockNodeConnectionManager {
         // Create the connection object
         final GrpcServiceClient grpcClient = createNewGrpcClient(nodeConfig);
         final BlockNodeConnection connection = new BlockNodeConnection(
-                configProvider, nodeConfig, this, blockBufferService, grpcClient, blockStreamMetrics, grpcEndpoint);
+                configProvider,
+                nodeConfig,
+                this,
+                blockBufferService,
+                grpcClient,
+                blockStreamMetrics,
+                grpcEndpoint,
+                sharedExecutorService);
 
         connections.put(nodeConfig, connection);
         // Immediately schedule the FIRST connection attempt.
@@ -798,7 +808,7 @@ public class BlockNodeConnectionManager {
 
             // Reschedule this task using the calculated jittered delay
             try {
-                executorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
+                sharedExecutorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
                 logger.debug("[{}] Rescheduled connection attempt (delayMillis={})", connection, jitteredDelayMs);
             } catch (final Exception e) {
                 logger.error("[{}] Failed to reschedule connection attempt; removing from retry map", connection, e);
@@ -807,6 +817,16 @@ public class BlockNodeConnectionManager {
                 connections.remove(connection.getNodeConfig());
                 connection.close();
             }
+        }
+    }
+
+    public static class BlockNodeConnectionThreadFactory implements ThreadFactory {
+        @Override
+        public Thread newThread(@NonNull final Runnable runnable) {
+            Objects.requireNonNull(runnable, "runnable must not be null");
+            final Thread thread = new Thread(runnable);
+            thread.setName("BlockNodeConnectionExecutor-" + thread.threadId());
+            return thread;
         }
     }
 }

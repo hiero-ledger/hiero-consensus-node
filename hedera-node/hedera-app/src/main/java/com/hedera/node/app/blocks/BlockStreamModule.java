@@ -40,7 +40,12 @@ public interface BlockStreamModule {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics) {
         final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
-                configProvider, blockBufferService, blockStreamMetrics, Executors.newSingleThreadScheduledExecutor());
+                configProvider,
+                blockBufferService,
+                blockStreamMetrics,
+                Executors.newScheduledThreadPool(
+                        2, // One for connection management, one for periodic stream resets
+                        new BlockNodeConnectionManager.BlockNodeConnectionThreadFactory()));
         blockBufferService.setBlockNodeConnectionManager(manager);
         return manager;
     }
