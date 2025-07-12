@@ -23,6 +23,7 @@ import com.hedera.services.bdd.junit.hedera.AbstractNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.SystemFunctionalityTarget;
+import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
@@ -50,6 +51,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
     private static final String CONCURRENT_NAME = CONCURRENT_WORKING_DIR.toUpperCase();
     public static final String REPEATABLE_WORKING_DIR = "repeatable";
     private static final String REPEATABLE_NAME = REPEATABLE_WORKING_DIR.toUpperCase();
+    private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
 
     private final String configTxt;
     private final EmbeddedMode mode;
@@ -227,5 +229,10 @@ public class EmbeddedNetwork extends AbstractNetwork {
     @Override
     public long realm() {
         return realm;
+    }
+
+    @Override
+    public PrometheusClient prometheusClient() {
+        return PROMETHEUS_CLIENT;
     }
 }

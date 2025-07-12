@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallCodeOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallOperation;
@@ -87,9 +88,16 @@ public interface V050Module {
             @ServicesV050 @NonNull final CustomMessageCallProcessor messageCallProcessor,
             @ServicesV050 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
-            @ServicesV050 @NonNull final FeatureFlags featureFlags) {
+            @ServicesV050 @NonNull final FeatureFlags featureFlags,
+            @NonNull final ContractMetrics contractMetrics) {
         return new TransactionProcessor(
-                frameBuilder, frameRunner, gasCharging, messageCallProcessor, contractCreationProcessor, featureFlags);
+                frameBuilder,
+                frameRunner,
+                gasCharging,
+                messageCallProcessor,
+                contractCreationProcessor,
+                featureFlags,
+                contractMetrics);
     }
 
     @Provides
@@ -116,9 +124,10 @@ public interface V050Module {
             @ServicesV050 @NonNull final AddressChecks addressChecks,
             @ServicesV050 @NonNull final PrecompileContractRegistry registry,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
-            @NonNull final HederaOpsDuration hederaOpsDuration) {
+            @NonNull final HederaOpsDuration hederaOpsDuration,
+            @NonNull final ContractMetrics contractMetrics) {
         return new CustomMessageCallProcessor(
-                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration);
+                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration, contractMetrics);
     }
 
     @Provides
