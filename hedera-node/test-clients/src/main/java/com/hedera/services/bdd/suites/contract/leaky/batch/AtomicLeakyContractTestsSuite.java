@@ -155,7 +155,6 @@ import org.junit.jupiter.api.Order;
 @OrderedInIsolation
 @HapiTestLifecycle
 public class AtomicLeakyContractTestsSuite {
-
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
