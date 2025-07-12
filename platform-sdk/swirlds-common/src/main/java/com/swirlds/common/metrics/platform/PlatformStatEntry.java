@@ -50,12 +50,14 @@ public class PlatformStatEntry extends AbstractMetric implements StatEntry {
     @SuppressWarnings("unchecked")
     public PlatformStatEntry(@NonNull final StatEntry.Config<?> config) {
         super(config);
-        this.dataType = MetricConfig.mapDataType(config.getType());
-        this.buffered = config.getBuffered();
-        this.reset = config.getReset();
-        this.statsStringSupplier = (Supplier<Object>) config.getStatsStringSupplier();
-        this.resetStatsStringSupplier = (Supplier<Object>) config.getResetStatsStringSupplier();
+
+        dataType = MetricConfig.mapDataType(config.getType());
+        buffered = config.getBuffered();
+        reset = config.getReset();
+        statsStringSupplier = (Supplier<Object>) config.getStatsStringSupplier();
+        resetStatsStringSupplier = (Supplier<Object>) config.getResetStatsStringSupplier();
         halfLife = config.getHalfLife();
+
         if (config.getInit() != null) {
             config.getInit().apply(halfLife);
         }
@@ -143,10 +145,7 @@ public class PlatformStatEntry extends AbstractMetric implements StatEntry {
      * {@inheritDoc}
      */
     @Override
-    public String toString() {
-        return new ToStringBuilder(this)
-                .appendSuper(super.toString())
-                .append("value", statsStringSupplier.get())
-                .toString();
+    protected ToStringBuilder selfToString() {
+        return super.selfToString().append("value", statsStringSupplier.get());
     }
 }
