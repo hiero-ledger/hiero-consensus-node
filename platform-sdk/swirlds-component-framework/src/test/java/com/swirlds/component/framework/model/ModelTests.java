@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.component.framework.schedulers.SequentialTaskSchedulerAliveThreadCleanup;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.SolderType;
@@ -16,15 +17,17 @@ import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-class ModelTests {
+class ModelTests implements SequentialTaskSchedulerAliveThreadCleanup {
 
     /**
      * For debugging with a human in the loop.
      */
     private static final boolean printMermaidDiagram = false;
 
+    private WiringModel model;
     /**
      * Validate the model.
      *
@@ -52,14 +55,14 @@ class ModelTests {
 
     @Test
     void emptyModelTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         validateModel(model, false, false);
     }
 
     @Test
     void singleVertexTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -77,7 +80,7 @@ class ModelTests {
 
     @Test
     void shortChainTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -107,7 +110,7 @@ class ModelTests {
 
     @Test
     void loopSizeOneTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -130,7 +133,7 @@ class ModelTests {
 
     @Test
     void loopSizeOneBrokenByInjectionTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -153,7 +156,7 @@ class ModelTests {
 
     @Test
     void loopSizeTwoTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -182,7 +185,7 @@ class ModelTests {
 
     @Test
     void loopSizeTwoBrokenByInjectionTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -211,7 +214,7 @@ class ModelTests {
 
     @Test
     void loopSizeTwoBrokenByMissingBoundTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -240,7 +243,7 @@ class ModelTests {
 
     @Test
     void loopSizeThreeTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -275,7 +278,7 @@ class ModelTests {
 
     @Test
     void loopSizeThreeBrokenByInjectionTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -310,7 +313,7 @@ class ModelTests {
 
     @Test
     void loopSizeThreeBrokenByMissingBoundTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -345,7 +348,7 @@ class ModelTests {
 
     @Test
     void loopSizeFourTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -387,7 +390,7 @@ class ModelTests {
 
     @Test
     void loopSizeFourBrokenByInjectionTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -429,7 +432,7 @@ class ModelTests {
 
     @Test
     void loopSizeFourBrokenByMissingBoundTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -471,7 +474,7 @@ class ModelTests {
 
     @Test
     void loopSizeFourWithChainTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -559,7 +562,7 @@ class ModelTests {
 
     @Test
     void loopSizeFourWithChainBrokenByInjectionTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -647,7 +650,7 @@ class ModelTests {
 
     @Test
     void loopSizeFourWithChainBrokenByMissingBoundTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -735,7 +738,7 @@ class ModelTests {
 
     @Test
     void multiLoopTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -827,7 +830,7 @@ class ModelTests {
 
     @Test
     void multiLoopBrokenByInjectionTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -919,7 +922,7 @@ class ModelTests {
 
     @Test
     void multiLoopBrokenByMissingBoundTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1011,7 +1014,7 @@ class ModelTests {
 
     @Test
     void filterInCycleTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1104,7 +1107,7 @@ class ModelTests {
 
     @Test
     void transformerInCycleTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1197,7 +1200,7 @@ class ModelTests {
 
     @Test
     void splitterInCycleTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1288,7 +1291,7 @@ class ModelTests {
 
     @Test
     void multipleOutputCycleTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1392,7 +1395,7 @@ class ModelTests {
      */
     @Test
     void concurrentAccessingDirectTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1488,7 +1491,7 @@ class ModelTests {
      */
     @Test
     void concurrentAccessingMultipleDirectTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1587,7 +1590,7 @@ class ModelTests {
      */
     @Test
     void concurrentAccessingDirectThroughProxyTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1686,7 +1689,7 @@ class ModelTests {
      */
     @Test
     void multipleSequentialSchedulerTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         /*
@@ -1780,7 +1783,7 @@ class ModelTests {
 
     @Test
     void unboundInputWireTest() {
-        final WiringModel model =
+        this.model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final TaskScheduler<Integer> taskSchedulerA = model.<Integer>schedulerBuilder("A")
@@ -1794,6 +1797,18 @@ class ModelTests {
 
         model.start();
         assertFalse(model.checkForUnboundInputWires());
+
         model.stop();
+    }
+
+    @AfterEach
+    void tearDown() {
+        if (model != null) {
+            try {
+                model.stop();
+            } catch (final Exception e) {
+                // Do nothing
+            }
+        }
     }
 }

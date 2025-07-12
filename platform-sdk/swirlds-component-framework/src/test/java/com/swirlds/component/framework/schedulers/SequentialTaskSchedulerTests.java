@@ -20,16 +20,13 @@ import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
 import com.swirlds.component.framework.wires.SolderType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.StringWriter;
 import java.lang.Thread.State;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -38,7 +35,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.base.concurrent.test.fixtures.ConsumerWithCompletionControl;
@@ -50,7 +46,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class SequentialTaskSchedulerTests {
+class SequentialTaskSchedulerTests implements SequentialTaskSchedulerAliveThreadCleanup {
 
     private static final NoOpMetrics NO_OP_METRICS = new NoOpMetrics();
     private static final int DEFAULT_OPERATIONS = 100;
@@ -2223,65 +2219,12 @@ class SequentialTaskSchedulerTests {
     }
 
     @AfterEach
-    void tierDown() throws InterruptedException {
-        // This is a "best effort" attempt to not leave any thread alive before finishing the test.
-        // ONLY applies to SEQUENTIAL_THREAD.
-
+    void tearDown() {
         try {
             model.stop();
-        } catch (RuntimeException e) {
-            return;
+        } catch (final Exception e) {
+            // DO NOTHING
         }
-
-        final int retries = 3;
-        Collection<Thread> liveThreads = List.of();
-        for (int i = 0; i < retries; i++) {
-            liveThreads = getLivePlatformThreadByNameMatching(
-                    name -> name.startsWith(SequentialThreadTaskScheduler.THREAD_NAME_PREFIX)
-                            && name.endsWith(SequentialThreadTaskScheduler.THREAD_NAME_SUFFIX));
-            if (liveThreads.isEmpty()) {
-                break;
-            } else {
-                System.out.println(
-                        "Some scheduler threads are still alive, waiting for them to finish normally. Try:" + (i + 1));
-                sleep((int) Math.pow(10, (i + 1)));
-            }
-        }
-
-        if (!liveThreads.isEmpty()) {
-            // There is an issue preventing the thread to normally finish.
-            final StringWriter sw = new StringWriter();
-            sw.append(("Some scheduler threads are still alive after %d retries and they should not. ")
-                    .formatted(retries));
-            liveThreads.forEach(t -> {
-                StringBuilder exception = new StringBuilder("\n");
-                sw.append("+".repeat(40));
-                sw.append("\n");
-                sw.append(t.getName());
-                sw.append("\n");
-                for (StackTraceElement s : t.getStackTrace()) {
-                    exception.append(s).append("\n\t\t");
-                }
-                sw.append(exception);
-                sw.append("\n\n");
-                //
-                t.interrupt();
-            });
-            // mark the test as fail to analyze
-            fail(sw.toString());
-        }
-    }
-
-    /**
-     * Search for all alive platform threads which name's matches a given predicate.
-     * @param predicate that the name of the platform thread needs to match to be returned
-     * @return the list of threads that matched the predicate.
-     */
-    @NonNull
-    private static Collection<Thread> getLivePlatformThreadByNameMatching(@NonNull final Predicate<String> predicate) {
-        return Thread.getAllStackTraces().keySet().stream()
-                .filter(t -> predicate.test(t.getName()))
-                .toList();
     }
 
     private static void sleep(long millis) {
