@@ -1,0 +1,7 @@
+contracts.chainId=298
+ledger.id=0x03
+entities.unlimitedAutoAssociationsEnabled=true
+bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
+networkAdmin.exportCandidateRoster=true
+addressBook.useRosterLifecycle=true
+nodes.gossipFqdnRestricted=false
