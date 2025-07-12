@@ -14,7 +14,7 @@ import java.util.EnumSet;
 
 public class GetTokenKeyFailableCall extends AbstractFailableStaticCall {
 
-    private static final Function SIGNATURE = new Function("getTokenKey(address,uint)");
+    private static final Function SIGNATURE = new Function("getTokenKey(address,uint256)");
 
     public GetTokenKeyFailableCall() {
         super(EnumSet.of(INVALID_TOKEN_ID_FAILURE));

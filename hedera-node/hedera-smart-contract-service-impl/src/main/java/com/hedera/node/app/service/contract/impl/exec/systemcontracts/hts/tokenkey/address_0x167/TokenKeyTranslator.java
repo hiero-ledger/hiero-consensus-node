@@ -27,9 +27,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class TokenKeyTranslator extends AbstractCallTranslator<HtsCallAttempt> {
-    /** Selector for getTokenKey(address,uint) method. */
+    /** Selector for getTokenKey(address,uint256) method. */
     public static final SystemContractMethod TOKEN_KEY = SystemContractMethod.declare(
-                    "getTokenKey(address,uint)", ReturnTypes.RESPONSE_CODE_TOKEN_KEY)
+                    "getTokenKey(address,uint256)", ReturnTypes.RESPONSE_CODE_TOKEN_KEY)
             .withModifier(Modifier.VIEW)
             .withCategory(Category.TOKEN_QUERY)
             .withSupportedAddress(HTS_167_CONTRACT_ID);
