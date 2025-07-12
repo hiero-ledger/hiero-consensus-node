@@ -284,9 +284,10 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 new TestCombination(OVERSIZED_TXN_SIZE, EthTxData.EthTransactionType.EIP1559));
 
         private final Stream<TestCombinationWithGas> aboveMaxCases = Stream.of(
-                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 8_500_000, 0),
-                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP2930, 8_500_000, 0),
-                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559, 8_500_000, 0));
+                new TestCombinationWithGas(
+                        ABOVE_MAX_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 8_500_000, 53000),
+                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP2930, 8_500_000, 53000),
+                new TestCombinationWithGas(ABOVE_MAX_SIZE, EthTxData.EthTransactionType.EIP1559, 8_500_000, 53000));
 
         private final Stream<Integer> insufficientFeeCases = Stream.of(SIX_KB_SIZE, MAX_ALLOWED_SIZE);
 

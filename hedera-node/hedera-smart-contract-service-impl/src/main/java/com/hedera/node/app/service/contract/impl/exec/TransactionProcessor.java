@@ -214,9 +214,9 @@ public class TransactionProcessor {
         } else {
             final var to = updater.getHederaAccount(transaction.contractIdOrThrow());
             if (contractNotRequired(to, config)) {
-                parties = partiesWhenContractNotRequired(to, sender, relayer, transaction, updater, config);
+                parties = partiesWhenContractNotRequired(to, sender, relayer, transaction, updater);
             } else {
-                parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater, config);
+                parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater);
             }
         }
         if (transaction.isEthereumTransaction()) {
@@ -246,10 +246,9 @@ public class TransactionProcessor {
             @NonNull final HederaEvmAccount sender,
             @Nullable final HederaEvmAccount relayer,
             @NonNull final HederaEvmTransaction transaction,
-            @NonNull final HederaWorldUpdater updater,
-            @NonNull final Configuration config) {
+            @NonNull final HederaWorldUpdater updater) {
         final InvolvedParties parties;
-        if (maybeLazyCreate(transaction, to, config)) {
+        if (maybeLazyCreate(transaction, to)) {
             // Presumably these checks _could_ be done later as part of the message
             // call, but historically we have failed fast when they do not pass
             validateTrue(transaction.hasValue(), INVALID_CONTRACT_ID);
@@ -269,10 +268,9 @@ public class TransactionProcessor {
             @NonNull final HederaEvmAccount sender,
             @Nullable final HederaEvmAccount relayer,
             @NonNull final HederaEvmTransaction transaction,
-            @NonNull final HederaWorldUpdater updater,
-            @NonNull final Configuration config) {
+            @NonNull final HederaWorldUpdater updater) {
         final InvolvedParties parties;
-        if (maybeLazyCreate(transaction, to, config)) {
+        if (maybeLazyCreate(transaction, to)) {
             // Only set up the lazy creation if the transaction has a value and a valid alias
             final var alias = transaction.contractIdOrThrow().evmAddress();
             if (transaction.hasValue() && alias != null) {
@@ -298,9 +296,7 @@ public class TransactionProcessor {
     }
 
     private boolean maybeLazyCreate(
-            @NonNull final HederaEvmTransaction transaction,
-            @Nullable final HederaEvmAccount to,
-            @NonNull final Configuration config) {
+            @NonNull final HederaEvmTransaction transaction, @Nullable final HederaEvmAccount to) {
         return to == null && transaction.isEthereumTransaction() && messageCall.isImplicitCreationEnabled();
     }
 }

@@ -525,4 +525,23 @@ public record HederaEvmTransactionResult(
                 actions,
                 signerNonce);
     }
+
+    public HederaEvmTransactionResult withGasUsed(final long gasUsed) {
+        return new HederaEvmTransactionResult(
+                gasUsed,
+                gasPrice,
+                senderId,
+                recipientId,
+                recipientEvmAddress,
+                output,
+                haltReason,
+                revertReason,
+                logs,
+                evmLogs,
+                stateChanges,
+                slotUsages,
+                finalStatus,
+                actions,
+                signerNonce);
+    }
 }

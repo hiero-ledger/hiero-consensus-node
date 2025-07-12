@@ -86,6 +86,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_P
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_NONCE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.base.utility.CommonUtils.unhex;
@@ -125,6 +126,7 @@ import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -148,6 +150,10 @@ public class EthereumSuite {
     private static final String PAY_TXN = "payTxn";
     private static final String TOTAL_SUPPLY_TX = "totalSupplyTx";
     private static final String ERC20_ABI = "ERC20ABI";
+    private static final String KECCAK_HASHER = "KeccakHasher";
+    protected static final String THROTTLE_THROTTLE_BY_OPS_DURATION = "contracts.throttle.throttleByOpsDuration";
+    protected static final String MAX_OPS_DURATION = "contracts.maxOpsDuration";
+    private static final String CONTRACTS_THROTTLE_BY_GAS = "contracts.throttleThrottleByGas";
 
     // This test must be run first to ensure the record file is as expected.
     @HapiTest
@@ -1291,5 +1297,38 @@ public class EthereumSuite {
                         .gasLimit(2_000_000L * -1)
                         .via(PAY_TXN)
                         .hasPrecheck(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    // @HapiTest
+    // This test can be turned on once the contracts.evm.version is set to v0.64 or higher.
+    @DisplayName("reach ops duration with Ethereum transaction and ensure only intrinsic gas is charged")
+    public Stream<DynamicTest> opsDurationThrottleExceededChargeIntrinsicGas() {
+        return hapiTest(
+                uploadInitCode(KECCAK_HASHER),
+                contractCreate(KECCAK_HASHER).gas(2_000_000L),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                overriding(CONTRACTS_THROTTLE_BY_GAS, "false"),
+                overriding(THROTTLE_THROTTLE_BY_OPS_DURATION, "true"),
+                overriding(MAX_OPS_DURATION, "10000000"),
+                withOpContext((spec, opLog) -> {
+                            allRunFor(
+                                    spec,
+                                    ethereumCall(KECCAK_HASHER, "repeatedKeccak256", BigInteger.valueOf(24000L))
+                                            .type(EthTxData.EthTransactionType.EIP1559)
+                                            .signingWith(SECP_256K1_SOURCE_KEY)
+                                            .payingWith(RELAYER)
+                                            .nonce(0L)
+                                            .gasPrice(10L)
+                                            .gasLimit(15_000_000L)
+                                            .via("exhaustOpsDuration")
+                                            .hasKnownStatusFrom(THROTTLED_AT_CONSENSUS));
+                        })
+                        .logged(),
+                getTxnRecord("exhaustOpsDuration")
+                        .logged()
+                        .hasPriority(
+                                recordWith().contractCallResult(resultWith().gasUsed(21216))));
     }
 }

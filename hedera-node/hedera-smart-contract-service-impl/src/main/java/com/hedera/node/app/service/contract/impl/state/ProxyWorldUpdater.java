@@ -199,6 +199,21 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         enhancement.operations().refundGasFee(payerId, amount);
     }
 
+    @Override
+    public void resetGasChargingEvents() {
+        enhancement.operations().resetGasChargingEvents();
+    }
+
+    @Override
+    public boolean hasGasChargingEvents() {
+        return enhancement.operations().hasGasChargingEvents();
+    }
+
+    @Override
+    public boolean hasRefundGasFeeEvents() {
+        return enhancement.operations().hasRefundGasFeeEvents();
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -310,7 +325,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
         evmFrameState.trackSelfDestructBeneficiary(deleted, beneficiary, frame);
     }
-    ;
 
     /**
      * {@inheritDoc}
