@@ -50,6 +50,7 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
     requires("org.hiero.junit.extensions")
+    requires("java.compiler")
 
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
     opensTo("org.hiero.junit.extensions")
