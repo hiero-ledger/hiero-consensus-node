@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [CITR] Single Day Performance Test"
+name: "ZXC: [CITR] Single Day Longevity NLG Test"
 
 on:
   workflow_call:
@@ -40,16 +40,6 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      crypto-bench-merkle-db-java-args:
-        required: true
-        default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
-        description: "JMH javaargs"
-        type: string
-      crypto-bench-merkle-db-test-params:
-        required: true
-        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
-        description: "Test params"
-        type: string
     secrets:
       slack-report-webhook:
         required: true
@@ -85,8 +75,6 @@ jobs:
       run_NLG_Time: ${{ inputs.nlg-time }}
       run_AddAppProps: ${{ inputs.add-app-props }}
       run_AddSettings: ${{ inputs.add-settings }}
-      crypto-bench-merkle-db-java-args: ${{ inputs.crypto-bench-merkle-db-java-args }}
-      crypto-bench-merkle-db-test-params: ${{ inputs.crypto-bench-merkle-db-test-params }}
       run_NLG_Test: NftTransferLoadTest
     steps:
       - name: Harden Runner
@@ -249,15 +237,19 @@ jobs:
 
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
 
+          echo "DEBUG:"
+          pwd
+          find "${{ github.workspace }}"/.github/workflows
+
           # Remove Taskfile.yml
           rm -f Taskfile.yml
           # Generate the Taskfile.yml file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
+          cp ${{ github.workspace }}/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
 
           # Remove init-containers-values8.yaml
           rm -f init-containers-values8.yaml
           # Generate the init-containers-values8.yaml inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values8.yaml init-containers-values8.yaml
+          cp ${{ github.workspace }}/.github/workflows/support/citr/init-containers-values8.yaml init-containers-values8.yaml
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ env.namespace }}@g" \
@@ -271,12 +263,12 @@ jobs:
           # Remove application.properties
           rm -f application.properties
           # Generate the application.properties file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
+          cp ${{ github.workspace }}/.github/workflows/support/citr/application.properties.txt application.properties
 
           # Remove settings.txt
           rm -f settings.txt
           # Generate the settings.txt file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
+          cp ${{ github.workspace }}/.github/workflows/support/citr/settings.txt settings.txt
 
           if [ "${{ inputs.add-app-props }}" != "" ]
           then
@@ -342,11 +334,6 @@ jobs:
           # Generate the nlg-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
-          # Remove merkledb-values.yaml
-          rm -f merkledb-values.yaml
-          # Generate the merkledb-values.yaml file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
-
           #Disable auto-start
           sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' nlg-values.yaml
           grep -v 'x.y.z' nlg-values.yaml > new.yml
@@ -372,62 +359,6 @@ jobs:
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
-      - name: Build swirlds-benchmark-CryptoBenchMerkleDb.transferPrefetch
-        run: |
-          set +x
-          set +e
-          export TERM=vt100
-          cd "${{ github.workspace }}"/platform-sdk/swirlds-benchmarks
-          ulimit -n 16000
-          ../../gradlew --no-daemon --rerun-tasks -Dorg.gradle.caching=false --no-configuration-cache jmhJar
-
-          cat << EOPROPF > settings.txt
-          benchmark.benchmarkData,            .
-          benchmark.saveDataDirectory,          true
-          benchmark.verifyResult,            false
-          benchmark.printHistogram,           true
-          benchmark.csvOutputFolder,
-          benchmark.csvWriteFrequency,          10000
-          benchmark.csvAppend,              true
-          benchmark.deviceName,             md0
-          virtualMap.familyThrottleThreshold,      10000000000
-          virtualMap.flushThrottleStepSize,       500ms
-          merkleDb.hashesRamToDiskThreshold,       134217728
-          merkleDb.compactionThreads,          1
-          EOPROPF
-
-          tar cvfz /tmp/SwirldsMerkleDB.tgz build/libs/swirlds-benchmarks-*-jmh.jar settings.txt
-
-      - name: Deploy SwirldsMerkleDB test
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
-          sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
-          helm install --set name=merkle --set appName=merkle merklebench oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ env.namespace }}"
-          sleep 180
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
-
-          # Copy run version
-
-          echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
-
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
-
-      - name: Start SwirldsMerkleDB test
-        run: |
-          set +x
-          set +e
-
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
-
-          kubectl -n "${{ env.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
-          --jvmArgs '${{ env.crypto-bench-merkle-db-java-args }}' CryptoBenchMerkleDb.transferPrefetch ${{ env.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
-
       - name: Start Account Creation
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
@@ -448,11 +379,11 @@ jobs:
           esac
 
           echo \
-          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt 10s > client.log 2>&1 &"
 
-          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt 10s > client.log 2>&1 &"
 
@@ -573,31 +504,39 @@ jobs:
 
       - name: Start test
         run: |
-          run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
-
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
-
-          n=`expr "${{ env.run_NLG_Accounts }}" / 1000`
+          n=`expr ${{ env.run_NLG_Accounts }} / 1000`
           NLG_c=32
 
-          NLGargs="-metrics -R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
+          if [ "${{ github.event.inputs.perf_analysis }}" = "true" ]
+          then
+            NLG_c=10
+          fi
 
-          case "${{ env.run_NLG_Test }}" in
-            NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
-            CryptoTransferLoadTest) NLGargs="-K ECDSA ${NLGargs}";;
-            HCSLoadTest)            NLGargs="-K ECDSA ${NLGargs} -n ${n}";;
-            TokenTransferLoadTest)  NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000";;
+          for test in HeliSwapLoadTest NftTransferLoadTest CryptoTransferLoadTest HCSLoadTest SmartContractLoadTest
+          do
+
+          NLGargs="-R -c ${NLG_c} -a ${{ env.run_NLG_Accounts }}"
+          throttle="-Dbenchmark.maxtps="
+          case "${test}" in
+           NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50"; throttle="${throttle}3000";;
+           CryptoTransferLoadTest) NLGargs="-K ECDSA ${NLGargs}"; throttle="${throttle}5000";;
+           HCSLoadTest)            NLGargs="-K ECDSA ${NLGargs} -n ${n}"; throttle="${throttle}2000";;
+           TokenTransferLoadTest)  NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000"; throttle="${throttle}1";; #FIXME: not in use
+           HeliSwapLoadTest) throttle="${throttle}300";;
+           SmartContractLoadTest) throttle="${throttle}50";;
           esac
 
-          echo \
-          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
-          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ env.run_NLG_Time }}m > client.log 2>&1 &"
+          echo kubectl -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${throttle} \
+            ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
+            ${NLGargs} -tt ${{ env.run_NLG_Time }} > client_${test}.log 2>&1 &"
 
-          kubectl -n "${{ env.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
-          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt ${{ env.run_NLG_Time }}m > client.log 2>&1 &"
+          kubectl -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${throttle} \
+            ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
+            ${NLGargs} -tt ${{ env.run_NLG_Time }} > client_${test}.log 2>&1 &"
+          sleep 30
+          done
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
@@ -735,7 +674,7 @@ jobs:
 
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client_NftTransferLoadTest.log"
 
           counter=0
           start_time=`date +%s`
@@ -753,13 +692,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client_NftTransferLoadTest.log" > client.log
            tail -n 1 client.log
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client_NftTransferLoadTest.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -773,7 +712,7 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client_NftTransferLoadTest.log "${{ github.workspace }}"/report/client.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ env.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
@@ -806,7 +745,11 @@ jobs:
 
     outputs:
       NFTscore: ${{ steps.NftTransferLoadTestLogs.outputs.value }}
-      MerkleDBscore: ${{ steps.CryptoBenchMerkleDbLogs.outputs.value }}
+      Heliscore: ${{ steps.HeliSwapLoadTestLogs.outputs.value }}
+      Cryptoscore: ${{ steps.CryptoTransferLoadTestLogs.outputs.value }}
+      HCSscore: ${{ steps.HCSLoadTestLogs.outputs.value }}
+      Smartscore: ${{ steps.SmartContractLoadTestLogs.outputs.value }}
+
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
@@ -926,7 +869,7 @@ jobs:
 
           nlgpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}'`
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client_NftTransferLoadTest.log"
 
           counter=0
           start_time=`date +%s`
@@ -944,13 +887,13 @@ jobs:
            counter=`expr "${current_time}" - "${start_time}"`
            counter=`expr "${counter}" \/ 60`
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client_NftTransferLoadTest.log" > client.log
            tail -n 1 client.log
 
            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client_NftTransferLoadTest.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [ ${ec} -lt 2 ] #any terminal states 0 or 1, ec=2 is to continue
@@ -964,7 +907,11 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          for test in HeliSwapLoadTest NftTransferLoadTest CryptoTransferLoadTest HCSLoadTest SmartContractLoadTest
+          do
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/client_${test}.log "${{ github.workspace }}"/report//client_${test}.log
+          done
+
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ env.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ env.namespace }}" "${{ github.workspace }}"/report/
@@ -985,8 +932,32 @@ jobs:
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
-          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
-          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g'
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_NftTransferLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_NftTransferLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of HeliSwapLoadTest test
+        id: HeliSwapLoadTestLogs
+        run: |
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_HeliSwapLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_HeliSwapLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of CryptoTransferLoadTest test
+        id: CryptoTransferLoadTestLogs
+        run: |
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_CryptoTransferLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_CryptoTransferLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of HCSLoadTest test
+        id: HCSLoadTestLogs
+        run: |
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_HCSLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_HCSLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of SmartContractLoadTest test
+        id: SmartContractLoadTestLogs
+        run: |
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_SmartContractLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> $GITHUB_OUTPUT
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client_SmartContractLoadTest.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
@@ -998,6 +969,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       - name: Publish logs
+        if: ${{ always() }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1011,118 +983,11 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/longevity
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/longevity"
 
           echo "Truncating logs for next test..."
           sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"
-
-      - name: Records logs of CryptoBenchMerkleDb
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace }}"
-          merklebenchpod=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" get pods | grep merklebench | awk '{print $1}'`
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks.log ./swirlds-benchmarks.log
-          rm -rf "${{ github.workspace }}"/report/*
-          cp swirlds-benchmarks.log "${{ github.workspace }}"/report/swirlds-benchmarks.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" delete deployment merklebench-network-load-generator
-
-      - name: Extract benchmark score of CryptoBenchMerkleDb test
-        id: CryptoBenchMerkleDbLogs
-        run: |
-          result=`grep 'CryptoBenchMerkleDb.transferPrefetch' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $9}' | awk -F \. '{print $1}'`
-          echo "value=${result}" >> $GITHUB_OUTPUT
-          echo "value=${result}"
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
-        with:
-          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
-          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
-
-      - name: Publish logs
-        run: |
-          cd "${{ github.workspace }}"/
-
-          gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
-          if [ ${?} -ne 0 ]
-          then
-            sleep 10
-            gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
-          fi
-
-          echo "Size of report dir:"
-          du -sk report
-
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ env.RUN_HCN_VERSION }}_${{ env.run_namespace }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
-
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ env.namespace }}"
-
-  performance-HCSLoadTest:
-    needs:
-      - performance-NftTransferLoadTest-report
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
-    with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "HCSLoadTest"
-      nlg-time: "${{ inputs.nlg-time }}"
-      workspace: "${{ github.workspace }}"
-      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
-      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
-
-  performance-CryptoTransferLoadTest:
-    needs:
-      - performance-HCSLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
-    with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "CryptoTransferLoadTest"
-      nlg-time: "${{ inputs.nlg-time }}"
-      workspace: "${{ github.workspace }}"
-      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
-      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
-
-  performance-HeliSwapLoadTest:
-    needs:
-      - performance-CryptoTransferLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
-    with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "HeliSwapLoadTest"
-      nlg-time: "${{ inputs.nlg-time }}"
-      workspace: "${{ github.workspace }}"
-      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
-      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
-
-  performance-SmartContractLoadTest:
-    needs:
-      - performance-HeliSwapLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
-    with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      solo-version: "${{ inputs.solo-version }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "SmartContractLoadTest"
-      nlg-time: "${{ inputs.nlg-time }}"
-      workspace: "${{ github.workspace }}"
-      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
-      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
   # Send this output back to the caller workflow
   single-day-performance-test-result:
@@ -1131,10 +996,6 @@ jobs:
     if: ${{ always() }}
     needs:
       - performance-NftTransferLoadTest-report
-      - performance-HCSLoadTest
-      - performance-CryptoTransferLoadTest
-      - performance-HeliSwapLoadTest
-      - performance-SmartContractLoadTest
     outputs:
       result: ${{ steps.sdpt-status.outputs.result }}
     steps:
@@ -1147,18 +1008,11 @@ jobs:
         id: sdpt-status
         env:
           nft_transfer_load_result: ${{ needs.performance-NftTransferLoadTest-report.result }}
-          hcs_load_result: ${{ needs.performance-HCSLoadTest.result }}
-          crypto_transfer_load_result: ${{ needs.performance-CryptoTransferLoadTest.result }}
-          heli_swap_load_result: ${{ needs.performance-HeliSwapLoadTest.result }}
-          smart_contract_load_result: ${{ needs.performance-SmartContractLoadTest.result }}
+
         run: |
           # result is 'success' or 'failure'. If any of the tests failed, we return 'failure'
           RESULT="failure"
-          if [[ "${nft_transfer_load_result}" == "success" && \
-                "${hcs_load_result}" == "success" && \
-                "${crypto_transfer_load_result}" == "success" && \
-                "${heli_swap_load_result}" == "success" && \
-                "${smart_contract_load_result}" == "success" ]]; then
+          if [[ "${nft_transfer_load_result}" == "success" ]]; then
               RESULT="success"
           fi
 
@@ -1171,10 +1025,6 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - performance-NftTransferLoadTest-report
-      - performance-HCSLoadTest
-      - performance-CryptoTransferLoadTest
-      - performance-HeliSwapLoadTest
-      - performance-SmartContractLoadTest
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -1188,13 +1038,12 @@ jobs:
 
           report="\
             NftTransferLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.NFTscore }} \n\
-            CryptoBenchMerkleDb ${{ needs.performance-NftTransferLoadTest-report.outputs.MerkleDBscore }} \n\
-            HCSLoadTest ${{ needs.performance-HCSLoadTest.outputs.output }} \n\
-            CryptoTransferLoadTest ${{ needs.performance-CryptoTransferLoadTest.outputs.output }} \n\
-            HeliSwapLoadTest ${{ needs.performance-HeliSwapLoadTest.outputs.output }} \n\
-            SmartContractLoadTest ${{ needs.performance-SmartContractLoadTest.outputs.output }}"
+            HCSLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.HCSscore }} \n\
+            CryptoTransferLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.Cryptoscore }} \n\
+            HeliSwapLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.Heliscore }}\n\
+            SmartContractLoadTest ${{ needs.performance-NftTransferLoadTest-report.outputs.Smartscore }}"
           #last line is 6, it does not need comma block separator
-          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 6) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
+          freport=`/usr/bin/echo -e "$report" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS\n\"},$freport"
 
           cat <<EOF > slack_payload.json

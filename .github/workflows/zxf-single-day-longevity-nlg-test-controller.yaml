@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Performance Test Controller (SDPT)"
+name: "ZXF: [CITR] Single Day Longevity NLG Test Controller (SDLnT)"
 on:
   workflow_dispatch:
     inputs:
@@ -9,6 +9,7 @@ on:
         description: "Performance test on given namespace"
         type: choice
         options:
+          - AdHoc1
           - AdHoc5
           - AdHoc6
           - AdHoc7
@@ -55,16 +56,6 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      crypto-bench-merkle-db-java-args:
-        required: true
-        default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
-        description: "JMH javaargs"
-        type: string
-      crypto-bench-merkle-db-test-params:
-        required: true
-        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=60"
-        description: "Test params"
-        type: string
       disable-notifications:
         required: false
         default: true
@@ -114,20 +105,20 @@ jobs:
             BUILD_NUMBER="${BASH_REMATCH[1]}"
             echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
 
-            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
 
-            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-  run-single-day-performance-test:
+  run-single-day-longevity-nlg-test:
     name: Performance Test
     needs:
       - verify-tag
-    uses: ./.github/workflows/zxc-single-day-performance-test.yaml
+    uses: ./.github/workflows/zxc-single-day-longevity-nlg-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
@@ -137,18 +128,16 @@ jobs:
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
-      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
-      crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
-  tag-sdpt-passing:
-    name: Tag SDPT Passing
+  tag-sdlt-passing:
+    name: Tag SDLT Passing
     runs-on: hiero-citr-linux-medium
     needs:
-      - run-single-day-performance-test
+      - run-single-day-longevity-nlg-test
       - verify-tag
-    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
+    if: ${{ needs.run-single-day-longevity-nlg-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
@@ -172,14 +161,14 @@ jobs:
           gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
 
-      - name: Tag SDPT Passing
+      - name: Tag SDLT Passing
         run: |
-          TAG_NAME="sdpt-pass-${{ needs.verify-tag.outputs.build-number }}"
+          TAG_NAME="sdlt-pass-${{ needs.verify-tag.outputs.build-number }}"
           git tag --annotate "${TAG_NAME}" --message "Single Day Performance Test passed for build-${{ needs.verify-tag.outputs.build-number }}"
           git push --set-upstream origin --tags
 
-          echo "### SDPT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDPT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### SDLT Pass - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDLT Passing Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
 
   get-commit-info:
     name: Get Commit Information
@@ -230,16 +219,16 @@ jobs:
           echo "commit-email=${EMAIL}" >> "${GITHUB_OUTPUT}"
 
   report-success:
-    name: Report SDPT execution success
+    name: Report SDLT execution success
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - tag-sdpt-passing
-      - run-single-day-performance-test
+      - tag-sdlt-passing
+      - run-single-day-longevity-nlg-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdpt-passing.result == 'success' &&
-      needs.run-single-day-performance-test.outputs.result == 'success' &&
+      needs.tag-sdlt-passing.result == 'success' &&
+      needs.run-single-day-longevity-nlg-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       inputs.disable-notifications != true && !cancelled() }}
     steps:
@@ -264,7 +253,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hiero Consensus Node - Single Day Performance Test Passing Report",
+                        "text": ":tada: Hiero Consensus Node - Single Day Longevity NLG Test Passing Report",
                         "emoji": true
                       }
                     },
@@ -275,12 +264,12 @@ jobs:
                       "type": "section",
                       "text": {
                         "type": "mrkdwn",
-                        "text": "*SDPT Job Succeeded. Test panel status below*"
+                        "text": "*SDLT Job Succeeded. Test panel status below*"
                       },
                       "fields": [
                         {
                           "type": "plain_text",
-                          "text": "Verify Tag for SDPT"
+                          "text": "Verify Tag for SDLT"
                         },
                         {
                           "type": "plain_text",
@@ -292,15 +281,15 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-single-day-performance-test.outputs.result  }}"
+                          "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "Tag SDPT Passing"
+                          "text": "Tag SDLT Passing"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.tag-sdpt-passing.result }}"
+                          "text": "${{ needs.tag-sdlt-passing.result }}"
                         }
                       ]
                     },
@@ -354,16 +343,16 @@ jobs:
             }
 
   report-failure:
-    name: Report SDPT execution failure
+    name: Report SDLT execution failure
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - run-single-day-performance-test
-      - tag-sdpt-passing
+      - run-single-day-longevity-nlg-test
+      - tag-sdlt-passing
       - get-commit-info
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdpt-passing.result != 'success' ||
-      needs.run-single-day-performance-test.outputs.result != 'success' ||
+      needs.tag-sdlt-passing.result != 'success' ||
+      needs.run-single-day-longevity-nlg-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success') &&
       inputs.disable-notifications != true && !cancelled() && always() }}
 
@@ -428,12 +417,12 @@ jobs:
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*SDPT Job Resulted in failure. See status below.*"
+                      "text": "*SDLT Job Resulted in failure. See status below.*"
                     },
                     "fields": [
                       {
                         "type": "plain_text",
-                        "text": "Verify Tag for SDPT"
+                        "text": "Verify Tag for SDLT"
                       },
                       {
                         "type": "plain_text",
@@ -445,15 +434,15 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-single-day-performance-test.outputs.result }}"
+                        "text": "${{ needs.run-single-day-longevity-nlg-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "Tag SDPT Passing"
+                        "text": "Tag SDLT Passing"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.tag-sdpt-passing.result }}"
+                        "text": "${{ needs.tag-sdlt-passing.result }}"
                       },
                       {
                         "type": "plain_text",
