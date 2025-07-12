@@ -9,6 +9,7 @@ import java.util.List;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.result.PlatformStatusSubscriber;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Default implementation of {@link SingleNodePlatformStatusResults}
@@ -45,6 +46,14 @@ public class SingleNodePlatformStatusResultsImpl implements SingleNodePlatformSt
     @NonNull
     public List<PlatformStatus> statusProgression() {
         return collector.currentStatusProgression(startIndex);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @Nullable PlatformStatus currentStatus() {
+        return statusProgression().getLast();
     }
 
     /**

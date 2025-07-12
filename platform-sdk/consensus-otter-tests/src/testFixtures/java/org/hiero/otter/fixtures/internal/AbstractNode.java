@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.internal;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,13 +29,19 @@ public abstract class AbstractNode implements Node {
     protected final NodeId selfId;
     protected final long weight;
 
-    /** The current state of the node's life cycle. Volatile because it is set by the test thread and read by the container callback thread.  */
+    /**
+     * The current state of the node's life cycle. Volatile because it is set by the test thread and read by the
+     * container callback thread.
+     */
     protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
 
-    /** Current software version of the platform  */
+    /** Current software version of the platform */
     protected SemanticVersion version = Node.DEFAULT_VERSION;
 
-    /** The current state of the platform. Volatile because it is set by the container callback thread and read by the test thread.  */
+    /**
+     * The current state of the platform. Volatile because it is set by the container callback thread and read by the
+     * test thread.
+     */
     @Nullable
     protected volatile PlatformStatus platformStatus = null;
 
@@ -42,10 +49,29 @@ public abstract class AbstractNode implements Node {
      * Constructor for the AbstractNode class.
      *
      * @param selfId the unique identifier for this node
+     * @param weight the weight of this node
      */
     protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
         this.selfId = selfId;
         this.weight = weight;
+    }
+
+    /**
+     * Constructor for the AbstractNode class.
+     *
+     * @param selfId the unique identifier for this node
+     * @param roster the roster for the network this node is part of
+     */
+    protected AbstractNode(@NonNull final NodeId selfId, final Roster roster) {
+        this(selfId, getWeight(selfId, roster));
+    }
+
+    private static long getWeight(@NonNull final NodeId selfId, @NonNull final Roster roster) {
+        return roster.rosterEntries().stream()
+                .filter(r -> r.nodeId() == selfId.id())
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"))
+                .weight();
     }
 
     /**
@@ -115,7 +141,7 @@ public abstract class AbstractNode implements Node {
      * Throws an {@link IllegalStateException} if the node is in the specified lifecycle state.
      *
      * @param expected the expected lifecycle state
-     * @param message  the message for the exception
+     * @param message the message for the exception
      */
     protected void throwIfIn(@NonNull final LifeCycle expected, @NonNull final String message) {
         if (lifeCycle == expected) {

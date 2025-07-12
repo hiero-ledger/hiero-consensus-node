@@ -36,6 +36,7 @@ import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -117,6 +118,16 @@ public class ContainerNode extends AbstractNode implements Node {
     @Override
     public void killImmediately() throws InterruptedException {
         defaultAsyncAction.killImmediately();
+    }
+
+    @Override
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+        defaultAsyncAction.startSyntheticBottleneck(delayPerRound);
+    }
+
+    @Override
+    public void stopSyntheticBottleneck() {
+        defaultAsyncAction.stopSyntheticBottleneck();
     }
 
     /**
@@ -324,6 +335,26 @@ public class ContainerNode extends AbstractNode implements Node {
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                    .setSleepMillisPerRound(delayPerRound.toMillis())
+                    .build());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void stopSyntheticBottleneck() {
+            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                    .setSleepMillisPerRound(0)
+                    .build());
         }
     }
 

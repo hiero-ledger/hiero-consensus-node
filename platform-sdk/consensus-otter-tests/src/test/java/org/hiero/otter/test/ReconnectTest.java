@@ -14,6 +14,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
+import com.swirlds.platform.consensus.ConsensusConfig_;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -45,8 +46,8 @@ public class ReconnectTest {
         // Set the rounds non-ancient and expired to smaller values to allow nodes to fall behind quickly
         network.getNodes().forEach(node -> {
             node.configuration()
-                    .set("roundsNonAncient", String.valueOf(ROUNDS_NON_ANCIENT))
-                    .set("roundsExpired", String.valueOf(ROUNDS_EXPIRED));
+                    .set(ConsensusConfig_.ROUNDS_NON_ANCIENT, String.valueOf(ROUNDS_NON_ANCIENT))
+                    .set(ConsensusConfig_.ROUNDS_EXPIRED, String.valueOf(ROUNDS_EXPIRED));
         });
 
         assertContinuouslyThat(network.getConsensusResults()).haveEqualRounds();
