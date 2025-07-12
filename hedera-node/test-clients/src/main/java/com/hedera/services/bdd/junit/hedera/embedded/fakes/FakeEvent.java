@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -84,12 +83,6 @@ public class FakeEvent implements Event {
     @Override
     public NodeId getCreatorId() {
         return creatorId;
-    }
-
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return null;
     }
 
     @Override

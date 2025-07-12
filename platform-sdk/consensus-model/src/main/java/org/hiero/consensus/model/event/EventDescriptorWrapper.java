@@ -49,9 +49,6 @@ public record EventDescriptorWrapper(
                 .append("H:")
                 .append(hash().toHex(6))
                 .append(" ")
-                .append("G:")
-                .append(eventDescriptor().generation())
-                .append(" ")
                 .append("BR:")
                 .append(eventDescriptor().birthRound())
                 .append(')');

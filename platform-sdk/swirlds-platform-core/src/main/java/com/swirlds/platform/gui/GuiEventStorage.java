@@ -90,7 +90,7 @@ public class GuiEventStorage {
      * @param event the event to handle
      */
     public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
-        maxGeneration = Math.max(maxGeneration, event.getGeneration());
+        maxGeneration = Math.max(maxGeneration, event.getNGen());
 
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());
