@@ -26,10 +26,15 @@ public abstract class AbstractNode implements Node {
     }
 
     protected final NodeId selfId;
+    protected final long weight;
 
+    /** The current state of the node's life cycle. Volatile because it is set by the test thread and read by the container callback thread.  */
     protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
-    protected volatile SemanticVersion version = Node.DEFAULT_VERSION;
 
+    /** Current software version of the platform  */
+    protected SemanticVersion version = Node.DEFAULT_VERSION;
+
+    /** The current state of the platform. Volatile because it is set by the container callback thread and read by the test thread.  */
     @Nullable
     protected volatile PlatformStatus platformStatus = null;
 
@@ -38,8 +43,9 @@ public abstract class AbstractNode implements Node {
      *
      * @param selfId the unique identifier for this node
      */
-    protected AbstractNode(@NonNull final NodeId selfId) {
+    protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
         this.selfId = selfId;
+        this.weight = weight;
     }
 
     /**
@@ -58,6 +64,14 @@ public abstract class AbstractNode implements Node {
     @Override
     public NodeId selfId() {
         return selfId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long weight() {
+        return weight;
     }
 
     /**
