@@ -2,6 +2,8 @@
 [![Artifact Determinism](https://github.com/hashgraph/hedera-services/actions/workflows/flow-artifact-determinism.yaml/badge.svg)](https://github.com/hashgraph/hedera-services/actions/workflows/flow-artifact-determinism.yaml)
 [![Node: Performance Tests](https://github.com/hashgraph/hedera-services/actions/workflows/flow-node-performance-tests.yaml/badge.svg)](https://github.com/hashgraph/hedera-services/actions/workflows/flow-node-performance-tests.yaml)
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/hiero-ledger/hiero-consensus-node/badge)](https://scorecard.dev/viewer/?uri=github.com/hiero-ledger/hiero-consensus-node)
+[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/10697/badge)](https://bestpractices.coreinfrastructure.org/projects/10697)
 [![codecov](https://codecov.io/gh/hashgraph/hedera-services/graph/badge.svg?token=ZPMV8C93DV)](https://codecov.io/gh/hashgraph/hedera-services)
 [![Latest Version](https://img.shields.io/github/v/tag/hashgraph/hedera-services?sort=semver&label=version)](README.md)
 [![Made With](https://img.shields.io/badge/made_with-java-blue)](https://github.com/hashgraph/hedera-services/)
