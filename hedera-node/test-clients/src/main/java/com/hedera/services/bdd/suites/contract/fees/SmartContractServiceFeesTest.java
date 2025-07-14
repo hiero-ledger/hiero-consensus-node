@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.fees;
+package com.hedera.services.bdd.suites.contract.fees;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;

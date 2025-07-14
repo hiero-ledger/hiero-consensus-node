@@ -24,7 +24,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -46,8 +45,9 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.turtle.TransactionFactory;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network.
@@ -84,7 +84,7 @@ public class ConsensusNodeManager {
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
-        final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
+        final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
         final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
         if (overriddenProperties != null) {
             overriddenProperties.forEach(configurationBuilder::withValue);
@@ -96,7 +96,7 @@ public class ConsensusNodeManager {
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
@@ -104,9 +104,7 @@ public class ConsensusNodeManager {
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
-
-        final ConsensusStateEventHandler<TurtleAppState> consensusStateEventHandler = new DockerStateEventHandler();
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
@@ -114,10 +112,10 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
+                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                oldSelfId,
+                legacySelfId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -130,8 +128,8 @@ public class ConsensusNodeManager {
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        consensusStateEventHandler,
-                        oldSelfId,
+                        OtterApp.INSTANCE,
+                        legacySelfId,
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade)
@@ -157,15 +155,14 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Starts the consensus node application. This method triggers the underlying platform
-     * to begin processing consensus rounds and other operations.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start receiving transactions.
      */
     public void start() {
         platform.start();
     }
 
     /**
-     * Shuts down the consensus node application. Once destroyed, the application cannot be restarted.
+     * Shuts down the consensus node.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
