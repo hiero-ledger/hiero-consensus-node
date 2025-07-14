@@ -252,6 +252,7 @@ jobs:
           # Remove Taskfile.yml
           rm -f Taskfile.yml
           # Generate the Taskfile.yml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.examples.yml Taskfile.examples.yml
           cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
 
           # Remove init-containers-values8.yaml
