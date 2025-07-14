@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
@@ -8,6 +9,8 @@ import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +30,11 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
     private static final Logger logger = LogManager.getLogger(RpcShadowgraphSynchronizer.class);
 
     /**
+     * List of all started sync exchanges with remote peers
+     */
+    private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
+
+    /**
      * Our own node id
      */
     private final NodeId selfId;
@@ -35,6 +43,11 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * How long should we wait between sync attempts
      */
     private final Duration sleepAfterSync;
+
+    /**
+     * Do we use broadcast to communicate self events
+     */
+    private final boolean broadcastEnabled;
 
     /**
      * Constructs a new ShadowgraphSynchronizer.
@@ -68,6 +81,8 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
 
         this.selfId = selfId;
         this.sleepAfterSync = syncConfig.rpcSleepAfterSync();
+        this.broadcastEnabled = syncConfig.broadcast();
+
     }
 
     /**
@@ -78,9 +93,10 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @return rpc peer state object
      */
     public RpcPeerHandler createPeerHandler(@NonNull final GossipRpcSender sender, @NonNull final NodeId otherNodeId) {
-        final RpcPeerHandler rpcPeerHandler = new RpcPeerHandler(
+        final RpcPeerHandler rpcPeerState = new RpcPeerHandler(
                 this, sender, selfId, otherNodeId, sleepAfterSync, syncMetrics, time, intakeEventCounter, eventHandler);
-        return rpcPeerHandler;
+        allRpcPeers.add(rpcPeerState);
+        return rpcPeerState;
     }
 
     /**
@@ -89,6 +105,21 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
      * @param rpcPeerHandler handler which should be removed from internal structures
      */
     public void deregisterPeerHandler(final RpcPeerHandler rpcPeerHandler) {
-        // no-op for now
+        this.allRpcPeers.remove(rpcPeerHandler);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addEvent(@NonNull final PlatformEvent platformEvent) {
+        super.addEvent(platformEvent);
+
+        // broadcast event to other nodes as part of simplistic broadcast
+        if (broadcastEnabled && selfId.equals(platformEvent.getCreatorId())) {
+            final GossipEvent gossipEvent = platformEvent.getGossipEvent();
+            allRpcPeers.forEach(rpcPeer -> rpcPeer.broadcastEvent(gossipEvent));
+            syncMetrics.broadcastEventSent();
+        }
     }
 }
