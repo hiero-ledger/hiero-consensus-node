@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.app;
+package org.hiero.otter.fixtures.app;
 
 import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
@@ -12,7 +12,7 @@ import com.swirlds.state.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.roster.RosterUtils;
 
-public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements MerkleNodeState {
+public class OtterAppState extends MerkleStateRoot<OtterAppState> implements MerkleNodeState {
 
     private static final long CLASS_ID = 0x107F552E92071390L;
 
@@ -29,12 +29,12 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
      * @return merkle tree root
      */
     @NonNull
-    public static TurtleAppState createGenesisState(
+    public static OtterAppState createGenesisState(
             @NonNull final Configuration configuration,
             @NonNull final Roster roster,
             @NonNull final SemanticVersion version) {
         final TestingAppStateInitializer initializer = new TestingAppStateInitializer(configuration);
-        final TurtleAppState state = new TurtleAppState();
+        final OtterAppState state = new OtterAppState();
         initializer.initStates(state);
         RosterUtils.setActiveRoster(state, roster, 0L);
         DEFAULT_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(state, version);
@@ -43,7 +43,7 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
 
     long state;
 
-    public TurtleAppState() {
+    public OtterAppState() {
         // empty
     }
 
@@ -52,7 +52,7 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
      *
      * @param from the object to copy
      */
-    private TurtleAppState(@NonNull final TurtleAppState from) {
+    private OtterAppState(@NonNull final OtterAppState from) {
         super(from);
         this.state = from.state;
     }
@@ -78,18 +78,18 @@ public class TurtleAppState extends MerkleStateRoot<TurtleAppState> implements M
      */
     @NonNull
     @Override
-    public TurtleAppState copy() {
+    public OtterAppState copy() {
         throwIfImmutable();
         setImmutable(true);
-        return new TurtleAppState(this);
+        return new OtterAppState(this);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected TurtleAppState copyingConstructor() {
-        return new TurtleAppState(this);
+    protected OtterAppState copyingConstructor() {
+        return new OtterAppState(this);
     }
 
     /**
