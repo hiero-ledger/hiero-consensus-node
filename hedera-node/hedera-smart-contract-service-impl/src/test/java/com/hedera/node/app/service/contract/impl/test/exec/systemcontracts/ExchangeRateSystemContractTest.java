@@ -96,7 +96,7 @@ class ExchangeRateSystemContractTest {
 
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, underflowInput, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().orElse(null)).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
+        assertThat(result.result().getHaltReason()).hasValue(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     @Test
@@ -104,7 +104,7 @@ class ExchangeRateSystemContractTest {
         final var fragmentSelector = Bytes.of(0xab);
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, fragmentSelector, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().orElse(null)).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
+        assertThat(result.result().getHaltReason()).hasValue(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     @Test
@@ -113,7 +113,7 @@ class ExchangeRateSystemContractTest {
         final var input = Bytes.concatenate(fragmentSelector, Bytes32.ZERO);
         final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, input, frame);
         assertThat(result.output()).isEqualTo(Bytes.EMPTY);
-        assertThat(result.result().getHaltReason().orElse(null)).isEqualTo(ExceptionalHaltReason.INVALID_OPERATION);
+        assertThat(result.result().getHaltReason()).hasValue(ExceptionalHaltReason.INVALID_OPERATION);
     }
 
     private static Bytes tinycentsInput(final long validAmount) {
