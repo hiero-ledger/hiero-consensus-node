@@ -22,10 +22,13 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
+import com.hedera.hapi.block.stream.trace.AutoAssociateTraceData;
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EVMTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
+import com.hedera.hapi.block.stream.trace.TokenSupplyTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -194,6 +197,8 @@ public class BlockStreamBuilder
      * The new total supply of a token affected by the transaction.
      */
     private long newTotalSupply = 0L;
+
+    private boolean newTotalSupplyChanged = false;
     /**
      * The id of a node created by the transaction.
      */
@@ -555,7 +560,7 @@ public class BlockStreamBuilder
      * @param topLevel if true, indicates the output should always include a following {@link StateChanges} item
      * @return the list of block items
      */
-    public Output build(final boolean topLevel) {
+    public Output build(final boolean topLevel, final boolean includeAdditionalTraceData) {
         final var blockItems = new ArrayList<BlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
@@ -589,6 +594,40 @@ public class BlockStreamBuilder
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
                     .build());
         }
+
+        // Add trace data for batch inner transaction fields, that are normally computed by state changes
+        if (includeAdditionalTraceData) {
+            // nft mint and burn trace data
+            if (newTotalSupplyChanged || !serialNumbers.isEmpty()) {
+                final var builder = TokenSupplyTraceData.newBuilder();
+                builder.newTotalSupply(newTotalSupply);
+                // Todo check how to remove serial numbers from the trace data
+                builder.serialNumbers(serialNumbers);
+                blockItems.add(BlockItem.newBuilder()
+                        .traceData(TraceData.newBuilder().tokenSupplyTraceData(builder))
+                        .build());
+            }
+            // automatic token association trace data
+            if (!automaticTokenAssociations.isEmpty()) {
+                // Todo check if we need list of TokenAssociation
+                final var builder = AutoAssociateTraceData.newBuilder()
+                        .automaticTokenAssociations(
+                                automaticTokenAssociations.getLast().accountId());
+                blockItems.add(BlockItem.newBuilder()
+                        .traceData(TraceData.newBuilder().autoAssociateTraceData(builder))
+                        .build());
+            }
+            // message submit trace data
+            if (sequenceNumber > 0 || runningHash != Bytes.EMPTY) {
+                final var builder = SubmitMessageTraceData.newBuilder()
+                        .sequenceNumber(sequenceNumber)
+                        .runningHash(runningHash);
+                blockItems.add(BlockItem.newBuilder()
+                        .traceData(TraceData.newBuilder().submitMessageTraceData(builder))
+                        .build());
+            }
+        }
+
         if (!stateChanges.isEmpty() || topLevel) {
             blockItems.add(BlockItem.newBuilder()
                     .stateChanges(StateChanges.newBuilder()
@@ -1065,6 +1104,7 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder newTotalSupply(final long newTotalSupply) {
         this.newTotalSupply = newTotalSupply;
+        this.newTotalSupplyChanged = true;
         return this;
     }
 

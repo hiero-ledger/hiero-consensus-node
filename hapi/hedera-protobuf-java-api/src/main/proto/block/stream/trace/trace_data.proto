@@ -22,6 +22,8 @@ option java_package = "com.hedera.hapi.block.stream.trace.protoc";
 option java_multiple_files = true;
 
 import "block/stream/trace/smart_contract_service.proto";
+import "block/stream/trace/token_service.proto";
+import "block/stream/trace/consensus_service.proto";
 
 /**
  * A Trace Data.
@@ -34,5 +36,8 @@ import "block/stream/trace/smart_contract_service.proto";
 message TraceData {
   oneof data {
     EVMTraceData evm_trace_data = 1;
+    TokenSupplyTraceData token_supply_trace_data = 2;
+    AutoAssociateTraceData auto_associate_trace_data = 3;
+    SubmitMessageTraceData submit_message_trace_data = 4;
   }
 }

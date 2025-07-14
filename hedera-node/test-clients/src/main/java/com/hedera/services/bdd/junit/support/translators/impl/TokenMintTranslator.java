@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TokenSupplyTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -41,6 +42,17 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
                         final var tokenId = op.tokenOrThrow();
                         final var numMints = op.metadata().size();
                         if (numMints > 0 && baseTranslator.tokenTypeOrThrow(tokenId) == NON_FUNGIBLE_UNIQUE) {
+                            // Within batch transactions (inner or their children), state changes from earlier
+                            // transactions can be overwritten by subsequent transactions in the same batch
+                            // (e.g., mint followed by burn).
+                            // Therefore, construct the record from trace data when available.
+                            final var maybeTraceData = maybeTokenSupplyTraceData(tracesSoFar);
+                            if (maybeTraceData != null) {
+                                baseTranslator.initTotalSupply(tokenId, maybeTraceData.newTotalSupply());
+                                receiptBuilder.newTotalSupply(maybeTraceData.newTotalSupply());
+                                receiptBuilder.serialNumbers(maybeTraceData.serialNumbers());
+                                return;
+                            }
                             final var mintedSerialNos = baseTranslator.nextNMints(tokenId, numMints);
                             receiptBuilder.serialNumbers(List.copyOf(mintedSerialNos));
                             final var iter = remainingStateChanges.listIterator();
@@ -81,5 +93,21 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
                 },
                 remainingStateChanges,
                 followingUnitTraces);
+    }
+
+    private TokenSupplyTraceData maybeTokenSupplyTraceData(final List<TraceData> tracesSoFar) {
+        if (tracesSoFar == null) {
+            return null;
+        }
+
+        // Start from the end of the list
+        for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
+            TraceData trace = tracesSoFar.get(i);
+            if (trace.hasTokenSupplyTraceData()) {
+                return trace.tokenSupplyTraceDataOrThrow();
+            }
+        }
+
+        return null;
     }
 }

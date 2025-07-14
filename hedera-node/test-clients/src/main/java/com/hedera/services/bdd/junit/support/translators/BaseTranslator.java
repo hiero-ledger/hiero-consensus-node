@@ -201,6 +201,16 @@ public class BaseTranslator {
             list.sort(Comparator.naturalOrder());
         });
         highestPutSerialNos.forEach((tokenId, serialNos) -> {
+            // check traces for missing serial numbers
+            unit.allTraces().stream()
+                    .filter(TraceData::hasTokenSupplyTraceData)
+                    .map(TraceData::tokenSupplyTraceData)
+                    .filter(Objects::nonNull)
+                    .forEach(tokenSupplyTraceData -> {
+                        final var mintedSerialNos = tokenSupplyTraceData.serialNumbers();
+                        numMints.put(tokenId, mintedSerialNos.size());
+                        serialNos.addAll(mintedSerialNos);
+                    });
             final Set<Long> distinctSerialNos = Set.copyOf(serialNos);
             final var mintedHere = new ArrayList<>(distinctSerialNos);
             mintedHere.sort(Collections.reverseOrder());

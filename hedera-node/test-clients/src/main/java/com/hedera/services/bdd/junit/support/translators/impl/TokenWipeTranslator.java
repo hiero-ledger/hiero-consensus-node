@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.trace.TokenSupplyTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
@@ -44,6 +45,13 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
                         final var wipedSerialNos = new ArrayList<>(Set.copyOf(op.serialNumbers()));
                         final var numSerials = wipedSerialNos.size();
                         if (numSerials > 0 && baseTranslator.tokenTypeOrThrow(tokenId) == NON_FUNGIBLE_UNIQUE) {
+                            final var maybeTraceData = maybeTokenSupplyTraceData(tracesSoFar);
+                            if (maybeTraceData != null) {
+                                baseTranslator.initTotalSupply(tokenId, maybeTraceData.newTotalSupply());
+                                receiptBuilder.newTotalSupply(maybeTraceData.newTotalSupply());
+                                receiptBuilder.serialNumbers(maybeTraceData.serialNumbers());
+                                return;
+                            }
                             final var iter = remainingStateChanges.listIterator();
                             while (iter.hasNext()) {
                                 final var stateChange = iter.next();
@@ -84,5 +92,21 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
                 },
                 remainingStateChanges,
                 followingUnitTraces);
+    }
+
+    private TokenSupplyTraceData maybeTokenSupplyTraceData(final List<TraceData> tracesSoFar) {
+        if (tracesSoFar == null) {
+            return null;
+        }
+
+        // Start from the end of the list
+        for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
+            TraceData trace = tracesSoFar.get(i);
+            if (trace.hasTokenSupplyTraceData()) {
+                return trace.tokenSupplyTraceDataOrThrow();
+            }
+        }
+
+        return null;
     }
 }
