@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -109,18 +110,23 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         var result = super.submitOp(spec);
-        // Return early if the expected status is not SUCCESS, no need to resolve the status of inner transactions as
-        // the batch itself has failed.
-        if (expectedStatus.isPresent() && expectedStatus.get() != SUCCESS
-                || expectedPrecheck.isPresent() && expectedPrecheck.get() != SUCCESS) {
+        if (!shouldResolveInnerTransactions()) {
             return result;
         }
         for (final var op : operationsToBatch) {
+            if (!op.shouldResolveStatus()) {
+                continue;
+            }
             // Overwrite the nodeId for inner transactions, so we can call the txnRecord query and resolve the status
             op.setNode(fixNodeFor(spec).getAccountNum());
             op.resolveStatus(spec);
-            // Reset the node to "0.0.0" if for some reason the op is used multiple times
-            op.setNode("0.0.0");
+            op.setNode(DEFAULT_NODE_ACCOUNT_ID); // Reset the node to default
+
+            if (op.getActualStatus() != SUCCESS && op.getActualPrecheck() != SUCCESS) {
+                // If any of the inner operations failed, we break the loop as the other transactions will not be
+                // dispatched
+                break;
+            }
         }
         return result;
     }
@@ -218,5 +224,14 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 throw new IllegalArgumentException("Invalid execution order");
             }
         }
+    }
+
+    private boolean shouldResolveInnerTransactions() {
+        // If the pre-check passed, we should resolve inner transactions
+        // If the expected status is INNER_TRANSACTION_FAILED or SUCCESS, we should resolve inner transactions
+        return expectedPrecheck.isPresent()
+                && expectedPrecheck.get() == SUCCESS
+                && expectedStatus.isPresent()
+                && (expectedStatus.get() == INNER_TRANSACTION_FAILED || expectedStatus.get() == SUCCESS);
     }
 }

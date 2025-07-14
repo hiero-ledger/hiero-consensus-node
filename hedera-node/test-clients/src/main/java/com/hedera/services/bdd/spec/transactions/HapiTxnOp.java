@@ -896,4 +896,8 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     public Optional<String> getNode() {
         return node;
     }
+
+    public boolean shouldResolveStatus() {
+        return !deferStatusResolution && !fireAndForget;
+    }
 }

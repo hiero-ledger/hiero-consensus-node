@@ -386,12 +386,16 @@ public class AtomicBatchTest {
                                     cryptoCreate("foo")
                                             .txnId(firstTxnId)
                                             .payingWith(payer)
-                                            .batchKey(batchOperator),
+                                            .batchKey(batchOperator)
+                                            // null means no status check, as the tra
+                                            .deferStatusResolution(),
                                     // second inner txn will not be executed
                                     cryptoCreate("bar")
                                             .txnId(secondTxnId)
                                             .payingWith(payer)
-                                            .batchKey(batchOperator))
+                                            .batchKey(batchOperator)
+                                            // null means no status check
+                                            .deferStatusResolution())
                             .signedByPayerAnd(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
                     // create a successful batch, containing the second (non-executed) transaction
