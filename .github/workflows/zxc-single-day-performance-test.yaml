@@ -267,7 +267,8 @@ jobs:
           # Update Init Containers values
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values8.yaml
-          sed -i -e "s@engineering-1@${NETWORK_ID}@g" init-containers-values8.yaml
+          NETWORK_OWNER="adhoc-performance-test"
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values8.yaml
 
           # Remove application.properties
           rm -f application.properties

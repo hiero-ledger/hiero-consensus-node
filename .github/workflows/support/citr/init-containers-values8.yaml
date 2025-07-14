@@ -156,21 +156,21 @@ minio-server:
         size: 500Gi
         storageClassName: local-path
         nodeSelector:
-          solo.hashgraph.io/role: "consensus-node"
-          solo.hashgraph.io/owner: "alex.kuzmin"
-          solo.hashgraph.io/network-id: "engineering-1"
+          solo.hashgraph.io/role: "auxiliary-services"
+          solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+          solo.hashgraph.io/network-id: "%NETWORK_ID%"
         tolerations:
           - key: "solo.hashgraph.io/role"
             operator: "Equal"
-            value: "consensus-node"
+            value: "auxiliary-services"
             effect: "NoSchedule"
           - key: "solo.hashgraph.io/owner"
             operator: "Equal"
-            value: "alex.kuzmin"
+            value: "%NETWORK_OWNER%"
             effect: "NoSchedule"
           - key: "solo.hashgraph.io/network-id"
             operator: "Equal"
-            value: "engineering-1"
+            value: "%NETWORK_ID%"
             effect: "NoSchedule"
         resources:
           requests:
@@ -184,8 +184,8 @@ deployment:
   podLabels: {}
   nodeSelector:
     solo.hashgraph.io/role: "consensus-node"
-    solo.hashgraph.io/owner: "alex.kuzmin"
-    solo.hashgraph.io/network-id: "engineering-1"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
   tolerations:
     - key: "solo.hashgraph.io/role"
       operator: "Equal"
@@ -193,9 +193,45 @@ deployment:
       effect: "NoSchedule"
     - key: "solo.hashgraph.io/owner"
       operator: "Equal"
-      value: "alex.kuzmin"
+      value: "%NETWORK_OWNER%"
       effect: "NoSchedule"
     - key: "solo.hashgraph.io/network-id"
       operator: "Equal"
-      value: "engineering-1"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+haproxyDeployment:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+envoyDeployment:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
       effect: "NoSchedule"
