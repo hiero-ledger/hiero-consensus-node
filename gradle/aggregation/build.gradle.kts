@@ -10,6 +10,7 @@ plugins {
 
 dependencies {
     published(project(":app"))
+    published(project(":hedera-protobuf-java-api"))
     // examples that also contain tests we would like to run
     implementation(project(":swirlds-platform-base-example"))
     implementation(project(":ConsistencyTestingTool"))

@@ -32,7 +32,7 @@ testFixturesModuleInfo {
 
 tasks.testFixturesJar {
     inputs.files(configurations.testFixturesRuntimeClasspath)
-    manifest { attributes("Main-Class" to "org.hiero.consensus.otter.docker.app.DockerInit") }
+    manifest { attributes("Main-Class" to "org.hiero.consensus.otter.docker.app.DockerMain") }
     doFirst {
         manifest.attributes(
             "Class-Path" to
