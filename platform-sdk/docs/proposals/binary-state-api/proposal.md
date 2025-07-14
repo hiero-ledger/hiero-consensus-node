@@ -27,11 +27,14 @@ Previously, before the [typeless Virtual Map](https://github.com/hiero-ledger/hi
 
 ### Java classes
 
-New `State` interface will be defined as follows:
+New `BinaryState` interface will be defined as follows:
 
 ```java
 /**
  * Represents low-level State API to store singletons, key/value pairs, and queues by their ids.
+ * Note that ids are defined by {@code VirtualMapKey} (see {@code virtual_map_state.proto}). 
+ * However, this module does not depend on the HAPI module directly, so the ids are just integers.
+ * Service/state name to integer id mapping is defined in the {@code com.swirlds.state.BinaryStateUtils#stateIdFor} class.
  */
 public interface BinaryState {
     /**
@@ -51,7 +54,7 @@ public interface BinaryState {
     <T> void putSingleton(int id, Codec<T> codec, T value);
 
     /**
-     * Gets serialized singleton value.
+     * Gets a serialized singleton value.
      *
      * @param id an id of the singleton type
      * @return The value, or null if there is no value.
@@ -59,7 +62,7 @@ public interface BinaryState {
     Bytes getSingleton(int id);
 
     /**
-     * Gets serialized singleton value.
+     * Gets a singleton value.
      *
      * @param id an id of the singleton type
      * @param codec a codec to convert the bytes into an object
@@ -119,16 +122,20 @@ public interface BinaryState {
      * #getValueByKey} will return {@code null}.
      *
      * @param id  an id of the key/value type
-     * @param key key bytes
+     * @param keyCodec key codec           
+     * @param key key object
+     * @param valueCodec value codec       
+     * @return value object            
      */
     <K, V> V removeKeyValuePair(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec);
 
     /**
-     * * Gets the value associated with the given key represented as {@code Bytes} object. The
+     * Gets the value associated with the given key represented as {@code Bytes} object. The
      * returned value will be null if the key does not exist in the state.
      *
      * @param id  an id of the key/value type
      * @param key key bytes
+     * @return value bytes        
      */
     Bytes getValueByKey(int id, Bytes key);
 
@@ -140,6 +147,7 @@ public interface BinaryState {
      * @param keyCodec   a codec to convert keys into bytes
      * @param key        key bytes
      * @param valueCodec a codec to convert value bytes into an object
+     * @return value object                
      */
     <K, V> V getValueByKey(int id, Codec<K> keyCodec, K key, Codec<V> valueCodec);
 
