@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 version: 3
 output: prefixed
 silent: false
@@ -7,9 +8,9 @@ vars:
     ref: until (env "SOLO_NETWORK_SIZE" | default .SOLO_NETWORK_SIZE | int)
   # node name should be node1, node2, node3, etc.
   node_list_internal: "{{range $idx, $n := .nodes }}node{{add $n 1}},{{end}}"
-  node_identifiers: "{{ .node_list_internal | trimSuffix \",\" }}"
+  node_identifiers: '{{ .node_list_internal | trimSuffix "," }}'
 
-  solo_user_dir: "{{ .solo_home_override_dir | default (printf \"%s/.solo\" (env \"HOME\")) }}"
+  solo_user_dir: '{{ .solo_home_override_dir | default (printf "%s/.solo" (env "HOME")) }}'
   solo_cache_dir: "{{ .solo_user_dir }}/cache"
   solo_logs_dir: "{{ .solo_user_dir }}/logs"
   solo_keys_dir: "{{ .solo_cache_dir }}/keys"
@@ -419,7 +420,7 @@ tasks:
         if ! kubectl get svc -l app.kubernetes.io/instance=minio-operator --all-namespaces --no-headers | grep -q . ; then
           echo "No services found with label app.kubernetes.io/name=operator app.kubernetes.io/instance=minio-operator"
           echo "--minio" > {{ .minio_flag_file }}
-        else 
+        else
           echo "--no-minio" > {{ .minio_flag_file }}
         fi
 
@@ -527,9 +528,9 @@ tasks:
       - |
         if [[ "${EXPLORER_DEPLOYMENT}" != "" ]]; then
           # create deployment on different namespace
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}  
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment create --deployment ${EXPLORER_DEPLOYMENT} --namespace ${EXPLORER_NAME_SPACE}
           SOLO_HOME_DIR=${SOLO_HOME_DIR} npm run solo-test -- deployment add-cluster --deployment ${EXPLORER_DEPLOYMENT} --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --num-consensus-nodes ${SOLO_NETWORK_SIZE}
-        
+
           npm run solo -- explorer deploy --deployment "${EXPLORER_DEPLOYMENT}" --cluster-ref ${EXPLORER_CLUSTER_CONTEXT} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS}  ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           export EXPLORER_DEPLOYED_NAME_SPACE=${EXPLORER_NAME_SPACE}
         else
