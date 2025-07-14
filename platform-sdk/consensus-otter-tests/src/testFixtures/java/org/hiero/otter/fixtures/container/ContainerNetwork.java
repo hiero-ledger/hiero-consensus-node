@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -18,6 +19,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -29,6 +32,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
@@ -36,8 +40,8 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
 /**
- * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment.
- * This class provides a basic structure for a container network, but does not implement all functionalities yet.
+ * An implementation of {@link org.hiero.otter.fixtures.Network} for the container environment. This class provides a
+ * basic structure for a container network, but does not implement all functionalities yet.
  */
 public class ContainerNetwork extends AbstractNetwork {
 
@@ -56,12 +60,10 @@ public class ContainerNetwork extends AbstractNetwork {
     private final List<Node> publicNodes = Collections.unmodifiableList(nodes);
     private final ImageFromDockerfile dockerImage;
 
-    private long nextNodeId = 1L;
-
     /**
      * Constructor for {@link ContainerNetwork}.
      *
-     * @param timeManager the time manager to use
+     * @param timeManager          the time manager to use
      * @param transactionGenerator the transaction generator to use
      */
     public ContainerNetwork(
@@ -89,7 +91,7 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected byte[] createFreezeTransaction(@NonNull final Instant freezeTime) {
-        throw new UnsupportedOperationException("Not implemented yet!");
+        return TransactionFactory.createFreezeTransaction(freezeTime).toByteArray();
     }
 
     /**
@@ -106,19 +108,26 @@ public class ContainerNetwork extends AbstractNetwork {
      */
     @Override
     @NonNull
-    public List<Node> addNodes(final int count) {
+    public List<Node> addNodes(final int count, @NonNull final WeightGenerator weightGenerator) {
         throwIfInState(State.RUNNING, "Cannot add nodes while the network is running.");
 
         final List<ContainerNode> newNodes = new ArrayList<>();
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         final Map<NodeId, KeysAndCerts> keysAndCerts = getKeysAndCerts(count);
 
-        for (final NodeId selfId : keysAndCerts.keySet()) {
+        final Iterator<Long> weightIterator =
+                weightGenerator.getWeights(0L, count).iterator();
+        // Sort the node IDs to guarantee roster entry order
+        final List<NodeId> sortedNodeIds = keysAndCerts.keySet().stream()
+                .sorted(Comparator.comparingLong(NodeId::id))
+                .toList();
+
+        for (final NodeId selfId : sortedNodeIds) {
             final byte[] sigCertBytes = getSigCertBytes(selfId, keysAndCerts);
 
             rosterEntries.add(RosterEntry.newBuilder()
                     .nodeId(selfId.id())
-                    .weight(1L)
+                    .weight(weightIterator.next())
                     .gossipCaCertificate(Bytes.wrap(sigCertBytes))
                     .gossipEndpoint(ServiceEndpoint.newBuilder()
                             .domainName(String.format(NODE_IDENTIFIER_FORMAT, selfId.id()))
@@ -129,12 +138,14 @@ public class ContainerNetwork extends AbstractNetwork {
 
         final Roster roster = Roster.newBuilder().rosterEntries(rosterEntries).build();
 
-        for (final NodeId selfId : keysAndCerts.keySet()) {
+        for (final NodeId selfId : sortedNodeIds) {
             final ContainerNode node =
                     new ContainerNode(selfId, roster, keysAndCerts.get(selfId), network, dockerImage);
             newNodes.add(node);
         }
         nodes.addAll(newNodes);
+        transactionGenerator.setNodesSupplier(() -> publicNodes);
+
         return Collections.unmodifiableList(newNodes);
     }
 

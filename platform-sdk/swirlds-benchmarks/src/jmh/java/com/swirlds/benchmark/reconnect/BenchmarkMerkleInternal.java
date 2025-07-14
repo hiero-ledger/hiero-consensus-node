@@ -11,7 +11,7 @@ public class BenchmarkMerkleInternal extends PartialNaryMerkleInternal implement
 
     private final String value;
 
-    private static final long CLASS_ID = 0x86753092L;
+    private static final long CLASS_ID = 0xe864d84ef7c521b5L;
 
     public static final int CLASS_VERSION = 1;
 
