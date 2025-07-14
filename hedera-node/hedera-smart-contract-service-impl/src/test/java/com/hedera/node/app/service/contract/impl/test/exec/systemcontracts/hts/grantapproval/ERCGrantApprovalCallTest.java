@@ -32,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.ERCGrantApprovalCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.grantapproval.GrantApprovalTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.test.AssertMessages;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import java.util.Set;
@@ -98,11 +99,11 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState(), AssertMessages.STATUS);
         assertEquals(
                 asBytesResult(
                         GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encode(Tuple.singleton(true))),
-                result.getOutput());
+                result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -112,8 +113,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(NEGATIVE_ALLOWANCE_AMOUNT), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.getState(), AssertMessages.STATUS);
+        assertEquals(ordinalRevertOutputFor(NEGATIVE_ALLOWANCE_AMOUNT), result.getOutput(), AssertMessages.OUTPUT);
     }
 
     private void prepareErc721approve(
@@ -154,12 +155,12 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState(), AssertMessages.STATUS);
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
                         .encode(Tuple.EMPTY)),
-                result.getOutput());
+                result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -169,8 +170,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -180,8 +181,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_ALLOWANCE_SPENDER_ID), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
+        assertEquals(ordinalRevertOutputFor(INVALID_ALLOWANCE_SPENDER_ID), result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -195,8 +196,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
+        assertEquals(ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput(), AssertMessages.OUTPUT);
         verify(recordBuilder).status(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
     }
 
@@ -207,8 +208,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
+        assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -218,11 +219,11 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         // when
         final var result = subject.execute(frame).fullResult().result();
         // then
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState(), AssertMessages.STATUS);
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
                         .encode(Tuple.EMPTY)),
-                result.getOutput());
+                result.getOutput(), AssertMessages.OUTPUT);
     }
 }

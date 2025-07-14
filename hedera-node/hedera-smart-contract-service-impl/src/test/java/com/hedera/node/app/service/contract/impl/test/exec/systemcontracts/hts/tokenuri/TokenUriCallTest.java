@@ -41,7 +41,7 @@ class TokenUriCallTest extends CallTestBase {
 
     @ParameterizedTest
     @ValueSource(longs = {-1L, NFT_SERIAL_NO})
-    void returnErrorMetadata(final long serialNo) {
+    public void returnErrorMetadata(final long serialNo) {
         // given
         subject = new TokenUriCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, serialNo);
         given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, serialNo)).willReturn(null);
