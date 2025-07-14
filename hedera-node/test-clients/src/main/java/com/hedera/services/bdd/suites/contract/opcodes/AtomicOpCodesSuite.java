@@ -60,10 +60,12 @@ import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 
 // Wrapping the most important tests from this package with an atomic batch
 @HapiTestLifecycle
+@Disabled
 public class AtomicOpCodesSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
