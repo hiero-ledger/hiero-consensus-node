@@ -90,8 +90,9 @@ public class MultipleNodeConsensusResultsContinuousAssert
     }
 
     /**
-     * Verifies that all nodes produce equal rounds as they are produces. This check only compares the rounds produced by the nodes, i.e.,
-     * if a node produces no rounds or is significantly behind the others, this check will NOT fail.
+     * Verifies that all nodes produce equal rounds as they are produced. This check only compares the rounds produced
+     * by the nodes, i.e., if a node produces no rounds or is significantly behind the others, this check will NOT
+     * fail.
      *
      * @return this assertion object for method chaining
      */

@@ -334,8 +334,8 @@ message PublishStreamResponse {
     /**
      * The number of the last completed, _persisted_, and _verified_ block.
      * <p>
-     * Block-Nodes SHOULD only end a stream after a block state proof to avoid
-     * the need to resend items.<br/>
+     * Block-Nodes SHOULD only end a stream after a block state proof to
+     * avoid the need to resend items, except for errors.<br/>
      * If status is a failure code, the Publisher MUST start a new
      * stream at the beginning of the first block _following_ this number
      * (e.g. if this is 91827362983, then the new stream must start with
@@ -374,18 +374,18 @@ message PublishStreamResponse {
       TIMEOUT = 2;
 
       /**
-       * An item was received out-of-order.<br/>
-       * This might be two headers without a proof between them, or similar.
+       * An item received is already stored.<br/>
        * <p>
-       * The source MUST start a new stream before the failed block.
+       * The source MUST start a new stream after the last persisted and
+       * verified block.
        */
-      OUT_OF_ORDER = 3;
+      DUPLICATE_BLOCK = 3;
 
       /**
        * A block state proof item could not be validated.<br/>
        * The source MUST start a new stream before the failed block.
        */
-      BAD_STATE_PROOF = 4;
+      BAD_BLOCK_PROOF = 4;
 
       /**
        * The Block-Node is "behind" the Publisher.<br/>
