@@ -103,7 +103,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         assertEquals(
                 asBytesResult(
                         GrantApprovalTranslator.ERC_GRANT_APPROVAL.getOutputs().encode(Tuple.singleton(true))),
-                result.getOutput(), AssertMessages.OUTPUT);
+                result.getOutput(),
+                AssertMessages.OUTPUT);
     }
 
     @Test
@@ -160,7 +161,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
                         .encode(Tuple.EMPTY)),
-                result.getOutput(), AssertMessages.OUTPUT);
+                result.getOutput(),
+                AssertMessages.OUTPUT);
     }
 
     @Test
@@ -171,7 +173,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), AssertMessages.OUTPUT);
+        assertEquals(
+                ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -197,7 +200,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
-        assertEquals(ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput(), AssertMessages.OUTPUT);
+        assertEquals(
+                ordinalRevertOutputFor(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.getOutput(), AssertMessages.OUTPUT);
         verify(recordBuilder).status(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
     }
 
@@ -209,7 +213,8 @@ class ERCGrantApprovalCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult().result();
         // then
         assertEquals(State.REVERT, result.getState(), AssertMessages.STATUS);
-        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), AssertMessages.OUTPUT);
+        assertEquals(
+                ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput(), AssertMessages.OUTPUT);
     }
 
     @Test
@@ -224,6 +229,7 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                 asBytesResult(GrantApprovalTranslator.ERC_GRANT_APPROVAL_NFT
                         .getOutputs()
                         .encode(Tuple.EMPTY)),
-                result.getOutput(), AssertMessages.OUTPUT);
+                result.getOutput(),
+                AssertMessages.OUTPUT);
     }
 }
