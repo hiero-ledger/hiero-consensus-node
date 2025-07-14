@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+replicas: 1
+
+resources:
+  limits:
+    cpu: 20
+    memory: 32Gi
+  requests:
+    cpu: 20
+    memory: 32Gi
+
+nodeSelector:
+  solo.hashgraph.io/role: "auxiliary-services"
+  solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+  solo.hashgraph.io/network-id: "%NETWORK_ID%"
+tolerations:
+  - key: "solo.hashgraph.io/role"
+    operator: "Equal"
+    value: "auxiliary-services"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/owner"
+    operator: "Equal"
+    value: "%NETWORK_OWNER%"
+    effect: "NoSchedule"
+  - key: "solo.hashgraph.io/network-id"
+    operator: "Equal"
+    value: "%NETWORK_ID%"
+    effect: "NoSchedule"
+
+loadGenerator:
+  java:
+    maxMemory: "30g"
+  test:
+    className: com.hedera.benchmark.NftTransferLoadTest
+    args:
+      - -c
+      - "32"
+      - -a
+      - "1000"
+      - -T
+      - "10"
+      - -n
+      - "100"
+      - -S
+      - "hot"
+      - -p
+      - "50"
+      - -t
+      - "1m"
+  properties:
+    - 'x.y.z.1\:50211=0.0.3'
