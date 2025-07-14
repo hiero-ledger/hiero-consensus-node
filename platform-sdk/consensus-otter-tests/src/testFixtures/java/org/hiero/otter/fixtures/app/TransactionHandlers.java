@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.app;
+package org.hiero.otter.fixtures.app;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -13,7 +13,7 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
- * Utility class to handle transactions in the Turtle testing tool.
+ * Utility class to handle transactions in the Otter testing tool.
  */
 public class TransactionHandlers {
 
@@ -22,15 +22,15 @@ public class TransactionHandlers {
     /**
      * Handles the transaction based on its type.
      *
-     * @param state the current state of the Turtle testing tool
+     * @param state the current state of the Otter testing tool
      * @param event the event associated with the transaction
      * @param transaction the transaction to handle
      * @param callback the callback to invoke with the new ScopedSystemTransaction
      */
     public static void handleTransaction(
-            @NonNull final TurtleAppState state,
+            @NonNull final OtterAppState state,
             @NonNull final Event event,
-            @NonNull final TurtleTransaction transaction,
+            @NonNull final OtterTransaction transaction,
             @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         switch (transaction.getDataCase()) {
             case FREEZETRANSACTION -> handleFreeze(state, transaction.getFreezeTransaction());
@@ -45,11 +45,11 @@ public class TransactionHandlers {
     /**
      * Handles the freeze transaction by updating the freeze time in the platform state.
      *
-     * @param state the current state of the Turtle testing tool
+     * @param state the current state of the Otter testing tool
      * @param freezeTransaction the freeze transaction to handle
      */
     public static void handleFreeze(
-            @NonNull final TurtleAppState state, @NonNull final TurtleFreezeTransaction freezeTransaction) {
+            @NonNull final OtterAppState state, @NonNull final OtterFreezeTransaction freezeTransaction) {
         final Timestamp freezeTime = CommonPbjConverters.toPbj(freezeTransaction.getFreezeTime());
         WritablePlatformStateStore store =
                 new WritablePlatformStateStore(state.getWritableStates("PlatformStateService"));

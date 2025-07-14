@@ -13,8 +13,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.turtle.TransactionFactory;
 
 /**
  * A {@link TransactionGenerator} for the container environment.
@@ -36,7 +36,7 @@ public class ContainerTransactionGenerator implements TransactionGenerator {
     /** The scheduler used to run the periodic generation job. */
     private final ScheduledExecutorService scheduler;
 
-    /** The handle of the scheduled generation job returned by the scheduler. */
+    /** The handle of the scheduled generation job returned by the scheduler. Volatile to ensure visibility of updates to generationTask from the thread starting/stopping the scheduler and the scheduled thread. */
     private volatile ScheduledFuture<?> generationTask;
 
     /**

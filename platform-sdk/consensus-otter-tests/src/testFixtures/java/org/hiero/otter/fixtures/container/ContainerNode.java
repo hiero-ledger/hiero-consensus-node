@@ -2,7 +2,7 @@
 package org.hiero.otter.fixtures.container;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerNetwork.NODE_IDENTIFIER_FORMAT;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -47,7 +48,6 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -59,10 +59,9 @@ public class ContainerNode extends AbstractNode implements Node {
     private static final Logger log = LogManager.getLogger();
 
     public static final int GOSSIP_PORT = 5777;
-    private static final int CONTROL_PORT = 8080;
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
-    private final GenericContainer<?> container;
+    private final ContainerImage container;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final ManagedChannel channel;
@@ -75,11 +74,11 @@ public class ContainerNode extends AbstractNode implements Node {
     /**
      * Constructor for the {@link ContainerNode} class.
      *
-     * @param selfId       the unique identifier for this node
-     * @param roster       the roster of the network
+     * @param selfId the unique identifier for this node
+     * @param roster the roster of the network
      * @param keysAndCerts the keys for the node
-     * @param network      the network this node is part of
-     * @param dockerImage  the Docker image to use for this node
+     * @param network the network this node is part of
+     * @param dockerImage the Docker image to use for this node
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -87,19 +86,14 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage) {
-        super(selfId);
+        super(selfId, getWeight(roster, selfId));
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
 
-        final String alias = String.format(NODE_IDENTIFIER_FORMAT, selfId.id());
-
         //noinspection resource
-        this.container = new GenericContainer<>(dockerImage)
-                .withNetwork(network)
-                .withNetworkAliases(alias)
-                .withExposedPorts(CONTROL_PORT);
+        container = new ContainerImage(dockerImage, network, selfId);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
                 .maxInboundMessageSize(32 * 1024 * 1024)
@@ -107,6 +101,14 @@ public class ContainerNode extends AbstractNode implements Node {
                 .build();
 
         blockingStub = TestControlGrpc.newBlockingStub(channel);
+    }
+
+    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
+        return roster.rosterEntries().stream()
+                .filter(entry -> entry.nodeId() == selfId.id())
+                .findFirst()
+                .map(RosterEntry::weight)
+                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
     }
 
     /**
@@ -202,11 +204,15 @@ public class ContainerNode extends AbstractNode implements Node {
     }
 
     /**
-     * Shuts down the node and cleans up resources. Once this method is called, the node cannot be started again. This
-     * method is idempotent and can be called multiple times without any side effects.
+     * Shuts down the container and cleans up resources. Once this method is called, the node cannot be started again
+     * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
+     * effects.
      */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    // ignoring the Empty answer from destroyContainer
     void destroy() {
         if (lifeCycle == RUNNING) {
+            log.info("Destroying container of node {}...", selfId);
             channel.shutdownNow();
             container.stop();
         }
@@ -282,15 +288,11 @@ public class ContainerNode extends AbstractNode implements Node {
                 }
 
                 private static boolean isExpectedError(final @NonNull Throwable error) {
-                    boolean expected;
                     if (error instanceof StatusRuntimeException sre) {
-                        final var code = sre.getStatus().getCode();
-                        expected = code == Code.UNAVAILABLE || code == Code.CANCELLED;
-                    } else {
-                        final String msg = error.getMessage();
-                        expected = msg != null && (msg.startsWith("UNAVAILABLE") || msg.startsWith("CANCELLED"));
+                        final Code code = sre.getStatus().getCode();
+                        return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
                     }
-                    return expected;
+                    return false;
                 }
 
                 @Override
