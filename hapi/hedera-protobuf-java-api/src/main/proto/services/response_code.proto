@@ -1760,4 +1760,9 @@ enum ResponseCodeEnum {
      * which the network does not support.
      */
     GRPC_WEB_PROXY_NOT_SUPPORTED = 399;
+
+    /**
+     * An NFT transfers list referenced a token type other than NON_FUNGIBLE_UNIQUE.
+     */
+    NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE = 400;
 }

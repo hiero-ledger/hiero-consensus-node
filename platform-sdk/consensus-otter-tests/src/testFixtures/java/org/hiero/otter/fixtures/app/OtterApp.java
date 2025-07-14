@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle.app;
+package org.hiero.otter.fixtures.app;
 
 import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.otter.fixtures.turtle.app.TransactionHandlers.handleTransaction;
+import static org.hiero.otter.fixtures.app.TransactionHandlers.handleTransaction;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -25,7 +25,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  * Simple application that can process all transactions required to run tests on Turtle
  */
 @SuppressWarnings("removal")
-public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
+public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     INSTANCE;
 
     /**
@@ -34,7 +34,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
     @Override
     public void onPreHandle(
             @NonNull final Event event,
-            @NonNull final TurtleAppState state,
+            @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         // No pre-handling required yet
     }
@@ -45,13 +45,13 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
     @Override
     public void onHandleConsensusRound(
             @NonNull final Round round,
-            @NonNull final TurtleAppState state,
+            @NonNull final OtterAppState state,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         for (final ConsensusEvent event : round) {
             event.forEachTransaction(txn -> {
                 final Bytes payload = txn.getApplicationTransaction();
                 try {
-                    final TurtleTransaction transaction = TurtleTransaction.parseFrom(payload.toInputStream());
+                    final OtterTransaction transaction = OtterTransaction.parseFrom(payload.toInputStream());
                     handleTransaction(state, event, transaction, callback);
                 } catch (IOException ex) {
                     fail("Failed to parse transaction: " + payload, ex);
@@ -64,7 +64,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final TurtleAppState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final OtterAppState state) {
         return true;
     }
 
@@ -73,7 +73,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
      */
     @Override
     public void onStateInitialized(
-            @NonNull final TurtleAppState state,
+            @NonNull final OtterAppState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -85,7 +85,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
      */
     @Override
     public void onUpdateWeight(
-            @NonNull final TurtleAppState state,
+            @NonNull final OtterAppState state,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext context) {
         // No weight update required yet
@@ -95,7 +95,7 @@ public enum TurtleApp implements ConsensusStateEventHandler<TurtleAppState> {
      * {@inheritDoc}
      */
     @Override
-    public void onNewRecoveredState(@NonNull final TurtleAppState recoveredState) {
+    public void onNewRecoveredState(@NonNull final OtterAppState recoveredState) {
         // No new recovered state required yet
     }
 }
