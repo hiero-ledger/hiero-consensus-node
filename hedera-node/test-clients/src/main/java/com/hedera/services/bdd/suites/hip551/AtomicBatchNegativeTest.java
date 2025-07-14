@@ -706,6 +706,7 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Batch containing expired transaction charges on rollback")
+        // BATCH_66
         @Disabled // Enable when the ingest checks PR is merged
         public Stream<DynamicTest> failingWithExpiryStillChargesFees() {
             return hapiTest(
