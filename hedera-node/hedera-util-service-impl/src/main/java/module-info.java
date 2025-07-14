@@ -8,6 +8,7 @@ module com.hedera.node.app.service.util.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.node.app.service.token;
     requires com.hedera.node.config;
     requires com.github.benmanes.caffeine;
     requires org.apache.logging.log4j;
