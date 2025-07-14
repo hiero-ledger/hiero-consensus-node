@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.dsl.operations.transactions;
 
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.allRequiredCallEntities;
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.withSubstitutedTypes;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static java.util.Objects.requireNonNull;
 
@@ -10,6 +11,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -28,6 +30,10 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
     private long sendValue;
     private String txnName;
     private Consumer<Object[]> resultObserver;
+    private boolean wrappedInBatchOperation = false;
+    private String batchOperator = null;
+    private ResponseCodeEnum batchExpectedPreCheckStatus = null;
+    private ResponseCodeEnum batchExpectedKnownStatus = null;
 
     public CallContractOperation(
             @NonNull final SpecContract target, @NonNull final String function, @NonNull final Object... parameters) {
@@ -50,7 +56,14 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
                 .exposingResultTo(resultObserver)
                 .gas(gas);
         maybeAssertions().ifPresent(a -> a.accept(op));
-        return op;
+        return wrappedInBatchOperation
+                ? atomicBatch(op.batchKey(batchOperator))
+                        .payingWith(batchOperator)
+                        .hasPrecheck(
+                                batchExpectedPreCheckStatus != null ? batchExpectedPreCheckStatus : ResponseCodeEnum.OK)
+                        .hasKnownStatus(
+                                batchExpectedKnownStatus != null ? batchExpectedKnownStatus : ResponseCodeEnum.SUCCESS)
+                : op;
     }
 
     /**
@@ -80,6 +93,23 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
 
     public CallContractOperation exposingResultTo(final Consumer<Object[]> observer) {
         this.resultObserver = observer;
+        return this;
+    }
+
+    public CallContractOperation wrappedInBatchOperation(String batchOperator) {
+        this.wrappedInBatchOperation = true;
+        this.batchOperator = batchOperator;
+        return this;
+    }
+
+    public CallContractOperation wrappedInBatchOperation(
+            String batchOperator,
+            ResponseCodeEnum batchExpectedPreCheckStatus,
+            ResponseCodeEnum batchExpectedKnownStatus) {
+        this.wrappedInBatchOperation = true;
+        this.batchOperator = batchOperator;
+        this.batchExpectedPreCheckStatus = batchExpectedPreCheckStatus;
+        this.batchExpectedKnownStatus = batchExpectedKnownStatus;
         return this;
     }
 

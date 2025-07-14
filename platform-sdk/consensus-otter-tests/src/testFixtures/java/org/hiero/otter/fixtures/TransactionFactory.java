@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.turtle;
+package org.hiero.otter.fixtures;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -8,9 +8,9 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.otter.fixtures.turtle.app.EmptyTransaction;
-import org.hiero.otter.fixtures.turtle.app.TurtleFreezeTransaction;
-import org.hiero.otter.fixtures.turtle.app.TurtleTransaction;
+import org.hiero.otter.fixtures.app.EmptyTransaction;
+import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
+import org.hiero.otter.fixtures.app.OtterTransaction;
 
 /**
  * Utility class for transaction-related operations.
@@ -24,9 +24,9 @@ public class TransactionFactory {
      *
      * @return an empty transaction
      */
-    public static TurtleTransaction createEmptyTransaction(final int nonce) {
+    public static OtterTransaction createEmptyTransaction(final int nonce) {
         final EmptyTransaction emptyTransaction = EmptyTransaction.newBuilder().build();
-        return TurtleTransaction.newBuilder()
+        return OtterTransaction.newBuilder()
                 .setEmptyTransaction(emptyTransaction)
                 .build();
     }
@@ -37,11 +37,11 @@ public class TransactionFactory {
      * @param freezeTime the freeze time for the transaction
      * @return a FreezeTransaction with the provided freeze time
      */
-    public static TurtleTransaction createFreezeTransaction(@NonNull final Instant freezeTime) {
+    public static OtterTransaction createFreezeTransaction(@NonNull final Instant freezeTime) {
         final Timestamp timestamp = CommonPbjConverters.fromPbj(CommonUtils.toPbjTimestamp(freezeTime));
-        final TurtleFreezeTransaction freezeTransaction =
-                TurtleFreezeTransaction.newBuilder().setFreezeTime(timestamp).build();
-        return TurtleTransaction.newBuilder()
+        final OtterFreezeTransaction freezeTransaction =
+                OtterFreezeTransaction.newBuilder().setFreezeTime(timestamp).build();
+        return OtterTransaction.newBuilder()
                 .setFreezeTransaction(freezeTransaction)
                 .build();
     }
@@ -52,14 +52,14 @@ public class TransactionFactory {
      * @param innerTxn the StateSignatureTransaction
      * @return a TurtleTransaction with the specified inner transaction
      */
-    public static TurtleTransaction createStateSignatureTransaction(@NonNull final StateSignatureTransaction innerTxn) {
+    public static OtterTransaction createStateSignatureTransaction(@NonNull final StateSignatureTransaction innerTxn) {
         final com.hedera.hapi.platform.event.legacy.StateSignatureTransaction legacyInnerTxn =
                 com.hedera.hapi.platform.event.legacy.StateSignatureTransaction.newBuilder()
                         .setRound(innerTxn.round())
                         .setSignature(ByteString.copyFrom(innerTxn.signature().toByteArray()))
                         .setHash(ByteString.copyFrom(innerTxn.hash().toByteArray()))
                         .build();
-        return TurtleTransaction.newBuilder()
+        return OtterTransaction.newBuilder()
                 .setStateSignatureTransaction(legacyInnerTxn)
                 .build();
     }

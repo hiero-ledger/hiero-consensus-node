@@ -9,7 +9,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
@@ -25,12 +24,12 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,13 +45,17 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 
 /**
- * The main application class for the container-based consensus node networks.
+ * Manages the lifecycle and operations of a consensus node within a container-based network.
+ * This class initializes the platform, handles configuration, and provides methods for interacting
+ * with the consensus process, including submitting transactions and listening for consensus rounds.
  */
-public class DockerApp {
-    private static final Logger LOGGER = LogManager.getLogger(DockerApp.class);
+public class ConsensusNodeManager {
+    private static final Logger LOGGER = LogManager.getLogger(ConsensusNodeManager.class);
 
     private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
     private static final String SWIRLD_NAME = "123";
@@ -62,15 +65,16 @@ public class DockerApp {
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
     /**
-     * Creates a new DockerApp instance with the specified parameters.
+     * Creates a new instance of {@code ConsensusNodeManager} with the specified parameters.
+     * This constructor initializes the platform, sets up all necessary parts for the consensus node.
      *
-     * @param selfId               the unique identifier for this node
-     * @param version              the semantic version of the application
-     * @param genesisRoster        the initial roster of nodes in the network
-     * @param keysAndCerts         the keys and certificates for this node
-     * @param overriddenProperties properties to override in the configuration
+     * @param selfId               the unique identifier for this node, must not be {@code null}
+     * @param version              the semantic version of the application, must not be {@code null}
+     * @param genesisRoster        the initial roster of nodes in the network, must not be {@code null}
+     * @param keysAndCerts         the keys and certificates for this node, must not be {@code null}
+     * @param overriddenProperties optional properties to override in the configuration, may be {@code null}
      */
-    public DockerApp(
+    public ConsensusNodeManager(
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion version,
             @NonNull final Roster genesisRoster,
@@ -78,8 +82,9 @@ public class DockerApp {
             @Nullable final Map<String, String> overriddenProperties) {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
+        TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
-        final var oldSelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
+        final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
         final TestConfigBuilder configurationBuilder = new TestConfigBuilder();
         if (overriddenProperties != null) {
             overriddenProperties.forEach(configurationBuilder::withValue);
@@ -91,7 +96,7 @@ public class DockerApp {
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(oldSelfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(legacySelfId);
         final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         LOGGER.info("Starting node {} with version {}", selfId, version);
@@ -99,9 +104,7 @@ public class DockerApp {
         final Time time = Time.getCurrent();
         final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
         final RecycleBin recycleBin = RecycleBin.create(
-                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, oldSelfId);
-
-        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = new DockerStateEventHandler();
+                metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
@@ -109,10 +112,10 @@ public class DockerApp {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, version),
+                () -> OtterAppState.createGenesisState(platformConfig, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
-                oldSelfId,
+                legacySelfId,
                 platformStateFacade,
                 platformContext);
         final ReservedSignedState initialState = reservedState.state();
@@ -125,15 +128,16 @@ public class DockerApp {
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        consensusStateEventHandler,
-                        oldSelfId,
+                        OtterApp.INSTANCE,
+                        legacySelfId,
                         selfId.toString(),
                         rosterHistory,
                         platformStateFacade)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
-                .withSystemTransactionEncoderCallback(DockerApp::encodeSystemTransaction);
+                .withSystemTransactionEncoderCallback(txn -> Bytes.wrap(
+                        TransactionFactory.createStateSignatureTransaction(txn).toByteArray()));
 
         // Build the platform component builder
         final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
@@ -151,22 +155,14 @@ public class DockerApp {
     }
 
     /**
-     * Starts the application.
+     * Starts the consensus node. This method starts the consensus node platform and application so that it can start receiving transactions.
      */
     public void start() {
         platform.start();
     }
 
     /**
-     * Gets the current value for the {@link PlatformStatus} holder
-     * @return current {@link PlatformStatus} maybe {@code null}
-     */
-    public PlatformStatus getStatus() {
-        return status.get();
-    }
-
-    /**
-     * Destroys the application. Once this method is called, the application cannot be used again.
+     * Shuts down the consensus node.
      *
      * @throws InterruptedException if the thread is interrupted while waiting for the platform to shut down
      */
@@ -175,23 +171,38 @@ public class DockerApp {
     }
 
     /**
-     * Encodes a {@link StateSignatureTransaction}
+     * Registers a listener to receive notifications about changes in the platform's status.
      *
-     * @param stateSignatureTransaction the transaction to encode
-     * @return the encoded transaction as a {@link Bytes} object
+     * @param listener the listener to register, must not be {@code null}
      */
-    private static Bytes encodeSystemTransaction(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
-        return Bytes.EMPTY; // FIXME
-    }
-
     public void registerPlatformStatusChangeListener(@NonNull final PlatformStatusChangeListener listener) {
         platform.getNotificationEngine().register(PlatformStatusChangeListener.class, listener);
     }
 
+    /**
+     * Notifies registered listeners about new consensus rounds.
+     *
+     * @param rounds the list of consensus rounds to notify listeners about, must not be {@code null}
+     */
     private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
         consensusRoundListeners.forEach(listener -> listener.onConsensusRounds(rounds));
     }
 
+    /**
+     * Submits a raw transaction to the underlying platform for processing.
+     *
+     * @param transaction the serialized transaction bytes, must not be {@code null}
+     * @return {@code true} if the transaction was successfully submitted, {@code false} otherwise
+     */
+    public boolean submitTransaction(@NonNull final byte[] transaction) {
+        return platform.createTransaction(transaction);
+    }
+
+    /**
+     * Registers a listener to receive notifications about new consensus rounds.
+     *
+     * @param listener the listener to register, must not be {@code null}
+     */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
     }
