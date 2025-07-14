@@ -355,10 +355,16 @@ jobs:
 
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
           mv new.yml nlg-values.yaml
-
+          
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
+          NETWORK_OWNER="adhoc-performance-test"
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
+          
+          NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
+          NETWORK_OWNER="adhoc-performance-test"
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" merkledb-values.yaml
 
       - name: Deploy NLG test
         run: |
