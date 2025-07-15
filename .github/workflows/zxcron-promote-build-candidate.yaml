@@ -29,7 +29,7 @@ jobs:
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -85,7 +85,7 @@ jobs:
     if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -151,7 +151,7 @@ jobs:
     if: ${{ needs.promote-build-candidate.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -198,7 +198,7 @@ jobs:
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -272,7 +272,7 @@ jobs:
     if: ${{ (needs.determine-build-candidate.result != 'success' || needs.promote-build-candidate.result != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
