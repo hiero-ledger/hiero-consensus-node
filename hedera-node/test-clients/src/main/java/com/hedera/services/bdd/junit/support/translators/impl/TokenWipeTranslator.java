@@ -95,18 +95,16 @@ public class TokenWipeTranslator implements BlockTransactionPartsTranslator {
     }
 
     private TokenSupplyTraceData maybeTokenSupplyTraceData(final List<TraceData> tracesSoFar) {
-        if (tracesSoFar == null) {
-            return null;
-        }
-
-        // Start from the end of the list
-        for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
-            TraceData trace = tracesSoFar.get(i);
-            if (trace.hasTokenSupplyTraceData()) {
-                return trace.tokenSupplyTraceDataOrThrow();
+        TokenSupplyTraceData result = null;
+        if (tracesSoFar != null) {
+            // Start from the end of the list
+            for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
+                final var trace = tracesSoFar.get(i);
+                if (trace.hasTokenSupplyTraceData()) {
+                    result = trace.tokenSupplyTraceDataOrThrow();
+                }
             }
         }
-
-        return null;
+        return result;
     }
 }

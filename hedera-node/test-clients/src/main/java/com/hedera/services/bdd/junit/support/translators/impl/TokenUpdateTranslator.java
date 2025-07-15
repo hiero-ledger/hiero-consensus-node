@@ -77,18 +77,17 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
     }
 
     private AutoAssociateTraceData maybeAutoAssociateTraceData(final List<TraceData> tracesSoFar) {
-        if (tracesSoFar == null) {
-            return null;
-        }
-
-        // Start from the end of the list
-        for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
-            TraceData trace = tracesSoFar.get(i);
-            if (trace.hasAutoAssociateTraceData()) {
-                return trace.autoAssociateTraceData();
+        AutoAssociateTraceData result = null;
+        if (tracesSoFar != null) {
+            // Start from the end of the list
+            for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
+                final var trace = tracesSoFar.get(i);
+                if (trace.hasAutoAssociateTraceData()) {
+                    result = trace.autoAssociateTraceData();
+                    break;
+                }
             }
         }
-
-        return null;
+        return result;
     }
 }

@@ -77,18 +77,17 @@ public class SubmitMessageTranslator implements BlockTransactionPartsTranslator 
     }
 
     private SubmitMessageTraceData maybeSubmitMessageTraceData(final List<TraceData> tracesSoFar) {
-        if (tracesSoFar == null) {
-            return null;
-        }
-
-        // Start from the end of the list
-        for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
-            TraceData trace = tracesSoFar.get(i);
-            if (trace.hasSubmitMessageTraceData()) {
-                return trace.submitMessageTraceData();
+        SubmitMessageTraceData result = null;
+        if (tracesSoFar != null) {
+            // Start from the end of the list
+            for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
+                final var trace = tracesSoFar.get(i);
+                if (trace.hasSubmitMessageTraceData()) {
+                    result = trace.submitMessageTraceData();
+                    break;
+                }
             }
         }
-
-        return null;
+        return result;
     }
 }

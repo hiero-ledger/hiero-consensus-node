@@ -56,6 +56,9 @@ import org.junit.jupiter.api.Tag;
 @Tag(TOKEN)
 public class AtomicBatchOverwriteSameStateKeyTest {
 
+    private static final String OPERATOR = "operator";
+    private static final String ADMIN_KEY = "adminKey";
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
@@ -67,14 +70,14 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @Order(1)
     @HapiTest
     @DisplayName("Mint, Burn and Delete NFT token without custom fees success in batch")
-    public Stream<DynamicTest> mintBurnAndDeleteNFTWithoutCustomFeesSuccessInBatch() {
+    public Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
         final String nft = "nft";
-        final String adminKey = "adminKey";
+        final String adminKey = ADMIN_KEY;
         final String nftSupplyKey = "nftSupplyKey";
         final String owner = "owner";
         final String batchOperator = "batchOperator";
         // create token mint transaction
-        final var mintNFT = mintToken(
+        final var mintNft = mintToken(
                         nft,
                         IntStream.range(0, 10)
                                 .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
@@ -83,7 +86,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                 .batchKey(batchOperator);
 
         // create token burn inner transaction
-        final var burnNFT = burnToken(nft, List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L))
+        final var burnNft = burnToken(nft, List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L))
                 .payingWith(owner)
                 .signedBy(owner, nftSupplyKey)
                 .batchKey(batchOperator);
@@ -99,9 +102,9 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                 newKeyNamed(adminKey),
                 newKeyNamed(nftSupplyKey),
                 // create non-fungible token
-                createMutableNFT(nft, owner, nftSupplyKey, adminKey),
+                createMutableNft(nft, owner, nftSupplyKey, adminKey),
                 // perform the atomic batch transaction
-                atomicBatch(mintNFT, mintNFT, burnNFT, mintNFT, deleteToken)
+                atomicBatch(mintNft, mintNft, burnNft, mintNft, deleteToken)
                         .payingWith(batchOperator)
                         .hasKnownStatus(SUCCESS)));
     }
@@ -110,34 +113,39 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @HapiTest
     @DisplayName("Multiple crypto updates on same state key in batch")
     public Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
+        final var key = "key";
+        final var newKey = "newKey1";
+        final var newKey2 = "newKey2";
+        final var newKey3 = "newKey3";
+
         return hapiTest(
-                newKeyNamed("key"),
-                cryptoCreate("operator"),
-                cryptoCreate("test").key("key").balance(ONE_HUNDRED_HBARS),
-                newKeyNamed("newKey1"),
-                newKeyNamed("newKey2"),
-                newKeyNamed("newKey3"),
+                newKeyNamed(key),
+                cryptoCreate(OPERATOR),
+                cryptoCreate("test").key(key).balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(newKey),
+                newKeyNamed(newKey2),
+                newKeyNamed(newKey3),
                 atomicBatch(
                                 cryptoUpdate("test")
-                                        .key("newKey1")
+                                        .key(newKey)
                                         .memo("memo1")
                                         .payingWith(GENESIS)
-                                        .signedBy(GENESIS, "key", "newKey1")
-                                        .batchKey("operator"),
-                                cryptoCreate("foo").batchKey("operator"),
+                                        .signedBy(GENESIS, key, newKey)
+                                        .batchKey(OPERATOR),
+                                cryptoCreate("foo").batchKey(OPERATOR),
                                 cryptoUpdate("test")
-                                        .key("newKey2")
+                                        .key(newKey2)
                                         .memo("memo2")
                                         .payingWith(GENESIS)
-                                        .signedBy(GENESIS, "newKey1", "newKey2")
-                                        .batchKey("operator"),
+                                        .signedBy(GENESIS, newKey, newKey2)
+                                        .batchKey(OPERATOR),
                                 cryptoUpdate("test")
-                                        .key("newKey3")
+                                        .key(newKey3)
                                         .memo("memo3")
                                         .payingWith(GENESIS)
-                                        .signedBy(GENESIS, "newKey2", "newKey3")
-                                        .batchKey("operator"))
-                        .payingWith("operator"));
+                                        .signedBy(GENESIS, newKey2, newKey3)
+                                        .batchKey(OPERATOR))
+                        .payingWith(OPERATOR));
         // StreamValidationTest must not fail on the first two updates
         // just because the same slot they use is overwritten by the third one.
     }
@@ -146,37 +154,43 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @HapiTest
     @DisplayName("Multiple token updates on same state key in batch")
     public Stream<DynamicTest> multipleTokenUpdatesOnSameStateInBatch() {
+        final var token = "test";
+        final var treasury = "treasury";
+        final var treasury1 = "treasury1";
+        final var treasury2 = "treasury2";
+        final var treasury3 = "treasury3";
+        final var payer = "payer";
         return hapiTest(
-                newKeyNamed("adminKey"),
-                cryptoCreate("operator"),
-                cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("treasury"),
-                cryptoCreate("treasury_1").maxAutomaticTokenAssociations(-1),
-                cryptoCreate("treasury_2").maxAutomaticTokenAssociations(-1),
-                cryptoCreate("treasury_3").maxAutomaticTokenAssociations(-1),
-                tokenCreate("test")
-                        .adminKey("adminKey")
+                newKeyNamed(ADMIN_KEY),
+                cryptoCreate(OPERATOR),
+                cryptoCreate(payer).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(treasury),
+                cryptoCreate(treasury1).maxAutomaticTokenAssociations(-1),
+                cryptoCreate(treasury2).maxAutomaticTokenAssociations(-1),
+                cryptoCreate(treasury3).maxAutomaticTokenAssociations(-1),
+                tokenCreate(token)
+                        .adminKey(ADMIN_KEY)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000)
-                        .treasury("treasury")
-                        .supplyKey("adminKey"),
+                        .treasury(treasury)
+                        .supplyKey(ADMIN_KEY),
                 atomicBatch(
-                                tokenUpdate("test")
-                                        .treasury("treasury_1")
-                                        .payingWith("payer")
-                                        .signedBy("payer", "adminKey", "treasury_1")
-                                        .batchKey("operator"),
-                                tokenUpdate("test")
-                                        .treasury("treasury_2")
-                                        .payingWith("payer")
-                                        .signedBy("payer", "adminKey", "treasury_2")
-                                        .batchKey("operator"),
-                                tokenUpdate("test")
-                                        .treasury("treasury_3")
-                                        .payingWith("payer")
-                                        .signedBy("payer", "adminKey", "treasury_3")
-                                        .batchKey("operator"))
-                        .payingWith("operator"));
+                                tokenUpdate(token)
+                                        .treasury(treasury1)
+                                        .payingWith(payer)
+                                        .signedBy(payer, ADMIN_KEY, treasury1)
+                                        .batchKey(OPERATOR),
+                                tokenUpdate(token)
+                                        .treasury(treasury2)
+                                        .payingWith(payer)
+                                        .signedBy(payer, ADMIN_KEY, treasury2)
+                                        .batchKey(OPERATOR),
+                                tokenUpdate(token)
+                                        .treasury(treasury3)
+                                        .payingWith(payer)
+                                        .signedBy(payer, ADMIN_KEY, treasury3)
+                                        .batchKey(OPERATOR))
+                        .payingWith(OPERATOR));
         // StreamValidationTest must not fail on the first two updates
         // just because the same slot they use is overwritten by the third one.
     }
@@ -185,16 +199,16 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @HapiTest
     @DisplayName("Submit to topic twice in batch")
     public Stream<DynamicTest> submitToTopicTwiceInBatch() {
-        var topic = "topic";
-        var submitKey = "submitKey";
-        var batchOperator = "batchOperator";
-        var topicSubmitter = "feePayer";
+        final var topic = "topic";
+        final var submitKey = "submitKey";
+        final var batchOperator = "batchOperator";
+        final var topicSubmitter = "feePayer";
 
-        var submit1 = submitMessageTo(topic)
+        final var submit1 = submitMessageTo(topic)
                 .payingWith(topicSubmitter)
                 .signedByPayerAnd(submitKey, topicSubmitter)
                 .batchKey(batchOperator);
-        var submit2 = submitMessageTo(topic)
+        final var submit2 = submitMessageTo(topic)
                 .payingWith(topicSubmitter)
                 .signedByPayerAnd(submitKey, topicSubmitter)
                 .batchKey(batchOperator);
@@ -265,7 +279,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     //            return hapiTest(validateStreams());
     //        }
 
-    private HapiTokenCreate createMutableNFT(String tokenName, String treasury, String supplyKey, String adminKey) {
+    private HapiTokenCreate createMutableNft(String tokenName, String treasury, String supplyKey, String adminKey) {
         return tokenCreate(tokenName)
                 .initialSupply(0)
                 .treasury(treasury)
