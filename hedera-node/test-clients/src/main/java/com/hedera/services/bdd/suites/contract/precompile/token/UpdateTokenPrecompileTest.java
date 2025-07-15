@@ -56,7 +56,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("updateToken")
 @SuppressWarnings("java:S1192")
-// @Disabled
 @HapiTestLifecycle
 public class UpdateTokenPrecompileTest {
 

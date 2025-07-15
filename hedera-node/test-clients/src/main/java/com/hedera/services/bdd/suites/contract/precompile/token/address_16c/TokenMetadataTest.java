@@ -60,7 +60,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("metadata tests")
 @SuppressWarnings("java:S1192")
-// @Disabled
 @HapiTestLifecycle
 public class TokenMetadataTest {
 

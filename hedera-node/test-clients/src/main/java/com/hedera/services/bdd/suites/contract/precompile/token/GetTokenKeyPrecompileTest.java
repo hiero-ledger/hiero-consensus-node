@@ -43,7 +43,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("getTokenKey")
 @SuppressWarnings("java:S1192")
-// @Disabled
 @HapiTestLifecycle
 public class GetTokenKeyPrecompileTest {
 

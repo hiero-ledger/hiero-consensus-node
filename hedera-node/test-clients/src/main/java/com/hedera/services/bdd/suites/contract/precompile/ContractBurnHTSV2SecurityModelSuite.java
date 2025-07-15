@@ -47,7 +47,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
-// @Disabled
 @HapiTestLifecycle
 @SuppressWarnings("java:S1192")
 public class ContractBurnHTSV2SecurityModelSuite {

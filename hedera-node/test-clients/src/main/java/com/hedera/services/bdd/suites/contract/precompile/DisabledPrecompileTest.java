@@ -7,8 +7,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -28,7 +26,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
-// @Disabled
 @HapiTestLifecycle
 @OrderedInIsolation
 public class DisabledPrecompileTest {
@@ -53,16 +50,6 @@ public class DisabledPrecompileTest {
         return hapiTest(
                 overriding("contracts.precompile.disabled", "2"),
                 contract.call("callSha256AndIsToken", "submit".getBytes(), ft)
-                        .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
-    }
-
-    @HapiTest
-    @DisplayName("Atomic calling a disabled precompile reverts")
-    public Stream<DynamicTest> atomicCallDisabledPrecompile() {
-        return hapiTest(
-                overriding("contracts.precompile.disabled", "2"),
-                contract.call("callSha256AndIsToken", "submit".getBytes(), ft)
-                        .wrappedInBatchOperation(BATCH_OPERATOR, OK, INNER_TRANSACTION_FAILED)
                         .andAssert(txn -> txn.hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
     }
 

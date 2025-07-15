@@ -39,7 +39,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("metadataUpdateTests")
 @SuppressWarnings("java:S1192") // literals are duplicated for readability
-// @Disabled
 @HapiTestLifecycle
 public class UpdateTokenMetadataTest {
 

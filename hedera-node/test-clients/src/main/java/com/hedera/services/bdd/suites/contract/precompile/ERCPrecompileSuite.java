@@ -92,7 +92,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-// @Disabled
 @HapiTestLifecycle
 @Tag(LONG_RUNNING)
 public class ERCPrecompileSuite {

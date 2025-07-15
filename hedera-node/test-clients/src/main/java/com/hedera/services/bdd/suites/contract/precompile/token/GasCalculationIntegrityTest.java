@@ -49,7 +49,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Gas Integrity Tests for Token Contracts")
-// @Disabled
 @HapiTestLifecycle
 public class GasCalculationIntegrityTest {
 

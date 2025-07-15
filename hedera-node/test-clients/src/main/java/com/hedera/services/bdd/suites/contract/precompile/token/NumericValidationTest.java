@@ -50,7 +50,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @DisplayName("numericValidation")
 @SuppressWarnings("java:S1192")
-// @Disabled
 @HapiTestLifecycle
 public class NumericValidationTest {
 

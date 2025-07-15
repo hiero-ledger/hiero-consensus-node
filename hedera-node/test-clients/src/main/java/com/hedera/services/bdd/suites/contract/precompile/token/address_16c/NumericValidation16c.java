@@ -36,7 +36,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
-// @Disabled
 @HapiTestLifecycle
 public class NumericValidation16c {
 
