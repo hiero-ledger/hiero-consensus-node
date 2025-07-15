@@ -47,7 +47,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
@@ -68,7 +67,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -712,34 +710,6 @@ public class AtomicBatchNegativeTest {
                     getAccountBalance("collector").hasTokenBalance("ftB", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftA", 0),
                     getAccountBalance("receiver").hasTokenBalance("ftC", 0));
-        }
-
-        @HapiTest
-        @DisplayName("Batch containing expired transaction charges on rollback")
-        // BATCH_66
-        public Stream<DynamicTest> failingWithExpiryStillChargesFees() {
-            final var beforeHour = -3_600L; // 1 hour in the past
-            return hapiTest(
-                    // create accounts and tokens
-                    cryptoCreate("Alice").balance(ONE_HUNDRED_HBARS),
-                    // batch txn
-                    usableTxnIdNamed("expiredTxn").modifyValidStart(beforeHour).payerId("Alice"),
-                    atomicBatch(
-                                    tokenCreate("ftA").batchKey("Alice").payingWith("Alice"),
-                                    tokenCreate("ftB")
-                                            .txnId("expiredTxn")
-                                            .batchKey("Alice")
-                                            .payingWith("Alice"))
-                            .payingWith("Alice")
-                            .hasPrecheck(TRANSACTION_EXPIRED)
-                            .via("batchTxn"),
-
-                    // This test no longer make sense
-                    // Expired transaction will be detected on batch ingest, so it will not execute any of the inner
-                    // transactions and will not create any records.
-                    getAccountRecords("Alice").exposingNonStakingRecordsTo(records -> {
-                        assertEquals(0, records.size());
-                    }));
         }
 
         @HapiTest
