@@ -110,7 +110,12 @@ jobs:
         working-directory: platform-sdk/regression
 
       # Set up the npm dependencies and cache on the sdk-server
-      - name: Install NodeJS Dependencies (sdk-server)
+      - name: Install NodeJS SDK Dependencies (sdk-server)
+        run: pnpm install
+        working-directory: platform-sdk/sdk-server
+
+      # Set up the npm dependencies and cache on the sdk-server
+      - name: Install NodeJS Dependencies (tck)
         id: start-sdk-server
         run: |
           pnpm install
