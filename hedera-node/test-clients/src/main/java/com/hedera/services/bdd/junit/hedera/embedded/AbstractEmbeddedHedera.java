@@ -308,7 +308,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     /**
      * Gives a pretend state signature transaction.
      */
-    private byte[] mockStateSignatureTxn() {
+    protected byte[] mockStateSignatureTxn() {
         return hedera.encodeSystemTransaction(com.hedera.hapi.platform.event.StateSignatureTransaction.newBuilder()
                         .round(1L)
                         .hash(Bytes.wrap(new byte[48]))

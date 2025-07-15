@@ -117,6 +117,9 @@ class SystemTransactionsTest {
     @Mock
     private StartupNetworks startupNetworks;
 
+    @Mock
+    private StakePeriodChanges stakePeriodChanges;
+
     @LoggingSubject
     private SystemTransactions subject;
 
@@ -144,7 +147,8 @@ class SystemTransactionsTest {
                 blockStreamManager,
                 exchangeRateManager,
                 recordCache,
-                startupNetworks);
+                startupNetworks,
+                stakePeriodChanges);
     }
 
     @Test
