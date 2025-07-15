@@ -33,7 +33,7 @@ public class CheckingRecoveryTest {
      * @throws InterruptedException if an operation times out
      */
     @Disabled(
-            "This test works, but is disabled until we can indicate which environments support the required capabilities .")
+            "This test works, but is disabled until we can indicate which environments support the required capabilities.")
     @OtterTest
     void testCheckingRecovery(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();

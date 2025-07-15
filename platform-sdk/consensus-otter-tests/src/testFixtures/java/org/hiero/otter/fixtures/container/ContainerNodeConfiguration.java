@@ -16,7 +16,7 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
  */
 public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
 
-    /** A map of properties that the node is currently running with. Initialized after node startup. */
+    /** A map of node configuration defaults. */
     private final Map<String, String> nodeDefaults = new HashMap<>();
 
     public ContainerNodeConfiguration() {

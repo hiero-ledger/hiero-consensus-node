@@ -135,7 +135,6 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     public void start() {
-        // Start the node
         defaultAsyncAction.start();
     }
 
