@@ -92,8 +92,7 @@ public final class SyncUtils {
 
     /**
      * Read the tips and event window from the peer. This is the first data exchanged during a sync (after protocol
-     * negotiation). The complementary function to
-     * {@link #writeMyTipsAndEventWindow(Connection, EventWindow, List)}.
+     * negotiation). The complementary function to {@link #writeMyTipsAndEventWindow(Connection, EventWindow, List)}.
      *
      * @param connection    the connection to read from
      * @param numberOfNodes the number of nodes in the network
@@ -552,6 +551,38 @@ public final class SyncUtils {
                             "peer booleans list is wrong size. Expected: %d Actual: %d,",
                             myTips.size(), myTipsTheyHave.size()));
         }
+        return getMyTipsTheyKnow(myTips, myTipsTheyHave);
+    }
+
+    /**
+     * For each tip sent to the peer, determine if they have that event. If they have it, add it to the list that is
+     * returned.
+     *
+     * @param peerId    the peer node id
+     * @param myTips         the tips we sent them
+     * @param myTipsTheyHave a list of booleans corresponding to our tips in the order they were sent. True if they have
+     *                       the event, false if they don't
+     * @return a list of tips that they have
+     */
+    @NonNull
+    static List<ShadowEvent> getMyTipsTheyKnow(
+            @NonNull final NodeId peerId,
+            @NonNull final List<ShadowEvent> myTips,
+            @NonNull final List<Boolean> myTipsTheyHave) {
+
+        Objects.requireNonNull(peerId);
+
+        if (myTipsTheyHave.size() != myTips.size()) {
+            throw new RuntimeException(String.format(
+                    "during sync with %s, peer booleans list is wrong size. Expected: %d Actual: %d,",
+                    peerId, myTips.size(), myTipsTheyHave.size()));
+        }
+        return getMyTipsTheyKnow(myTips, myTipsTheyHave);
+    }
+
+    @NonNull
+    private static List<ShadowEvent> getMyTipsTheyKnow(
+            @NonNull final List<ShadowEvent> myTips, @NonNull final List<Boolean> myTipsTheyHave) {
         final List<ShadowEvent> knownTips = new ArrayList<>();
         // process their booleans
         for (int i = 0; i < myTipsTheyHave.size(); i++) {

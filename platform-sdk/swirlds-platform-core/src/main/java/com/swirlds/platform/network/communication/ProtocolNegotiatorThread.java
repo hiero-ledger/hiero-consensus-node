@@ -71,6 +71,8 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
             }
         } catch (final RuntimeException | IOException | NetworkProtocolException | NegotiationException e) {
             NetworkUtils.handleNetworkException(e, currentConn, socketExceptionRateLimiter);
+        } finally {
+            protocols.cleanup();
         }
     }
 }

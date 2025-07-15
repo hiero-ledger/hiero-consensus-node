@@ -35,7 +35,6 @@ import java.math.BigInteger;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -44,9 +43,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
 @HapiTestLifecycle
-@Disabled // This will be enabled once https://github.com/hiero-ledger/hiero-consensus-node/issues/19901 is fixed
 public class AtomicLeakyEthereumTestsSuite {
-
     private static final String PAY_RECEIVABLE_CONTRACT = "PayReceivable";
     private static final String BATCH_OPERATOR = "batchOperator";
 
