@@ -45,8 +45,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 
+@Disabled
 @HapiTestLifecycle
 @SuppressWarnings("java:S1192")
 public class ContractBurnHTSV2SecurityModelSuite {

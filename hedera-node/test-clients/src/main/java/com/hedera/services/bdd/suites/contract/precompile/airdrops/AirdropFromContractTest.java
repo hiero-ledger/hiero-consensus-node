@@ -71,6 +71,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
+// @Disabled
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class AirdropFromContractTest {

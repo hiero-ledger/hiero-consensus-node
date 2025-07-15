@@ -64,6 +64,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Contract sign schedule")
+// @Disabled
 @HapiTestLifecycle
 public class ContractSignScheduleTest {
     private static final String CONTRACT = "HRC755Contract";

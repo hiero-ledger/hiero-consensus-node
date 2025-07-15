@@ -33,6 +33,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 @Tag(SMART_CONTRACT)
 @DisplayName("transferToken")
 @SuppressWarnings("java:S1192")
+// @Disabled
 @HapiTestLifecycle
 @TestMethodOrder(OrderAnnotation.class)
 public class TransferTokenTest {

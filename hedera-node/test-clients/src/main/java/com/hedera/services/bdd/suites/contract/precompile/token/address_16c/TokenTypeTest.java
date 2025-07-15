@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("tokenType")
+// @Disabled
 @HapiTestLifecycle
 public class TokenTypeTest {
 

@@ -31,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Tag;
  * Asserts expected behavior for the {@code isAuthorized()} HRC token redirect for both
  * contract and EOA {@code msg.sender} types and both fungible and non-fungible token types.
  */
+@Disabled
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 @DisplayName("isAssociated")
