@@ -1,15 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.otter.docker.app.platform;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
-import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
-import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
-import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static java.util.Objects.requireNonNull;
-
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
@@ -28,7 +19,6 @@ import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
-import com.swirlds.platform.event.preconsensus.PcesFileIterator;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
@@ -45,7 +35,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +50,15 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterAppState;
+
+import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
+import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -237,5 +235,18 @@ public class ConsensusNodeManager {
             pcesPaths.add(file.getPath());
         }
         return pcesPaths;
+    }
+
+    /**
+     * Updates the synthetic bottleneck duration engages on the handle thread. Setting this value to zero disables the
+     * bottleneck.
+     *
+     * @param millisToSleepPerRound the number of milliseconds to sleep per round, must be non-negative
+     */
+    public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
+        if (millisToSleepPerRound < 0) {
+            throw new IllegalArgumentException("millisToSleepPerRound must be non-negative");
+        }
+        OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
     }
 }

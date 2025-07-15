@@ -99,10 +99,6 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                         commaSeparatedNumber(firstEvent.getPlatformEvent().getConsensusOrder()),
                         commaSeparatedNumber(lastEvent.getPlatformEvent().getConsensusOrder()))
                 .addRow(
-                        "generation",
-                        commaSeparatedNumber(firstEvent.getPlatformEvent().getGeneration()),
-                        commaSeparatedNumber(lastEvent.getPlatformEvent().getGeneration()))
-                .addRow(
                         "creator ID",
                         firstEvent.getPlatformEvent().getCreatorId(),
                         lastEvent.getPlatformEvent().getCreatorId())

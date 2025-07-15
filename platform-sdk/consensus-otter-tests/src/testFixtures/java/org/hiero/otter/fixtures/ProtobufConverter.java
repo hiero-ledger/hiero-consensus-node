@@ -196,7 +196,6 @@ public class ProtobufConverter {
                 .hash(toPbj(sourceEventDescriptor.getHash()))
                 .creatorNodeId(sourceEventDescriptor.getCreatorNodeId())
                 .birthRound(sourceEventDescriptor.getBirthRound())
-                .generation(sourceEventDescriptor.getGeneration())
                 .build();
     }
 
@@ -213,7 +212,6 @@ public class ProtobufConverter {
                 .setHash(fromPbj(sourceEventDescriptor.hash()))
                 .setCreatorNodeId(sourceEventDescriptor.creatorNodeId())
                 .setBirthRound(sourceEventDescriptor.birthRound())
-                .setGeneration(sourceEventDescriptor.generation())
                 .build();
     }
 
@@ -387,9 +385,6 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.platform.state.legacy.ConsensusSnapshot sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.ConsensusSnapshot.newBuilder()
                 .round(sourceConsensusSnapshot.getRound())
-                .judgeHashes(sourceConsensusSnapshot.getJudgeHashesList().stream()
-                        .map(ProtobufConverter::toPbj)
-                        .toList())
                 .minimumJudgeInfoList(sourceConsensusSnapshot.getMinimumJudgeInfoListList().stream()
                         .map(ProtobufConverter::toPbj)
                         .toList())
@@ -412,9 +407,6 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.platform.state.ConsensusSnapshot sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.legacy.ConsensusSnapshot.newBuilder()
                 .setRound(sourceConsensusSnapshot.round())
-                .addAllJudgeHashes(sourceConsensusSnapshot.judgeHashes().stream()
-                        .map(ProtobufConverter::fromPbj)
-                        .toList())
                 .addAllMinimumJudgeInfoList(sourceConsensusSnapshot.minimumJudgeInfoList().stream()
                         .map(ProtobufConverter::fromPbj)
                         .toList())
@@ -440,7 +432,7 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.MinimumJudgeInfo.newBuilder()
                 .round(sourceConsensusSnapshot.getRound())
-                .minimumJudgeAncientThreshold(sourceConsensusSnapshot.getMinimumJudgeAncientThreshold())
+                .minimumJudgeBirthRound(sourceConsensusSnapshot.getMinimumJudgeBirthRound())
                 .build();
     }
 
@@ -455,7 +447,7 @@ public class ProtobufConverter {
             @NonNull final com.hedera.hapi.platform.state.MinimumJudgeInfo sourceConsensusSnapshot) {
         return com.hedera.hapi.platform.state.legacy.MinimumJudgeInfo.newBuilder()
                 .setRound(sourceConsensusSnapshot.round())
-                .setMinimumJudgeAncientThreshold(sourceConsensusSnapshot.minimumJudgeAncientThreshold())
+                .setMinimumJudgeBirthRound(sourceConsensusSnapshot.minimumJudgeBirthRound())
                 .build();
     }
 

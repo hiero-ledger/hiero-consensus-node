@@ -22,6 +22,7 @@ import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.container.proto.PcesFilePaths;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
@@ -177,6 +178,22 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         } catch (final Exception e) {
             responseObserver.onError(Status.INTERNAL.withCause(e).asRuntimeException());
         }
+    }
+
+    /**
+     * Updates the synthetic bottleneck settings for the platform.
+     * <p>
+     * This method allows the test framework to control the synthetic bottleneck behavior of the platform.
+     *
+     * @param request The request containing the sleep duration per round.
+     * @param responseObserver The observer used to confirm the update.
+     */
+    @Override
+    public synchronized void syntheticBottleneckUpdate(
+            @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        nodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
     }
 
     /**

@@ -103,6 +103,9 @@ jobs:
             exit 2
           fi
 
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - name: Authenticate to Google Cloud
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}

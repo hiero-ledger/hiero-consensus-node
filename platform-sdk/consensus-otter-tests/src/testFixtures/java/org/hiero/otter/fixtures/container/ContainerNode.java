@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
@@ -38,6 +39,7 @@ import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PcesFilePaths;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc.TestControlStub;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
@@ -89,7 +91,7 @@ public class ContainerNode extends AbstractNode implements Node {
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path mountedDir) {
-        super(selfId);
+        super(selfId, getWeight(roster, selfId));
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
@@ -106,12 +108,30 @@ public class ContainerNode extends AbstractNode implements Node {
         blockingStub = TestControlGrpc.newBlockingStub(channel);
     }
 
+    private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
+        return roster.rosterEntries().stream()
+                .filter(entry -> entry.nodeId() == selfId.id())
+                .findFirst()
+                .map(RosterEntry::weight)
+                .orElseThrow(() -> new IllegalArgumentException("Node ID not found in roster"));
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void killImmediately() throws InterruptedException {
         defaultAsyncAction.killImmediately();
+    }
+
+    @Override
+    public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+        defaultAsyncAction.startSyntheticBottleneck(delayPerRound);
+    }
+
+    @Override
+    public void stopSyntheticBottleneck() {
+        defaultAsyncAction.stopSyntheticBottleneck();
     }
 
     /**
@@ -322,6 +342,26 @@ public class ContainerNode extends AbstractNode implements Node {
             } catch (final Exception e) {
                 fail("Failed to kill node %d immediately".formatted(selfId.id()), e);
             }
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                    .setSleepMillisPerRound(delayPerRound.toMillis())
+                    .build());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void stopSyntheticBottleneck() {
+            blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
+                    .setSleepMillisPerRound(0)
+                    .build());
         }
     }
 
