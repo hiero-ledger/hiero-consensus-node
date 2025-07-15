@@ -292,7 +292,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_INFO})",
+                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_INFO}) Passed",
                         "emoji": true
                       }
                     },
@@ -470,7 +470,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_INFO})",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_INFO}) Failed",
                       "emoji": true
                     }
                   },
