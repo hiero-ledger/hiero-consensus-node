@@ -6,7 +6,7 @@ on:
       test-asset:
         required: true
         default: "AdHoc7"
-        description: "Performance test on given namespace"
+        description: "Performance test on machine: AdHoc5, 6, 7"
         type: choice
         options:
           - AdHoc5
