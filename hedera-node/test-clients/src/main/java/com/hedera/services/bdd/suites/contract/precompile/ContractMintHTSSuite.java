@@ -67,11 +67,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
-@Disabled
+// @Disabled
 @HapiTestLifecycle
 @Tag(SMART_CONTRACT)
 public class ContractMintHTSSuite {
