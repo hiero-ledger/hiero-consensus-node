@@ -8,7 +8,6 @@ module com.hedera.protobuf.java.api {
     exports com.hedera.hapi.node.state.tss.legacy;
     exports com.hedera.hapi.platform.event.legacy;
     exports com.hedera.hapi.platform.state.legacy;
-    exports com.hedera.hapi.services.auxiliary.legacy;
     exports com.hedera.hapi.services.auxiliary.hints.legacy;
     exports com.hedera.hapi.services.auxiliary.history.legacy;
     exports com.hedera.hapi.services.auxiliary.tss.legacy;

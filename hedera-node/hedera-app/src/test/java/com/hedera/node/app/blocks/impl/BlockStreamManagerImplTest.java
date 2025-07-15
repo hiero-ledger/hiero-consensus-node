@@ -33,7 +33,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -102,16 +102,16 @@ class BlockStreamManagerImplTest {
     private static final Bytes N_MINUS_2_BLOCK_HASH = Bytes.wrap(noThrowSha384HashOf(new byte[] {(byte) 0xAA}));
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
-    private static final PassThroughBlockItem FAKE_SIGNED_TRANSACTION =
-            PassThroughBlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
-    private static final PassThroughBlockItem FAKE_TRANSACTION_RESULT = PassThroughBlockItem.newBuilder()
+    private static final BlockItem FAKE_SIGNED_TRANSACTION =
+            BlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
+    private static final BlockItem FAKE_TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(TransactionResult.DEFAULT)
             .build();
     private static final Bytes FAKE_RESULT_HASH = noThrowSha384HashOfItem(FAKE_TRANSACTION_RESULT);
-    private static final PassThroughBlockItem FAKE_STATE_CHANGES =
-            PassThroughBlockItem.newBuilder().stateChanges(StateChanges.DEFAULT).build();
-    private static final PassThroughBlockItem FAKE_RECORD_FILE_ITEM =
-            PassThroughBlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
+    private static final BlockItem FAKE_STATE_CHANGES =
+            BlockItem.newBuilder().stateChanges(StateChanges.DEFAULT).build();
+    private static final BlockItem FAKE_RECORD_FILE_ITEM =
+            BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
     private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(ZERO_BLOCK_HASH), 0);
 
     @Mock
@@ -1035,8 +1035,8 @@ class BlockStreamManagerImplTest {
                 .build();
     }
 
-    private static Bytes noThrowSha384HashOfItem(@NonNull final PassThroughBlockItem item) {
+    private static Bytes noThrowSha384HashOfItem(@NonNull final BlockItem item) {
         return Bytes.wrap(
-                noThrowSha384HashOf(PassThroughBlockItem.PROTOBUF.toBytes(item).toByteArray()));
+                noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
     }
 }

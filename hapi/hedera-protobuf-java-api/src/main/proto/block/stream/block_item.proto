@@ -153,13 +153,11 @@ message BlockItem {
          * A single transaction.
          * <p>
          * This item SHALL contain the serialized bytes of a
-         * single transaction.<br/>
-         * Each event transaction SHALL be either a `SignedTransaction` or
-         * an internal system-generated transaction.<br/>
+         * single proto.SignedTransaction.<br/>
          * This item MUST NOT contain data for more than one
-         * `SignedTransaction` or system-generated transaction.
+         * `SignedTransaction`.
          */
-        proto.SignedTransaction signed_transaction = 4;
+        bytes signed_transaction = 4;
 
         /**
          * The result of running a transaction.
@@ -289,11 +287,9 @@ message PassThroughBlockItem {
          * A single transaction.
          * <p>
          * This item SHALL contain the serialized bytes of a
-         * single transaction.<br/>
-         * Each event transaction SHALL be either a `SignedTransaction` or
-         * an internal system-generated transaction.<br/>
+         * single proto.SignedTransaction.<br/>
          * This item MUST NOT contain data for more than one
-         * `SignedTransaction` or system-generated transaction.
+         * `SignedTransaction`.
          */
         bytes signed_transaction = 4;
 

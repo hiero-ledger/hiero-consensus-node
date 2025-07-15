@@ -11,7 +11,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -47,12 +47,12 @@ class BlockRecordSourceTest {
             .build();
     private static final AccountID ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1L).build();
-    private static final PassThroughBlockItem FIRST_OUTPUT = PassThroughBlockItem.newBuilder()
+    private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
                     .accountCreate(new CreateAccountOutput(ACCOUNT_ID))
                     .build())
             .build();
-    private static final PassThroughBlockItem TRANSACTION_RESULT = PassThroughBlockItem.newBuilder()
+    private static final BlockItem TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(
                     TransactionResult.newBuilder().transactionFeeCharged(123L).build())
             .build();
@@ -61,7 +61,7 @@ class BlockRecordSourceTest {
     private BlockItemsTranslator recordTranslator;
 
     @Mock
-    private Consumer<PassThroughBlockItem> itemAction;
+    private Consumer<BlockItem> itemAction;
 
     @Mock
     private Consumer<TransactionRecord> recordAction;
@@ -79,7 +79,7 @@ class BlockRecordSourceTest {
 
         subject.forEachItem(itemAction);
 
-        verify(itemAction, times(3)).accept(any(PassThroughBlockItem.class));
+        verify(itemAction, times(3)).accept(any(BlockItem.class));
     }
 
     @Test

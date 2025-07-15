@@ -57,11 +57,14 @@ import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A state change listener that tracks an entire sequence of changes, even if this sequence
@@ -72,10 +75,14 @@ public class KVStateChangeListener implements StateChangeListener {
 
     private final List<StateChange> stateChanges = new ArrayList<>();
 
+    @Nullable
+    private Predicate<Object> logicallyIdentical;
+
     /**
      * Resets the state changes.
      */
-    public void reset() {
+    public void reset(@Nullable final Predicate<Object> logicallyIdentical) {
+        this.logicallyIdentical = logicallyIdentical;
         stateChanges.clear();
     }
 
@@ -96,10 +103,8 @@ public class KVStateChangeListener implements StateChangeListener {
     public <K, V> void mapUpdateChange(final int stateId, @NonNull final K key, @NonNull final V value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
-        final var change = MapUpdateChange.newBuilder()
-                .key(mapChangeKeyFor(key))
-                .value(mapChangeValueFor(value))
-                .build();
+        final boolean identical = logicallyIdentical != null && logicallyIdentical.test(value);
+        final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
         stateChanges.add(stateChange);

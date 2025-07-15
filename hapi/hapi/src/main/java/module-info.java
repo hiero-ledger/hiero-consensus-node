@@ -87,7 +87,6 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.block.stream.trace.protoc;
     opens com.hedera.hapi.node.state.tss.legacy;
     opens com.hedera.hapi.platform.state.legacy;
-    opens com.hedera.hapi.services.auxiliary.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
     opens com.hedera.node.internal.network.legacy;
@@ -99,8 +98,6 @@ module com.hedera.node.hapi {
             org.assertj.core;
     opens com.hedera.hapi.node.token to
             org.assertj.core;
-
-    exports com.hedera.hapi.services.auxiliary;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

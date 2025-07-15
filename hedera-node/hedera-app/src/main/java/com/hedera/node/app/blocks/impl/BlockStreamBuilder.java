@@ -11,7 +11,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
@@ -371,7 +371,7 @@ public class BlockStreamBuilder
     /**
      * The prebuild item for a UTIL_PRNG output.
      */
-    private PassThroughBlockItem utilPrngOutputItem;
+    private BlockItem utilPrngOutputItem;
 
     // --- Fields used to either build the TranslationContext or a TransactionOutput ---
     /**
@@ -445,7 +445,7 @@ public class BlockStreamBuilder
      * @param translationContext the translation context
      */
     public record Output(
-            @NonNull List<PassThroughBlockItem> blockItems, @NonNull TranslationContext translationContext) {
+            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -455,7 +455,7 @@ public class BlockStreamBuilder
          * Exposes each {@link BlockItem} in the output to the given action.
          * @param action the action to apply
          */
-        public void forEachItem(@NonNull final Consumer<PassThroughBlockItem> action) {
+        public void forEachItem(@NonNull final Consumer<BlockItem> action) {
             requireNonNull(action);
             blockItems.forEach(action);
         }
@@ -557,7 +557,7 @@ public class BlockStreamBuilder
      * @return the list of block items
      */
     public Output build(final boolean topLevel) {
-        final var blockItems = new ArrayList<PassThroughBlockItem>();
+        final var blockItems = new ArrayList<BlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
         final var translationContext = translationContext();
@@ -573,7 +573,7 @@ public class BlockStreamBuilder
             }
             // Use a "pass-through" BlockItem variant to ensure we don't re-serialize the parsed
             // SignedTransaction into something different from what the client submitted
-            blockItems.add(PassThroughBlockItem.newBuilder()
+            blockItems.add(BlockItem.newBuilder()
                     .signedTransaction(serializedSignedTx)
                     .build());
         }
@@ -593,12 +593,12 @@ public class BlockStreamBuilder
             if (logs != null) {
                 builder.logs(logs);
             }
-            blockItems.add(PassThroughBlockItem.newBuilder()
+            blockItems.add(BlockItem.newBuilder()
                     .traceData(TraceData.newBuilder().evmTraceData(builder))
                     .build());
         }
         if (!stateChanges.isEmpty() || topLevel) {
-            blockItems.add(PassThroughBlockItem.newBuilder()
+            blockItems.add(BlockItem.newBuilder()
                     .stateChanges(StateChanges.newBuilder()
                             .consensusTimestamp(asTimestamp(consensusNow))
                             .stateChanges(stateChanges)
@@ -1219,7 +1219,7 @@ public class BlockStreamBuilder
     }
 
     @NonNull
-    private PassThroughBlockItem transactionResultBlockItem() {
+    private BlockItem transactionResultBlockItem() {
         if (!automaticTokenAssociations.isEmpty()) {
             automaticTokenAssociations.sort(TOKEN_ASSOCIATION_COMPARATOR);
             transactionResultBuilder.automaticTokenAssociations(automaticTokenAssociations);
@@ -1227,7 +1227,7 @@ public class BlockStreamBuilder
         if (!assessedCustomFees.isEmpty()) {
             transactionResultBuilder.assessedCustomFees(assessedCustomFees);
         }
-        return PassThroughBlockItem.newBuilder()
+        return BlockItem.newBuilder()
                 .transactionResult(
                         transactionResultBuilder.transferList(transferList).build())
                 .build();
@@ -1241,7 +1241,7 @@ public class BlockStreamBuilder
         }
     }
 
-    private void addOutputItemsTo(@NonNull final List<PassThroughBlockItem> items) {
+    private void addOutputItemsTo(@NonNull final List<BlockItem> items) {
         if (utilPrngOutputItem != null) {
             items.add(utilPrngOutputItem);
         }
@@ -1322,8 +1322,8 @@ public class BlockStreamBuilder
         return builder;
     }
 
-    private PassThroughBlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
-        return PassThroughBlockItem.newBuilder().transactionOutput(output).build();
+    private BlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
+        return BlockItem.newBuilder().transactionOutput(output).build();
     }
 
     /**

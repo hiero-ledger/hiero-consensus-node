@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -21,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -98,7 +98,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
     /**
      * Stream observer used to send messages to the block node.
      */
-    private StreamObserver<PassThroughPublishStreamRequest> blockNodeStreamObserver;
+    private StreamObserver<PublishStreamRequest> blockNodeStreamObserver;
     /**
      * Reference to the current state of this connection.
      */
@@ -328,9 +328,9 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
                     final var highestAckedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
 
                     // Indicate that the block node should recover and catch up from another trustworthy block node
-                    final PassThroughPublishStreamRequest endStream = PassThroughPublishStreamRequest.newBuilder()
-                            .endStream(PassThroughPublishStreamRequest.EndStream.newBuilder()
-                                    .endCode(PassThroughPublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
+                    final PublishStreamRequest endStream = PublishStreamRequest.newBuilder()
+                            .endStream(PublishStreamRequest.EndStream.newBuilder()
+                                    .endCode(PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND)
                                     .earliestBlockNumber(earliestBlockNumber)
                                     .latestBlockNumber(highestAckedBlockNumber))
                             .build();
@@ -433,7 +433,7 @@ public class BlockNodeConnection implements StreamObserver<PublishStreamResponse
      *
      * @param request the request to send
      */
-    public void sendRequest(@NonNull final PassThroughPublishStreamRequest request) {
+    public void sendRequest(@NonNull final PublishStreamRequest request) {
         requireNonNull(request);
         if (connectionState.get() == ConnectionState.ACTIVE && blockNodeStreamObserver != null) {
             blockNodeStreamObserver.onNext(request);

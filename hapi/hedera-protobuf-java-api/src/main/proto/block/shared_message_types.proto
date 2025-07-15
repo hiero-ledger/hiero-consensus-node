@@ -31,21 +31,3 @@ message BlockItemSet {
    */
   repeated com.hedera.hapi.block.stream.BlockItem block_items = 1;
 }
-
-/**
- * Please see the documentation for `BlockItemSet`.
- * <p>
- * This message is a `BlockItemSet` variant for stream producers or
- * consumers that need to preserve ("pass through") the exact
- * serialization of upstream SignedTransaction items.
- * <p>
- * On the wire, it is indistinguishable from a `BlockItemSet`.
- */
-message PassThroughBlockItemSet {
-  /**
-   * An ordered list of `PassThroughBlockItem`s.<br/>
-   * This list supports sending block items to subscribers in batches
-   * for greater channel efficiency.
-   */
-  repeated com.hedera.hapi.block.stream.PassThroughBlockItem block_items = 1;
-}

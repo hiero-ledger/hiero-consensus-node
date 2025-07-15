@@ -3,7 +3,7 @@ package com.hedera.node.app.blocks;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,7 +25,7 @@ public interface BlockItemWriter {
      * @param item the item to write
      * @param bytes the serialized item to write
      */
-    default void writePbjItemAndBytes(@NonNull final PassThroughBlockItem item, @NonNull final Bytes bytes) {
+    default void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
         requireNonNull(item);
         requireNonNull(bytes);
         writeItem(bytes.toByteArray());
@@ -42,7 +42,7 @@ public interface BlockItemWriter {
      * Writes a PBJ item to the destination stream.
      * @param item the item to write
      */
-    void writePbjItem(@NonNull final PassThroughBlockItem item);
+    void writePbjItem(@NonNull final BlockItem item);
 
     /**
      * Closes a block that is complete with a proof.

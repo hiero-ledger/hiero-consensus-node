@@ -14,7 +14,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -234,7 +234,7 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txns -> {});
 
         builders.forEach(builder -> verify(blockStreamManager)
-                .writeItem(PassThroughBlockItem.newBuilder()
+                .writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(BLOCK_TIME).build())
                         .build()));
     }
@@ -270,12 +270,12 @@ class HandleWorkflowTest {
         // THEN
         verify(blockStreamManager).trackEventHash(event.getHash());
 
-        ArgumentCaptor<PassThroughBlockItem> blockItemCaptor = ArgumentCaptor.forClass(PassThroughBlockItem.class);
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
         final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
-                .filter(PassThroughBlockItem::hasEventHeader)
+                .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
 
@@ -324,12 +324,12 @@ class HandleWorkflowTest {
         // THEN
         verify(blockStreamManager).trackEventHash(eventHash);
 
-        ArgumentCaptor<PassThroughBlockItem> blockItemCaptor = ArgumentCaptor.forClass(PassThroughBlockItem.class);
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
         final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
-                .filter(PassThroughBlockItem::hasEventHeader)
+                .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
 
@@ -384,12 +384,12 @@ class HandleWorkflowTest {
         // THEN
         verify(blockStreamManager).trackEventHash(eventHash);
 
-        ArgumentCaptor<PassThroughBlockItem> blockItemCaptor = ArgumentCaptor.forClass(PassThroughBlockItem.class);
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
         final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
-                .filter(PassThroughBlockItem::hasEventHeader)
+                .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
 
@@ -453,12 +453,12 @@ class HandleWorkflowTest {
         // THEN
         verify(blockStreamManager).trackEventHash(eventHash);
 
-        ArgumentCaptor<PassThroughBlockItem> blockItemCaptor = ArgumentCaptor.forClass(PassThroughBlockItem.class);
+        ArgumentCaptor<BlockItem> blockItemCaptor = ArgumentCaptor.forClass(BlockItem.class);
         verify(blockStreamManager, atLeastOnce()).writeItem(blockItemCaptor.capture());
 
         // Find the BlockItem that has an event header
         final var eventHeaderItem = blockItemCaptor.getAllValues().stream()
-                .filter(PassThroughBlockItem::hasEventHeader)
+                .filter(BlockItem::hasEventHeader)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("No BlockItem with event header found"));
 

@@ -34,23 +34,35 @@ message ContractSlotUsage {
      */
     proto.ContractID contract_id = 1;
 
-    /**
-     * The storage slots that were written to in the EVM transaction.
-     * <p>
-     * The written value can be unambiguously derived from the block items
-     * in this EVM transaction's Hiero transactional unit. In particular,
-     * 1. If a following EVM trace modifies the same slot, the value written
-     * in this EVM transaction was whatever value the following trace read.
-     * 2. If the slot was not modified in a following EVM trace, the value
-     * is whatever value was committed to the Merkle state for the slot.
-     */
-    repeated bytes written_slot_keys = 2;
+    oneof written_keys {
+        /**
+         * If true, the list of written slot keys is implied by the non-identical
+         * state changes in the Hiero transactional unit of this EVM transaction.
+         */
+        bool written_keys_are_non_identical_state_changes = 2;
+
+        /**
+         * The storage slots that were written to in the EVM transaction.
+         * <p>
+         * The written value can be unambiguously derived from the block items
+         * in this EVM transaction's Hiero transactional unit. In particular,
+         * 1. If a following EVM trace modifies the same slot, the value written
+         * in this EVM transaction was whatever value the following trace read.
+         * 2. If the slot was not modified in a following EVM trace, the value
+         * is whatever value was committed to the Merkle state for the slot.
+         */
+        WrittenSlotKeys written_slot_keys = 3;
+    }
 
     /**
      * The storage slots that were read in this EVM execution. They may or
      * may not have associated slot writes.
      */
-    repeated SlotRead slot_reads = 3;
+    repeated SlotRead slot_reads = 4;
+}
+
+message WrittenSlotKeys {
+    repeated bytes keys = 1;
 }
 
 /**

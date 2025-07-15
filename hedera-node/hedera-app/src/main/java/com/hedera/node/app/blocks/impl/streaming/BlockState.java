@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -22,7 +21,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.PassThroughBlockItemSet;
+import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.PublishStreamRequest;
 
 /**
  * Represents the state of a block being streamed to block nodes. This class maintains the block items,
@@ -67,7 +67,7 @@ public class BlockState {
      * @param request the actual request object that gets sent to the block node
      * @param isSent flag indicating if this request has been sent to a block node
      */
-    record RequestWrapper(int index, PassThroughPublishStreamRequest request, AtomicBoolean isSent) {}
+    record RequestWrapper(int index, PublishStreamRequest request, AtomicBoolean isSent) {}
 
     /**
      * Record for capturing information specific to a item, such as what request it is associated with and what state
@@ -112,7 +112,7 @@ public class BlockState {
      * are added requests, they will be removed from this queue. Note: This must be a FIFO (first-in, first-out)
      * structure to ensure ordering.
      */
-    private final Queue<PassThroughBlockItem> pendingItems = new ConcurrentLinkedQueue<>();
+    private final Queue<BlockItem> pendingItems = new ConcurrentLinkedQueue<>();
     /**
      * Map containing requests generated for this block. The key is the request index (starting with 0) and the value
      * is the wrapped request.
@@ -163,7 +163,7 @@ public class BlockState {
      * Add an item to the BlockState, this will not create a PublishStreamRequest.
      * @param item the item to add
      */
-    public void addItem(final PassThroughBlockItem item) {
+    public void addItem(final BlockItem item) {
         if (item == null) {
             return;
         }
@@ -210,7 +210,7 @@ public class BlockState {
      * @param index the index of the request to retrieve
      * @return the request at the given index
      */
-    public @Nullable PassThroughPublishStreamRequest getRequest(final int index) {
+    public @Nullable PublishStreamRequest getRequest(final int index) {
         final RequestWrapper rs = requestsByIndex.get(index);
         return rs == null ? null : rs.request;
     }
@@ -274,13 +274,13 @@ public class BlockState {
             return; // nothing ready to be sent
         }
 
-        final List<PassThroughBlockItem> blockItems = new ArrayList<>(maxItems);
+        final List<BlockItem> blockItems = new ArrayList<>(maxItems);
         final int index = requestIdxCtr.getAndIncrement();
-        final Iterator<PassThroughBlockItem> it = pendingItems.iterator();
+        final Iterator<BlockItem> it = pendingItems.iterator();
 
         boolean forceCreation = false;
         while (it.hasNext()) {
-            final PassThroughBlockItem item = it.next();
+            final BlockItem item = it.next();
             blockItems.add(item);
             it.remove();
 
@@ -321,10 +321,10 @@ public class BlockState {
             }
         }
 
-        final PassThroughBlockItemSet bis =
-                PassThroughBlockItemSet.newBuilder().blockItems(blockItems).build();
-        final PassThroughPublishStreamRequest psr =
-                PassThroughPublishStreamRequest.newBuilder().blockItems(bis).build();
+        final BlockItemSet bis =
+                BlockItemSet.newBuilder().blockItems(blockItems).build();
+        final PublishStreamRequest psr =
+                PublishStreamRequest.newBuilder().blockItems(bis).build();
         final RequestWrapper rs = new RequestWrapper(index, psr, new AtomicBoolean(false));
         requestsByIndex.put(index, rs);
 

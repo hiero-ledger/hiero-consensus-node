@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -37,36 +37,34 @@ class BlockStreamBuilderOutputTest {
             .build();
     private static final AccountID ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1L).build();
-    private static final ContractFunctionResult FUNCTION_RESULT =
-            ContractFunctionResult.newBuilder().amount(666L).build();
     private static final EvmTransactionResult EVM_TRANSACTION_RESULT =
             EvmTransactionResult.newBuilder().build();
-    private static final PassThroughBlockItem SIGNED_TRANSACTION =
-            PassThroughBlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
-    private static final PassThroughBlockItem TRANSACTION_RESULT = PassThroughBlockItem.newBuilder()
+    private static final BlockItem SIGNED_TRANSACTION =
+            BlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
+    private static final BlockItem TRANSACTION_RESULT = BlockItem.newBuilder()
             .transactionResult(
                     TransactionResult.newBuilder().transactionFeeCharged(123L).build())
             .build();
-    private static final PassThroughBlockItem FIRST_OUTPUT = PassThroughBlockItem.newBuilder()
+    private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
                     .accountCreate(new CreateAccountOutput(ACCOUNT_ID))
                     .build())
             .build();
-    private static final PassThroughBlockItem SECOND_OUTPUT = PassThroughBlockItem.newBuilder()
+    private static final BlockItem SECOND_OUTPUT = BlockItem.newBuilder()
             .transactionOutput(TransactionOutput.newBuilder()
                     .contractCall(new CallContractOutput(EVM_TRANSACTION_RESULT))
                     .build())
             .build();
-    private static final PassThroughBlockItem STATE_CHANGES = PassThroughBlockItem.newBuilder()
+    private static final BlockItem STATE_CHANGES = BlockItem.newBuilder()
             .stateChanges(new StateChanges(CONSENSUS_TIME, List.of()))
             .build();
-    private static final List<PassThroughBlockItem> ITEMS_NO_OUTPUTS =
+    private static final List<BlockItem> ITEMS_NO_OUTPUTS =
             List.of(SIGNED_TRANSACTION, TRANSACTION_RESULT, STATE_CHANGES);
-    private static final List<PassThroughBlockItem> ITEMS_WITH_OUTPUTS =
+    private static final List<BlockItem> ITEMS_WITH_OUTPUTS =
             List.of(SIGNED_TRANSACTION, TRANSACTION_RESULT, FIRST_OUTPUT, SECOND_OUTPUT, STATE_CHANGES);
 
     @Mock
-    private Consumer<PassThroughBlockItem> action;
+    private Consumer<BlockItem> action;
 
     @Mock
     private TranslationContext translationContext;

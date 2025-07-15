@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
+import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_SLOT_KEYS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
@@ -38,6 +39,7 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -346,7 +348,10 @@ public class ConversionUtils {
                             .build());
                 }
             }
-            slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), writes, reads));
+            slotUsages.add(new ContractSlotUsage(
+                    storageAccess.contractID(),
+                    new OneOf<>(WRITTEN_SLOT_KEYS, writes),
+                    reads));
         }
         return slotUsages;
     }

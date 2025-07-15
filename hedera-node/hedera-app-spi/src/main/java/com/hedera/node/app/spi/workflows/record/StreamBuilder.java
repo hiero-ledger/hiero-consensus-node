@@ -26,6 +26,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 /**
@@ -39,6 +40,15 @@ public interface StreamBuilder {
      */
     default StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         return this;
+    }
+
+    /**
+     * If applicable, returns a test that can be used to check whether a map value in this builder's state changes
+     * is logically identical to the previous value of the key.
+     * @return if applicable, a predicate that checks whether a value is logically identical to the previous value
+     */
+    default @Nullable Predicate<Object> logicallyIdenticalValue() {
+        return null;
     }
 
     /**

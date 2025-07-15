@@ -18,7 +18,6 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -42,6 +41,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+
+import org.hiero.block.api.PublishStreamRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -1023,7 +1024,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         final BlockState blockState = mock(BlockState.class);
-        final PassThroughPublishStreamRequest req = createRequest(newBlockHeaderItem());
+        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
         doReturn(req).when(blockState).getRequest(0);
         doReturn(1).when(blockState).numRequestsCreated();
         doReturn(blockState).when(bufferService).getBlockState(10L);
@@ -1050,7 +1051,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         final BlockState blockState = mock(BlockState.class);
-        final PassThroughPublishStreamRequest req = createRequest(newBlockHeaderItem());
+        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
         doReturn(req).when(blockState).getRequest(0);
         doReturn(1).when(blockState).numRequestsCreated();
         doReturn(true).when(blockState).isBlockProofSent();
@@ -1080,7 +1081,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         final BlockState blockState = mock(BlockState.class);
-        final PassThroughPublishStreamRequest req = createRequest(newBlockHeaderItem());
+        final PublishStreamRequest req = createRequest(newBlockHeaderItem());
         doReturn(req).when(blockState).getRequest(0);
         doReturn(2).when(blockState).numRequestsCreated();
         doReturn(false).when(blockState).isBlockProofSent();
@@ -1121,8 +1122,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         final BlockState blockState = mock(BlockState.class);
-        final PassThroughPublishStreamRequest req1 = createRequest(newBlockHeaderItem());
-        final PassThroughPublishStreamRequest req2 = createRequest(newBlockProofItem());
+        final PublishStreamRequest req1 = createRequest(newBlockHeaderItem());
+        final PublishStreamRequest req2 = createRequest(newBlockProofItem());
         doReturn(req1).when(blockState).getRequest(0);
         doReturn(req2).when(blockState).getRequest(1);
         doReturn(2).when(blockState).numRequestsCreated();
@@ -1175,8 +1176,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final AtomicLong currentStreamingBlock = streamingBlockNumber();
         currentStreamingBlock.set(10L);
         final BlockState blockState = mock(BlockState.class);
-        final PassThroughPublishStreamRequest req1 = createRequest(newBlockHeaderItem());
-        final PassThroughPublishStreamRequest req2 = createRequest(newBlockProofItem());
+        final PublishStreamRequest req1 = createRequest(newBlockHeaderItem());
+        final PublishStreamRequest req2 = createRequest(newBlockProofItem());
         doReturn(req1).when(blockState).getRequest(0);
         doReturn(req2).when(blockState).getRequest(1);
         doReturn(2).when(blockState).numRequestsCreated();

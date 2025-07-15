@@ -4,13 +4,12 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.services.auxiliary.PassThroughPublishStreamRequest;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -18,7 +17,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import org.hiero.block.api.PassThroughBlockItemSet;
+import org.hiero.block.api.BlockItemSet;
+import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -67,10 +67,10 @@ public abstract class BlockNodeCommunicationTestBase {
     }
 
     @NonNull
-    protected static PassThroughPublishStreamRequest createRequest(final PassThroughBlockItem... items) {
-        final PassThroughBlockItemSet itemSet =
-                PassThroughBlockItemSet.newBuilder().blockItems(items).build();
-        return PassThroughPublishStreamRequest.newBuilder().blockItems(itemSet).build();
+    protected static PublishStreamRequest createRequest(final BlockItem... items) {
+        final BlockItemSet itemSet =
+                BlockItemSet.newBuilder().blockItems(items).build();
+        return PublishStreamRequest.newBuilder().blockItems(itemSet).build();
     }
 
     protected ConfigProvider createConfigProvider() {
@@ -87,18 +87,18 @@ public abstract class BlockNodeCommunicationTestBase {
         return () -> new VersionedConfigImpl(config, 1L);
     }
 
-    protected static PassThroughBlockItem newBlockHeaderItem() {
-        return PassThroughBlockItem.newBuilder()
+    protected static BlockItem newBlockHeaderItem() {
+        return BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().build())
                 .build();
     }
 
-    protected static PassThroughBlockItem newBlockTxItem() {
-        return PassThroughBlockItem.newBuilder().build();
+    protected static BlockItem newBlockTxItem() {
+        return BlockItem.newBuilder().build();
     }
 
-    protected static PassThroughBlockItem newPreProofBlockStateChangesItem() {
-        return PassThroughBlockItem.newBuilder()
+    protected static BlockItem newPreProofBlockStateChangesItem() {
+        return BlockItem.newBuilder()
                 .stateChanges(StateChanges.newBuilder()
                         .stateChanges(StateChange.newBuilder()
                                 .singletonUpdate(SingletonUpdateChange.newBuilder()
@@ -110,8 +110,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 .build();
     }
 
-    protected static PassThroughBlockItem newBlockProofItem() {
-        return PassThroughBlockItem.newBuilder()
+    protected static BlockItem newBlockProofItem() {
+        return BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().build())
                 .build();
     }

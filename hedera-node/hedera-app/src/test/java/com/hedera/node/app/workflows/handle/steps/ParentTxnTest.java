@@ -15,7 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -215,9 +215,9 @@ class ParentTxnTest {
         assertSame(PAYER_ID, dispatch.payerId());
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
                 .build(false).blockItems().stream()
-                        .filter(PassThroughBlockItem::hasTransactionResult)
+                        .filter(BlockItem::hasTransactionResult)
                         .findFirst()
-                        .map(PassThroughBlockItem::transactionResultOrThrow)
+                        .map(BlockItem::transactionResultOrThrow)
                         .orElseThrow();
         assertEquals(CONGESTION_MULTIPLIER, result.congestionPricingMultiplier());
     }
@@ -248,9 +248,9 @@ class ParentTxnTest {
         assertSame(PAYER_ID, dispatch.payerId());
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
                 .build(false).blockItems().stream()
-                        .filter(PassThroughBlockItem::hasTransactionResult)
+                        .filter(BlockItem::hasTransactionResult)
                         .findFirst()
-                        .map(PassThroughBlockItem::transactionResultOrThrow)
+                        .map(BlockItem::transactionResultOrThrow)
                         .orElseThrow();
         assertEquals(0L, result.congestionPricingMultiplier());
     }

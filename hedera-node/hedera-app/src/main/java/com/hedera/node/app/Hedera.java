@@ -758,7 +758,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, PlatformStatus
                 platformStateFacade);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
-        kvStateChangeListener.reset();
+        kvStateChangeListener.reset(null);
         boundaryStateChangeListener.reset();
         // If still using BlockRecordManager state, then for specifically a non-genesis upgrade,
         // set in state that post-upgrade work is pending

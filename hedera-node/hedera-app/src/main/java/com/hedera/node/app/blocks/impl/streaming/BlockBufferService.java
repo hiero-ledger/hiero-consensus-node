@@ -3,7 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -221,7 +221,7 @@ public class BlockBufferService {
      * @param blockItem the block item to add
      * @throws IllegalStateException if no block is currently open
      */
-    public void addItem(final long blockNumber, @NonNull final PassThroughBlockItem blockItem) {
+    public void addItem(final long blockNumber, @NonNull final BlockItem blockItem) {
         if (!isStreamingEnabled.get()) {
             return;
         }

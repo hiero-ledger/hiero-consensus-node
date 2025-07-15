@@ -30,6 +30,7 @@ import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
@@ -316,7 +317,7 @@ public class BaseTranslator {
      * @return the next created entity number
      */
     public long nextCreatedNum(@NonNull final EntityType type) {
-        final var createdNums = nextCreatedNums.getOrDefault(type, Collections.emptyList());
+        final var createdNums = nextCreatedNums.getOrDefault(type, emptyList());
         if (createdNums.isEmpty()) {
             log.error("No created numbers found for entity type {}", type);
             return -1L;
@@ -541,7 +542,14 @@ public class BaseTranslator {
                 for (final var slotUsage : slotUsages) {
                     final var contractId = slotUsage.contractIdOrThrow();
                     final List<StorageChange> recoveredChanges = new ArrayList<>();
-                    final var writes = slotUsage.writtenSlotKeys();
+                    final var writes =
+                            switch (slotUsage.writtenKeys().kind()) {
+                                case UNSET -> throw new IllegalStateException("No written keys kind set for slot");
+                                case WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES ->
+                                    throw new AssertionError("Not implemented");
+                                case WRITTEN_SLOT_KEYS ->
+                                    slotUsage.writtenSlotKeysOrThrow().keys();
+                            };
                     slotUsage.slotReads().forEach(read -> {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
@@ -552,13 +560,11 @@ public class BaseTranslator {
                                 final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
                                         .filter(nextUsages ->
                                                 nextUsages.contractIdOrThrow().equals(contractId)
-                                                        && nextUsages.writtenSlotKeys().stream()
+                                                        && writtenKeysFrom(nextUsages).stream()
                                                                 .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
                                         .findFirst();
                                 if (nextTracedWriteUsage.isPresent()) {
-                                    final int finalWriteIndex = nextTracedWriteUsage
-                                            .get()
-                                            .writtenSlotKeys()
+                                    final int finalWriteIndex = writtenKeysFrom(nextTracedWriteUsage.get())
                                             .indexOf(writtenKey);
                                     final var nextRead = nextTracedWriteUsage.get().slotReads().stream()
                                             .filter(r -> r.hasIndex() && r.indexOrThrow() == finalWriteIndex)
@@ -644,6 +650,19 @@ public class BaseTranslator {
             }
         }
         return sidecars;
+    }
+
+    /**
+     * Returns the written keys from the given {@link ContractSlotUsage}.
+     * @param slotUsage the contract slot usage to extract written keys from
+     * @return a list of written keys
+     */
+    private static List<Bytes> writtenKeysFrom(ContractSlotUsage slotUsage) {
+        return switch (slotUsage.writtenKeys().kind()) {
+            case UNSET -> throw new IllegalStateException("No written keys kind set for slot");
+            case WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES -> throw new AssertionError("Not implemented");
+            case WRITTEN_SLOT_KEYS -> slotUsage.writtenSlotKeysOrThrow().keys();
+        };
     }
 
     /**

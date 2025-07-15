@@ -3,7 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.PendingProof;
@@ -43,7 +43,7 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItemAndBytes(@NonNull final PassThroughBlockItem item, @NonNull Bytes bytes) {
+    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull Bytes bytes) {
         this.fileBlockItemWriter.writeItem(bytes.toByteArray());
         this.grpcBlockItemWriter.writePbjItem(item);
     }
@@ -68,7 +68,7 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void writePbjItem(@NonNull PassThroughBlockItem item) {
+    public void writePbjItem(@NonNull BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }
 }

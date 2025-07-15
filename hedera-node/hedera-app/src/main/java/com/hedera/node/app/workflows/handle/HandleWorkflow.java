@@ -21,7 +21,7 @@ import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
-import com.hedera.hapi.block.stream.PassThroughBlockItem;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
@@ -247,13 +247,13 @@ public class HandleWorkflow {
         cacheWarmer.warm(state, round);
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
-            blockStreamManager.writeItem(PassThroughBlockItem.newBuilder()
+            blockStreamManager.writeItem(BlockItem.newBuilder()
                     .roundHeader(new RoundHeader(round.getRoundNum()))
                     .build());
             if (!migrationStateChanges.isEmpty()) {
                 final var startupConsTime = systemTransactions.restartSystemChangesTimeAt(
                         round.iterator().next().getConsensusTimestamp());
-                migrationStateChanges.forEach(builder -> blockStreamManager.writeItem(PassThroughBlockItem.newBuilder()
+                migrationStateChanges.forEach(builder -> blockStreamManager.writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(asTimestamp(startupConsTime))
                                 .build())
                         .build()));
@@ -445,7 +445,7 @@ public class HandleWorkflow {
                         .build());
             }
         }
-        final var headerItem = PassThroughBlockItem.newBuilder()
+        final var headerItem = BlockItem.newBuilder()
                 .eventHeader(new EventHeader(event.getEventCore(), parents, coin(event.getSignature())))
                 .build();
         blockStreamManager.writeItem(headerItem);
@@ -841,7 +841,7 @@ public class HandleWorkflow {
             @NonNull final Instant now,
             @NonNull final Runnable action) {
         if (streamMode != RECORDS) {
-            kvStateChangeListener.reset();
+            kvStateChangeListener.reset(null);
         }
         action.run();
         ((CommittableWritableStates) writableStates).commit();
@@ -851,7 +851,7 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             final var changes = kvStateChangeListener.getStateChanges();
             if (!changes.isEmpty()) {
-                final var stateChangesItem = PassThroughBlockItem.newBuilder()
+                final var stateChangesItem = BlockItem.newBuilder()
                         .stateChanges(new StateChanges(asTimestamp(now), new ArrayList<>(changes)))
                         .build();
                 blockStreamManager.writeItem(stateChangesItem);

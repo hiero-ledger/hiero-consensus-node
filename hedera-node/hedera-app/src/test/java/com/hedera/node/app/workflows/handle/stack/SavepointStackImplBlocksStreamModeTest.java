@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.handle.stack;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -50,7 +49,7 @@ class SavepointStackImplBlocksStreamModeTest {
 
         subject.commitTransaction(streamBuilder);
 
-        verify(kvStateChangeListener).reset();
+        verify(kvStateChangeListener).reset(null);
         verify(streamBuilder).stateChanges(mockChanges);
     }
 
