@@ -63,6 +63,7 @@ import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleOutput;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
+import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -142,6 +143,7 @@ public class SystemTransactions {
     private final ExchangeRateManager exchangeRateManager;
     private final HederaRecordCache recordCache;
     private final StartupNetworks startupNetworks;
+    private final StakePeriodChanges stakePeriodChanges;
 
     private int nextDispatchNonce = 1;
 
@@ -161,7 +163,8 @@ public class SystemTransactions {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
-            final StartupNetworks startupNetworks) {
+            @NonNull final StartupNetworks startupNetworks,
+            @NonNull final StakePeriodChanges stakePeriodChanges) {
         this.initTrigger = initTrigger;
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -178,6 +181,7 @@ public class SystemTransactions {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.recordCache = requireNonNull(recordCache);
         this.startupNetworks = requireNonNull(startupNetworks);
+        this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
     }
 
     /**
@@ -484,11 +488,15 @@ public class SystemTransactions {
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
-                    .map(NodeMetadata::rosterEntry)
+                    .filter(NodeMetadata::hasRosterEntry)
+                    .map(NodeMetadata::rosterEntryOrThrow)
                     .map(RosterEntry::nodeId)
                     .toList();
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
+                if (node == null) {
+                    continue;
+                }
                 final var currentNode = nodeStore.get(node.nodeId());
                 if (currentNode == null || currentNode.deleted()) {
                     // Node is new in the override roster, dispatch a node creation transaction
@@ -624,9 +632,9 @@ public class SystemTransactions {
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,
-            final boolean isRestart) {
+            final boolean isGenesis) {
         final var config = configProvider.getConfiguration();
-        final var firstConsTime = isRestart ? restartSystemChangesTimeAt(now) : now;
+        final var firstConsTime = isGenesis ? restartSystemChangesTimeAt(now) : now;
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
                 config.getConfigData(AccountsConfig.class).systemAdmin());
@@ -647,7 +655,7 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0);
+                dispatch(builder.build(), 0, isGenesis);
             }
 
             @Override
@@ -667,17 +675,17 @@ public class SystemTransactions {
             @Override
             public void dispatchCreation(@NonNull final TransactionBody body, final long entityNum) {
                 requireNonNull(body);
-                dispatch(body, entityNum);
+                dispatch(body, entityNum, isGenesis);
             }
 
-            private void dispatch(final @NonNull TransactionBody body, final long entityNum) {
+            private void dispatch(final @NonNull TransactionBody body, final long entityNum, boolean isGenesis) {
                 // System dispatches never have child transactions, so one nano is enough to separate them
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(1));
                 if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
                 }
                 final var handleOutput =
-                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, onSuccess);
+                        executeSystem(state, now, creatorInfo, systemAdminId, body, entityNum, onSuccess, isGenesis);
                 if (streamMode != BLOCKS) {
                     final var records =
                             ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
@@ -725,6 +733,7 @@ public class SystemTransactions {
      * @param body the transaction to execute
      * @param nextEntityNum if not zero, the next entity number to use for the transaction
      * @param onSuccess the action to take after the transaction is successfully dispatched
+     * @param isGenesis the flag indicating if this is a genesis transaction
      * @return the stream output from executing the transaction
      */
     private HandleOutput executeSystem(
@@ -734,12 +743,13 @@ public class SystemTransactions {
             @NonNull final AccountID payerId,
             @NonNull final TransactionBody body,
             final long nextEntityNum,
-            @NonNull final Consumer<Dispatch> onSuccess) {
+            @NonNull final Consumer<Dispatch> onSuccess,
+            final boolean isGenesis) {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
-        blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
+        stakePeriodChanges.advanceTimeTo(parentTxn, !isGenesis);
         if (streamMode != BLOCKS) {
             // This updates consTimeOfLastHandledTxn as a side effect
             blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
