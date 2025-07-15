@@ -464,7 +464,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Passing Report (${XTS_SHORT_COMMIT})",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_SHORT_COMMIT})",
                       "emoji": true
                     }
                   },
