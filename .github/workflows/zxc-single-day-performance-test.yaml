@@ -7,7 +7,7 @@ on:
       test-asset:
         required: true
         default: "AdHoc5"
-        description: "Performance test on a given Machine (AdHoc5, 6, 7, or SDPT1)"
+        description: "Performance test on machine: AdHoc5, 6, 7, or SDPT1"
         type: string
       ref:
         required: true
