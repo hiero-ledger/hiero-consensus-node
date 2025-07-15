@@ -279,7 +279,7 @@ jobs:
           NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values9.yaml
 
-          if [[ "${NAMESPACE_ALIAS}" =~ "/^SDPT\d+$/" ]]; then
+          if [[ "${NAMESPACE_ALIAS}" =~ /^SDPT\d+$/ ]]; then
             NETWORK_OWNER="single-day-perf-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
@@ -376,7 +376,7 @@ jobs:
 
           NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ "/^SDPT\d+$/" ]]; then
+          if [[ "${NAMESPACE_ALIAS}" =~ /^SDPT\d+$/ ]]; then
             NETWORK_OWNER="single-day-perf-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
@@ -385,7 +385,7 @@ jobs:
 
           NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ "/^SDPT\d+$/" ]]; then
+          if [[ "${NAMESPACE_ALIAS}" =~ /^SDPT\d+$/ ]]; then
             NETWORK_OWNER="single-day-perf-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
