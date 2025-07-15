@@ -742,7 +742,7 @@ public class HandleWorkflow {
                 }
 
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                advanceTimeFor(parentTxn, dispatch);
+                stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 logPreDispatch(parentTxn);
                 if (parentTxn.type() == POST_UPGRADE_TRANSACTION) {
                     logger.info("Doing post-upgrade setup @ {}", parentTxn.consensusNow());
@@ -794,7 +794,7 @@ public class HandleWorkflow {
         final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
         final var dispatch =
                 parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
-        advanceTimeFor(scheduledTxn, dispatch);
+        stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
             final var handleOutput = scheduledTxn
@@ -810,23 +810,6 @@ public class HandleWorkflow {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
-        }
-    }
-
-    /**
-     * Manages time-based side effects for the given user transaction and dispatch.
-     *
-     * @param parentTxn the user transaction to manage time for
-     * @param dispatch the dispatch to manage time for
-     */
-    private void advanceTimeFor(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
-        // WARNING: The check below relies on the BlockStreamManager's last-handled time not being updated yet,
-        // so we must not call setLastHandleTime() until after them
-        processStakePeriodChanges(parentTxn, dispatch);
-        blockStreamManager.setLastHandleTime(parentTxn.consensusNow());
-        if (streamMode != BLOCKS) {
-            // This updates consTimeOfLastHandledTxn as a side effect
-            blockRecordManager.advanceConsensusClock(parentTxn.consensusNow(), parentTxn.state());
         }
     }
 
@@ -904,28 +887,6 @@ public class HandleWorkflow {
                 .transactionID(txnInfo.txBody().transactionIDOrThrow())
                 .exchangeRate(exchangeRateSet)
                 .memo(txnInfo.txBody().memo());
-    }
-
-    /**
-     * Processes any side effects of crossing a stake period boundary.
-     *
-     * @param parentTxn the user transaction that crossed the boundary
-     * @param dispatch the dispatch for the user transaction that crossed the boundary
-     */
-    private void processStakePeriodChanges(@NonNull final ParentTxn parentTxn, @NonNull final Dispatch dispatch) {
-        try {
-            stakePeriodChanges.process(
-                    dispatch,
-                    parentTxn.stack(),
-                    parentTxn.tokenContextImpl(),
-                    streamMode,
-                    blockStreamManager.lastHandleTime());
-        } catch (final Exception e) {
-            // We don't propagate a failure here to avoid a catastrophic scenario
-            // where we are "stuck" trying to process node stake updates and never
-            // get back to user transactions
-            logger.error("Failed to process stake period changes", e);
-        }
     }
 
     /**
