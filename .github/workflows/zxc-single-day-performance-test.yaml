@@ -189,7 +189,7 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^(AdHoc|SDPT)(\d+)$/'`
+          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
@@ -663,7 +663,7 @@ jobs:
 
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^(AdHoc|SDPT)(\d+)$/'`
+          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
@@ -860,7 +860,7 @@ jobs:
 
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^(AdHoc|SDPT)(\d+)$/'`
+          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$2\n" if /^(AdHoc|SDPT)(\d+)$/'`
           echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
