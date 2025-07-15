@@ -31,6 +31,7 @@ jobs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
       xts-tag-short-commit: ${{ steps.check-tags-exist.outputs.xts-tag-short-commit }}
+      xts-commit-branch: ${{ steps.check-tags-exist.outputs.xts-commit-branch }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
     steps:
@@ -68,9 +69,12 @@ jobs:
           if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
             gh run cancel ${{ github.run_id }}
           fi
-          
+
           # Get the short commit id
           XTS_SHORT_COMMIT=$(git rev-parse --short "${XTS_COMMIT}")
+
+          # Get the branch name for the commit
+          XTS_COMMIT_BRANCH=$(git name-rev --name-only "${XTS_COMMIT}" | sed 's/~.*//')
 
           # Check if this commit has already been tagged xts-pass-* or build-*
           set +e
@@ -93,10 +97,11 @@ jobs:
           fi
 
           # Check if the tag exists on the main branch
-          set +e
-          git branch --contains "${XTS_COMMIT}" | grep --quiet main >/dev/null 2>&1
-          BRANCH_ON_DEVELOP="${?}"
-          set -e
+          if [[ "${XTS_COMMIT_BRANCH}" != "main" ]]; then
+            COMMIT_ON_DEFAULT_BRANCH=0
+          else
+            COMMIT_ON_DEFAULT_BRANCH=1
+          fi
 
           # Get commit author
           AUTHOR_NAME=$(git log -1 --format='%an' "${XTS_COMMIT}")
@@ -104,11 +109,12 @@ jobs:
 
           # If the tag exists on the Main Branch set the output variables as appropriate
           # Otherwise cancel out
-          if [[ "${BRANCH_ON_DEVELOP}" -eq 0 ]]; then
+          if [[ "${COMMIT_ON_DEFAULT_BRANCH}" -eq 0 ]]; then
             echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
+            echo "xts-commit-branch=${XTS_COMMIT_BRANCH}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_STEP_SUMMARY}"
@@ -271,7 +277,7 @@ jobs:
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         env:
-          XTS_SHORT_COMMIT: ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }} - ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}"
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -286,7 +292,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_SHORT_COMMIT})",
+                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_INFO})",
                         "emoji": true
                       }
                     },
@@ -452,7 +458,7 @@ jobs:
       - name: Build Slack Payload Message
         id: payload
         env:
-          XTS_SHORT_COMMIT: ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}
+          XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }} - ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}"
         run: |
           cat <<EOF > slack_payload.json
           {
@@ -464,7 +470,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_SHORT_COMMIT})",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${XTS_INFO})",
                       "emoji": true
                     }
                   },
