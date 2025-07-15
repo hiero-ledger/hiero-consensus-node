@@ -110,14 +110,20 @@ jobs:
         working-directory: platform-sdk/regression
 
       # Set up the npm dependencies and cache on the sdk-server
-      - name: Install NodeJS SDK Dependencies (sdk-server)
-        run: pnpm install
-        working-directory: platform-sdk/sdk-server
-
-      # Set up the npm dependencies and cache on the sdk-server
-      - name: Install NodeJS Dependencies (tck)
+      - name: Install NodeJS Dependencies (sdk-server)
         id: start-sdk-server
         run: |
+          # Extract package versions from the parent package.json
+          SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
+          LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
+          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
+          
+          echo "Using SDK version: $SDK_VERSION"
+          echo "Using long version: $LONG_VERSION"
+          echo "Using proto version: $PROTO_VERSION"
+          
+          # Install with the extracted versions
+          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
           pnpm install
           nohup pnpm start &
           server_pid=$!
