@@ -30,6 +30,7 @@ jobs:
     outputs:
       xts-tag-exists: ${{ steps.check-tags-exist.outputs.xts-tag-exists }}
       xts-tag-commit: ${{ steps.check-tags-exist.outputs.xts-tag-commit }}
+      xts-tag-short-commit: ${{ steps.check-tags-exist.outputs.xts-tag-short-commit }}
       xts-tag-commit-author: ${{ steps.check-tags-exist.outputs.xts-tag-commit-author }}
       xts-tag-commit-email: ${{ steps.check-tags-exist.outputs.xts-tag-commit-email }}
     steps:
@@ -67,6 +68,9 @@ jobs:
           if [[ "${XTS_COMMIT_FOUND}" -ne 0 ]]; then
             gh run cancel ${{ github.run_id }}
           fi
+          
+          # Get the short commit id
+          XTS_SHORT_COMMIT=$(git rev-parse --short "${XTS_COMMIT}")
 
           # Check if this commit has already been tagged xts-pass-* or build-*
           set +e
@@ -103,6 +107,7 @@ jobs:
           if [[ "${BRANCH_ON_DEVELOP}" -eq 0 ]]; then
             echo "xts-tag-exists=true" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
+            echo "xts-tag-short-commit=${XTS_SHORT_COMMIT}" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-author=${AUTHOR_NAME} <${AUTHOR_EMAIL}>" >> "${GITHUB_OUTPUT}"
             echo "xts-tag-commit-email=${AUTHOR_EMAIL}" >> "${GITHUB_OUTPUT}"
             echo "### XTS-Candidate commit found" >>  "${GITHUB_STEP_SUMMARY}"
@@ -265,6 +270,8 @@ jobs:
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        env:
+          XTS_SHORT_COMMIT: ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
@@ -279,7 +286,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: Hiero Consensus Node - eXtended Test Suite Passing Report",
+                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${XTS_SHORT_COMMIT})",
                         "emoji": true
                       }
                     },
@@ -295,43 +302,27 @@ jobs:
                       "fields": [
                         {
                           "type": "plain_text",
-                          "text": "Fetch XTS Candidate Tag"
+                          "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.fetch-xts-candidate.result }}"
+                          "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "Execute eXtended Test Suite"
+                          "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.extended-test-suite.result }}"
+                          "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "JRS Panel"
+                          "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.abbreviated-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Hedera Node JRS Panel"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.hedera-node-jrs-panel.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Tag as XTS-Passing"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "${{ needs.tag-for-promotion.result }}"
+                          "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
                         }
                       ]
                     },
@@ -392,6 +383,7 @@ jobs:
       - extended-test-suite
       - fetch-xts-candidate
       - hedera-node-jrs-panel
+      - sdk-tck-regression-panel
       - tag-for-promotion
     if: ${{ (needs.abbreviated-panel.result != 'success' ||
       needs.extended-test-suite.result != 'success' ||
@@ -459,6 +451,8 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
+        env:
+          XTS_SHORT_COMMIT: ${{ needs.fetch-xts-candidate.outputs.xts-tag-short-commit }}
         run: |
           cat <<EOF > slack_payload.json
           {
@@ -470,7 +464,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: Hiero Consensus Node - eXtended Test Suite Error Report",
+                      "text": ":grey_exclamation: XTS - eXtended Test Suite Passing Report (${XTS_SHORT_COMMIT})",
                       "emoji": true
                     }
                   },
@@ -486,43 +480,27 @@ jobs:
                     "fields": [
                       {
                         "type": "plain_text",
-                        "text": "Fetch XTS Candidate Tag"
+                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.fetch-xts-candidate.result }}"
+                        "text": "Execute eXtended Test Suite: ${{ needs.extended-test-suite.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "Execute eXtended Test Suite"
+                        "text": "JRS Panel: ${{ needs.abbreviated-panel.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.extended-test-suite.result }}"
+                        "text": "Hedera Node JRS Panel: ${{ needs.hedera-node-jrs-panel.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "JRS Panel"
+                        "text": "SDK TCK Regression Panel: ${{ needs.sdk-tck-regression-panel.result }}"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.abbreviated-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Hedera Node JRS Panel"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.hedera-node-jrs-panel.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag as XTS-Passing"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "${{ needs.tag-for-promotion.result }}"
+                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
                       }
                     ]
                   },
