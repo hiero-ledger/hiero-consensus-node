@@ -59,15 +59,13 @@ class OwnerOfCallTest extends CallTestBase {
     void haltWhenTokenIsNotERC721() {
         // given
         subject = new OwnerOfCall(gasCalculator, mockEnhancement(), FUNGIBLE_TOKEN, NFT_SERIAL_NO);
-
         // when
         final var result = subject.execute().fullResult().result();
-
         // then
         assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
         assertEquals(
                 HederaExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT,
-                result.getHaltReason().get());
+                result.getHaltReason().orElse(null));
     }
 
     @Test
@@ -80,6 +78,17 @@ class OwnerOfCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.REVERT, result.getState());
         assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+    }
+
+    @Test
+    void revertsWithNegativeSerial() {
+        subject = new OwnerOfCall(gasCalculator, mockEnhancement(), NON_FUNGIBLE_TOKEN, -1);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, -1)).willReturn(null);
+
+        final var result = subject.execute().fullResult().result();
+
+        assertEquals(MessageFrame.State.REVERT, result.getState());
+        assertEquals(ordinalRevertOutputFor(INVALID_TOKEN_NFT_SERIAL_NUMBER), result.getOutput());
     }
 
     @Test
