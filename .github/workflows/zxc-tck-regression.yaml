@@ -113,7 +113,6 @@ jobs:
       - name: Install NodeJS Dependencies (sdk-server)
         id: start-sdk-server
         run: |
-          pnpm add @hashgraph/sdk@^2.63.0-beta.1 long@^5.2.3 @hashgraph/proto@^2.17.0-beta.1
           pnpm install
           nohup pnpm start &
           server_pid=$!
