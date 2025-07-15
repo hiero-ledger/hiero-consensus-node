@@ -220,14 +220,4 @@ public class ConsensusNodeManager {
         }
         OtterApp.INSTANCE.updateSyntheticBottleneck(millisToSleepPerRound);
     }
-
-    /**
-     * Gets the current platform configuration.
-     *
-     * @return the current platform configuration, never {@code null}
-     */
-    @NonNull
-    public Configuration getConfiguration() {
-        return platform.getContext().getConfiguration();
-    }
 }

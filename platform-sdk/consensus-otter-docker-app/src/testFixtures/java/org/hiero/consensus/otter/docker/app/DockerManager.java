@@ -3,8 +3,6 @@ package org.hiero.consensus.otter.docker.app;
 
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.export.ConfigExport;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -16,8 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
 import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.ProtobufConverter;
-import org.hiero.otter.fixtures.container.proto.ConfigurationAnswer;
-import org.hiero.otter.fixtures.container.proto.ConfigurationItem;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
@@ -225,30 +221,5 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         } catch (final InterruptedException ie) {
             throw new RuntimeException(ie);
         }
-    }
-
-    /**
-     * Retrieves all the current configuration key/value pairs of the platform.
-     * <p>
-     * This method sends the current configuration properties back to the test framework.
-     *
-     * @param request The empty request, as no parameters are needed to retrieve the configuration.
-     * @param responseObserver The observer used to send the configuration back to the test framework.
-     */
-    @Override
-    public synchronized void getConfiguration(
-            @NonNull final Empty request, @NonNull final StreamObserver<ConfigurationAnswer> responseObserver) {
-        if (nodeManager == null) {
-            sendNodeNotInitializeError(responseObserver);
-            return;
-        }
-
-        final Configuration configuration = nodeManager.getConfiguration();
-        final ConfigurationAnswer.Builder answerBuilder = ConfigurationAnswer.newBuilder();
-
-        ConfigExport.getPropertiesForConfigDataRecords(configuration).forEach((key, value) -> answerBuilder
-                .addConfiguration(ConfigurationItem.newBuilder().setKey(key).setValue(value.toString()))
-                .build());
-        responseObserver.onNext(answerBuilder.build());
     }
 }

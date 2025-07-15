@@ -203,18 +203,6 @@ message SyntheticBottleneckRequest {
   int64 sleep_millis_per_round = 1;
 }
 
-message ConfigurationAnswer {
-  // All configuration items of the platform
-  repeated ConfigurationItem configuration = 1;
-}
-
-message ConfigurationItem {
-  // The key of the configuration item.
-  string key = 1;
-  // Value of the configuration item.
-  string value = 2;
-}
-
 // Service definition for controlling tests.
 service TestControl {
   // RPC to start the platform and stream event messages.
@@ -229,7 +217,4 @@ service TestControl {
 
   // RPC to change the synthetic bottleneck of the handle thread.
   rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
-
-  // RPC to retrieve the current configuration of the platform.
-  rpc GetConfiguration(google.protobuf.Empty) returns (ConfigurationAnswer);
 }
