@@ -56,13 +56,7 @@ public class HRCTokenCancelTest {
                 token.treasury().transferUnitsTo(sender, 10L, token),
                 nft.treasury().transferNFTsTo(sender, nft, 1L));
 
-        lifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

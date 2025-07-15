@@ -75,13 +75,7 @@ public class ScheduleCreateTokenTest {
                 newKeyNamed(CONTRACT_KEY).shape(CONTRACT.signedWith(contract.name())),
                 designatedPayer.authorizeContract(contract));
 
-        lifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

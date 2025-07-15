@@ -57,13 +57,7 @@ public class AirdropSystemContractTest {
         lifecycle.doAdhoc(
                 sender.authorizeContract(airdropContract), sender.transferHBarsTo(airdropContract, 5_000_000_000L));
 
-        lifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 

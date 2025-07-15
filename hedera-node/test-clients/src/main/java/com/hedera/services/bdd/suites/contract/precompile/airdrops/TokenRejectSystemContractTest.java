@@ -48,13 +48,7 @@ public class TokenRejectSystemContractTest {
     public static void setup(final @NonNull TestLifecycle lifecycle) {
         lifecycle.doAdhoc(sender.authorizeContract(tokenReject));
 
-        lifecycle.overrideInClass(Map.of(
-                "atomicBatch.isEnabled",
-                "true",
-                "atomicBatch.maxNumberOfTransactions",
-                "50",
-                "contracts.throttle.throttleByGas",
-                "false"));
+        lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
         lifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
