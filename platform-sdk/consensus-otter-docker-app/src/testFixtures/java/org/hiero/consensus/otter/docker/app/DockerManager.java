@@ -4,6 +4,7 @@ package org.hiero.consensus.otter.docker.app;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.export.ConfigExport;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -245,8 +246,8 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
         final Configuration configuration = nodeManager.getConfiguration();
         final ConfigurationAnswer.Builder answerBuilder = ConfigurationAnswer.newBuilder();
 
-        configuration.getPropertyNames().forEach((key) -> answerBuilder
-                .addConfiguration(ConfigurationItem.newBuilder().setKey(key).setValue(configuration.getValue(key)))
+        ConfigExport.getPropertiesForConfigDataRecords(configuration).forEach((key, value) -> answerBuilder
+                .addConfiguration(ConfigurationItem.newBuilder().setKey(key).setValue(value.toString()))
                 .build());
         responseObserver.onNext(answerBuilder.build());
     }

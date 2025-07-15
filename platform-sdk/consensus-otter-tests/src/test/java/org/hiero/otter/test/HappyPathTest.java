@@ -12,6 +12,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
+import com.swirlds.platform.consensus.ConsensusConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
@@ -45,6 +46,10 @@ public class HappyPathTest {
                 .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
 
         network.start();
+
+        final long roundNonAncient =
+                network.getNodes().getFirst().configuration().getLong(ConsensusConfig_.ROUNDS_NON_ANCIENT);
+        System.out.println("Round non-ancient: " + roundNonAncient);
 
         // Wait for two minutes
         timeManager.waitFor(Duration.ofSeconds(30L));

@@ -33,6 +33,8 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
      * Gets the value of a configuration as a string.
+     * <p>
+     * Values not overridden may not be available until after the node is started.
      *
      * @param key the key of the configuration
      * @return the value of the configuration as a string
@@ -42,6 +44,8 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
      * Gets the value of a configuration as an integer.
+     * <p>
+     * Values not overridden may not be available until after the node is started.
      *
      * @param key the key of the configuration
      * @return the value of the configuration as an integer
@@ -52,6 +56,8 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
      * Gets the value of a configuration as a boolean.
+     * <p>
+     * Values not overridden may not be available until after the node is started.
      *
      * @param key the key of the configuration
      * @return the value of the configuration as a boolean
@@ -62,6 +68,8 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
      * Gets the value of a configuration as a long.
+     * <p>
+     * Values not overridden may not be available until after the node is started.
      *
      * @param key the key of the configuration
      * @return the value of the configuration as a long
