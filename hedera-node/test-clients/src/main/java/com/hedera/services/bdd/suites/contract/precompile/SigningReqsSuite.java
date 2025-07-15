@@ -42,7 +42,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -51,7 +50,6 @@ import org.junit.jupiter.api.Tag;
 // In the case of an eth txn, we revoke the payers keys and the txn would fail.
 // The only way an eth account to create a token is the admin key to be of a contractId type.
 @Tag(SMART_CONTRACT)
-@Disabled
 @HapiTestLifecycle
 public class SigningReqsSuite {
     private static final String FIRST_CREATE_TXN = "firstCreateTxn";
