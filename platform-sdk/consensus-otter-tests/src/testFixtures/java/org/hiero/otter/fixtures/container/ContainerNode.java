@@ -10,6 +10,7 @@ import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.Empty;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -20,7 +21,9 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
@@ -32,6 +35,7 @@ import org.hiero.otter.fixtures.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
+import org.hiero.otter.fixtures.container.proto.ConfigurationAnswer;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
@@ -135,7 +139,17 @@ public class ContainerNode extends AbstractNode implements Node {
      */
     @Override
     public void start() {
+        // Start the node
         defaultAsyncAction.start();
+
+        // Retrieve the current node configuration and update the local configuration with it
+        final ConfigurationAnswer configurationAnswer =
+                blockingStub.getConfiguration(Empty.newBuilder().build());
+        final Map<String, String> configurationMap = new HashMap<>();
+        configurationAnswer
+                .getConfigurationList()
+                .forEach(configItem -> configurationMap.put(configItem.getKey(), configItem.getValue()));
+        nodeConfiguration.setNodeProperties(configurationMap);
     }
 
     /**

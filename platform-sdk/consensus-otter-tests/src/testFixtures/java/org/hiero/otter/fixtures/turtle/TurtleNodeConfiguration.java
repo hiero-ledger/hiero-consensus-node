@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * {@link NodeConfiguration} implementation for a Turtle node.
@@ -24,6 +25,7 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNodeConfiguration> {
 
     private final String outputDirectory;
+    private Configuration nodeConfiguration;
 
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
@@ -43,6 +45,20 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected String get(@NotNull final String key) {
+        if (overriddenProperties.containsKey(key)) {
+            return overriddenProperties.get(key);
+        }
+        if (nodeConfiguration != null && nodeConfiguration.exists(key)) {
+            return nodeConfiguration.getValue(key);
+        }
+        throw new IllegalArgumentException(String.format("Configuration key %s does not exist", key));
+    }
+
+    /**
      * Gets the output directory for the Turtle node.
      *
      * @return the output directory as a string
@@ -58,7 +74,7 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
      */
     @NonNull
     Configuration createConfiguration() {
-        return new TestConfigBuilder()
+        nodeConfiguration = new TestConfigBuilder()
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withValue(PlatformSchedulersConfig_.CONSENSUS_EVENT_STREAM, "NO_OP")
                 .withValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0)
@@ -69,5 +85,6 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
                 .withValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM.toString())
                 .withSource(new SimpleConfigSource(overriddenProperties))
                 .getOrCreateConfig();
+        return nodeConfiguration;
     }
 }
