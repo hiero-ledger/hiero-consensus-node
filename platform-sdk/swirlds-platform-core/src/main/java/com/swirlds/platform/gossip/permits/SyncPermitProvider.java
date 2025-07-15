@@ -159,6 +159,15 @@ public class SyncPermitProvider {
     }
 
     /**
+     * Check if system is healthy from point of view of permits. If it is not, it might be prudent to return long
+     * held permits
+     * @return true if system is health and things are going ok
+     */
+    public synchronized boolean isHealthy() {
+        return healthy;
+    }
+
+    /**
      * Immediately revoke all permits.
      */
     public synchronized void revokeAll() {

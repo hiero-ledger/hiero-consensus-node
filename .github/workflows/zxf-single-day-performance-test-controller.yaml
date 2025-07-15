@@ -5,15 +5,13 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "Latitude4"
+        default: "AdHoc5"
         description: "Performance test on given namespace"
         type: choice
         options:
-          - Latitude0
-          - Latitude1
-          - Latitude2
-          - Latitude3
-          - Latitude4
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
       ref:
         required: true
         default: "main"

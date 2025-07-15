@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.metrics;
 
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
+import com.swirlds.common.metrics.extensions.PhaseTimer;
+import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
+import com.swirlds.metrics.api.FloatFormats;
+import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
+import com.swirlds.platform.gossip.shadowgraph.SyncPhase;
 import com.swirlds.platform.gossip.shadowgraph.SyncResult;
 import com.swirlds.platform.gossip.shadowgraph.SyncTiming;
 import com.swirlds.platform.network.Connection;
@@ -22,8 +29,12 @@ import com.swirlds.platform.stats.AverageTimeStat;
 import com.swirlds.platform.stats.MaxStat;
 import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Interface to update relevant sync statistics
@@ -34,16 +45,6 @@ public class SyncMetrics {
                     PLATFORM_CATEGORY, "bytes_per_sec_sync")
             .withDescription("average number of bytes per second transferred during a sync");
     private final RunningAverageMetric avgBytesPerSecSync;
-
-    private static final CountPerSecond.Config CALL_SYNCS_PER_SECOND_CONFIG = new CountPerSecond.Config(
-                    PLATFORM_CATEGORY, "sync_per_secC")
-            .withDescription("(call syncs) syncs completed per second initiated by this member");
-    private final CountPerSecond callSyncsPerSecond;
-
-    private static final CountPerSecond.Config REC_SYNCS_PER_SECOND_CONFIG = new CountPerSecond.Config(
-                    PLATFORM_CATEGORY, "sync_per_secR")
-            .withDescription("(receive syncs) syncs completed per second initiated by other member");
-    private final CountPerSecond recSyncsPerSecond;
 
     private static final RunningAverageMetric.Config TIPS_PER_SYNC_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, PlatformStatNames.TIPS_PER_SYNC)
@@ -75,6 +76,16 @@ public class SyncMetrics {
             .withDescription("Total number of syncs completed per second");
     private final CountPerSecond syncsPerSec;
 
+    private static final CountPerSecond.Config CALL_SYNCS_PER_SECOND_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "sync_per_secC")
+            .withDescription("(call syncs) syncs completed per second initiated by this member");
+    private final CountPerSecond callSyncsPerSecond;
+
+    private static final CountPerSecond.Config REC_SYNCS_PER_SECOND_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "sync_per_secR")
+            .withDescription("(receive syncs) syncs completed per second initiated by other member");
+    private final CountPerSecond recSyncsPerSecond;
+
     private static final RunningAverageMetric.Config SYNC_FILTER_TIME_CONFIG = new RunningAverageMetric.Config(
                     PLATFORM_CATEGORY, "syncFilterTime")
             .withDescription("the average time spent filtering events during a sync")
@@ -104,6 +115,25 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because we have fallen behind");
     private final CountPerSecond doNotSyncFallenBehind;
 
+    private static final CountPerSecond.Config DO_NOT_SYNC_PEER_FALLEN_BEHIND_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncRemoteFallenBehind")
+            .withUnit("hz")
+            .withDescription("Number of times per second we do not sync because peer node has fallen behind");
+    private final CountPerSecond doNotSyncPeerFallenBehind;
+
+    private static final CountPerSecond.Config DO_NOT_SYNC_PEER_PROCESSING_EVENTS_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncRemoteProcessingEvents")
+            .withUnit("hz")
+            .withDescription(
+                    "Number of times per second we do not initiate sync because peer node is still processing our events");
+    private final CountPerSecond doNotSyncPeerProcessingEvents;
+
+    private static final CountPerSecond.Config DO_NOT_SYNC_ALREADY_STARTED_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "doNotSyncAlreadyStarted")
+            .withUnit("hz")
+            .withDescription("Number of times per second we do not sync because we have already started sync");
+    private final CountPerSecond doNotSyncAlreadyStarted;
+
     private static final CountPerSecond.Config DO_NOT_SYNC_NO_PERMITS_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "doNotSyncNoPermits")
             .withUnit("hz")
@@ -115,6 +145,18 @@ public class SyncMetrics {
             .withUnit("hz")
             .withDescription("Number of times per second we do not sync because the intake counter is too high");
     private final CountPerSecond doNotSyncIntakeCounter;
+
+    private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
+            .withDescription("number of rpc thread running in read mode");
+
+    private final IntegerGauge.Config RPC_WRITE_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "rpcWriteThreadRunning")
+            .withDescription("number of rpc thread running in write mode");
+
+    private final IntegerGauge.Config RPC_DISPATCH_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "rpcDispatchThreadRunning")
+            .withDescription("number of rpc thread running in dispatch mode");
 
     private final RunningAverageMetric tipsPerSync;
 
@@ -131,14 +173,26 @@ public class SyncMetrics {
     private final AverageAndMax avgEventsPerSyncRec;
     private final MaxStat multiTipsPerSync;
     private final RunningAverageMetric syncFilterTime;
+    private final ConcurrentHashMap<NodeId, AverageAndMax> rpcOutputQueueSize = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<NodeId, AverageAndMax> rpcInputQueueSize = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<NodeId, PhaseTimer<SyncPhase>> syncPhasePerNode = new ConcurrentHashMap<>();
+    private final Metrics metrics;
+    private final AverageAndMax outputQueuePollTime;
+    private final Time time;
+    private final IntegerGauge rpcReadThreadRunning;
+    private final IntegerGauge rpcWriteThreadRunning;
+    private final IntegerGauge rpcDispatchThreadRunning;
 
     /**
      * Constructor of {@code SyncMetrics}
      *
      * @param metrics a reference to the metrics-system
+     * @param time    time source for the system
      * @throws IllegalArgumentException if {@code metrics} is {@code null}
      */
-    public SyncMetrics(final Metrics metrics) {
+    public SyncMetrics(final Metrics metrics, final Time time) {
+        this.metrics = Objects.requireNonNull(metrics);
+        this.time = Objects.requireNonNull(time);
         avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
         callSyncsPerSecond = new CountPerSecond(metrics, CALL_SYNCS_PER_SECOND_CONFIG);
         recSyncsPerSecond = new CountPerSecond(metrics, REC_SYNCS_PER_SECOND_CONFIG);
@@ -155,8 +209,15 @@ public class SyncMetrics {
         doNotSyncCooldown = new CountPerSecond(metrics, DO_NOT_SYNC_COOLDOWN_CONFIG);
         doNotSyncHalted = new CountPerSecond(metrics, DO_NOT_SYNC_HALTED_CONFIG);
         doNotSyncFallenBehind = new CountPerSecond(metrics, DO_NOT_SYNC_FALLEN_BEHIND_CONFIG);
+        doNotSyncPeerFallenBehind = new CountPerSecond(metrics, DO_NOT_SYNC_PEER_FALLEN_BEHIND_CONFIG);
+        doNotSyncPeerProcessingEvents = new CountPerSecond(metrics, DO_NOT_SYNC_PEER_PROCESSING_EVENTS_CONFIG);
+        doNotSyncAlreadyStarted = new CountPerSecond(metrics, DO_NOT_SYNC_ALREADY_STARTED_CONFIG);
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
+
+        rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
+        rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
+        rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
 
         avgSyncDuration = new AverageAndMaxTimeStat(
                 metrics,
@@ -234,6 +295,13 @@ public class SyncMetrics {
                 PlatformStatNames.MULTI_TIPS_PER_SYNC,
                 "the number of creators that have more than one tip at the start of each sync",
                 "%5d");
+
+        outputQueuePollTime = new AverageAndMax(
+                metrics,
+                PLATFORM_CATEGORY,
+                "rpc_output_queue_poll_time",
+                "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
+                FORMAT_10_0);
     }
 
     /**
@@ -298,15 +366,20 @@ public class SyncMetrics {
     /**
      * Notifies the stats that a sync is done
      *
-     * @param info information about the sync that occurred
+     * @param info                   information about the sync that occurred
+     * @param usedOutgoingConnection optional boolean which indicates if we have used outgoing connection (true),
+     *                               incoming connection (false), or we don't know (null)
      */
-    public void syncDone(final SyncResult info) {
-        if (info.isCaller()) {
-            callSyncsPerSecond.count();
-        } else {
-            recSyncsPerSecond.count();
-        }
+    public void syncDone(final SyncResult info, final @Nullable Boolean usedOutgoingConnection) {
         syncsPerSec.count();
+
+        if (usedOutgoingConnection != null) {
+            if (usedOutgoingConnection) {
+                callSyncsPerSecond.count();
+            } else {
+                recSyncsPerSecond.count();
+            }
+        }
 
         avgEventsPerSyncSent.update(info.getEventsWritten());
         avgEventsPerSyncRec.update(info.getEventsRead());
@@ -398,6 +471,27 @@ public class SyncMetrics {
     }
 
     /**
+     * Signal that we chose not to sync because peer has fallen behind.
+     */
+    public void doNotSyncPeerFallenBehind() {
+        doNotSyncPeerFallenBehind.count();
+    }
+
+    /**
+     * Signal that we chose not to sync because peer is still processing our events.
+     */
+    public void doNotSyncPeerProcessingEvents() {
+        doNotSyncPeerProcessingEvents.count();
+    }
+
+    /**
+     * Signal that we chose not to sync because we have already sent initial message
+     */
+    public void doNotSyncAlreadyStarted() {
+        doNotSyncAlreadyStarted.count();
+    }
+
+    /**
      * Signal that we chose not to sync because we have no permits.
      */
     public void doNotSyncNoPermits() {
@@ -409,5 +503,107 @@ public class SyncMetrics {
      */
     public void doNotSyncIntakeCounter() {
         doNotSyncIntakeCounter.count();
+    }
+
+    /**
+     * Report size of the outgoing queue
+     *
+     * @param size size of the queue
+     */
+    public void rpcOutputQueueSize(final NodeId node, final int size) {
+
+        rpcOutputQueueSize
+                .computeIfAbsent(
+                        node,
+                        nodeId -> new AverageAndMax(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_output_queue_size_%02d", nodeId.id()),
+                                String.format("gossip rpc output queue size to node %02d", nodeId.id()),
+                                FloatFormats.FORMAT_10_0,
+                                AverageStat.WEIGHT_VOLATILE))
+                .update(size);
+    }
+
+    /**
+     * Report size of the outgoing queue
+     *
+     * @param size size of the queue
+     */
+    public void rpcInputQueueSize(final NodeId node, final int size) {
+
+        rpcInputQueueSize
+                .computeIfAbsent(
+                        node,
+                        nodeId -> new AverageAndMax(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_input_queue_size_%02d", nodeId.id()),
+                                String.format("gossip rpc input queue size from node %02d", nodeId.id()),
+                                FloatFormats.FORMAT_10_0,
+                                AverageStat.WEIGHT_VOLATILE))
+                .update(size);
+    }
+
+    /**
+     * Time spent sleeping waiting for poll to happen or timeout. Please note that you are supposed to pass nanos here,
+     * but metric will be reporting microseconds
+     *
+     * @param nanos amount of nanoseconds which have passed
+     */
+    public void outputQueuePollTime(final long nanos) {
+        outputQueuePollTime.update(nanos / 1000);
+    }
+
+    /**
+     * Report the current rpc sync phase with specific node
+     *
+     * @param node      node id of the peer this sync phase applies to
+     * @param syncPhase the current rpc sync phase we are in with the peer
+     * @return the previously reported phase. This will be {@link SyncPhase#OUTSIDE_OF_RPC} when invoked at the
+     * beginning of a new rypc sync.
+     */
+    public SyncPhase reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
+        final PhaseTimer<SyncPhase> phaseMetric = syncPhasePerNode.computeIfAbsent(
+                node, nodeId -> new PhaseTimerBuilder<>(metrics, time, "platform", SyncPhase.class)
+                        .enableFractionalMetrics()
+                        .setInitialPhase(SyncPhase.OUTSIDE_OF_RPC)
+                        .setMetricsNamePrefix(String.format("sync_phase_%02d", nodeId.id()))
+                        .build());
+        synchronized (phaseMetric) {
+            final SyncPhase oldPhase = phaseMetric.getActivePhase();
+            phaseMetric.activatePhase(syncPhase);
+            return oldPhase;
+        }
+    }
+
+    /**
+     * Update amount of rpc read threads running concurrently
+     *
+     * @param change The amount of change in the number of threads running (negative numbers mean that many fewer
+     *               threads running, positive numbers mean that many more thread running).
+     */
+    public void rpcReadThreadRunning(final int change) {
+        rpcReadThreadRunning.add(change);
+    }
+
+    /**
+     * Update amount of rpc write threads running concurrently
+     *
+     * @param change The amount of change in the number of threads running (negative numbers mean that many fewer
+     *               threads running, positive numbers mean that many more thread running).
+     */
+    public void rpcWriteThreadRunning(final int change) {
+        rpcWriteThreadRunning.add(change);
+    }
+
+    /**
+     * Update amount of rpc dispatch threads running concurrently
+     *
+     * @param change The amount of change in the number of threads running (negative numbers mean that many fewer
+     *               threads running, positive numbers mean that many more thread running).
+     */
+    public void rpcDispatchThreadRunning(final int change) {
+        rpcDispatchThreadRunning.add(change);
     }
 }

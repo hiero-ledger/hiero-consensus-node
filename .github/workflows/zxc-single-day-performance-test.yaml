@@ -6,8 +6,8 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "Latitude3"
-        description: "Performance test on given Latitude Machine (Latitude0-4)"
+        default: "AdHoc5"
+        description: "Performance test on given AdHoc Machine (AdHoc5, 6, or 7)"
         type: string
       ref:
         required: true
@@ -64,8 +64,8 @@ permissions:
   id-token: write
 
 env:
-  LATITUDE_NAMESPACE_PREFIX: solo-sdpt-n
-  DEFAULT_NAMESPACE: Latitude3
+  ADHOC_NAMESPACE_PREFIX: solo-sdpt-n
+  DEFAULT_NAMESPACE: AdHoc5
   DEFAULT_HCN_VERSION: main
   TIMEOUT_6H_LIMIT: 330
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
@@ -186,8 +186,8 @@ jobs:
           set +e
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^Latitude(\d+)$/'`
-          echo "namespace=${LATITUDE_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
+          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^AdHoc(\d+)$/'`
+          echo "namespace=${ADHOC_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
         run: |
@@ -249,14 +249,40 @@ jobs:
 
           cd "${{ github.workspace }}"/solo/examples/performance-tuning/latitude
 
-          cp Taskfile8.yml Taskfile.yml
+          # Remove Taskfile.yml
+          rm -f Taskfile.yml
+          # Generate the Taskfile.yml file inline
+          # Skip the copy step for Taskfile.examples.yml for now
+          # cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.examples.yml Taskfile.examples.yml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
 
+          # Replace all init-containers-values8 to values9 inside Taskfile
+          sed -i -e 's/SOLO_NETWORK_SIZE: 8/SOLO_NETWORK_SIZE: 9/g' -e 's/init-containers-values8.yaml/init-containers-values9.yaml/g' Taskfile.yml
+
+          # Remove init-containers-values9.yaml
+          rm -f init-containers-values9.yaml
+          # Generate the init-containers-values9.yaml inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values9.yaml init-containers-values9.yaml
+
+          # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ env.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
+          # Update Init Containers values
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values8.yaml
-          sed -i -e "s@engineering-1@${NETWORK_ID}@g" init-containers-values8.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values9.yaml
+          NETWORK_OWNER="adhoc-performance-test"
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values9.yaml
+
+          # Remove application.properties
+          rm -f application.properties
+          # Generate the application.properties file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/application.properties.txt application.properties
+
+          # Remove settings.txt
+          rm -f settings.txt
+          # Generate the settings.txt file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/settings.txt settings.txt
 
           if [ "${{ inputs.add-app-props }}" != "" ]
           then
@@ -317,6 +343,16 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ env.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
 
+          # Remove nlg-values.yaml
+          rm -f nlg-values.yaml
+          # Generate the nlg-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
+
+          # Remove merkledb-values.yaml
+          rm -f merkledb-values.yaml
+          # Generate the merkledb-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
+
           #Disable auto-start
           sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' nlg-values.yaml
           grep -v 'x.y.z' nlg-values.yaml > new.yml
@@ -326,7 +362,13 @@ jobs:
 
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
+          NETWORK_OWNER="adhoc-performance-test"
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
+
+          NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
+          NETWORK_OWNER="adhoc-performance-test"
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" merkledb-values.yaml
 
       - name: Deploy NLG test
         run: |
@@ -599,8 +641,8 @@ jobs:
 
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^Latitude(\d+)$/'`
-          echo "namespace=${LATITUDE_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
+          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^AdHoc(\d+)$/'`
+          echo "namespace=${ADHOC_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
         run: |
@@ -795,8 +837,8 @@ jobs:
 
           #trim RUN_HCN_VERSION
           echo "RUN_HCN_VERSION=`echo ${{ env.RUN_HCN_VERSION }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^Latitude(\d+)$/'`
-          echo "namespace=${LATITUDE_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
+          n=`echo "${{ env.run_namespace }}" | perl -ne 'print "$1\n" if /^AdHoc(\d+)$/'`
+          echo "namespace=${ADHOC_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
         run: |
