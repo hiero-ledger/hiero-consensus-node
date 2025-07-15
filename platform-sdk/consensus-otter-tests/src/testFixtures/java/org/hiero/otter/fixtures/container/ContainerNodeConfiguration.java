@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static com.swirlds.config.extensions.export.ConfigExport.getPropertiesForConfigDataRecords;
+
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -8,8 +10,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
-
-import static com.swirlds.config.extensions.export.ConfigExport.getPropertiesForConfigDataRecords;
 
 /**
  * An implementation of {@link NodeConfiguration} for a container environment.
@@ -21,8 +21,8 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
 
     public ContainerNodeConfiguration() {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        getPropertiesForConfigDataRecords(configuration).forEach(
-                (key, value) -> nodeDefaults.put(key, value.toString()));
+        getPropertiesForConfigDataRecords(configuration)
+                .forEach((key, value) -> nodeDefaults.put(key, value.toString()));
     }
 
     /**
