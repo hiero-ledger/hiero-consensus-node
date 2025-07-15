@@ -1,14 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -21,6 +25,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
@@ -144,6 +149,62 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
+    void testBlockItemsWithAdditionalAutomaticTokenAssociationTraceData() {
+        final var tokenAssociation = TokenAssociation.newBuilder()
+                .tokenId(TokenID.newBuilder().tokenNum(1L))
+                .accountId(AccountID.newBuilder().accountNum(2L))
+                .build();
+
+        final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_UPDATE);
+        // set additional trace data
+        itemsBuilder.addAutomaticTokenAssociation(tokenAssociation);
+        List<BlockItem> blockItems = itemsBuilder.build(false, true).blockItems();
+
+        final var traceItem = blockItems.get(2);
+        assertTrue(traceItem.hasTraceData());
+        final var trace = traceItem.traceDataOrThrow();
+
+        assertTrue(trace.hasAutoAssociateTraceData());
+        final var autoAssociateTraceData = trace.autoAssociateTraceData();
+        assertNotNull(autoAssociateTraceData);
+        assertEquals(2, autoAssociateTraceData.automaticTokenAssociations().accountNum());
+    }
+
+    @Test
+    void testBlockItemsWithAdditionalTokenSupplyTraceData() {
+        final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_MINT);
+        // set additional trace data
+        itemsBuilder.newTotalSupply(1).serialNumbers(List.of(1L));
+        List<BlockItem> blockItems = itemsBuilder.build(false, true).blockItems();
+
+        final var traceItem = blockItems.get(2);
+        assertTrue(traceItem.hasTraceData());
+        final var trace = traceItem.traceDataOrThrow();
+
+        assertTrue(trace.hasTokenSupplyTraceData());
+        final var tokenSupplyTraceData = trace.tokenSupplyTraceData();
+        assertNotNull(tokenSupplyTraceData);
+        assertEquals(1, tokenSupplyTraceData.newTotalSupply());
+    }
+
+    @Test
+    void testBlockItemsWithAdditionalSubmitMsgTraceData() {
+        final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
+        // set additional trace data
+        itemsBuilder.topicSequenceNumber(66);
+        List<BlockItem> blockItems = itemsBuilder.build(false, true).blockItems();
+
+        final var traceItem = blockItems.get(2);
+        assertTrue(traceItem.hasTraceData());
+        final var trace = traceItem.traceDataOrThrow();
+
+        assertTrue(trace.hasSubmitMessageTraceData());
+        final var submitMessageTraceData = trace.submitMessageTraceData();
+        assertNotNull(submitMessageTraceData);
+        assertEquals(66, submitMessageTraceData.sequenceNumber());
+    }
+
+    @Test
     void testBlockItemsWithCreateAccountOutput() {
         final var itemsBuilder =
                 createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
@@ -203,5 +264,11 @@ public class BlockStreamBuilderTest {
                 .addAutomaticTokenAssociation(tokenAssociation)
                 .paidStakingRewards(paidStakingRewards)
                 .congestionMultiplier(10L);
+    }
+
+    private BlockStreamBuilder createEmptyBuilder() {
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_TRANSACTION_CUSTOMIZER, USER)
+                .transaction(transaction)
+                .transactionBytes(transactionBytes);
     }
 }
