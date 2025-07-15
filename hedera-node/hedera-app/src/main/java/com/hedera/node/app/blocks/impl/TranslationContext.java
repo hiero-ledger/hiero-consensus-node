@@ -75,7 +75,7 @@ public interface TranslationContext {
      */
     default Bytes transactionHash() {
         final var signedTx = signedTx();
-        if (signedTx.useLegacyTransactionHashAlgorithm()) {
+        if (signedTx.useSerializedTxMessageHashAlgorithm()) {
             final var tx = Transaction.newBuilder()
                     .bodyBytes(signedTx.bodyBytes())
                     .sigMap(signedTx.sigMap())

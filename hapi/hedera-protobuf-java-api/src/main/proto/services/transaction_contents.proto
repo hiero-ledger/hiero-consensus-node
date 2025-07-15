@@ -56,5 +56,5 @@ message SignedTransaction {
      * ascending field order serialization of the Transaction whose `bodyBytes`
      * and sigMap fields are deserialized from the contents of this message.
      */
-    bool use_legacy_transaction_hash_algorithm = 3;
+    bool use_serialized_tx_message_hash_algorithm = 3;
 }

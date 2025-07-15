@@ -73,8 +73,7 @@ message EventDescriptor {
   int64 birth_round = 3;
 
   /**
-  * The generation of the event.<br/>
-  * This value SHALL be **one greater** than the _maximum_ generation of all parents.<br/>
+  * Previously used to indicate the generation of the event.
   */
-  int64 generation = 17; // This field is temporary until birth_round migration is complete. Field number 17 chosen to avoid polluting cheaper 1 byte field numbers 1-16
+  reserved 17;
 }

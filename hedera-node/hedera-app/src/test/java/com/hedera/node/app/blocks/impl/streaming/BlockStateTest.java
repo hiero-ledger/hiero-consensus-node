@@ -456,8 +456,7 @@ class BlockStateTest {
     }
 
     private PublishStreamRequest newRequest(final BlockItem... items) {
-        final BlockItemSet bis =
-                BlockItemSet.newBuilder().blockItems(items).build();
+        final BlockItemSet bis = BlockItemSet.newBuilder().blockItems(items).build();
         return PublishStreamRequest.newBuilder().blockItems(bis).build();
     }
 }

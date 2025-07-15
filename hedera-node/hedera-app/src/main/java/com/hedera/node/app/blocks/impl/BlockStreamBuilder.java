@@ -11,7 +11,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.CreateAccountOutput;
 import com.hedera.hapi.block.stream.output.CreateContractOutput;
@@ -444,8 +443,7 @@ public class BlockStreamBuilder
      * @param blockItems the list of block items
      * @param translationContext the translation context
      */
-    public record Output(
-            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -573,9 +571,8 @@ public class BlockStreamBuilder
             }
             // Use a "pass-through" BlockItem variant to ensure we don't re-serialize the parsed
             // SignedTransaction into something different from what the client submitted
-            blockItems.add(BlockItem.newBuilder()
-                    .signedTransaction(serializedSignedTx)
-                    .build());
+            blockItems.add(
+                    BlockItem.newBuilder().signedTransaction(serializedSignedTx).build());
         }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);

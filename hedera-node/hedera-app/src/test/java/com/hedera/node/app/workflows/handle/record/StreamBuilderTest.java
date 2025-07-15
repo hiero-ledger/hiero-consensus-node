@@ -71,7 +71,7 @@ public class StreamBuilderTest {
                     .build())
             .build();
     private static final SignedTransaction LEGACY_SIGNED_TX = SignedTransaction.newBuilder()
-            .useLegacyTransactionHashAlgorithm(true)
+            .useSerializedTxMessageHashAlgorithm(true)
             .bodyBytes(FAKE_BODY_BYTES)
             .sigMap(FAKE_SIG_MAP)
             .build();
@@ -89,7 +89,6 @@ public class StreamBuilderTest {
             .signedTransactionBytes(SERIALIZED_NORMAL_SIGNED_TX)
             .build();
     private @Mock TransactionID transactionID;
-    private final Bytes transactionBytes = Bytes.wrap("Hello Tester");
     private @Mock ContractFunctionResult contractCallResult;
     private @Mock ContractFunctionResult contractCreateResult;
     private @Mock TransferList transferList;

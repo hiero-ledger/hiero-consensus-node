@@ -29,7 +29,6 @@ import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Queue;
-
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -260,7 +259,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @ParameterizedTest
     @EnumSource(
             value = EndOfStream.Code.class,
-            names = {"TIMEOUT", "OUT_OF_ORDER", "BAD_STATE_PROOF"})
+            names = {"TIMEOUT", "DUPLICATE_BLOCK", "BAD_BLOCK_PROOF"})
     void testOnNext_endOfStream_clientFailures(final EndOfStream.Code responseCode) {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
@@ -445,8 +444,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
 
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
-        final BlockItem item =
-                BlockItem.newBuilder().blockHeader(blockHeader).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
         final PublishStreamRequest request = createRequest(item);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -462,8 +460,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testSendRequest_notActive() {
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
-        final BlockItem item =
-                BlockItem.newBuilder().blockHeader(blockHeader).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
         final PublishStreamRequest request = createRequest(item);
 
         connection.createRequestObserver();
@@ -479,8 +476,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testSendRequest_observerNull() {
         final BlockHeader blockHeader = BlockHeader.newBuilder().number(1L).build();
-        final BlockItem item =
-                BlockItem.newBuilder().blockHeader(blockHeader).build();
+        final BlockItem item = BlockItem.newBuilder().blockHeader(blockHeader).build();
         final PublishStreamRequest request = createRequest(item);
 
         // don't create the observer

@@ -29,7 +29,7 @@ val log4j = "2.25.0"
 val mockito = "5.18.0"
 val pbj = "0.11.6" // ATTENTION: keep in sync with plugin version in 'hapi/hapi/build.gradle.kts'
 val protobuf = "4.31.1"
-val testContainers = "1.21.0"
+val testContainers = "1.21.3"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
 
@@ -50,7 +50,7 @@ dependencies.constraints {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.5.1") { because("com.github.dockerjava.api") }
+    api("com.github.docker-java:docker-java-api:3.5.3") { because("com.github.dockerjava.api") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.3") {
         because("com.github.spotbugs.annotations")
     }
@@ -74,7 +74,7 @@ dependencies.constraints {
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
     api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
-    api("com.esaulpaugh:headlong:13.2.2") { because("com.esaulpaugh.headlong") }
+    api("com.esaulpaugh:headlong:13.3.0") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.179") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
@@ -90,7 +90,7 @@ dependencies.constraints {
         because("org.apache.commons.collections4")
     }
     api("commons-io:commons-io:2.19.0") { because("org.apache.commons.io") }
-    api("org.apache.commons:commons-lang3:3.17.0") { because("org.apache.commons.lang3") }
+    api("org.apache.commons:commons-lang3:3.18.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.27.1") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
     api("org.apache.logging.log4j:log4j-core:$log4j") { because("org.apache.logging.log4j.core") }

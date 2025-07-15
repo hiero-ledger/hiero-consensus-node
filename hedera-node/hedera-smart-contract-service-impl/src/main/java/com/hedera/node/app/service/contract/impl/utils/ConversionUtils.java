@@ -348,10 +348,8 @@ public class ConversionUtils {
                             .build());
                 }
             }
-            slotUsages.add(new ContractSlotUsage(
-                    storageAccess.contractID(),
-                    new OneOf<>(WRITTEN_SLOT_KEYS, writes),
-                    reads));
+            slotUsages.add(
+                    new ContractSlotUsage(storageAccess.contractID(), new OneOf<>(WRITTEN_SLOT_KEYS, writes), reads));
         }
         return slotUsages;
     }

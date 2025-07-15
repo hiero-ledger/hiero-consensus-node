@@ -267,7 +267,7 @@ final class TransactionCheckerTest extends AppTestBase {
             final var repackagedSignedTx = SignedTransaction.newBuilder()
                     .bodyBytes(localTx.bodyBytes())
                     .sigMap(localTx.sigMap())
-                    .useLegacyTransactionHashAlgorithm(true)
+                    .useSerializedTxMessageHashAlgorithm(true)
                     .build();
             inputBuffer = Bytes.wrap(asByteArray(localTx));
 
@@ -491,7 +491,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var repackagedSignedTx = SignedTransaction.newBuilder()
                         .bodyBytes(localTx.bodyBytes())
                         .sigMap(localTx.sigMap())
-                        .useLegacyTransactionHashAlgorithm(true)
+                        .useSerializedTxMessageHashAlgorithm(true)
                         .build();
 
                 // When we parse and check
@@ -572,7 +572,7 @@ final class TransactionCheckerTest extends AppTestBase {
                 final var repackagedSignedTx = SignedTransaction.newBuilder()
                         .bodyBytes(localTx.bodyBytes())
                         .sigMap(localTx.sigMap())
-                        .useLegacyTransactionHashAlgorithm(true)
+                        .useSerializedTxMessageHashAlgorithm(true)
                         .build();
 
                 // When we check

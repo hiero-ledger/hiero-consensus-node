@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
@@ -68,8 +68,7 @@ public abstract class BlockNodeCommunicationTestBase {
 
     @NonNull
     protected static PublishStreamRequest createRequest(final BlockItem... items) {
-        final BlockItemSet itemSet =
-                BlockItemSet.newBuilder().blockItems(items).build();
+        final BlockItemSet itemSet = BlockItemSet.newBuilder().blockItems(items).build();
         return PublishStreamRequest.newBuilder().blockItems(itemSet).build();
     }
 

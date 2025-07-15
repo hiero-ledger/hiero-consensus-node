@@ -33,7 +33,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -104,9 +103,8 @@ class BlockStreamManagerImplTest {
     private static final Bytes SECOND_FAKE_SIGNATURE = Bytes.fromHex("ee".repeat(48));
     private static final BlockItem FAKE_SIGNED_TRANSACTION =
             BlockItem.newBuilder().signedTransaction(Bytes.EMPTY).build();
-    private static final BlockItem FAKE_TRANSACTION_RESULT = BlockItem.newBuilder()
-            .transactionResult(TransactionResult.DEFAULT)
-            .build();
+    private static final BlockItem FAKE_TRANSACTION_RESULT =
+            BlockItem.newBuilder().transactionResult(TransactionResult.DEFAULT).build();
     private static final Bytes FAKE_RESULT_HASH = noThrowSha384HashOfItem(FAKE_TRANSACTION_RESULT);
     private static final BlockItem FAKE_STATE_CHANGES =
             BlockItem.newBuilder().stateChanges(StateChanges.DEFAULT).build();
@@ -1036,7 +1034,6 @@ class BlockStreamManagerImplTest {
     }
 
     private static Bytes noThrowSha384HashOfItem(@NonNull final BlockItem item) {
-        return Bytes.wrap(
-                noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
+        return Bytes.wrap(noThrowSha384HashOf(BlockItem.PROTOBUF.toBytes(item).toByteArray()));
     }
 }

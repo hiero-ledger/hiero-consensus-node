@@ -43,7 +43,7 @@ public record TransactionParts(
         try {
             final var signedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
             final Transaction wrapper;
-            if (signedTx.useLegacyTransactionHashAlgorithm()) {
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
                 wrapper = Transaction.newBuilder()
                         .bodyBytes(signedTx.bodyBytes())
                         .sigMap(signedTx.sigMap())
@@ -70,7 +70,7 @@ public record TransactionParts(
     public static TransactionParts from(@NonNull final SignedTransaction signedTx) {
         try {
             final Transaction wrapper;
-            if (signedTx.useLegacyTransactionHashAlgorithm()) {
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
                 wrapper = Transaction.newBuilder()
                         .bodyBytes(signedTx.bodyBytes())
                         .sigMap(signedTx.sigMap())

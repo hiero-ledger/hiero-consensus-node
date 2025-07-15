@@ -128,7 +128,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 ? tx.getSignedTransactionBytes().toByteArray()
                 : SignedTransaction.PROTOBUF
                         .toBytes(SignedTransaction.newBuilder()
-                                .useLegacyTransactionHashAlgorithm(true)
+                                .useSerializedTxMessageHashAlgorithm(true)
                                 .sigMap(CommonPbjConverters.protoToPbj(tx.getSigMap(), SignatureMap.class))
                                 .bodyBytes(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
                                         tx.getBodyBytes().toByteArray()))

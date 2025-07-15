@@ -13,8 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.hapi.block.stream.schema.BlockItemSchema;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -36,12 +34,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.OneOf;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.ProtoConstants;
-import com.hedera.pbj.runtime.ProtoWriterTools;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -126,8 +119,8 @@ public class BlockStreamBuilderTest {
 
     @Test
     void testBlockItemsWithTraceAndOutput() {
-        final var usages =
-                List.of(new ContractSlotUsage(ContractID.DEFAULT, new OneOf<>(WRITTEN_SLOT_KEYS, List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
+        final var usages = List.of(new ContractSlotUsage(
+                ContractID.DEFAULT, new OneOf<>(WRITTEN_SLOT_KEYS, List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
         final var evmTxResult = EvmTransactionResult.DEFAULT;
         final var itemsBuilder = createBaseBuilder()
                 .functionality(CONTRACT_CALL)

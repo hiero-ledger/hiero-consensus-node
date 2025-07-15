@@ -1762,7 +1762,12 @@ enum ResponseCodeEnum {
     GRPC_WEB_PROXY_NOT_SUPPORTED = 399;
 
     /**
-     * A HAPI client cannot set the SignedTransaction#useLegacyHashAlgorithm field.
+     * An NFT transfers list referenced a token type other than NON_FUNGIBLE_UNIQUE.
      */
-    INVALID_LEGACY_TX_HASH_ALGORITHM = 400;
+    NFT_TRANSFERS_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE = 400;
+
+    /**
+     * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
+     */
+    INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
 }

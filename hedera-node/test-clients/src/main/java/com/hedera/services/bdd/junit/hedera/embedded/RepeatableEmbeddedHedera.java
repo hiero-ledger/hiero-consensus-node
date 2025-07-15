@@ -183,6 +183,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         }
     }
 
+    /**
+     * Handles a round with no user transactions.
+     */
+    public void handleRoundWithNoUserTransactions() {
+        handleRoundWith(mockStateSignatureTxn());
+    }
+
     private class SynchronousFakePlatform extends AbstractFakePlatform implements Platform {
         private FakeEvent lastCreatedEvent;
 

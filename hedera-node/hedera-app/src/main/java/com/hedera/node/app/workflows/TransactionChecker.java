@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MES
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_LEGACY_TX_HASH_ALGORITHM;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
@@ -243,7 +243,8 @@ public class TransactionChecker {
             serializedSignedTx = tx.signedTransactionBytes();
             signedTx = parseStrict(
                     serializedSignedTx.toReadableSequentialData(), SignedTransaction.PROTOBUF, INVALID_TRANSACTION);
-            validateFalsePreCheck(signedTx.useLegacyTransactionHashAlgorithm(), INVALID_LEGACY_TX_HASH_ALGORITHM);
+            validateFalsePreCheck(
+                    signedTx.useSerializedTxMessageHashAlgorithm(), INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM);
         } else {
             signedTx = new SignedTransaction(tx.bodyBytes(), tx.sigMap(), true);
             serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);

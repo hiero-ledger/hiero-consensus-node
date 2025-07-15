@@ -243,7 +243,7 @@ public class RecordStreamBuilder
         final Bytes transactionHash;
         try {
             final MessageDigest digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            if (signedTx.useLegacyTransactionHashAlgorithm()) {
+            if (signedTx.useSerializedTxMessageHashAlgorithm()) {
                 transaction = Transaction.newBuilder()
                         .bodyBytes(signedTx.bodyBytes())
                         .sigMap(signedTx.sigMap())
