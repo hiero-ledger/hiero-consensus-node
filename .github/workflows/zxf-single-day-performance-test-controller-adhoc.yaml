@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)"
+INTENTIONALLY BROKEN
 on:
   workflow_dispatch:
     inputs:
