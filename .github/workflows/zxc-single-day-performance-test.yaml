@@ -252,13 +252,17 @@ jobs:
           # Remove Taskfile.yml
           rm -f Taskfile.yml
           # Generate the Taskfile.yml file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.examples.yml Taskfile.examples.yml
+          # Skip the copy step for Taskfile.examples.yml for now
+          # cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.examples.yml Taskfile.examples.yml
           cp "${{ github.workspace }}"/.github/workflows/support/citr/Taskfile.yml Taskfile.yml
 
-          # Remove init-containers-values8.yaml
-          rm -f init-containers-values8.yaml
-          # Generate the init-containers-values8.yaml inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values8.yaml init-containers-values8.yaml
+          # Replace all init-containers-values8 to values9 inside Taskfile
+          sed -i -e 's/SOLO_NETWORK_SIZE: 8/SOLO_NETWORK_SIZE: 9/g' -e 's/init-containers-values8.yaml/init-containers-values9.yaml/g' Taskfile.yml
+
+          # Remove init-containers-values9.yaml
+          rm -f init-containers-values9.yaml
+          # Generate the init-containers-values9.yaml inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values9.yaml init-containers-values9.yaml
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ env.namespace }}@g" \
@@ -266,9 +270,9 @@ jobs:
 
           # Update Init Containers values
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values8.yaml
+          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values9.yaml
           NETWORK_OWNER="adhoc-performance-test"
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values8.yaml
+          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values9.yaml
 
           # Remove application.properties
           rm -f application.properties
