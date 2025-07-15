@@ -83,19 +83,19 @@ public class AtomicSysDelSysUndelSpec {
                 fileCreate("misc").lifetime(lifetime).contents(ORIG_FILE),
                 atomicBatch(systemFileDelete("misc")
                                 .payingWith(SYSTEM_UNDELETE_ADMIN)
-                                .hasPrecheck(NOT_SUPPORTED)
+                                .hasKnownStatus(NOT_SUPPORTED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(systemFileUndelete("misc")
                                 .payingWith(SYSTEM_DELETE_ADMIN)
-                                .hasPrecheck(AUTHORIZATION_FAILED)
+                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatch(systemFileDelete(ADDRESS_BOOK)
                                 .payingWith(GENESIS)
-                                .hasPrecheck(ENTITY_NOT_ALLOWED_TO_DELETE)
+                                .hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));

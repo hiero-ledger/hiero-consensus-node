@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.txnToString;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
@@ -15,6 +17,7 @@ import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.exceptions.HapiTxnCheckStateException;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -109,6 +112,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
 
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
+        boolean hasInnerTxnFailed = false;
         var result = super.submitOp(spec);
         if (!shouldResolveInnerTransactions()) {
             return result;
@@ -117,15 +121,31 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
             if (!op.shouldResolveStatus()) {
                 continue;
             }
-            // Overwrite the nodeId for inner transactions, so we can call the txnRecord query and resolve the status
-            op.setNode(fixNodeFor(spec).getAccountNum());
-            op.resolveStatus(spec);
-            op.setNode(DEFAULT_NODE_ACCOUNT_ID); // Reset the node to default
+            if (hasInnerTxnFailed && op.isExpectedStatusSet()) {
+                String errorMessage = String.format(
+                        "Invalid state: Expected status is set for operation '%s' after a previously failed inner transaction. "
+                                + "Operations following a failed inner transaction should not have expected status configured.",
+                        op);
+                log.error(errorMessage);
+                throw new HapiTxnCheckStateException(errorMessage);
+            }
 
-            if (op.getActualStatus() != SUCCESS && op.getActualPrecheck() != SUCCESS) {
-                // If any of the inner operations failed, we break the loop as the other transactions will not be
-                // dispatched
-                break;
+            // Only resolve status if no previous inner transaction has failed
+            if (!hasInnerTxnFailed) {
+                if (expectedStatus.isPresent() && expectedStatus.get() == INNER_TRANSACTION_FAILED) {
+                    if (!op.isExpectedStatusSet()) {
+                        op.hasKnownStatus(REVERTED_SUCCESS);
+                    }
+                }
+                // Overwrite the nodeId for inner transactions, so we can call the txnRecord query and resolve the
+                // status
+                op.setNode(fixNodeFor(spec).getAccountNum());
+                op.resolveStatus(spec);
+                op.setNode(DEFAULT_NODE_ACCOUNT_ID); // Reset the node to default
+
+                if (op.getActualStatus() != SUCCESS && op.getActualStatus() != REVERTED_SUCCESS) {
+                    hasInnerTxnFailed = true;
+                }
             }
         }
         return result;
@@ -229,9 +249,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private boolean shouldResolveInnerTransactions() {
         // If the pre-check passed, we should resolve inner transactions
         // If the expected status is INNER_TRANSACTION_FAILED or SUCCESS, we should resolve inner transactions
-        return expectedPrecheck.isPresent()
-                && expectedPrecheck.get() == SUCCESS
-                && expectedStatus.isPresent()
-                && (expectedStatus.get() == INNER_TRANSACTION_FAILED || expectedStatus.get() == SUCCESS);
+        return getExpectedPrecheck() == OK
+                && (getExpectedStatus() == INNER_TRANSACTION_FAILED || getExpectedStatus() == SUCCESS);
     }
 }

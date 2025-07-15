@@ -155,6 +155,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return expectedStatus.orElse(SUCCESS);
     }
 
+    public boolean isExpectedStatusSet() {
+        return expectedStatus.isPresent() || permissibleStatuses.isPresent();
+    }
+
     public ResponseCodeEnum getExpectedPrecheck() {
         return expectedPrecheck.orElse(OK);
     }

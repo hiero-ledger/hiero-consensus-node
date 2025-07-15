@@ -123,14 +123,10 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(sender).key(oldKey).balance(FIVE_HBARS),
                     newKeyNamed(newKey),
                     atomicBatch(
-                                    cryptoUpdate(sender)
-                                            .key(newKey)
-                                            .batchKey(sender)
-                                            .hasKnownStatus(REVERTED_SUCCESS),
+                                    cryptoUpdate(sender).key(newKey).batchKey(sender),
                                     cryptoDelete(sender)
                                             .signedByPayerAnd(newKey)
-                                            .batchKey(sender)
-                                            .hasKnownStatus(REVERTED_SUCCESS),
+                                            .batchKey(sender),
                                     cryptoTransfer(tinyBarsFromTo(GENESIS, sender, 1))
                                             .batchKey(sender)
                                             .hasKnownStatus(ACCOUNT_DELETED))
@@ -210,7 +206,9 @@ public class AtomicBatchNegativeTest {
                     .balance(ONE_HBAR)
                     .txnId(innerTxnId)
                     .batchKey(batchOperator)
-                    .payingWith(innerTxnPayer);
+                    .payingWith(innerTxnPayer)
+                    // Do not resolve the status of the inner txn as it should not be dispatched
+                    .deferStatusResolution();
 
             return hapiTest(
                     cryptoCreate(innerTxnPayer).balance(ONE_HUNDRED_HBARS),
@@ -983,7 +981,6 @@ public class AtomicBatchNegativeTest {
                                     .payingWith(RELAYER)
                                     .nonce(0)
                                     .gasLimit(gasLimit)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .via("ethCall")
                                     .batchKey("batchOperator"))
                             .payingWith("batchOperator"),
