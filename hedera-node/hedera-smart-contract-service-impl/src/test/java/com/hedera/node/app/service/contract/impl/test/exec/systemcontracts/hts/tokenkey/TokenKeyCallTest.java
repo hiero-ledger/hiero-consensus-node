@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class TokenKeyCallTest extends CallTestBase {
+
     @Test
     void returnsEd25519KeyStatusForPresentToken() {
         final var key = Key.newBuilder().ed25519(AN_ED25519_KEY.ed25519()).build();

@@ -21,7 +21,6 @@ import java.util.Random;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.junit.jupiter.api.Test;
 
@@ -48,7 +47,7 @@ class ConsensusEventLinkerTests {
                 new StandardEventSource());
 
         final List<EventImpl> linkedEvents = new LinkedList<>();
-        final InOrderLinker linker = new ConsensusLinker(platformContext, NodeId.of(0));
+        final InOrderLinker linker = new ConsensusLinker(platformContext);
 
         EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 

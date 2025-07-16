@@ -10,7 +10,7 @@ resources:
     memory: 32Gi
 
 nodeSelector:
-  solo.hashgraph.io/role: "auxiliary-services"
+  solo.hashgraph.io/role: "consensus-node"
   solo.hashgraph.io/owner: "%NETWORK_OWNER%"
   solo.hashgraph.io/network-id: "%NETWORK_ID%"
 tolerations:

@@ -49,9 +49,6 @@ public class MerkleStateUtils {
                 .addRow("Creation version:", platformState.getCreationSoftwareVersion())
                 .addRow("Minimum judge hash code:", minimumJudgeInfo == null ? "null" : minimumJudgeInfo.hashCode())
                 .addRow("Root hash:", rootHash)
-                .addRow("First BR Version:", platformState.getFirstVersionInBirthRoundMode())
-                .addRow("Last round before BR:", platformState.getLastRoundBeforeBirthRoundMode())
-                .addRow("Lowest Judge Gen before BR", platformState.getLowestJudgeGenerationBeforeBirthRoundMode())
                 .render(sb);
 
         sb.append("\n");

@@ -100,7 +100,7 @@ public class AddedEventMetrics {
                 metrics,
                 PLATFORM_CATEGORY,
                 "opAgeDiff",
-                "average age difference (in generations) between an event created by this node and its other parent",
+                "average age difference (in birth rounds) between an event created by this node and its other parent",
                 FORMAT_5_3,
                 AverageStat.WEIGHT_VOLATILE);
         avgCreatedReceivedTime = metrics.getOrCreate(AVG_CREATED_RECEIVED_TIME_CONFIG);
@@ -121,9 +121,9 @@ public class AddedEventMetrics {
         if (Objects.equals(event.getCreatorId(), selfId)) {
             eventsCreatedPerSecond.cycle();
             if (!event.getBaseEvent().getOtherParents().isEmpty()) {
-                averageOtherParentAgeDiff.update(event.getGeneration()
+                averageOtherParentAgeDiff.update(event.getBirthRound()
                         - event.getBaseEvent().getOtherParents().stream()
-                                .map(ed -> ed.eventDescriptor().generation())
+                                .map(ed -> ed.eventDescriptor().birthRound())
                                 .max(Long::compareTo)
                                 .orElse(0L));
             }

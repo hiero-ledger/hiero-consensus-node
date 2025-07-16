@@ -58,11 +58,6 @@ class WritablePlatformStateStoreTest {
         assertEquals(platformState.getRoundsNonAncient(), store.getRoundsNonAncient());
         assertEquals(platformState.getSnapshot(), store.getSnapshot());
         assertEquals(platformState.getFreezeTime(), store.getFreezeTime());
-        assertEquals(platformState.getFirstVersionInBirthRoundMode(), store.getFirstVersionInBirthRoundMode());
-        assertEquals(platformState.getLastRoundBeforeBirthRoundMode(), store.getLastRoundBeforeBirthRoundMode());
-        assertEquals(
-                platformState.getLowestJudgeGenerationBeforeBirthRoundMode(),
-                store.getLowestJudgeGenerationBeforeBirthRoundMode());
     }
 
     @Test
@@ -120,27 +115,5 @@ class WritablePlatformStateStoreTest {
         final var lastFrozenTime = Instant.now();
         store.setLastFrozenTime(lastFrozenTime);
         assertEquals(lastFrozenTime, store.getLastFrozenTime());
-    }
-
-    @Test
-    void verifyFirstVersionInBirthRoundMode() {
-        final var version = nextInt(1, 100);
-        store.setFirstVersionInBirthRoundMode(
-                SemanticVersion.newBuilder().major(version).build());
-        assertEquals(version, store.getFirstVersionInBirthRoundMode().major());
-    }
-
-    @Test
-    void verifyLastRoundBeforeBirthRoundMode() {
-        final var round = nextInt(1, 100);
-        store.setLastRoundBeforeBirthRoundMode(round);
-        assertEquals(round, store.getLastRoundBeforeBirthRoundMode());
-    }
-
-    @Test
-    void verifyLowestJudgeGenerationBeforeBirthRoundMode() {
-        final var generation = nextInt(1, 100);
-        store.setLowestJudgeGenerationBeforeBirthRoundMode(generation);
-        assertEquals(generation, store.getLowestJudgeGenerationBeforeBirthRoundMode());
     }
 }

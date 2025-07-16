@@ -8,7 +8,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static org.hiero.base.CompareTo.isLessThan;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -163,14 +162,6 @@ public class SwirldsPlatform implements Platform {
         final SignedState initialState = blocks.initialState().get();
 
         final PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-
-        // Set these fields to zero so they can be removed in a future version.
-        // These fields were required for birth round migration which has taken place.
-        blocks.platformStateFacade().bulkUpdateOf(initialState.getState(), v -> {
-            v.setFirstVersionInBirthRoundMode(SemanticVersion.newBuilder().build());
-            v.setLastRoundBeforeBirthRoundMode(0);
-            v.setLowestJudgeGenerationBeforeBirthRoundMode(0);
-        });
 
         selfId = blocks.selfId();
 

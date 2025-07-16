@@ -10,7 +10,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Links events to their parents. Expects events to be provided in topological order.
@@ -20,7 +19,6 @@ import org.hiero.consensus.model.node.NodeId;
 public class ConsensusLinker extends AbstractInOrderLinker {
 
     private final LongAccumulator missingParentAccumulator;
-    private final LongAccumulator generationMismatchAccumulator;
     private final LongAccumulator birthRoundMismatchAccumulator;
     private final LongAccumulator timeCreatedMismatchAccumulator;
 
@@ -28,21 +26,14 @@ public class ConsensusLinker extends AbstractInOrderLinker {
      * Constructor
      *
      * @param platformContext    the platform context
-     * @param selfId             the ID of this node
      */
-    public ConsensusLinker(@NonNull final PlatformContext platformContext, @NonNull final NodeId selfId) {
+    public ConsensusLinker(@NonNull final PlatformContext platformContext) {
         super(platformContext);
 
         missingParentAccumulator = platformContext
                 .getMetrics()
                 .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "missingParents")
                         .withDescription("Parent child relationships where a parent was missing"));
-        generationMismatchAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(
-                        new LongAccumulator.Config(PLATFORM_CATEGORY, "parentGenerationMismatch")
-                                .withDescription(
-                                        "Parent child relationships where claimed parent generation did not match actual parent generation"));
         birthRoundMismatchAccumulator = platformContext
                 .getMetrics()
                 .getOrCreate(
@@ -73,18 +64,6 @@ public class ConsensusLinker extends AbstractInOrderLinker {
             @NonNull final PlatformEvent child, @NonNull final EventDescriptorWrapper parentDescriptor) {
         super.childHasMissingParent(child, parentDescriptor);
         missingParentAccumulator.update(1);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    protected void parentHasIncorrectGeneration(
-            @NonNull final PlatformEvent child,
-            @NonNull final EventDescriptorWrapper parentDescriptor,
-            @NonNull final EventImpl candidateParent) {
-        super.parentHasIncorrectGeneration(child, parentDescriptor, candidateParent);
-        generationMismatchAccumulator.update(1);
     }
 
     /**

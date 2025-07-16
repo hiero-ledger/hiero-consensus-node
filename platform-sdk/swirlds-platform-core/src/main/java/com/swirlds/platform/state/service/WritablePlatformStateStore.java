@@ -146,42 +146,6 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
-    public void setFirstVersionInBirthRoundMode(@NonNull final SemanticVersion firstVersionInBirthRoundMode) {
-        requireNonNull(firstVersionInBirthRoundMode);
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode)
-                .build());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLastRoundBeforeBirthRoundMode(final long lastRoundBeforeBirthRoundMode) {
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .lastRoundBeforeBirthRoundMode(lastRoundBeforeBirthRoundMode)
-                .build());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLowestJudgeGenerationBeforeBirthRoundMode(final long lowestJudgeGenerationBeforeBirthRoundMode) {
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .lowestJudgeGenerationBeforeBirthRoundMode(lowestJudgeGenerationBeforeBirthRoundMode));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void bulkUpdate(@NonNull final Consumer<PlatformStateModifier> updater) {
         final var accumulator = new PlatformStateValueAccumulator();
         updater.accept(accumulator);

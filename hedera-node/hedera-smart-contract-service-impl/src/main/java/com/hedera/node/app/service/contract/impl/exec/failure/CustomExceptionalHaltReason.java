@@ -5,6 +5,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 
@@ -39,40 +42,32 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
         return description;
     }
 
+    private static final Map<ExceptionalHaltReason, ResponseCodeEnum> HALT_REASON_TO_STATUS;
+
+    static {
+        Map<ExceptionalHaltReason, ResponseCodeEnum> map = new HashMap<>();
+        map.put(SELF_DESTRUCT_TO_SELF, ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID);
+        map.put(INVALID_SOLIDITY_ADDRESS, ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS);
+        map.put(INVALID_ALIAS_KEY, ResponseCodeEnum.INVALID_ALIAS_KEY);
+        map.put(INVALID_SIGNATURE, ResponseCodeEnum.INVALID_SIGNATURE);
+        map.put(CONTRACT_ENTITY_LIMIT_REACHED, ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+        map.put(CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS, ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED);
+        map.put(CustomExceptionalHaltReason.INVALID_CONTRACT_ID, ResponseCodeEnum.INVALID_CONTRACT_ID);
+        map.put(CustomExceptionalHaltReason.INVALID_FEE_SUBMITTED, ResponseCodeEnum.INVALID_FEE_SUBMITTED);
+        map.put(ExceptionalHaltReason.INSUFFICIENT_GAS, ResponseCodeEnum.INSUFFICIENT_GAS);
+        map.put(ExceptionalHaltReason.ILLEGAL_STATE_CHANGE, ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION);
+        HALT_REASON_TO_STATUS = Collections.unmodifiableMap(map);
+    }
+
     /**
      * Returns the "preferred" status for the given halt reason.
      *
      * @param reason the halt reason
      * @return the status
      */
-    // FUTURE: refactor in the future to be more readable when we start looking for cleanups
-    // Future cannot be addressed until gradle update per
-    // https://github.com/autonomousapps/dependency-analysis-gradle-plugin/issues/1150
     public static ResponseCodeEnum statusFor(@NonNull final ExceptionalHaltReason reason) {
         requireNonNull(reason);
-        if (reason == SELF_DESTRUCT_TO_SELF) {
-            return ResponseCodeEnum.OBTAINER_SAME_CONTRACT_ID;
-        } else if (reason == INVALID_SOLIDITY_ADDRESS) {
-            return ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
-        } else if (reason == INVALID_ALIAS_KEY) {
-            return ResponseCodeEnum.INVALID_ALIAS_KEY;
-        } else if (reason == INVALID_SIGNATURE) {
-            return ResponseCodeEnum.INVALID_SIGNATURE;
-        } else if (reason == CONTRACT_ENTITY_LIMIT_REACHED) {
-            return ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
-        } else if (reason == ExceptionalHaltReason.INSUFFICIENT_GAS) {
-            return ResponseCodeEnum.INSUFFICIENT_GAS;
-        } else if (reason == ExceptionalHaltReason.ILLEGAL_STATE_CHANGE) {
-            return ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
-        } else if (reason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS) {
-            return ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
-        } else if (reason == CustomExceptionalHaltReason.INVALID_CONTRACT_ID) {
-            return ResponseCodeEnum.INVALID_CONTRACT_ID;
-        } else if (reason == CustomExceptionalHaltReason.INVALID_FEE_SUBMITTED) {
-            return ResponseCodeEnum.INVALID_FEE_SUBMITTED;
-        } else {
-            return ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
-        }
+        return HALT_REASON_TO_STATUS.getOrDefault(reason, ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION);
     }
 
     public static String errorMessageFor(@NonNull final ExceptionalHaltReason reason) {
