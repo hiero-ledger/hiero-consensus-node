@@ -175,13 +175,13 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         subject = getSubject(mock(Address.class));
 
-        given(key.ed25519OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+        given(key.ed25519OrThrow()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
         given(signatureVerifier.verifySignature(
-                eq(key),
-                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
-                eq(SignatureVerifier.MessageType.RAW),
-                any(),
-                any()))
+                        eq(key),
+                        eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                        eq(SignatureVerifier.MessageType.RAW),
+                        any(),
+                        any()))
                 .willReturn(true);
 
         final var result = subject.validateEdSignature(account, key);
@@ -196,13 +196,13 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         subject = getSubject(mock(Address.class));
 
-        given(key.ed25519OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+        given(key.ed25519OrThrow()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
         given(signatureVerifier.verifySignature(
-                eq(key),
-                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
-                eq(SignatureVerifier.MessageType.RAW),
-                any(),
-                any()))
+                        eq(key),
+                        eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                        eq(SignatureVerifier.MessageType.RAW),
+                        any(),
+                        any()))
                 .willReturn(false);
 
         final var result = subject.validateEdSignature(account, key);
@@ -225,14 +225,14 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         subject = getSubject(mock(Address.class));
 
         given(account.key()).willReturn(key);
-        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
 
         given(signatureVerifier.verifySignature(
-                eq(key),
-                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
-                eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
-                any(),
-                any()))
+                        eq(key),
+                        eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                        eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
+                        any(),
+                        any()))
                 .willReturn(true);
 
         final var result = subject.validateEcSignature(account);
@@ -248,14 +248,14 @@ class IsAuthorizedRawCallTest extends CallTestBase {
         subject = getSubject(mock(Address.class));
 
         given(account.key()).willReturn(key);
-        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[]{1, 2, 3, 4}));
+        given(key.ecdsaSecp256k1OrThrow()).willReturn(Bytes.wrap(new byte[] {1, 2, 3, 4}));
 
         given(signatureVerifier.verifySignature(
-                eq(key),
-                eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
-                eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
-                any(),
-                any()))
+                        eq(key),
+                        eq(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(messageHash)),
+                        eq(SignatureVerifier.MessageType.KECCAK_256_HASH),
+                        any(),
+                        any()))
                 .willReturn(false);
 
         final var result = subject.validateEcSignature(account);
