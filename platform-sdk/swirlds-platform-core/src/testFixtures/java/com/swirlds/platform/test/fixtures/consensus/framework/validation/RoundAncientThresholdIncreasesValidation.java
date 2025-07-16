@@ -33,9 +33,9 @@ public enum RoundAncientThresholdIncreasesValidation implements ConsensusRoundCo
             final MinimumJudgeInfo currentThresholdInfo =
                     rounds.get(i).getSnapshot().minimumJudgeInfoList().getLast();
 
-            assertThat(currentThresholdInfo.minimumJudgeAncientThreshold())
+            assertThat(currentThresholdInfo.minimumJudgeBirthRound())
                     .withFailMessage("the ancient threshold should never decrease")
-                    .isGreaterThanOrEqualTo(previousThresholdInfo.minimumJudgeAncientThreshold());
+                    .isGreaterThanOrEqualTo(previousThresholdInfo.minimumJudgeBirthRound());
         }
     }
 }

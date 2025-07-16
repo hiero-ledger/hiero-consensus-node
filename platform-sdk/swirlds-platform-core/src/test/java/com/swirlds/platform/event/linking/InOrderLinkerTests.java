@@ -51,7 +51,7 @@ class InOrderLinkerTests {
 
     private void inOrderLinkerSetup() {
         inOrderLinker = new ConsensusLinker(
-                TestPlatformContextBuilder.create().withTime(time).build(), selfId);
+                TestPlatformContextBuilder.create().withTime(time).build());
 
         time.tick(Duration.ofSeconds(1));
         genesisSelfParent = new TestingEventBuilder(random)
