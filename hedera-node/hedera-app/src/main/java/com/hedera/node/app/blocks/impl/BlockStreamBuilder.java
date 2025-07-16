@@ -52,6 +52,7 @@ import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.contract.InternalCallContext;
+import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
@@ -601,18 +602,25 @@ public class BlockStreamBuilder
                 } else {
                     // If writes are implicit as the non-identical slot updates in the state changes list,
                     // we need to index the corresponding reads to minimize the size of the output stream
-                    int numImplicitWrites = 0;
                     final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
                     for (final var stateChange : stateChanges) {
+                        if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
+                            continue;
+                        }
+                        SlotKey slotKey = null;
                         if (stateChange.hasMapUpdate()
-                                && !stateChange.mapUpdateOrThrow().identical()
-                                && stateChange.stateId() == STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
-                            final var slotKey =
+                                && !stateChange.mapUpdateOrThrow().identical()) {
+                            slotKey =
                                     stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
-                            implicitWriteIndexes
-                                    .computeIfAbsent(slotKey.contractID(), k -> new HashMap<>())
-                                    .put(slotKey.key(), numImplicitWrites);
-                            numImplicitWrites++;
+                        } else if (stateChange.hasMapDelete()) {
+                            slotKey =
+                                    stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                        }
+                        if (slotKey != null) {
+                            // Each contract id gets its own implicit list of writes
+                            final var indexes =
+                                    implicitWriteIndexes.computeIfAbsent(slotKey.contractID(), k -> new HashMap<>());
+                            indexes.put(slotKey.key(), indexes.size());
                         }
                     }
                     final List<ContractSlotUsage> indexedSlotUsages = new ArrayList<>(slotUsages.size());

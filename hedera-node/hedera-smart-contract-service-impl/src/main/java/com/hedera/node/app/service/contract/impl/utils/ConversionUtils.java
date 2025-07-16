@@ -52,7 +52,6 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -67,7 +66,8 @@ import org.hyperledger.besu.evm.log.LogsBloomFilter;
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
  */
 public class ConversionUtils {
-    private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES = new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
+    private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES =
+            new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
 
     /** The standard length as long of an address in Ethereum.*/
     public static final long EVM_ADDRESS_LENGTH_AS_LONG = 20L;
@@ -365,11 +365,10 @@ public class ConversionUtils {
                 }
             }
             if (traceExplicitWrites) {
-                slotUsages.add(
-                        new ContractSlotUsage(storageAccess.contractID(), new OneOf<>(WRITTEN_SLOT_KEYS, writes), reads));
+                slotUsages.add(new ContractSlotUsage(
+                        storageAccess.contractID(), new OneOf<>(WRITTEN_SLOT_KEYS, writes), reads));
             } else {
-                slotUsages.add(
-                        new ContractSlotUsage(storageAccess.contractID(), IMPLICIT_WRITES, reads));
+                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), IMPLICIT_WRITES, reads));
             }
         }
         return slotUsages;

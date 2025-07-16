@@ -112,8 +112,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE))
-                .willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(streamBuilder);
@@ -131,7 +130,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                Bytes.EMPTY, null);
+                Bytes.EMPTY,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(streamBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(streamBuilder);
@@ -145,8 +145,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndThrowsFailure() {
-        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE))
-                .willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CREATE)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
         given(context.savepointStack()).willReturn(stack);
@@ -162,7 +161,8 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 HALT_RESULT.asEvmTxResultOf(null, null),
                 null,
-                null, null);
+                null,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(streamBuilder.createdContractID(null)).willReturn(streamBuilder);

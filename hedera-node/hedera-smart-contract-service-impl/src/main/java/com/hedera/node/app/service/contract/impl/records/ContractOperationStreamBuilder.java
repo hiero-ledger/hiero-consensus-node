@@ -80,7 +80,8 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @param context the handle context
      * @return this updated builder
      */
-    default ContractOperationStreamBuilder withCommonFieldsSetFrom(@NonNull final CallOutcome outcome, @NonNull final HandleContext context) {
+    default ContractOperationStreamBuilder withCommonFieldsSetFrom(
+            @NonNull final CallOutcome outcome, @NonNull final HandleContext context) {
         requireNonNull(outcome);
         requireNonNull(context);
         if (outcome.actions() != null) {

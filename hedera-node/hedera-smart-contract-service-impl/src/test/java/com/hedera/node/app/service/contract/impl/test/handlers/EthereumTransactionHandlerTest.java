@@ -229,12 +229,14 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITH_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                null, null);
+                null,
+                null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
-        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(callRecordBuilder);
+        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
+                .willReturn(callRecordBuilder);
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -276,13 +278,15 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater), null);
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
+                null);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
-        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
+                .willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
@@ -427,12 +431,14 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater), null);
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
+                null);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
-        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
+                .willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);

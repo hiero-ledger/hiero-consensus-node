@@ -123,7 +123,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                null, null);
+                null,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
 
@@ -152,7 +153,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 HALT_RESULT.asEvmTxResultOf(null, null),
                 null,
-                null, null);
+                null,
+                null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);

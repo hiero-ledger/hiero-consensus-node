@@ -27,7 +27,6 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
-import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -37,7 +36,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-
 import org.apache.tuweni.units.bigints.UInt256;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -115,7 +113,8 @@ class RootProxyWorldUpdaterTest {
         final var mockChangedKeys = Set.of(new SlotKey(A_CONTRACT_ID, Bytes.wrap("123")));
         // Three keys being removed in pending changes
         final var sizeExcludingPendingRemovals = sizeIncludingPendingRemovals - 3;
-        given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
+        given(context.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(sizeIncludingPendingRemovals);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), mockChangedKeys));
         given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
@@ -143,7 +142,7 @@ class RootProxyWorldUpdaterTest {
 
         assertSame(createdIds, subject.getCreatedContractIds());
         assertSame(updatedNonces, subject.getUpdatedContractNonces());
-        assertSame(mockChangedKeys , subject.getTxStorageUsage().changedKeys());
+        assertSame(mockChangedKeys, subject.getTxStorageUsage().changedKeys());
     }
 
     private void givenSubjectWith(@NonNull final Configuration configuration, @NonNull final Enhancement enhancement) {

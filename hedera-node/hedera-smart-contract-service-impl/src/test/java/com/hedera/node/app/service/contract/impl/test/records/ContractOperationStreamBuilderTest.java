@@ -17,9 +17,8 @@ import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
-import java.util.List;
-
 import com.hedera.node.app.spi.workflows.HandleContext;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +51,8 @@ class ContractOperationStreamBuilderTest {
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
-                null, null);
+                null,
+                null);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
@@ -72,7 +72,8 @@ class ContractOperationStreamBuilderTest {
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
-                null, null);
+                null,
+                null);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());

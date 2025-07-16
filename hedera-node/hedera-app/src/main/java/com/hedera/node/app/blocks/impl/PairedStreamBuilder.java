@@ -65,8 +65,6 @@ import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.jetbrains.annotations.NotNull;
-
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;

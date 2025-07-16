@@ -19,7 +19,6 @@ import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,8 +39,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private final HandleContext context;
 
     private boolean committed = false;
+
     @Nullable
     private TxStorageUsage txStorageUsage;
+
     private List<ContractID> createdContractIds;
     private List<ContractNonceInfo> updatedContractNonces = Collections.emptyList();
 
@@ -77,7 +78,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     public void commit() {
         // If not tracing explicit writes, request a set of changed storage keys to use to
         // mark MapUpdateChanges as logically identical in the block stream
-        final boolean explicitWriteTracing = Boolean.TRUE.equals(context.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class));
+        final boolean explicitWriteTracing = Boolean.TRUE.equals(
+                context.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class));
         txStorageUsage = evmFrameState.getTxStorageUsage(!explicitWriteTracing);
         final var writes = txStorageUsage.accesses();
         // Validate the effects on size are legal

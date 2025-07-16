@@ -144,6 +144,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@Tag(ADHOC)
 public class ContractCallSuite {
 
     public static final String TOKEN = "yahcliToken";
@@ -234,7 +235,6 @@ public class ContractCallSuite {
     }
 
     @HapiTest
-    @Tag(ADHOC)
     final Stream<DynamicTest> insufficientGasToPrecompileFailsWithInterpretableActionSidecars() {
         final var contract = "LowLevelCall";
         // A real-world payload for a call to the altbn128 pairing precompile, for

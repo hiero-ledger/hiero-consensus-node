@@ -142,9 +142,9 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         final Set<SlotKey> changedKeys = includeChangedKeys ? new HashSet<>() : null;
         contractStateStore.getModifiedSlotKeys().forEach(slotKey -> {
             final var access = StorageAccess.newWrite(
-                            pbjToTuweniUInt256(slotKey.key()),
-                            valueOrZero(contractStateStore.getOriginalSlotValue(slotKey)),
-                            valueOrZero(contractStateStore.getSlotValue(slotKey)));
+                    pbjToTuweniUInt256(slotKey.key()),
+                    valueOrZero(contractStateStore.getOriginalSlotValue(slotKey)),
+                    valueOrZero(contractStateStore.getSlotValue(slotKey)));
             modifications
                     .computeIfAbsent(slotKey.contractID(), k -> new ArrayList<>())
                     .add(access);

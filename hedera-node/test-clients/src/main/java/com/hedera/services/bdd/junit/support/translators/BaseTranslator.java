@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_BYTECODE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -103,9 +104,6 @@ public class BaseTranslator {
      * These fields are context maintained for the full lifetime of the translator.
      */
     private long highestKnownEntityNum = 0L;
-
-    private long highestKnownNodeId =
-            -1L; // Default to negative value so that we allow for nodeId with 0 value to be created
 
     private boolean externalizeNonces = true;
 
@@ -209,9 +207,6 @@ public class BaseTranslator {
             serialNos.addAll(mintedHere.subList(0, numMints.getOrDefault(tokenId, 0)));
             serialNos.sort(Comparator.naturalOrder());
         });
-        if (nextCreatedNums.containsKey(NODE)) {
-            highestKnownNodeId = nextCreatedNums.get(NODE).getLast();
-        }
         highestKnownEntityNum =
                 nextCreatedNums.values().stream().mapToLong(List::getLast).max().orElse(highestKnownEntityNum);
     }
@@ -536,20 +531,18 @@ public class BaseTranslator {
                 .map(TraceData::evmTraceDataOrThrow)
                 .toList();
         for (final var evmTraceData : evmTraces) {
-            if (!evmTraceData.contractSlotUsages().isEmpty()) {
+            // Legacy record stream includes an empty slot usages sidecar any time there are actions
+            if (!evmTraceData.contractSlotUsages().isEmpty()
+                    || !evmTraceData.contractActions().isEmpty()) {
                 final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {
+                    if (slotUsage.contractIdOrThrow().contractNumOrThrow() == 1097L) {
+                        System.out.println("BOOP");
+                    }
                     final var contractId = slotUsage.contractIdOrThrow();
                     final List<StorageChange> recoveredChanges = new ArrayList<>();
-                    final var writes =
-                            switch (slotUsage.writtenKeys().kind()) {
-                                case UNSET -> throw new IllegalStateException("No written keys kind set for slot");
-                                case WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES ->
-                                    throw new AssertionError("Not implemented");
-                                case WRITTEN_SLOT_KEYS ->
-                                    slotUsage.writtenSlotKeysOrThrow().keys();
-                            };
+                    final var writes = writtenKeysFrom(slotUsage, remainingStateChanges);
                     slotUsage.slotReads().forEach(read -> {
                         final var builder = StorageChange.newBuilder().valueRead(read.readValue());
                         if (read.hasIndex()) {
@@ -560,11 +553,12 @@ public class BaseTranslator {
                                 final var nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
                                         .filter(nextUsages ->
                                                 nextUsages.contractIdOrThrow().equals(contractId)
-                                                        && writtenKeysFrom(nextUsages).stream()
+                                                        && writtenKeysFrom(nextUsages, remainingStateChanges).stream()
                                                                 .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
                                         .findFirst();
                                 if (nextTracedWriteUsage.isPresent()) {
-                                    final int finalWriteIndex = writtenKeysFrom(nextTracedWriteUsage.get())
+                                    final int finalWriteIndex = writtenKeysFrom(
+                                                    nextTracedWriteUsage.get(), remainingStateChanges)
                                             .indexOf(writtenKey);
                                     final var nextRead = nextTracedWriteUsage.get().slotReads().stream()
                                             .filter(r -> r.hasIndex() && r.indexOrThrow() == finalWriteIndex)
@@ -654,13 +648,35 @@ public class BaseTranslator {
 
     /**
      * Returns the written keys from the given {@link ContractSlotUsage}.
+     *
      * @param slotUsage the contract slot usage to extract written keys from
+     * @param stateChanges the state changes to search for written keys
      * @return a list of written keys
      */
-    private static List<Bytes> writtenKeysFrom(ContractSlotUsage slotUsage) {
+    private static List<Bytes> writtenKeysFrom(
+            @NonNull final ContractSlotUsage slotUsage, @NonNull final List<StateChange> stateChanges) {
         return switch (slotUsage.writtenKeys().kind()) {
             case UNSET -> throw new IllegalStateException("No written keys kind set for slot");
-            case WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES -> throw new AssertionError("Not implemented");
+            case WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES -> {
+                final List<Bytes> writtenKeys = new LinkedList<>();
+                final var contractId = slotUsage.contractIdOrThrow();
+                for (final var stateChange : stateChanges) {
+                    if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
+                        continue;
+                    }
+                    SlotKey slotKey = null;
+                    if (stateChange.hasMapUpdate()
+                            && !stateChange.mapUpdateOrThrow().identical()) {
+                        slotKey = stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                    } else if (stateChange.hasMapDelete()) {
+                        slotKey = stateChange.mapDeleteOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                    }
+                    if (slotKey != null && contractId.equals(slotKey.contractIDOrThrow())) {
+                        writtenKeys.add(sansLeadingZeros(slotKey.key()));
+                    }
+                }
+                yield writtenKeys;
+            }
             case WRITTEN_SLOT_KEYS -> slotUsage.writtenSlotKeysOrThrow().keys();
         };
     }

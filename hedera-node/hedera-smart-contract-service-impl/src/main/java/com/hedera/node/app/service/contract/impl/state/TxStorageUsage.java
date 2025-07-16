@@ -1,13 +1,12 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
+
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.contract.SlotKey;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * The summary of storage usage for an EVM transaction.

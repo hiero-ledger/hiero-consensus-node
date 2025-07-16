@@ -78,7 +78,6 @@ public record CallOutcome(
         return requireNonNull(txStorageUsage);
     }
 
-
     /**
      * @return whether some logs appeared from the execution of the contract.
      */
@@ -177,7 +176,8 @@ public record CallOutcome(
                 createdContractIds,
                 txResult,
                 hevmResult.signerNonce(),
-                evmAddress, null);
+                evmAddress,
+                null);
     }
 
     /**
@@ -213,7 +213,8 @@ public record CallOutcome(
      * @param streamBuilder the stream builder
      * @param context the HandleContext
      */
-    public void addCallDetailsTo(@NonNull final ContractCallStreamBuilder streamBuilder, @NonNull final HandleContext context) {
+    public void addCallDetailsTo(
+            @NonNull final ContractCallStreamBuilder streamBuilder, @NonNull final HandleContext context) {
         requireNonNull(streamBuilder);
         requireNonNull(context);
         addCalledContractIfNotAborted(streamBuilder);
@@ -241,7 +242,8 @@ public record CallOutcome(
      * @param streamBuilder the stream builder
      * @param context the handle context
      */
-    public void addCreateDetailsTo(@NonNull final ContractCreateStreamBuilder streamBuilder, @NonNull final HandleContext context) {
+    public void addCreateDetailsTo(
+            @NonNull final ContractCreateStreamBuilder streamBuilder, @NonNull final HandleContext context) {
         requireNonNull(streamBuilder);
         requireNonNull(context);
         // (FUTURE) Remove after switching to block stream

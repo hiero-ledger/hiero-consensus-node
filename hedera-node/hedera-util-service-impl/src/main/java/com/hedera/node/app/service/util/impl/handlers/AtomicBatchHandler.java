@@ -81,10 +81,7 @@ public class AtomicBatchHandler implements TransactionHandler {
     private final InnerTxnCache innerTxnCache;
 
     private static final Set<TransactionBody.DataOneOfType> CONTRACT_OP_BODIES =
-            EnumSet.of(
-                    CONTRACT_CALL,
-                    CONTRACT_CREATE_INSTANCE,
-                    ETHEREUM_TRANSACTION);
+            EnumSet.of(CONTRACT_CALL, CONTRACT_CREATE_INSTANCE, ETHEREUM_TRANSACTION);
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
 
