@@ -91,7 +91,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
             throw new IllegalStateException(
                     "No minimum judge info found in state for round " + consensusSnapshot.round() + ", list is empty");
         }
-        return minimumJudgeInfos.getFirst().minimumJudgeAncientThreshold();
+        return minimumJudgeInfos.getFirst().minimumJudgeBirthRound();
     }
 
     /**
@@ -132,31 +132,6 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Override
     public long getLatestFreezeRound() {
         return stateOrThrow().latestFreezeRound();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Nullable
-    @Override
-    public SemanticVersion getFirstVersionInBirthRoundMode() {
-        return stateOrThrow().firstVersionInBirthRoundMode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLastRoundBeforeBirthRoundMode() {
-        return stateOrThrow().lastRoundBeforeBirthRoundMode();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getLowestJudgeGenerationBeforeBirthRoundMode() {
-        return stateOrThrow().lowestJudgeGenerationBeforeBirthRoundMode();
     }
 
     private @NonNull PlatformState stateOrThrow() {
