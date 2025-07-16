@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
-import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.node.config.converter.SemanticVersionConverter;
+import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
+
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,10 +45,7 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
     @NonNull
     @Override
     public Configuration current() {
-        return new TestConfigBuilder()
-                .withConverter(SemanticVersion.class, new SemanticVersionConverter())
-                .withSource(new SimpleConfigSource(overriddenProperties))
-                .getOrCreateConfig();
+        return createConfiguration(overriddenProperties);
     }
 
     /**

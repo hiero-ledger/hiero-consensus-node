@@ -33,7 +33,9 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
     T set(@NonNull String key, @NonNull String value);
 
     /**
-     * Returns the current configuration of the node including all overridden properties. This may not be the
+     * Returns the current configuration of the node including all overridden properties.
+     * <br>
+     * <strong>Note:</strong> This may not be the
      * configuration used by the running platform, as new configuration is only adopted on node start.
      *
      * @return the current configuration of the node
