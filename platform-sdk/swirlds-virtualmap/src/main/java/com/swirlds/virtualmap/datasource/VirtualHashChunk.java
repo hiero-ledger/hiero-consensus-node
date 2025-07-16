@@ -16,7 +16,7 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
- * A hash chunk is a set of hashs in a virtual sub-tree. Every chunk has 2 hashes at the top level,
+ * A hash chunk is a set of hashes in a virtual sub-tree. Every chunk has 2 hashes at the top level,
  * 4 hashes at the second level, and so on.
  *
  * <p>The number of ranks in a chunk is called chunk height. Minimal chunk height is 1, such chunks
@@ -26,11 +26,13 @@ import org.hiero.base.crypto.Hash;
  * example, the root chunk is identified with path 0 (0 is a parent of 1 and 2). If chunk height is 2,
  * the root chunk at path 0 contains hashes 1, 2, 3, 4, 5, and 6. Such chunk has 4 child chunks
  * identified by paths 3, 4, 5, and 6. For example, chunk 4 has hashes 9, 10, 19, 20, 21, and 22.
+ * Note that a hash at a chunk path does not belong to the chunk, but to its parent chunk, except
+ * the root node hash, which doesn't belong to any chunk.
  *
  * <p>To store chunks, it doesn’t make sense to index them using chunk paths as it would result in
  * index size equal to virtual map size with lots of gaps. Instead, every chunk has an ID, the root
  * chunk has ID=0, the first root child chunk has ID=1, and so on. Chunk paths, IDs, and heights are
- * dependent. For example, when height is 2, chunk with ID=1 has path=3. When height is 3, chunk with
+ * related. For example, when height is 2, chunk with ID=1 has path=3. When height is 3, chunk with
  * ID=1 has path=7.
  *
  * <p>The number of hashes in a chunk is 2^(height+1)-2. Chunks of height 2 contain 6 hashes, chunks
