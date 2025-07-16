@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES;
-import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_SLOT_KEYS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
