@@ -33,10 +33,10 @@ public class PcesFileReader {
     /**
      * Scan the file system for event files and add them to the collection of tracked files.
      *
-     * @param platformContext   the platform context
+     * @param platformContext the platform context
      * @param databaseDirectory the directory to scan for files
-     * @param startingRound     the round to start reading from
-     * @param permitGaps        if gaps are permitted in sequence number
+     * @param startingRound the round to start reading from
+     * @param permitGaps if gaps are permitted in sequence number
      * @return the files read from disk
      * @throws IOException if there is an error reading the files
      */
@@ -50,8 +50,38 @@ public class PcesFileReader {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(databaseDirectory);
 
-        final PcesFileTracker files = new PcesFileTracker();
+        final PcesConfig preconsensusEventStreamConfig =
+                platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final boolean doInitialSpanCompaction = preconsensusEventStreamConfig.compactLastFileOnStartup();
 
+        return readFilesFromDisk(databaseDirectory, startingRound, permitGaps, doInitialSpanCompaction,
+                platformContext.getRecycleBin());
+    }
+
+    /**
+     * Scan the file system for event files and add them to the collection of tracked files.
+     * <p>
+     * This method is helpful for testing purposes when configuration and platform context are not available.
+     *
+     * @param databaseDirectory the directory to scan for files
+     * @param startingRound the round to start reading from
+     * @param permitGaps if gaps are permitted in sequence number
+     * @param compactLastFileOnStartup if the last file should be compacted on startup
+     * @param recycleBin the recycle bin to use for deleted files
+     * @return the files read from disk
+     * @throws IOException if there is an error reading the files
+     */
+    public static PcesFileTracker readFilesFromDisk(
+            @NonNull final Path databaseDirectory,
+            final long startingRound,
+            final boolean permitGaps,
+            final boolean compactLastFileOnStartup,
+            @NonNull final RecycleBin recycleBin)
+            throws IOException {
+
+        Objects.requireNonNull(databaseDirectory);
+
+        final PcesFileTracker files = new PcesFileTracker();
         try (final Stream<Path> fileStream = Files.walk(databaseDirectory)) {
             fileStream
                     .filter(f -> !Files.isDirectory(f))
@@ -61,15 +91,11 @@ public class PcesFileReader {
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }
 
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
-        final boolean doInitialSpanCompaction = preconsensusEventStreamConfig.compactLastFileOnStartup();
-
-        if (files.getFileCount() != 0 && doInitialSpanCompaction) {
+        if (files.getFileCount() != 0 && compactLastFileOnStartup) {
             compactSpanOfLastFile(files);
         }
 
-        resolveDiscontinuities(databaseDirectory, files, platformContext.getRecycleBin(), startingRound);
+        resolveDiscontinuities(databaseDirectory, files, recycleBin, startingRound);
 
         return files;
     }
@@ -103,7 +129,8 @@ public class PcesFileReader {
      * @return the handler
      */
     @NonNull
-    private static Consumer<PcesFile> buildFileHandler(@NonNull final PcesFileTracker files, final boolean permitGaps) {
+    private static Consumer<PcesFile> buildFileHandler(@NonNull final PcesFileTracker files,
+            final boolean permitGaps) {
         final ValueReference<Long> previousSequenceNumber = new ValueReference<>(-1L);
         final ValueReference<Long> previousMinimumBound = new ValueReference<>(-1L);
         final ValueReference<Long> previousMaximumBound = new ValueReference<>(-1L);
@@ -137,9 +164,9 @@ public class PcesFileReader {
      * come after the discontinuity.
      *
      * @param databaseDirectory the directory where PCES files are stored
-     * @param files             the files that have been read from disk
+     * @param files the files that have been read from disk
      * @param recycleBin the recycleBin
-     * @param startingRound     the round the system is starting from
+     * @param startingRound the round the system is starting from
      * @throws IOException if there is an error deleting files
      */
     private static void resolveDiscontinuities(

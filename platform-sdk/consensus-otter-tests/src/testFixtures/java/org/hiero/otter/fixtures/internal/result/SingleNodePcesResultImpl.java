@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
@@ -17,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
@@ -48,6 +50,21 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
 
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
                     platformContext, databaseDirectory, NO_LOWER_BOUND, pcesConfig.permitGaps());
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
+        }
+    }
+
+    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final Path databaseDirectory) {
+        this.nodeId = requireNonNull(nodeId);
+
+        try {
+            this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
+                    databaseDirectory,
+                    NO_LOWER_BOUND,
+                    true,
+                    false,
+                    new NoOpRecycleBin());
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }

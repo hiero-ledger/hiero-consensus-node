@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.junit.jupiter.api.Assertions.fail;
-
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.common.io.utility.NoOpRecycleBin;
+import com.swirlds.platform.event.preconsensus.PcesFileReader;
+import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -21,12 +16,14 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
@@ -36,7 +33,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
-import org.hiero.otter.fixtures.container.proto.PcesFilePaths;
+import org.hiero.otter.fixtures.container.proto.PcesFileDir;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
@@ -47,6 +44,7 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -54,6 +52,15 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
+
+import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Implementation of {@link Node} for a container environment.
@@ -217,8 +224,9 @@ public class ContainerNode extends AbstractNode implements Node {
     public SingleNodePcesResult getPcesResult() {
         throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
-        final PcesFilePaths pcesFilePaths = blockingStub.getPcesFilePaths(Empty.newBuilder().build());
-        return null;
+        final PcesFileDir pcesDir = blockingStub.getPcesDir(Empty.newBuilder().build());
+        final Path pcesDirectory = Paths.get(pcesDir.getFilePath());
+        return new SingleNodePcesResultImpl(selfId, pcesDirectory);
     }
 
     /**
@@ -226,7 +234,6 @@ public class ContainerNode extends AbstractNode implements Node {
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
     // ignoring the Empty answer from destroyContainer
     void destroy() {
         if (lifeCycle == RUNNING) {

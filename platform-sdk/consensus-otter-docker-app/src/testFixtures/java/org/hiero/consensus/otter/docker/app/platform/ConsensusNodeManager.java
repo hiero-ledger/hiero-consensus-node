@@ -223,18 +223,8 @@ public class ConsensusNodeManager {
         consensusRoundListeners.add(listener);
     }
 
-    public List<Path> getPcesFilePaths() throws IOException {
-        final Path databaseDirectory = getDatabaseDirectory(platformContext,
-                org.hiero.consensus.model.node.NodeId.of(selfId.id()));
-        final PcesFileTracker tracker = PcesFileReader.readFilesFromDisk(
-                platformContext, databaseDirectory, NO_LOWER_BOUND,
-                platformConfig.getConfigData(PcesConfig.class).permitGaps());
-        final List<Path> pcesPaths = new ArrayList<>();
-        for (final Iterator<PcesFile> it = tracker.getFileIterator(); it.hasNext(); ) {
-            final PcesFile file = it.next();
-            pcesPaths.add(file.getPath());
-        }
-        return pcesPaths;
+    public Path getPcesDir() throws IOException {
+        return getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
     }
 
     /**
