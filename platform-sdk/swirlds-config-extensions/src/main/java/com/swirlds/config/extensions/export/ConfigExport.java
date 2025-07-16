@@ -110,7 +110,7 @@ public final class ConfigExport {
         printConfig(configuration, line -> builder.append(line).append(System.lineSeparator()));
     }
 
-    public static Map<String, Object> getPropertiesForConfigDataRecords(final Configuration configuration) {
+    private static Map<String, Object> getPropertiesForConfigDataRecords(final Configuration configuration) {
         final Map<String, Object> map = new HashMap<>();
         configuration
                 .getConfigDataTypes()
