@@ -163,16 +163,7 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "test-asset": "AdHoc7",
-            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}",
-            "solo-version": "latest_tested_solo-charts0.59",
-            "nlg-accounts": "100000000",
-            "nlg-time": "330",
-            "add-app-props": "",
-            "add-settings": "",
-            "crypto-bench-merkle-db-java-args": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
-            "crypto-bench-merkle-db-test-params": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000",
-            "disable-notifications": "false"
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
             }'
 
       - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
