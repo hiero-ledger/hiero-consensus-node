@@ -328,13 +328,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, metrics, version),
+                () -> TurtleAppState.createGenesisState(platformContext, roster, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacyNodeId,
                 platformStateFacade,
                 platformContext,
-                TurtleAppState::new);
+                virtualMap -> new TurtleAppState(virtualMap, platformContext));
         final ReservedSignedState initialState = reservedState.state();
 
         final State state = initialState.get().getState();
@@ -351,7 +351,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         eventStreamLoc,
                         rosterHistory,
                         platformStateFacade,
-                        TurtleAppState::new)
+                        virtualMap -> new TurtleAppState(virtualMap, platformContext))
                 .withPlatformContext(platformContext)
                 .withConfiguration(currentConfiguration)
                 .withKeysAndCerts(keysAndCerts)

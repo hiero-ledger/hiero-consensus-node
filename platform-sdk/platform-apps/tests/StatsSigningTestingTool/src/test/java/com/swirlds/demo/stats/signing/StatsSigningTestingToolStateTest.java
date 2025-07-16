@@ -12,7 +12,9 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.demo.stats.signing.algorithms.X25519SigningAlgorithm;
+import com.swirlds.metrics.api.Metrics;
 import java.security.SignatureException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -53,7 +55,9 @@ class StatsSigningTestingToolStateTest {
     void setUp() {
         final SttTransactionPool transactionPool = mock(SttTransactionPool.class);
         final Supplier<SttTransactionPool> transactionPoolSupplier = mock(Supplier.class);
-        state = new StatsSigningTestingToolState();
+        PlatformContext platformContext = mock(PlatformContext.class);
+        when(platformContext.getMetrics()).thenReturn(mock(Metrics.class));
+        state = new StatsSigningTestingToolState(platformContext);
         consensusStateEventHandler = new StatsSigningTestingToolConsensusStateEventHandler(transactionPoolSupplier);
         main = new StatsSigningTestingToolMain();
         random = new Random();

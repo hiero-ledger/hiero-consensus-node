@@ -109,13 +109,13 @@ public class DockerApp {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(platformConfig, genesisRoster, metrics, version),
+                () -> TurtleAppState.createGenesisState(platformContext, genesisRoster, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 oldSelfId,
                 platformStateFacade,
                 platformContext,
-                TurtleAppState::new);
+                virtualMap -> new TurtleAppState(virtualMap, platformContext));
         final ReservedSignedState initialState = reservedState.state();
 
         final MerkleNodeState state = initialState.get().getState();

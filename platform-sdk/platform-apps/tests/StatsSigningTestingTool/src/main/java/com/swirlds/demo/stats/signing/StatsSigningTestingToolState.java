@@ -11,6 +11,7 @@ package com.swirlds.demo.stats.signing;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,8 +33,8 @@ public class StatsSigningTestingToolState extends MerkleStateRoot<StatsSigningTe
     /** A running sum of transaction contents */
     private long runningSum = 0;
 
-    public StatsSigningTestingToolState() {
-        // no-op
+    public StatsSigningTestingToolState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
     }
 
     private StatsSigningTestingToolState(@NonNull final StatsSigningTestingToolState sourceState) {
@@ -82,8 +83,8 @@ public class StatsSigningTestingToolState extends MerkleStateRoot<StatsSigningTe
     }
 
     @Override
-    protected StatsSigningTestingToolState copyingConstructor() {
-        return new StatsSigningTestingToolState();
+    protected StatsSigningTestingToolState copyingConstructor(PlatformContext platformContext) {
+        return new StatsSigningTestingToolState(platformContext);
     }
 
     /**

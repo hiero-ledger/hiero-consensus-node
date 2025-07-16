@@ -11,6 +11,7 @@ package com.swirlds.demo.stress;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -27,8 +28,8 @@ public class StressTestingToolState extends MerkleStateRoot<StressTestingToolSta
     /** A running sum of transaction contents */
     private long runningSum = 0;
 
-    public StressTestingToolState() {
-        // empty constructor
+    public StressTestingToolState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
     }
 
     private StressTestingToolState(@NonNull final StressTestingToolState sourceState) {
@@ -78,7 +79,7 @@ public class StressTestingToolState extends MerkleStateRoot<StressTestingToolSta
     }
 
     @Override
-    protected StressTestingToolState copyingConstructor() {
+    protected StressTestingToolState copyingConstructor(PlatformContext platformContext) {
         return new StressTestingToolState(this);
     }
 

@@ -107,7 +107,7 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
-                .setState(new TestVirtualMapState())
+                .setState(new TestVirtualMapState(platformContext))
                 .build();
 
         changeStateHashRandomly(stateFromDisk);

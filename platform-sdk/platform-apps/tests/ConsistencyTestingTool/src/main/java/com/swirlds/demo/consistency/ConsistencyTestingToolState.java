@@ -8,6 +8,7 @@ import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -82,7 +83,8 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
     /**
      * Constructor
      */
-    public ConsistencyTestingToolState() {
+    public ConsistencyTestingToolState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
         logger.info(STARTUP.getMarker(), "New State Constructed.");
@@ -261,7 +263,7 @@ public class ConsistencyTestingToolState extends MerkleStateRoot<ConsistencyTest
     }
 
     @Override
-    protected ConsistencyTestingToolState copyingConstructor() {
+    protected ConsistencyTestingToolState copyingConstructor(PlatformContext platformContext) {
         return new ConsistencyTestingToolState(this);
     }
 

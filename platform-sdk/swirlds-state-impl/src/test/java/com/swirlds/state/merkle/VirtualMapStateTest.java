@@ -15,18 +15,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
-import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.test.fixtures.state.MerkleTestBase;
@@ -49,7 +44,6 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -72,13 +66,10 @@ public class VirtualMapStateTest extends MerkleTestBase {
     void setUp() {
         MerkleDb.resetDefaultInstancePath();
         setupFruitMerkleMap();
-        virtualMapState = new TestVirtualMapState(CONFIGURATION, new NoOpMetrics());
-        virtualMapState.init(
-                new FakeTime(),
-                CONFIGURATION,
-                new NoOpMetrics(),
-                mock(MerkleCryptography.class),
-                () -> PlatformStateAccessor.GENESIS_ROUND);
+        virtualMapState =
+                new TestVirtualMapState(TestPlatformContextBuilder.create().build());
+
+        virtualMapState.setRoundSupplier(() -> PlatformStateAccessor.GENESIS_ROUND);
     }
 
     @Nested
@@ -805,11 +796,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             writableStates.getQueue(STEAM_STATE_KEY).add(ART);
             ((CommittableWritableStates) writableStates).commit();
 
-            final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(ConfigurationBuilder.create()
-                    .withConfigDataType(CryptoConfig.class)
-                    .build());
-            virtualMapState.init(
-                    new FakeTime(), CONFIGURATION, new NoOpMetrics(), merkleCryptography, () -> GENESIS_ROUND);
+            virtualMapState.setRoundSupplier(() -> GENESIS_ROUND);
         }
 
         @Test

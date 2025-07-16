@@ -265,8 +265,8 @@ public class Browser {
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
                     appMain.getSemanticVersion(),
-                    appMain::newStateRoot,
-                    stateRootFromVirtualMap(appMain),
+                    () -> appMain.newStateRoot(platformContext),
+                    stateRootFromVirtualMap(appMain, platformContext),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
@@ -299,7 +299,7 @@ public class Browser {
                     String.valueOf(nodeId),
                     rosterHistory,
                     platformStateFacade,
-                    stateRootFromVirtualMap(appMain));
+                    stateRootFromVirtualMap(appMain, platformContext));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
@@ -391,8 +391,10 @@ public class Browser {
      *
      * @return a function that accepts a {@code VirtualMap} and returns the state root object.
      */
-    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final SwirldMain appMain) {
+    private static Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
+            @NonNull final SwirldMain appMain, PlatformContext platformContext) {
         Objects.requireNonNull(appMain);
-        return (virtualMap) -> (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap();
+        return (virtualMap) ->
+                (com.swirlds.platform.state.MerkleNodeState) appMain.stateRootFromVirtualMap(platformContext);
     }
 }

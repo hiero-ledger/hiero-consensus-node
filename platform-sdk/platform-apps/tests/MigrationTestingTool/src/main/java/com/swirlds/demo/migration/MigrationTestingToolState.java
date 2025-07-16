@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -75,7 +76,9 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
         public static final int OLD_CHILD_COUNT = 3;
     }
 
-    public MigrationTestingToolState() {}
+    public MigrationTestingToolState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
+    }
 
     private MigrationTestingToolState(final MigrationTestingToolState that) {
         super(that);
@@ -224,7 +227,7 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
     }
 
     @Override
-    protected MigrationTestingToolState copyingConstructor() {
+    protected MigrationTestingToolState copyingConstructor(PlatformContext platformContext) {
         return new MigrationTestingToolState(this);
     }
 }

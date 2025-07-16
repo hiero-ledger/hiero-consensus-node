@@ -6,6 +6,7 @@ import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_I
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.demo.merkle.map.FCMConfig;
@@ -90,7 +91,8 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
      */
     private NodeId selfId;
 
-    public PlatformTestingToolState() {
+    public PlatformTestingToolState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
         expectedFCMFamily = new ExpectedFCMFamilyImpl();
         referenceNftLedger = new ReferenceNftLedger(NFT_TRACKING_FRACTION);
     }
@@ -475,7 +477,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
     }
 
     @Override
-    protected PlatformTestingToolState copyingConstructor() {
+    protected PlatformTestingToolState copyingConstructor(PlatformContext platformContext) {
         return new PlatformTestingToolState(this);
     }
 

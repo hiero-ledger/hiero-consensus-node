@@ -9,7 +9,9 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.test.fixtures.merkle.singleton.StringLeaf;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,7 +45,9 @@ class ISSTestingToolStateTest {
 
     @BeforeEach
     void setUp() {
-        state = new ISSTestingToolState();
+        PlatformContext platformContext = mock(PlatformContext.class);
+        when(platformContext.getMetrics()).thenReturn(mock(Metrics.class));
+        state = new ISSTestingToolState(platformContext);
         consensusStateEventHandler = new ISSTestingToolConsensusStateEventHandler();
         final var random = new Random();
         round = mock(Round.class);

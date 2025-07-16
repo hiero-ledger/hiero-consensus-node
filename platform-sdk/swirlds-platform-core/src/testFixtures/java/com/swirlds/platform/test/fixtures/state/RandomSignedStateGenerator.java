@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
@@ -15,19 +14,15 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
@@ -71,7 +66,7 @@ public class RandomSignedStateGenerator {
 
     final Random random;
 
-    private MerkleNodeState state;
+    private TestVirtualMapState state;
     private Long round;
     private Hash legacyRunningEventHash;
     private Roster roster;
@@ -141,7 +136,7 @@ public class RandomSignedStateGenerator {
             softwareVersionInstance = softwareVersion;
         }
 
-        final MerkleNodeState stateInstance;
+        final TestVirtualMapState stateInstance;
         final long roundInstance;
         if (round == null) {
             roundInstance = Math.abs(random.nextLong());
@@ -153,13 +148,9 @@ public class RandomSignedStateGenerator {
         if (state == null) {
             final String virtualMapLabel =
                     "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
-            stateInstance.init(
-                    Time.getCurrent(),
-                    CONFIGURATION,
-                    new NoOpMetrics(),
-                    TestMerkleCryptoFactory.getInstance(),
-                    () -> platformStateFacade.roundOf(stateInstance));
+            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(
+                    virtualMapLabel, TestPlatformContextBuilder.create().build());
+            stateInstance.setRoundSupplier(() -> platformStateFacade.roundOf(stateInstance));
         } else {
             stateInstance = state;
         }
@@ -240,7 +231,7 @@ public class RandomSignedStateGenerator {
                 deleteOnBackgroundThread,
                 pcesRound,
                 platformStateFacade);
-        signedState.init(PlatformContext.create(configuration));
+        signedState.setRoundSupplier();
 
         final Map<NodeId, Signature> signaturesInstance;
         if (signatureSupplier != null) {
@@ -310,7 +301,7 @@ public class RandomSignedStateGenerator {
      *
      * @return this object
      */
-    public RandomSignedStateGenerator setState(final MerkleNodeState state) {
+    public RandomSignedStateGenerator setState(final TestVirtualMapState state) {
         this.state = state;
         return this;
     }

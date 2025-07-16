@@ -7,6 +7,8 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.Platform;
@@ -42,7 +44,8 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(ConsistencyTestingToolState.class, () -> {
-                        ConsistencyTestingToolState consistencyTestingToolState = new ConsistencyTestingToolState();
+                        ConsistencyTestingToolState consistencyTestingToolState = new ConsistencyTestingToolState(
+                                TestPlatformContextBuilder.create().build());
                         // Don't call FAKE_MERKLE_STATE_LIFECYCLES.initStates(consistencyTestingToolState) here.
                         // The stub states are automatically initialized upon loading the state from disk,
                         // or after finishing a reconnect.
@@ -99,8 +102,8 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
      */
     @Override
     @NonNull
-    public ConsistencyTestingToolState newStateRoot() {
-        final ConsistencyTestingToolState state = new ConsistencyTestingToolState();
+    public ConsistencyTestingToolState newStateRoot(@NonNull final PlatformContext platformContext) {
+        final ConsistencyTestingToolState state = new ConsistencyTestingToolState(platformContext);
         TestingAppStateInitializer.DEFAULT.initStates(state);
 
         return state;
@@ -113,7 +116,8 @@ public class ConsistencyTestingToolMain implements SwirldMain<ConsistencyTesting
      * </p>
      */
     @Override
-    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, ConsistencyTestingToolState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

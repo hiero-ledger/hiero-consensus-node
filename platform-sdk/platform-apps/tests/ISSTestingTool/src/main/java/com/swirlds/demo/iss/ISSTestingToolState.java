@@ -78,20 +78,14 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
      */
     private List<PlannedLogError> plannedLogErrorList = new LinkedList<>();
 
-    public ISSTestingToolState() {
-        // no-op
+    public ISSTestingToolState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
     }
 
     public void initState(InitTrigger trigger, Platform platform) {
         throwIfImmutable();
 
-        final PlatformContext platformContext = platform.getContext();
-        super.init(
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
+        super.setRoundSupplier(() -> DEFAULT_PLATFORM_STATE_FACADE.roundOf(this));
 
         // since the test occurrences are relative to the genesis timestamp, the data only needs to be parsed at genesis
         if (trigger == InitTrigger.GENESIS) {
@@ -213,7 +207,7 @@ public class ISSTestingToolState extends MerkleStateRoot<ISSTestingToolState> im
     }
 
     @Override
-    protected ISSTestingToolState copyingConstructor() {
+    protected ISSTestingToolState copyingConstructor(PlatformContext platformContext) {
         return new ISSTestingToolState(this);
     }
 }

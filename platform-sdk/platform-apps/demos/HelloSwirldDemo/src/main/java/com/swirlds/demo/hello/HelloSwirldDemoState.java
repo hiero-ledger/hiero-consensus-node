@@ -11,6 +11,7 @@ package com.swirlds.demo.hello;
  * DISTRIBUTING THIS SOFTWARE OR ITS DERIVATIVES.
  */
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -71,8 +72,8 @@ public class HelloSwirldDemoState extends MerkleStateRoot<HelloSwirldDemoState> 
 
     // ///////////////////////////////////////////////////////////////////
 
-    public HelloSwirldDemoState() {
-        // no-op
+    public HelloSwirldDemoState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
     }
 
     private HelloSwirldDemoState(final HelloSwirldDemoState sourceState) {
@@ -104,7 +105,7 @@ public class HelloSwirldDemoState extends MerkleStateRoot<HelloSwirldDemoState> 
     }
 
     @Override
-    protected HelloSwirldDemoState copyingConstructor() {
+    protected HelloSwirldDemoState copyingConstructor(PlatformContext platformContext) {
         return new HelloSwirldDemoState(this);
     }
 }

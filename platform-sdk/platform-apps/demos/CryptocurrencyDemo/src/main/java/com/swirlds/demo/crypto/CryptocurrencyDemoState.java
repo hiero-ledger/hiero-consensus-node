@@ -12,6 +12,7 @@ package com.swirlds.demo.crypto;
  */
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.test.fixtures.merkle.MerkleStateRoot;
@@ -106,8 +107,8 @@ public class CryptocurrencyDemoState extends MerkleStateRoot<CryptocurrencyDemoS
 
     ////////////////////////////////////////////////////
 
-    public CryptocurrencyDemoState() {
-        // no-op
+    public CryptocurrencyDemoState(@NonNull final PlatformContext platformContext) {
+        super(platformContext);
     }
 
     private CryptocurrencyDemoState(final CryptocurrencyDemoState sourceState) {
@@ -312,7 +313,7 @@ public class CryptocurrencyDemoState extends MerkleStateRoot<CryptocurrencyDemoS
     }
 
     @Override
-    protected CryptocurrencyDemoState copyingConstructor() {
+    protected CryptocurrencyDemoState copyingConstructor(PlatformContext platformContext) {
         return new CryptocurrencyDemoState(this);
     }
 }

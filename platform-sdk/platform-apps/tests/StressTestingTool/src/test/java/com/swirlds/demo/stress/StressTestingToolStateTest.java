@@ -61,7 +61,21 @@ class StressTestingToolStateTest {
 
     @BeforeEach
     void setUp() throws NoSuchAlgorithmException, KeyStoreException, KeyGeneratingException, NoSuchProviderException {
-        state = new StressTestingToolState();
+        final var platform = mock(Platform.class);
+        final var initTrigger = mock(InitTrigger.class);
+        final var softwareVersion = mock(SemanticVersion.class);
+        final var platformContext = mock(PlatformContext.class);
+        final var config = ConfigurationBuilder.create()
+                .withConfigDataType(StressTestingToolConfig.class)
+                .build();
+        final var metrics = mock(DefaultPlatformMetrics.class);
+        final var cryptography = mock(MerkleCryptography.class);
+        when(platform.getContext()).thenReturn(platformContext);
+        when(platformContext.getConfiguration()).thenReturn(config);
+        when(platformContext.getMetrics()).thenReturn(metrics);
+        when(platformContext.getMerkleCryptography()).thenReturn(cryptography);
+
+        state = new StressTestingToolState(platformContext);
         consensusStateEventHandler = new StressTestingToolConsensusStateEventHandler();
         main = new StressTestingToolMain();
         platformStateModifier = mock(PlatformStateModifier.class);
@@ -88,20 +102,6 @@ class StressTestingToolStateTest {
                 .signature(signature)
                 .hash(stateHash.getBytes())
                 .build();
-
-        final var platform = mock(Platform.class);
-        final var initTrigger = mock(InitTrigger.class);
-        final var softwareVersion = mock(SemanticVersion.class);
-        final var platformContext = mock(PlatformContext.class);
-        final var config = ConfigurationBuilder.create()
-                .withConfigDataType(StressTestingToolConfig.class)
-                .build();
-        final var metrics = mock(DefaultPlatformMetrics.class);
-        final var cryptography = mock(MerkleCryptography.class);
-        when(platform.getContext()).thenReturn(platformContext);
-        when(platformContext.getConfiguration()).thenReturn(config);
-        when(platformContext.getMetrics()).thenReturn(metrics);
-        when(platformContext.getMerkleCryptography()).thenReturn(cryptography);
 
         consensusStateEventHandler.onStateInitialized(state, platform, initTrigger, softwareVersion);
     }

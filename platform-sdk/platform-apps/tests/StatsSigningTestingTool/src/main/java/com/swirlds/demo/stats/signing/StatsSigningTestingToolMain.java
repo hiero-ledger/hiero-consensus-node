@@ -22,7 +22,9 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -64,7 +66,8 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
             final ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(
                     new ClassConstructorPair(StatsSigningTestingToolState.class, () -> {
-                        StatsSigningTestingToolState statsSigningTestingToolState = new StatsSigningTestingToolState();
+                        StatsSigningTestingToolState statsSigningTestingToolState = new StatsSigningTestingToolState(
+                                TestPlatformContextBuilder.create().build());
                         return statsSigningTestingToolState;
                     }));
             registerMerkleStateRootClassIds();
@@ -288,8 +291,8 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
 
     @Override
     @NonNull
-    public StatsSigningTestingToolState newStateRoot() {
-        final StatsSigningTestingToolState state = new StatsSigningTestingToolState();
+    public StatsSigningTestingToolState newStateRoot(@NonNull final PlatformContext platformContext) {
+        final StatsSigningTestingToolState state = new StatsSigningTestingToolState(platformContext);
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
     }
@@ -301,7 +304,8 @@ public class StatsSigningTestingToolMain implements SwirldMain<StatsSigningTesti
      * </p>
      */
     @Override
-    public Function<VirtualMap, StatsSigningTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, StatsSigningTestingToolState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

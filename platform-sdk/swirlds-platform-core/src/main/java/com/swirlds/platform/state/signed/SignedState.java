@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
@@ -26,6 +25,7 @@ import com.swirlds.platform.state.PlatformStateAccessor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
@@ -206,16 +206,13 @@ public class SignedState implements SignedStateInfo {
         this.pcesRound = pcesRound;
     }
 
-    public void init(@NonNull PlatformContext platformContext) {
-        state.init(
-                platformContext.getTime(),
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                platformContext.getMerkleCryptography(),
-                () -> {
-                    final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
-                    return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
-                });
+    public void setRoundSupplier() {
+        if (state instanceof VirtualMapState<?> virtualMapState) {
+            virtualMapState.setRoundSupplier(() -> {
+                final ConsensusSnapshot consensusSnapshot = platformStateFacade.consensusSnapshotOf(state);
+                return consensusSnapshot == null ? PlatformStateAccessor.GENESIS_ROUND : consensusSnapshot.round();
+            });
+        }
     }
 
     /**

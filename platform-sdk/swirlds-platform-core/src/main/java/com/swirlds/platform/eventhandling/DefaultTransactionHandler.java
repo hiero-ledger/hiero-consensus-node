@@ -314,7 +314,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     true,
                     consensusRound.isPcesRound(),
                     platformStateFacade);
-            signedState.init(platformContext);
+            signedState.setRoundSupplier();
 
             reservedSignedState = signedState.reserve("transaction handler output");
 

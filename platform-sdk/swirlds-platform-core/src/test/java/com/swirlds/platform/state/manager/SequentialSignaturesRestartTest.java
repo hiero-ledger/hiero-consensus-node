@@ -92,7 +92,7 @@ public class SequentialSignaturesRestartTest extends AbstractStateSignatureColle
                 .setRoster(roster)
                 .setRound(firstRound)
                 .useSignatureSupplierFromRoster()
-                .setState(new TestVirtualMapState())
+                .setState(new TestVirtualMapState(platformContext))
                 .build();
 
         signedStates.put(firstRound, stateFromDisk);

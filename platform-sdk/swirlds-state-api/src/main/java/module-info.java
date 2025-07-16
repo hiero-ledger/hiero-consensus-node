@@ -8,10 +8,8 @@ module com.swirlds.state.api {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
-    requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires org.apache.logging.log4j;

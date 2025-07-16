@@ -18,6 +18,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.Browser;
 import com.swirlds.platform.SwirldsPlatform;
@@ -49,7 +51,8 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
         try {
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(new ClassConstructorPair(HelloSwirldDemoState.class, () -> {
-                HelloSwirldDemoState helloSwirldDemoState = new HelloSwirldDemoState();
+                HelloSwirldDemoState helloSwirldDemoState = new HelloSwirldDemoState(
+                        TestPlatformContextBuilder.create().build());
                 return helloSwirldDemoState;
             }));
             registerMerkleStateRootClassIds();
@@ -118,8 +121,8 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
 
     @NonNull
     @Override
-    public HelloSwirldDemoState newStateRoot() {
-        final HelloSwirldDemoState state = new HelloSwirldDemoState();
+    public HelloSwirldDemoState newStateRoot(@NonNull final PlatformContext platformContext) {
+        final HelloSwirldDemoState state = new HelloSwirldDemoState(platformContext);
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
     }
@@ -131,7 +134,8 @@ public class HelloSwirldDemoMain implements SwirldMain<HelloSwirldDemoState> {
      * </p>
      */
     @Override
-    public Function<VirtualMap, HelloSwirldDemoState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, HelloSwirldDemoState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

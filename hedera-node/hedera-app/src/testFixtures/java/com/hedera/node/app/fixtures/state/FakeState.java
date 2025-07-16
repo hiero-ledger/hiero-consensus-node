@@ -9,11 +9,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.virtualmap.VirtualMapUtils;
 import com.swirlds.state.State;
@@ -43,7 +40,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
@@ -72,7 +68,10 @@ public class FakeState implements MerkleNodeState {
 
     @Override
     public MerkleNode getRoot() {
-        return new HederaVirtualMapState(VirtualMapUtils.createVirtualMap(VM_LABEL)).getRoot();
+        return new HederaVirtualMapState(
+                        VirtualMapUtils.createVirtualMap(VM_LABEL),
+                        TestPlatformContextBuilder.create().build())
+                .getRoot();
     }
 
     /**
@@ -266,16 +265,6 @@ public class FakeState implements MerkleNodeState {
     private void purgeStatesCaches(@NonNull final String serviceName) {
         readableStates.remove(serviceName);
         writableStates.remove(serviceName);
-    }
-
-    @Override
-    public void init(
-            Time time,
-            Configuration configuration,
-            Metrics metrics,
-            MerkleCryptography merkleCryptography,
-            LongSupplier roundSupplier) {
-        // no-op
     }
 
     @Override

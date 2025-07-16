@@ -19,6 +19,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Console;
+import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -50,7 +52,8 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
         try {
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
             constructableRegistry.registerConstructable(new ClassConstructorPair(CryptocurrencyDemoState.class, () -> {
-                CryptocurrencyDemoState cryptocurrencyDemoState = new CryptocurrencyDemoState();
+                CryptocurrencyDemoState cryptocurrencyDemoState = new CryptocurrencyDemoState(
+                        TestPlatformContextBuilder.create().build());
                 return cryptocurrencyDemoState;
             }));
             registerMerkleStateRootClassIds();
@@ -193,8 +196,8 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
      */
     @Override
     @NonNull
-    public CryptocurrencyDemoState newStateRoot() {
-        final CryptocurrencyDemoState state = new CryptocurrencyDemoState();
+    public CryptocurrencyDemoState newStateRoot(@NonNull final PlatformContext platformContext) {
+        final CryptocurrencyDemoState state = new CryptocurrencyDemoState(platformContext);
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
     }
@@ -206,7 +209,8 @@ public class CryptocurrencyDemoMain implements SwirldMain<CryptocurrencyDemoStat
      * </p>
      */
     @Override
-    public Function<VirtualMap, CryptocurrencyDemoState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, CryptocurrencyDemoState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

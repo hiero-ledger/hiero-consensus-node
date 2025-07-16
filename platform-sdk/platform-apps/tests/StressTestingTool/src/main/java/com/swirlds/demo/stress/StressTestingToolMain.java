@@ -21,7 +21,9 @@ import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitialize
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.SpeedometerMetric;
+import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
@@ -55,8 +57,10 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         try {
             logger.info(STARTUP.getMarker(), "Registering StressTestingToolState with ConstructableRegistry");
             ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(
-                    new ClassConstructorPair(StressTestingToolState.class, () -> new StressTestingToolState()));
+            constructableRegistry.registerConstructable(new ClassConstructorPair(
+                    StressTestingToolState.class,
+                    () -> new StressTestingToolState(
+                            TestPlatformContextBuilder.create().build())));
             registerMerkleStateRootClassIds();
             logger.info(STARTUP.getMarker(), "StressTestingToolState is registered with ConstructableRegistry");
         } catch (final ConstructableRegistryException e) {
@@ -239,9 +243,10 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
         // failed to create this time, and will create next time
     }
 
+    @NonNull
     @Override
-    public StressTestingToolState newStateRoot() {
-        final StressTestingToolState state = new StressTestingToolState();
+    public StressTestingToolState newStateRoot(@NonNull final PlatformContext platformContext) {
+        final StressTestingToolState state = new StressTestingToolState(platformContext);
         TestingAppStateInitializer.DEFAULT.initStates(state);
         return state;
     }
@@ -253,7 +258,8 @@ public class StressTestingToolMain implements SwirldMain<StressTestingToolState>
      * </p>
      */
     @Override
-    public Function<VirtualMap, StressTestingToolState> stateRootFromVirtualMap() {
+    public Function<VirtualMap, StressTestingToolState> stateRootFromVirtualMap(
+            @NonNull final PlatformContext platformContext) {
         throw new UnsupportedOperationException();
     }
 

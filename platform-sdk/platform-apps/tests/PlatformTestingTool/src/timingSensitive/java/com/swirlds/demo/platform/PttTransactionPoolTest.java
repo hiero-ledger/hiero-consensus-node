@@ -10,7 +10,10 @@ import static com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord.DEFAULT
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.demo.merkle.map.FCMConfig;
 import com.swirlds.demo.merkle.map.FCMFamily;
 import com.swirlds.demo.merkle.map.FCMTransactionHandler;
@@ -26,6 +29,7 @@ import com.swirlds.merkle.test.fixtures.map.lifecycle.ExpectedValue;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.LifecycleStatus;
 import com.swirlds.merkle.test.fixtures.map.lifecycle.TransactionState;
 import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import java.io.IOException;
 import java.time.Instant;
@@ -62,9 +66,13 @@ public class PttTransactionPoolTest {
     }
 
     private MapValueFCQ fcq;
+    private PlatformContext platformContext;
 
     @BeforeEach
     public void setUp() {
+        platformContext = mock(PlatformContext.class);
+        when(platformContext.getMetrics()).thenReturn(mock(Metrics.class));
+
         MapKey key = new MapKey(otherID, otherID, 1);
 
         final byte[] content = new byte[48];
@@ -165,7 +173,7 @@ public class PttTransactionPoolTest {
                 .setOriginNode(otherID)
                 .build();
         try {
-            final PlatformTestingToolState state = new PlatformTestingToolState();
+            final PlatformTestingToolState state = new PlatformTestingToolState(platformContext);
             state.setFcmFamily(fCMFamily);
             handler.performOperation(
                     trans,
@@ -222,7 +230,7 @@ public class PttTransactionPoolTest {
                 .setOriginNode(otherID)
                 .build();
         try {
-            final PlatformTestingToolState state = new PlatformTestingToolState();
+            final PlatformTestingToolState state = new PlatformTestingToolState(platformContext);
             state.setFcmFamily(fCMFamily);
             handler.performOperation(
                     trans,
