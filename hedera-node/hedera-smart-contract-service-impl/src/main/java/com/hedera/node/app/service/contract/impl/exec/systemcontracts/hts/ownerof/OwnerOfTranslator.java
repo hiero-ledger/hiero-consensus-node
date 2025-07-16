@@ -53,7 +53,7 @@ public class OwnerOfTranslator extends AbstractCallTranslator<HtsCallAttempt> {
     @Override
     public OwnerOfCall callFrom(@NonNull final HtsCallAttempt attempt) {
         // Since zero is never a valid serial number, if we clamp the passed value, the result
-        // will be a revert with INVALID_NFT_ID as reason
+        // will be a revert with INVALID_TOKEN_NFT_SERIAL_NUMBER as reason
         final var serialNo = asExactLongValueOrZero(
                 OWNER_OF.decodeCall(attempt.input().toArrayUnsafe()).get(0));
         return new OwnerOfCall(
