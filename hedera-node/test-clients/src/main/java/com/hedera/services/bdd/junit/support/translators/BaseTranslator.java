@@ -531,9 +531,7 @@ public class BaseTranslator {
                 .map(TraceData::evmTraceDataOrThrow)
                 .toList();
         for (final var evmTraceData : evmTraces) {
-            // Legacy record stream includes an empty slot usages sidecar any time there are actions
-            if (!evmTraceData.contractSlotUsages().isEmpty()
-                    || !evmTraceData.contractActions().isEmpty()) {
+            if (!evmTraceData.contractSlotUsages().isEmpty()) {
                 final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {

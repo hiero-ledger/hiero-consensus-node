@@ -15,17 +15,12 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHederaLogs;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.txStorageUsageFrom;
-import static com.hedera.node.config.types.StreamMode.BLOCKS;
-import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -35,7 +30,6 @@ import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
-import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -66,8 +60,6 @@ public record HederaEvmTransactionResult(
         @Nullable Bytes revertReason,
         @NonNull @Deprecated List<Log> logs,
         @Nullable List<EvmTransactionLog> evmLogs,
-        @Nullable @Deprecated ContractStateChanges stateChanges,
-        @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable ResponseCodeEnum finalStatus,
         @Nullable List<ContractAction> actions,
         @Nullable Long signerNonce,
@@ -239,8 +231,6 @@ public record HederaEvmTransactionResult(
                 besuLogs,
                 evmLogs,
                 null,
-                null,
-                null,
                 maybeActionsFrom(frame, tracer),
                 null,
                 null);
@@ -265,10 +255,6 @@ public record HederaEvmTransactionResult(
         requireNonNull(frame);
         requireNonNull(tracer);
         final var txStorageUsage = txStorageUsageFrom(null, accessTrackerFor(frame), false);
-        final var storageAccesses = txStorageUsage == null ? null : txStorageUsage.accesses();
-        final var streamMode = FrameUtils.configOf(frame)
-                .getConfigData(BlockStreamConfig.class)
-                .streamMode();
         return new HederaEvmTransactionResult(
                 gasUsed,
                 frame.getGasPrice().toLong(),
@@ -280,12 +266,10 @@ public record HederaEvmTransactionResult(
                 frame.getRevertReason().map(ConversionUtils::tuweniToPbjBytes).orElse(null),
                 Collections.emptyList(),
                 null,
-                streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
-                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses, true) : null,
                 null,
                 maybeActionsFrom(frame, tracer),
                 null,
-                null);
+                txStorageUsage);
     }
 
     /**
@@ -312,8 +296,6 @@ public record HederaEvmTransactionResult(
                 null,
                 Bytes.wrap(reason.name()),
                 Collections.emptyList(),
-                null,
-                null,
                 null,
                 null,
                 null,
@@ -345,8 +327,6 @@ public record HederaEvmTransactionResult(
                 null,
                 Bytes.wrap(reason.name().getBytes()),
                 List.of(),
-                null,
-                null,
                 null,
                 reason,
                 null,
@@ -495,8 +475,6 @@ public record HederaEvmTransactionResult(
                 revertReason,
                 logs,
                 evmLogs,
-                stateChanges,
-                slotUsages,
                 finalStatus,
                 actions,
                 signerNonce,
@@ -515,8 +493,6 @@ public record HederaEvmTransactionResult(
                 revertReason,
                 logs,
                 evmLogs,
-                stateChanges,
-                slotUsages,
                 finalStatus,
                 actions,
                 signerNonce,

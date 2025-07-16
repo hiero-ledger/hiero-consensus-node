@@ -44,7 +44,6 @@ import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Deque;
@@ -180,8 +179,6 @@ class HederaEvmTransactionResultTest {
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
 
-        final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
-        assertEquals(expectedChanges, result.stateChanges());
         assertEquals(SUCCESS, result.finalStatus());
     }
 
@@ -226,39 +223,7 @@ class HederaEvmTransactionResultTest {
         assertEquals(CALLED_CONTRACT_EVM_ADDRESS.evmAddressOrThrow(), protoResult.evmAddress());
         assertEquals(NONCES, protoResult.contractNonces());
 
-        final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
-        assertEquals(expectedChanges, result.stateChanges());
         assertEquals(SUCCESS, result.finalStatus());
-    }
-
-    @Test
-    void givenAccessTrackerIncludesReadStorageAccessesOnlyOnFailure() {
-        givenFrameWithAllSidecarsEnabled();
-        given(accessTracker.getJustReads()).willReturn(SOME_STORAGE_ACCESSES);
-        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
-
-        final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
-
-        final var expectedChanges = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
-        assertEquals(expectedChanges, result.stateChanges());
-    }
-
-    @Test
-    void withoutAccessTrackerReturnsNullStateChanges() {
-        givenFrameWithoutSidecars();
-        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
-        given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
-
-        final var result = HederaEvmTransactionResult.successFrom(
-                GAS_LIMIT / 2,
-                SENDER_ID,
-                CALLED_CONTRACT_ID,
-                CALLED_CONTRACT_EVM_ADDRESS,
-                frame,
-                tracer,
-                entityIdFactory);
-
-        assertNull(result.stateChanges());
     }
 
     @Test

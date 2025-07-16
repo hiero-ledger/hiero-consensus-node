@@ -623,8 +623,6 @@ public class TestHelpers {
             null,
             null,
             null,
-            null,
-            null,
             null);
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
@@ -1072,8 +1070,6 @@ public class TestHelpers {
                 null,
                 requireNonNull(logs),
                 evmLogs,
-                stateChanges,
-                slotUsages,
                 null,
                 actions,
                 null,

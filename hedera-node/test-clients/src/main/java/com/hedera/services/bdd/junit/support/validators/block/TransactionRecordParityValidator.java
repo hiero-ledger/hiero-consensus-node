@@ -160,8 +160,14 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                     .count();
             final var actualTypes = actualSidecars.stream()
                     .collect(Collectors.groupingBy(TransactionSidecarRecord::getSidecarRecordsCase, counting()));
+            for (int i = 0, n = expectedSidecars.size(); i < n; i++) {
+                System.out.println(i + " -> " + expectedSidecars.get(i).getSidecarRecordsCase());
+            }
             System.out.println("EXPECTED: " + expectedTypes + " (" + numEmptyStateChanges + " empty state changes)");
             System.out.println("ACTUAL: " + actualTypes);
+            System.out.println(expectedSidecars.get(162));
+            System.out.println("ooo");
+            System.out.println(expectedSidecars.get(163));
             Assertions.fail("Mismatch in number of sidecars - expected " + expectedSidecars.size() + ", found "
                     + actualSidecars.size());
         } else {
