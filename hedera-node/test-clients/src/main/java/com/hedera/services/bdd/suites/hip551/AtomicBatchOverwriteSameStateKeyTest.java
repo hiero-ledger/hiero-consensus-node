@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
@@ -12,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
@@ -19,19 +21,20 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.lang.String.valueOf;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -71,9 +74,10 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        //        lifecycle.doAdhoc(
-        //                overriding("atomicBatch.isEnabled", "true"), overriding("atomicBatch.maxNumberOfTransactions",
-        // "50"));
+        //                lifecycle.doAdhoc(
+        //                        overriding("atomicBatch.isEnabled", "true"),
+        // overriding("atomicBatch.maxNumberOfTransactions",
+        //         "50"));
     }
 
     /**
@@ -93,7 +97,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         final var mintNft = mintToken(
                         nft,
                         IntStream.range(0, 10)
-                                .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                .mapToObj(a -> copyFromUtf8(valueOf(a)))
                                 .toList())
                 .payingWith(owner)
                 .batchKey(batchOperator);
@@ -108,7 +112,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         final var deleteToken =
                 tokenDelete(nft).payingWith(owner).signedBy(owner, adminKey).batchKey(batchOperator);
 
-        return hapiTest(flattened(
+        return hapiTest(
                 // create keys and accounts,
                 cryptoCreate(owner).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
@@ -124,12 +128,11 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                 // perform the atomic batch transaction
                 atomicBatch(mintNft, mintNft, burnNft, mintNft, deleteToken)
                         .payingWith(batchOperator)
-                        .hasKnownStatus(SUCCESS)));
+                        .hasKnownStatus(SUCCESS));
     }
 
     /**
      * Multiple crypto updates on same state key
-     *
      * @return HAPI test
      */
     @Order(2)
@@ -176,7 +179,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
 
     /**
      * Multiple token updates on same state key in batch
-     *
      * @return HAPI test
      */
     @Order(3)
@@ -226,7 +228,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
 
     /**
      * Submit to topic twice in batch
-     *
      * @return HAPI test
      */
     @Order(4)
@@ -258,7 +259,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
 
     /**
      * Multiple mint precompile calls
-     *
      * @return HAPI test
      */
     @Order(5)
@@ -312,9 +312,62 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                         .payingWith(ALICE));
     }
 
-    //        @Order(6)
-    //        @LeakyHapiTest
-    //        final Stream<DynamicTest> streamsAreValid() {
-    //            return hapiTest(validateStreams());
-    //        }
+    /**
+     * Multiple wipe token
+     * @return HAPI test
+     */
+    @Order(6)
+    @HapiTest
+    @DisplayName("Multiple wipe token")
+    public Stream<DynamicTest> multipleWipeToken() {
+        final String nft = "nft";
+        final String adminKey = ADMIN_KEY;
+        final String treasury = "treasury";
+        final String batchOperator = "batchOperator";
+        final String account = "account";
+
+        return hapiTest(
+                cryptoCreate(treasury),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(account).maxAutomaticTokenAssociations(-1),
+                newKeyNamed(adminKey),
+                tokenCreate(nft)
+                        .initialSupply(0)
+                        .treasury(treasury)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .adminKey(adminKey)
+                        .supplyKey(adminKey)
+                        .wipeKey(adminKey),
+                atomicBatch(
+                                // mint 1
+                                mintToken(nft, List.of(copyFromUtf8(valueOf(1L))))
+                                        .batchKey(batchOperator),
+                                cryptoTransfer(movingUnique(nft, 1L).between(treasury, account))
+                                        .batchKey(batchOperator),
+                                wipeTokenAccount(nft, account, List.of(1L)).batchKey(batchOperator),
+
+                                // mint 2
+                                mintToken(nft, List.of(copyFromUtf8(valueOf(1L))))
+                                        .batchKey(batchOperator),
+                                burnToken(nft, List.of(2L)).batchKey(batchOperator),
+
+                                // mint 3
+                                mintToken(nft, List.of(copyFromUtf8(valueOf(1L))))
+                                        .batchKey(batchOperator),
+                                cryptoTransfer(movingUnique(nft, 3L).between(treasury, account))
+                                        .batchKey(batchOperator),
+                                wipeTokenAccount(nft, account, List.of(3L)).batchKey(batchOperator),
+
+                                // mint 4
+                                mintToken(nft, List.of(copyFromUtf8(valueOf(1L))))
+                                        .batchKey(batchOperator),
+                                burnToken(nft, List.of(4L)).batchKey(batchOperator))
+                        .payingWith(batchOperator));
+    }
+
+    //            @Order(7)
+    //            @LeakyHapiTest
+    //            final Stream<DynamicTest> streamsAreValid() {
+    //                return hapiTest(validateStreams());
+    //            }
 }
