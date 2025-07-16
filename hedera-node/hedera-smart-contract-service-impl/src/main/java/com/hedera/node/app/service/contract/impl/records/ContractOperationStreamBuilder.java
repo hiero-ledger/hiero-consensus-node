@@ -97,7 +97,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
             final var streamMode = context.configuration()
                     .getConfigData(BlockStreamConfig.class)
                     .streamMode();
-            if (streamMode != BLOCKS) {
+            if (streamMode != BLOCKS && !storageAccesses.isEmpty()) {
                 addContractStateChanges(requireNonNull(asPbjStateChanges(storageAccesses)), false);
             }
             final boolean traceExplicitWrites = !txStorageUsage.hasChangedKeys();

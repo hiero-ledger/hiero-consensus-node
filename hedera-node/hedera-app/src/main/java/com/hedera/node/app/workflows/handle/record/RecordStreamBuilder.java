@@ -171,6 +171,7 @@ public class RecordStreamBuilder
     // Sidecar data, booleans are the migration flag
     @Nullable
     private List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges;
+
     private List<AbstractMap.SimpleEntry<ContractActions, Boolean>> contractActions = new LinkedList<>();
     private List<AbstractMap.SimpleEntry<ContractBytecode, Boolean>> contractBytecodes = new LinkedList<>();
 
