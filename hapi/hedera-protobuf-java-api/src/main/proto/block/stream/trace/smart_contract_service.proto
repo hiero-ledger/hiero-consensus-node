@@ -27,6 +27,19 @@ import "google/protobuf/wrappers.proto";
 
 /**
  * Usage of a contract's storage slots in an EVM transaction.<br/>
+ * In the common case that a contract operation is the only EVM
+ * transaction in its Hiero transactional unit, this message simply
+ * sets `written_keys_are_non_identical_state_changes` to true;
+ * meaning a stream consumer should extract the written keys from
+ * the Hiero unit's SlotKey state changes that match this message's
+ * `contract_id` (but ignoring any* MapUpdateChange with
+ * `identical` set to true).
+ * <p>
+ * In the less common case that an EVM transaction is one of
+ * several in its Hiero transactional unit (e.g., because it is
+ * one of several ContractCalls in an AtomicBatch); this message
+ * explicitly traces the storage slots that were written during
+ * its transaction's execution.
  */
 message ContractSlotUsage {
     /**
@@ -77,13 +90,17 @@ message SlotRead {
         int32 index = 1;
 
         /**
-        * If this slot was only read, its key; may be left-padded with zeros to 32 bytes.
+        * If this slot was only read, its key represented with minimal bytes
+        * (no leading zeros); a stream consumer can left-pad this field with
+        * zeros to form a 32-byte EVM slot key.
         */
         bytes key = 2;
     }
 
     /**
-    * The storage value in this slot, may be left-padded with zeros to 32 bytes.
+    * The storage value in this slot, represented with minimal bytes (no
+    * leading zeros); a stream consumer can left-pad this field with zeros.
+    * to form a 32-byte EVM slot value.
     */
     bytes read_value = 3;
 }
@@ -165,7 +182,8 @@ message EvmTransactionLog {
     bytes data = 2;
 
     /**
-     * The log's topics; may be left-padded with zeros to form 256-bit words.
+     * The log's topics represented with minimal bytes (no leading zeros);
+     * a stream consumer can left-pad with zeros to form a 256-bit words.
      */
     repeated bytes topics = 3;
 }
