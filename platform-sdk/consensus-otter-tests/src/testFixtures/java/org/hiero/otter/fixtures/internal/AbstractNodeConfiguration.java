@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.node.config.converter.SemanticVersionConverter;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +21,9 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public T set(@NonNull final String key, final boolean value) {
@@ -23,6 +31,9 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
         return self();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public T set(@NonNull final String key, @NonNull final String value) {
@@ -31,60 +42,21 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public Configuration current() {
+        return new TestConfigBuilder()
+                .withConverter(SemanticVersion.class, new SemanticVersionConverter())
+                .withSource(new SimpleConfigSource(overriddenProperties))
+                .getOrCreateConfig();
+    }
+
+    /**
      * Returns the current instance of the configuration for method chaining.
      *
      * @return this instance
      */
     protected abstract T self();
-
-    /**
-     * Get the string value of a configuration key
-     *
-     * @param key the key of the configuration
-     * @return the value of the configuration as a string
-     */
-    protected abstract String get(@NonNull final String key);
-
-    /**
-     * {@inheritDoc}
-     */
-    public String getString(@NonNull final String key) {
-        return get(key);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public int getInt(@NonNull final String key) {
-        try {
-            return Integer.parseInt(get(key));
-        } catch (final NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    String.format("Configuration key '%s' could not be converted to an integer", key), e);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public boolean getBoolean(@NonNull final String key) {
-        try {
-            return Boolean.parseBoolean(get(key));
-        } catch (final IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    String.format("Configuration key '%s' could not be converted to a boolean", key), e);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public long getLong(@NonNull final String key) {
-        try {
-            return Long.parseLong(get(key));
-        } catch (final NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    String.format("Configuration key '%s' could not be converted to a long", key), e);
-        }
-    }
 }

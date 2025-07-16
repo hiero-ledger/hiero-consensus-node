@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures;
 
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -32,49 +33,11 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
     T set(@NonNull String key, @NonNull String value);
 
     /**
-     * Gets the value of a configuration as a string.
-     * <p>
-     * Values not overridden may not be available until after the node is started.
+     * Returns the current configuration of the node including all overridden properties. This may not be the
+     * configuration used by the running platform, as new configuration is only adopted on node start.
      *
-     * @param key the key of the configuration
-     * @return the value of the configuration as a string
-     * @throws IllegalArgumentException if the key does not exist in the configuration
+     * @return the current configuration of the node
      */
-    String getString(@NonNull String key);
-
-    /**
-     * Gets the value of a configuration as an integer.
-     * <p>
-     * Values not overridden may not be available until after the node is started.
-     *
-     * @param key the key of the configuration
-     * @return the value of the configuration as an integer
-     * @throws IllegalArgumentException if the key does not exist in the configuration or if the value cannot be parsed
-     * as an integer
-     */
-    int getInt(@NonNull String key);
-
-    /**
-     * Gets the value of a configuration as a boolean.
-     * <p>
-     * Values not overridden may not be available until after the node is started.
-     *
-     * @param key the key of the configuration
-     * @return the value of the configuration as a boolean
-     * @throws IllegalArgumentException if the key does not exist in the configuration or if the value cannot be parsed
-     * as a boolean
-     */
-    boolean getBoolean(@NonNull String key);
-
-    /**
-     * Gets the value of a configuration as a long.
-     * <p>
-     * Values not overridden may not be available until after the node is started.
-     *
-     * @param key the key of the configuration
-     * @return the value of the configuration as a long
-     * @throws IllegalArgumentException if the key does not exist in the configuration or if the value cannot be parsed
-     * as a long
-     */
-    long getLong(@NonNull String key);
+    @NonNull
+    Configuration current();
 }
