@@ -116,15 +116,16 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         // We create a threshold key that contains both keys,
         // and require that the transaction is signed by at least one of them.
         if (onlyExtendsSubmitKey(op)) {
-            var keyList = KeyList.newBuilder();
+            final var keyList = KeyList.newBuilder();
             if (topic.hasSubmitKey()) {
                 keyList.keys(topic.submitKeyOrThrow());
             }
             if (topic.hasAdminKey()) {
-                keyList.keys(topic.adminKey());
+                keyList.keys(topic.adminKeyOrThrow());
             }
-            var thresholdKey = ThresholdKey.newBuilder().keys(keyList.build()).threshold(1);
-            var submitOrAdminThresholdKey =
+            final var thresholdKey =
+                    ThresholdKey.newBuilder().keys(keyList.build()).threshold(1);
+            final var submitOrAdminThresholdKey =
                     Key.newBuilder().thresholdKey(thresholdKey).build();
             context.requireKeyOrThrow(submitOrAdminThresholdKey, UNAUTHORIZED);
             return;
@@ -409,7 +410,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
 
     /**
      * @param op the transaction body of consensus update operation
-     * @return {@code true} if the operation wants to update a non-expiry or submitKey field, {@code false} otherwise.
+     * @return {@code true} if the operation wants to update a non-expiry or submitKey field, {@code false} otherwise
      */
     public static boolean wantsToMutateNonExpiryOrSubmitKeyField(
             @NonNull final ConsensusUpdateTopicTransactionBody op) {

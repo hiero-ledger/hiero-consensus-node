@@ -362,7 +362,7 @@ public class TopicUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithoutAdminKey() {
         var submitKey = "submitKey";
-        var topic = "topic";
+        final var topic = "topic";
         return hapiTest(
                 cryptoCreate(submitKey),
                 createTopic(topic).submitKeyName(submitKey),
@@ -371,9 +371,9 @@ public class TopicUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateTheSubmitKeyWithoutAdminKey() {
-        var submitKey = "submitKey";
-        var newSubmitKey = "newSubmitKey";
-        var topic = "topic";
+        final var submitKey = "submitKey";
+        final var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
         return hapiTest(
                 cryptoCreate(submitKey),
                 cryptoCreate(newSubmitKey),
@@ -383,9 +383,9 @@ public class TopicUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateTheSubmitKeyToEmptyWithRandomKey() {
-        var randomKey = "randomKey";
-        var submitKey = "submitKey";
-        var topic = "topic";
+        final var randomKey = "randomKey";
+        final var submitKey = "submitKey";
+        final var topic = "topic";
         return hapiTest(
                 cryptoCreate(randomKey),
                 cryptoCreate(submitKey),
@@ -399,10 +399,10 @@ public class TopicUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> updateTheSubmitKeyWithRandomKey() {
-        var randomKey = "randomKey";
-        var submitKey = "submitKey";
-        var topic = "topic";
-        var newSubmitKey = "newSubmitKey";
+        final var randomKey = "randomKey";
+        final var submitKey = "submitKey";
+        final var topic = "topic";
+        final var newSubmitKey = "newSubmitKey";
         return hapiTest(
                 cryptoCreate(randomKey),
                 cryptoCreate(submitKey),
