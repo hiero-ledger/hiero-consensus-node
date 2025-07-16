@@ -169,7 +169,8 @@ public class RecordStreamBuilder
     private long newTotalSupply = 0L;
     private final TransactionReceipt.Builder transactionReceiptBuilder = TransactionReceipt.newBuilder();
     // Sidecar data, booleans are the migration flag
-    private List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges = new LinkedList<>();
+    @Nullable
+    private List<AbstractMap.SimpleEntry<ContractStateChanges, Boolean>> contractStateChanges;
     private List<AbstractMap.SimpleEntry<ContractActions, Boolean>> contractActions = new LinkedList<>();
     private List<AbstractMap.SimpleEntry<ContractBytecode, Boolean>> contractBytecodes = new LinkedList<>();
 
@@ -296,12 +297,14 @@ public class RecordStreamBuilder
 
         // create list of sidecar records
         List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
-        contractStateChanges.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        transactionRecord.consensusTimestamp(),
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
+        if (contractStateChanges != null) {
+            contractStateChanges.stream()
+                    .map(pair -> new TransactionSidecarRecord(
+                            transactionRecord.consensusTimestamp(),
+                            pair.getValue(),
+                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
+                    .forEach(transactionSidecarRecords::add);
+        }
         contractActions.stream()
                 .map(pair -> new TransactionSidecarRecord(
                         transactionRecord.consensusTimestamp(),
@@ -1130,6 +1133,9 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractStateChanges(
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
+        if (this.contractStateChanges == null) {
+            this.contractStateChanges = new LinkedList<>();
+        }
         this.contractStateChanges.add(new AbstractMap.SimpleEntry<>(contractStateChanges, isMigration));
         return this;
     }
