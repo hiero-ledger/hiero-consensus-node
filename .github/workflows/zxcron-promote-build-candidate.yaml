@@ -29,7 +29,7 @@ jobs:
       build-candidate-commit: ${{ steps.find-build-candidates.outputs.build-candidate-commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -85,7 +85,7 @@ jobs:
     if: ${{ needs.determine-build-candidate.result == 'success' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -151,7 +151,7 @@ jobs:
     if: ${{ needs.promote-build-candidate.result == 'success' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -163,16 +163,7 @@ jobs:
           ref: main # ensure we are always using the workflow definition from the main branch
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "test-asset": "AdHoc7",
-            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}",
-            "solo-version": "latest_tested_solo-charts0.59",
-            "nlg-accounts": "100000000",
-            "nlg-time": "330",
-            "add-app-props": "",
-            "add-settings": "",
-            "crypto-bench-merkle-db-java-args": "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g",
-            "crypto-bench-merkle-db-test-params": "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000",
-            "disable-notifications": "false"
+            "ref": "${{ needs.promote-build-candidate.outputs.build-candidate-tag }}"
             }'
 
       - name: "Trigger ZXF: [CITR] Single Day Longevity Test (SDLT)"
@@ -198,7 +189,7 @@ jobs:
       needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -272,7 +263,7 @@ jobs:
     if: ${{ (needs.determine-build-candidate.result != 'success' || needs.promote-build-candidate.result != 'success') && !cancelled() && always() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@002fdce3c6a235733a90a27c80493a3241e56863 # v2.12.1
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
