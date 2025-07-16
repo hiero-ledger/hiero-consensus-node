@@ -106,7 +106,6 @@ public class ConsensusNodeManager {
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-        final Configuration platformConfig;
         if (overriddenProperties == null) {
             platformConfig = createConfiguration();
         } else {
