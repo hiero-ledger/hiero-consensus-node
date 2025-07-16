@@ -24,12 +24,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runWithProvider;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hedera.services.bdd.suites.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
+import static com.hedera.services.bdd.suites.contract.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -45,7 +46,6 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
-import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountBalance;
 import com.hedera.services.bdd.spec.utilops.SysFileOverrideOp;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -90,8 +90,6 @@ public class SteadyStateThrottlingTest {
     private static final String SUPPLY = "supply";
     private static final String TOKEN = "token";
     private static final String CIVILIAN = "civilian";
-    private static final String SHARD = JutilPropertySource.getDefaultInstance().get("default.shard");
-    private static final String REALM = JutilPropertySource.getDefaultInstance().get("default.realm");
     /**
      * In general, only {@code BUSY} and {@code SUCCESS} will be returned by the network ({@code BUSY} if we exhaust
      * all retries for a particular transaction without ever submitting it); however, in CI with fewer CPUs available,
@@ -245,7 +243,7 @@ public class SteadyStateThrottlingTest {
 
     final Stream<DynamicTest> checkBalanceQps(int burstSize, double expectedQps) {
         return defaultHapiSpec("CheckBalanceQps")
-                .given(cryptoCreate("curious").payingWith(GENESIS))
+                .given(cryptoCreate(CIVILIAN), cryptoCreate("curious").payingWith(GENESIS), sleepForSeconds(1))
                 .when()
                 .then(withOpContext((spec, opLog) -> {
                     int numBusy = 0;
@@ -255,7 +253,7 @@ public class SteadyStateThrottlingTest {
                     int logScreen = 0;
                     while (watch.elapsed(SECONDS) < secsToRun) {
                         var subOps = IntStream.range(0, burstSize)
-                                .mapToObj(ignore -> getAccountBalance(String.format("%s.%s.2", SHARD, REALM))
+                                .mapToObj(ignore -> getAccountBalance(CIVILIAN)
                                         .noLogging()
                                         .payingWith("curious")
                                         .hasAnswerOnlyPrecheckFrom(BUSY, OK))

@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -56,7 +55,7 @@ public final class SyncUtils {
 
     /**
      * Send the tips and event window to the peer. This is the first data exchanged during a sync (after protocol
-     * negotiation). The complementary function to {@link #readTheirTipsAndEventWindow(Connection, int, AncientMode)}.
+     * negotiation). The complementary function to {@link #readTheirTipsAndEventWindow(Connection, int)}.
      *
      * @param connection  the connection to write to
      * @param eventWindow the event window to write
@@ -93,18 +92,16 @@ public final class SyncUtils {
 
     /**
      * Read the tips and event window from the peer. This is the first data exchanged during a sync (after protocol
-     * negotiation). The complementary function to
-     * {@link #writeMyTipsAndEventWindow(Connection, EventWindow, List)}.
+     * negotiation). The complementary function to {@link #writeMyTipsAndEventWindow(Connection, EventWindow, List)}.
      *
      * @param connection    the connection to read from
      * @param numberOfNodes the number of nodes in the network
-     * @param ancientMode   the current ancient mode
      * @return a {@link Callable} that reads the tips and event window
      */
     public static Callable<TheirTipsAndEventWindow> readTheirTipsAndEventWindow(
-            final Connection connection, final int numberOfNodes, @NonNull final AncientMode ancientMode) {
+            final Connection connection, final int numberOfNodes) {
         return () -> {
-            final EventWindow eventWindow = deserializeEventWindow(connection.getDis(), ancientMode);
+            final EventWindow eventWindow = deserializeEventWindow(connection.getDis());
 
             final List<Hash> tips = connection.getDis().readTipHashes(numberOfNodes);
 
@@ -447,15 +444,13 @@ public final class SyncUtils {
      *                         predicate
      * @param myEventWindow    the event window of this node
      * @param theirEventWindow the event window of the peer node
-     * @param ancientMode      the current ancient mode
      * @return the predicate
      */
     @NonNull
     public static Predicate<ShadowEvent> unknownNonAncient(
             @NonNull final Collection<ShadowEvent> knownShadows,
             @NonNull final EventWindow myEventWindow,
-            @NonNull final EventWindow theirEventWindow,
-            @NonNull final AncientMode ancientMode) {
+            @NonNull final EventWindow theirEventWindow) {
 
         // When searching for events, we don't want to send any events that are known to be ancient to the peer.
         // We should never be syncing with a peer if their ancient threshold is less than our expired threshold
@@ -466,7 +461,7 @@ public final class SyncUtils {
 
         final long minimumSearchThreshold =
                 Math.max(myEventWindow.expiredThreshold(), theirEventWindow.ancientThreshold());
-        return s -> ancientMode.selectIndicator(s.getEvent()) >= minimumSearchThreshold && !knownShadows.contains(s);
+        return s -> s.getEvent().getBirthRound() >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**
@@ -556,6 +551,38 @@ public final class SyncUtils {
                             "peer booleans list is wrong size. Expected: %d Actual: %d,",
                             myTips.size(), myTipsTheyHave.size()));
         }
+        return getMyTipsTheyKnow(myTips, myTipsTheyHave);
+    }
+
+    /**
+     * For each tip sent to the peer, determine if they have that event. If they have it, add it to the list that is
+     * returned.
+     *
+     * @param peerId    the peer node id
+     * @param myTips         the tips we sent them
+     * @param myTipsTheyHave a list of booleans corresponding to our tips in the order they were sent. True if they have
+     *                       the event, false if they don't
+     * @return a list of tips that they have
+     */
+    @NonNull
+    static List<ShadowEvent> getMyTipsTheyKnow(
+            @NonNull final NodeId peerId,
+            @NonNull final List<ShadowEvent> myTips,
+            @NonNull final List<Boolean> myTipsTheyHave) {
+
+        Objects.requireNonNull(peerId);
+
+        if (myTipsTheyHave.size() != myTips.size()) {
+            throw new RuntimeException(String.format(
+                    "during sync with %s, peer booleans list is wrong size. Expected: %d Actual: %d,",
+                    peerId, myTips.size(), myTipsTheyHave.size()));
+        }
+        return getMyTipsTheyKnow(myTips, myTipsTheyHave);
+    }
+
+    @NonNull
+    private static List<ShadowEvent> getMyTipsTheyKnow(
+            @NonNull final List<ShadowEvent> myTips, @NonNull final List<Boolean> myTipsTheyHave) {
         final List<ShadowEvent> knownTips = new ArrayList<>();
         // process their booleans
         for (int i = 0; i < myTipsTheyHave.size(); i++) {
@@ -588,12 +615,10 @@ public final class SyncUtils {
      * Deserialize an event window from the given input stream.
      *
      * @param in          the input stream
-     * @param ancientMode the currently configured ancient mode
      * @return the deserialized event window
      */
     @NonNull
-    public static EventWindow deserializeEventWindow(
-            @NonNull final SerializableDataInputStream in, @NonNull final AncientMode ancientMode) throws IOException {
+    public static EventWindow deserializeEventWindow(@NonNull final SerializableDataInputStream in) throws IOException {
 
         final long latestConsensusRound = in.readLong();
         final long ancientThreshold = in.readLong();
@@ -604,7 +629,6 @@ public final class SyncUtils {
                 // by default, we set the birth round to the pending round
                 latestConsensusRound + 1,
                 ancientThreshold,
-                expiredThreshold,
-                ancientMode);
+                expiredThreshold);
     }
 }

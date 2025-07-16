@@ -51,7 +51,7 @@ class InOrderLinkerTests {
 
     private void inOrderLinkerSetup() {
         inOrderLinker = new ConsensusLinker(
-                TestPlatformContextBuilder.create().withTime(time).build(), selfId);
+                TestPlatformContextBuilder.create().withTime(time).build());
 
         time.tick(Duration.ofSeconds(1));
         genesisSelfParent = new TestingEventBuilder(random)
@@ -246,24 +246,6 @@ class InOrderLinkerTests {
     }
 
     @Test
-    @DisplayName("Self parent with mismatched generation should not be linked")
-    void selfParentGenerationMismatch() {
-        inOrderLinkerSetup();
-
-        final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
-                .overrideSelfParentGeneration(genesisSelfParent.getGeneration() + 1) // generation doesn't match actual
-                .build();
-
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNull(linkedEvent.getSelfParent(), "Self parent has mismatched generation, and should be null");
-        assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
-    }
-
-    @Test
     @DisplayName("Self parent with mismatched birth round should not be linked")
     void selfParentBirthRoundMismatch() {
         inOrderLinkerSetup();
@@ -279,25 +261,6 @@ class InOrderLinkerTests {
         assertNotEquals(null, linkedEvent);
         assertNull(linkedEvent.getSelfParent(), "Self parent has mismatched birth round, and should be null");
         assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
-    }
-
-    @Test
-    @DisplayName("Other parent with mismatched generation should not be linked")
-    void otherParentGenerationMismatch() {
-        inOrderLinkerSetup();
-
-        final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
-                .overrideOtherParentGeneration(
-                        genesisOtherParent.getGeneration() + 1) // generation doesn't match actual
-                .build();
-
-        final EventImpl linkedEvent = inOrderLinker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent should not be null");
-        assertNull(linkedEvent.getOtherParent(), "Other parent has mismatched generation, and should be null");
     }
 
     @Test

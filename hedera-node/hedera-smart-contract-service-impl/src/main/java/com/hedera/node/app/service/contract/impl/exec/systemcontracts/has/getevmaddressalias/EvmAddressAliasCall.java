@@ -42,7 +42,7 @@ public class EvmAddressAliasCall extends AbstractCall {
         final var explicitAddress = explicitFromHeadlong(address);
 
         // If the address is not a long zero then return fail
-        if (!isLongZero(enhancement.nativeOperations().entityIdFactory(), address)) {
+        if (!isLongZero(address)) {
             return gasOnly(fullResultsFor(INVALID_ACCOUNT_ID, ZERO_ADDRESS), INVALID_ACCOUNT_ID, true);
         }
 

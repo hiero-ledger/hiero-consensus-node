@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.records;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.opsDuration;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -12,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
@@ -41,14 +41,19 @@ class ContractOperationStreamBuilderTest {
                 ContractFunctionResult.newBuilder().gasUsed(1L).build(),
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
-                ContractActions.DEFAULT,
+                List.of(),
                 stateChanges,
-                opsDuration);
+                null,
+                null,
+                null,
+                null,
+                EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
+                null);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
         verify(subject).addContractStateChanges(stateChanges, false);
-        verify(subject).opsDuration(opsDuration);
         assertSame(subject, builder);
     }
 
@@ -60,12 +65,17 @@ class ContractOperationStreamBuilderTest {
                 ContractID.DEFAULT,
                 null,
                 ContractStateChanges.DEFAULT,
-                opsDuration);
+                null,
+                null,
+                null,
+                null,
+                EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
+                null);
         final var builder = subject.withCommonFieldsSetFrom(outcome);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());
-        verify(subject).opsDuration(opsDuration);
         assertSame(subject, builder);
     }
 }

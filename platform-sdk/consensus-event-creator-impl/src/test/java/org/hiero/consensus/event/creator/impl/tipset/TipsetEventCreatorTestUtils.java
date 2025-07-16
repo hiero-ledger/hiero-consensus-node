@@ -1,27 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -62,17 +60,15 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final NodeId nodeId,
             @NonNull final TransactionSupplier transactionSupplier) {
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
 
         final HashSigner signer = mock(HashSigner.class);
         when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
 
-        final SemanticVersion softwareVersion =
-                SemanticVersion.newBuilder().major(1).build();
-
         return new TipsetEventCreator(
-                platformContext, random, signer, roster, nodeId, softwareVersion, transactionSupplier);
+                configuration, metrics, time, random, signer, roster, nodeId, transactionSupplier);
     }
 
     /**
@@ -87,10 +83,7 @@ public class TipsetEventCreatorTestUtils {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .withTime(time)
-                .build();
+        final Metrics metrics = new NoOpMetrics();
 
         for (final RosterEntry address : roster.rosterEntries()) {
 
@@ -104,8 +97,9 @@ public class TipsetEventCreatorTestUtils {
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    platformContext, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
-            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(platformContext, mock(IntakeEventCounter.class));
+                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+            final OrphanBuffer orphanBuffer =
+                    new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
@@ -177,20 +171,6 @@ public class TipsetEventCreatorTestUtils {
             }
             assertTrue(allEvents.containsKey(newEvent.getDescriptor()));
         }
-
-        // Generation should be max of parents plus one
-        final long expectedGeneration = Math.max(selfParentGeneration, otherParentGeneration) + 1;
-        assertEquals(expectedGeneration, newEvent.getNGen());
-
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getBirthRound() > newEvent.getBirthRound())
-                        || (nonNull(otherParent) && otherParent.getBirthRound() > newEvent.getBirthRound()),
-                "Parent's birth round should never be higher to the event's birth round.");
-
-        assertFalse(
-                (nonNull(selfParent) && selfParent.getGeneration() >= newEvent.getGeneration())
-                        || (nonNull(otherParent) && otherParent.getGeneration() >= newEvent.getGeneration()),
-                "Parent's generation should never be higher or equal to the event's generation.");
 
         // Timestamp must always increase by 1 nanosecond, and there must always be a unique timestamp
         // with nanosecond precision for transaction.

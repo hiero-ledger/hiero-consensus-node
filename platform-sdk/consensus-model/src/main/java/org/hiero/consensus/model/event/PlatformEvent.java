@@ -4,7 +4,6 @@ package org.hiero.consensus.model.event;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventConsensusData;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -156,12 +155,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return metadata.getTimeCreated();
     }
 
-    @NonNull
-    @Override
-    public SemanticVersion getSoftwareVersion() {
-        return gossipEvent.eventCore().version();
-    }
-
     /**
      * {{@inheritDoc}}
      */
@@ -175,15 +168,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     @Override
     public NodeId getCreatorId() {
         return metadata.getCreatorId();
-    }
-
-    /**
-     * Get the generation of the event.
-     *
-     * @return the generation of the event
-     */
-    public long getGeneration() {
-        return metadata.getGeneration();
     }
 
     /**
@@ -350,19 +334,6 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public void signalPrehandleCompletion() {
         prehandleCompleted.countDown();
-    }
-
-    /**
-     * Override the birth round for this event. This will only be called for events created in the software version
-     * right before the birth round migration. Parents of this event may also have their birth round overridden if their
-     * generation is greater or equal to the specified {@code ancientGenerationThreshold} value.
-     *
-     * @param birthRound                 the birth round that has been assigned to this event
-     * @param ancientGenerationThreshold the threshold to determine if this event's parents should also have their birth
-     *                                   round overridden
-     */
-    public void overrideBirthRound(final long birthRound, final long ancientGenerationThreshold) {
-        metadata.setBirthRoundOverride(birthRound, ancientGenerationThreshold);
     }
 
     /**

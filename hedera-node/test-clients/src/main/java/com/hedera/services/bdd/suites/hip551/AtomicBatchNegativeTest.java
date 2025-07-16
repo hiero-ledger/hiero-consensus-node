@@ -4,13 +4,15 @@ package com.hedera.services.bdd.suites.hip551;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -19,11 +21,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
@@ -32,8 +36,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForGasOnlyForInnerTxn;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -42,24 +48,30 @@ import static com.hedera.services.bdd.suites.HapiSuite.MAX_CALL_DATA_SIZE;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_BATCH_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -76,7 +88,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -93,36 +104,6 @@ public class AtomicBatchNegativeTest {
     @Nested
     @DisplayName("Order and Execution - NEGATIVE")
     class OrderAndExecutionNegative {
-
-        @HapiTest
-        @DisplayName("Batch containing schedule sign and failing inner transaction")
-        // BATCH_56
-        public Stream<DynamicTest> scheduleSignAndFailingInnerTxn() {
-            final var batchOperator = "batchOperator";
-            final var sender = "sender";
-            final var receiver = "receiver";
-
-            return hapiTest(
-                    cryptoCreate(batchOperator).balance(FIVE_HBARS),
-                    cryptoCreate(sender).balance(ONE_HBAR),
-                    cryptoCreate(receiver).balance(0L),
-
-                    // create a schedule
-                    scheduleCreate("schedule", cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
-                            .waitForExpiry(false),
-                    atomicBatch(
-                                    // sign the schedule
-                                    scheduleSign("schedule").payingWith(sender).batchKey(batchOperator),
-                                    // failing transfer
-                                    cryptoTransfer(tinyBarsFromTo(sender, receiver, ONE_HUNDRED_HBARS))
-                                            .batchKey(batchOperator))
-                            .payingWith(batchOperator)
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
-                    // validate executed schedule was reverted
-                    getScheduleInfo("schedule").isNotExecuted(),
-                    getAccountBalance(receiver).hasTinyBars(0L));
-        }
 
         @HapiTest
         @DisplayName("Batch transactions reverts on failure")
@@ -373,49 +354,6 @@ public class AtomicBatchNegativeTest {
                     }));
         }
 
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
-        @DisplayName("Bach contract call with more than the TPS limit")
-        //  BATCH_47
-        public Stream<DynamicTest> contractCallMoreThanTPSLimit() {
-            final var batchOperator = "batchOperator";
-            final var contract = "CalldataSize";
-            final var function = "callme";
-            final var payload = new byte[100];
-            final var payer = "payer";
-            return hapiTest(
-                    cryptoCreate(batchOperator),
-                    cryptoCreate(payer).balance(ONE_HBAR),
-                    uploadInitCode(contract),
-                    contractCreate(contract),
-                    overridingThrottles("testSystemFiles/artificial-limits.json"),
-                    // create batch with 6 contract calls
-                    atomicBatch(
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator),
-                                    contractCall(contract, function, payload)
-                                            .payingWith(payer)
-                                            .batchKey(batchOperator))
-                            .hasKnownStatus(INNER_TRANSACTION_FAILED)
-                            .signedByPayerAnd(batchOperator)
-                            .payingWith(payer));
-        }
-
         @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords"})
         @DisplayName("Exceeds child transactions limit should fail")
         //  BATCH_47
@@ -492,7 +430,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Resubmit batch after INSUFFICIENT_PAYER_BALANCE")
-        @Disabled // Failed log validation: "Non-duplicate {} not cached for either payer or submitting node {}"
         // BATCH_53
         public Stream<DynamicTest> resubmitAfterInsufficientPayerBalance() {
             return hapiTest(
@@ -503,7 +440,7 @@ public class AtomicBatchNegativeTest {
                     // batch will fail due to insufficient balance
                     atomicBatch(
                                     cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
-                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
+                                    cryptoCreate("foo").txnId("innerTxn2").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice")
                             .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
@@ -513,7 +450,7 @@ public class AtomicBatchNegativeTest {
                     // resubmit the batch
                     atomicBatch(
                                     cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"),
-                                    cryptoCreate("foo").txnId("innerTxn1").batchKey("alice"))
+                                    cryptoCreate("foo").txnId("innerTxn2").batchKey("alice"))
                             .txnId("failingBatch")
                             .payingWith("alice"));
         }
@@ -561,7 +498,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Submit non batch inner transaction with invalid batch key should fail")
-        @Disabled // TODO: Enable this test when we have global batch key validation
         //  BATCH_55
         public Stream<DynamicTest> nonInnerTxnWithInvalidBatchKey() {
             return hapiTest(withOpContext((spec, opLog) -> {
@@ -571,10 +507,192 @@ public class AtomicBatchNegativeTest {
                         .build();
                 // save invalid key in registry
                 spec.registry().saveKey("invalidKey", invalidKey);
-                // submit op with invalid batch key
-                final var op = cryptoCreate("foo").batchKey("invalidKey").hasPrecheck(NOT_SUPPORTED);
-                allRunFor(spec, op);
+                // submit op with an invalid batch key
+                final var cryptoCreateOp = cryptoCreate("foo")
+                        .batchKey("invalidKey")
+                        .hasKnownStatus(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+                allRunFor(spec, cryptoCreateOp);
             }));
+        }
+    }
+
+    @Nested
+    @DisplayName("Throttles - NEGATIVE")
+    class ThrottlesNegative {
+        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @DisplayName("Bach contract call with more than the TPS limit")
+        //  BATCH_47
+        public Stream<DynamicTest> contractCallMoreThanTPSLimit() {
+            final var batchOperator = "batchOperator";
+            final var contract = "CalldataSize";
+            final var function = "callme";
+            final var payload = new byte[100];
+            final var payer = "payer";
+            return hapiTest(
+                    cryptoCreate(batchOperator),
+                    cryptoCreate(payer).balance(ONE_HBAR),
+                    uploadInitCode(contract),
+                    contractCreate(contract),
+                    overridingThrottles("testSystemFiles/artificial-limits.json"),
+                    // create batch with 6 contract calls
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator))
+                            // Should throttle at ingest
+                            .hasPrecheck(BUSY)
+                            .signedByPayerAnd(batchOperator)
+                            .payingWith(payer));
+        }
+
+        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @DisplayName("Verify inner transaction front end throttle leaks capacity")
+        public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {
+            final var batchOperator = "batchOperator";
+            final var contract = "CalldataSize";
+            final var function = "callme";
+            final var payload = new byte[100];
+            final var payer = "payer";
+            return hapiTest(
+                    cryptoCreate(batchOperator),
+                    cryptoCreate(payer).balance(ONE_HBAR),
+                    uploadInitCode(contract),
+                    contractCreate(contract),
+                    // The artificial limits result in 1 contract call per second
+                    overridingThrottles("testSystemFiles/artificial-limits.json"),
+                    // Should throttle at ingest
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator))
+                            .payingWith(batchOperator)
+                            .hasPrecheck(BUSY),
+                    // Wait for the throttle to be released
+                    sleepForSeconds(1),
+                    // Should throttle at ingest but this time defer status resolution
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .batchKey(batchOperator))
+                            .deferStatusResolution()
+                            .payingWith(batchOperator)
+                            .hasPrecheck(BUSY),
+                    // This should succeed, as the batch above should refund capacity
+                    atomicBatch(contractCall(contract, function, payload)
+                                    .payingWith(payer)
+                                    .batchKey(batchOperator))
+                            .payingWith(batchOperator));
+        }
+
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+        @DisplayName("Verify inner transaction gets gas throttled and refunds gas capacity")
+        public Stream<DynamicTest> innerBatchGetsGasThrottledAndLeaksCapacity() {
+            final var batchOperator = "batchOperator";
+            final var contract = "CalldataSize";
+            final var function = "callme";
+            final var payload = new byte[100];
+            final var payer = "payer";
+            return hapiTest(
+                    cryptoCreate(batchOperator),
+                    cryptoCreate(payer).balance(ONE_HBAR),
+                    uploadInitCode(contract),
+                    contractCreate(contract),
+                    overriding("contracts.maxGasPerSec", "500000"),
+                    // Should throttle as total gas is more than maxGasPerSec
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .gas(300_000)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .gas(300_000)
+                                            .batchKey(batchOperator))
+                            .payingWith(batchOperator)
+                            .hasPrecheck(BUSY),
+                    // Wait for the throttle capacity to leak
+                    sleepForSeconds(1),
+                    // Should throttle as total gas is more than maxGasPerSec, but this time defer status resolution
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .gas(300_000)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .gas(300_000)
+                                            .batchKey(batchOperator))
+                            .deferStatusResolution()
+                            .payingWith(batchOperator)
+                            .hasPrecheck(BUSY),
+                    // This should succeed, as the batch above should refund capacity
+                    atomicBatch(contractCall(contract, function, payload)
+                                    .payingWith(payer)
+                                    .gas(500_000)
+                                    .batchKey(batchOperator))
+                            .payingWith(batchOperator));
+        }
+
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+        @DisplayName("Verify privileged accounts are throttle exempt for inner transactions")
+        public Stream<DynamicTest> privilegedAccountsAreThrottleExempt() {
+            final var batchOperator = "batchOperator";
+            final var contract = "CalldataSize";
+            final var function = "callme";
+            final var payload = new byte[100];
+            final var payer = "payer";
+            return hapiTest(
+                    cryptoCreate(batchOperator),
+                    cryptoCreate(payer),
+                    uploadInitCode(contract),
+                    contractCreate(contract),
+                    overriding("contracts.maxGasPerSec", "500000"),
+                    // Should pass as privileged accounts are throttle exempt
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(DEFAULT_PAYER)
+                                            .gas(300_000)
+                                            .batchKey(batchOperator),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(DEFAULT_PAYER)
+                                            .gas(300_000)
+                                            .batchKey(batchOperator))
+                            .payingWith(batchOperator));
+        }
+
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+        @DisplayName("Inner transactions are not throttle exempt when the batch operator is privileged")
+        public Stream<DynamicTest> notThrottleExemptIfTheBatchOperatorIsPrivileged() {
+            final var contract = "CalldataSize";
+            final var function = "callme";
+            final var payload = new byte[100];
+            final var payer = "payer";
+            return hapiTest(
+                    cryptoCreate(payer),
+                    uploadInitCode(contract),
+                    contractCreate(contract),
+                    overriding("contracts.maxGasPerSec", "500000"),
+                    // Should be throttled as the inner transactions are not signed by privileged accounts
+                    atomicBatch(
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .gas(300_000)
+                                            .batchKey(DEFAULT_PAYER),
+                                    contractCall(contract, function, payload)
+                                            .payingWith(payer)
+                                            .gas(300_000)
+                                            .batchKey(DEFAULT_PAYER))
+                            .payingWith(DEFAULT_PAYER)
+                            .hasPrecheck(BUSY));
         }
     }
 
@@ -841,6 +959,100 @@ public class AtomicBatchNegativeTest {
         }
     }
 
+    @Nested
+    @DisplayName("Nonce Tests")
+    class NonceTests {
+        private static final String INTERNAL_CALLEE_CONTRACT = "InternalCallee";
+        private static final String BATCH_OPERATOR = "batchOperator";
+        private static final String EXTERNAL_FUNCTION = "externalFunction";
+        private static final String REVERT_FUNCTION = "revertWithRevertReason";
+
+        @HapiTest
+        @DisplayName("Nonce gets updated after contract reversion inside batch")
+        final Stream<DynamicTest> nonceUpdatedAfterEvmReversionDueContractLogic() {
+            final var gasLimit = 215_000L;
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                    contractCreate(INTERNAL_CALLEE_CONTRACT),
+                    atomicBatch(ethereumCall(INTERNAL_CALLEE_CONTRACT, REVERT_FUNCTION)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(gasLimit)
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                    .via("ethCall")
+                                    .batchKey("batchOperator"))
+                            .payingWith("batchOperator")
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateChargedUsdForGasOnlyForInnerTxn("ethCall", "batchTxn", 0.015, 5),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(1L)),
+                    getTxnRecord("ethCall")
+                            .hasPriority(recordWith()
+                                    .status(CONTRACT_REVERT_EXECUTED)
+                                    .contractCallResult(resultWith().signerNonce(1L))));
+        }
+
+        @HapiTest
+        @DisplayName("Nonce gets updated after successful contract call inside batch")
+        final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
+            final var internalCalleeContract = "InternalCallee";
+            final var externalFunction = "externalFunction";
+            final var gasLimit = 215_000L;
+            return hapiTest(
+                    cryptoCreate("batchOperator"),
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(internalCalleeContract),
+                    contractCreate(internalCalleeContract),
+                    atomicBatch(ethereumCall(internalCalleeContract, externalFunction)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(gasLimit)
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                    .via("ethCall")
+                                    .batchKey("batchOperator"))
+                            .payingWith("batchOperator"),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(1L)),
+                    getTxnRecord("ethCall")
+                            .hasPriority(
+                                    recordWith().contractCallResult(resultWith().signerNonce(1L))));
+        }
+
+        @HapiTest
+        @DisplayName("Nonce not updated when intrinsic gas check fails")
+        final Stream<DynamicTest> nonceNotUpdatedWhenIntrinsicGasHandlerCheckFailed() {
+            return hapiTest(
+                    newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                    cryptoCreate(BATCH_OPERATOR),
+                    cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                    uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                    contractCreate(INTERNAL_CALLEE_CONTRACT),
+                    atomicBatch(ethereumCall(INTERNAL_CALLEE_CONTRACT, EXTERNAL_FUNCTION)
+                                    .type(EthTxData.EthTransactionType.EIP1559)
+                                    .signingWith(SECP_256K1_SOURCE_KEY)
+                                    .payingWith(RELAYER)
+                                    .nonce(0)
+                                    .gasLimit(21_000L)
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR)
+                            .hasPrecheck(INSUFFICIENT_GAS),
+                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                            .has(accountWith().nonce(0L)));
+        }
+    }
+
     @HapiTest
     @DisplayName("Non default inner transaction node ID should fail")
     public Stream<DynamicTest> nonDefaultInnerTxnIdFails() {
@@ -850,5 +1062,19 @@ public class AtomicBatchNegativeTest {
         return hapiTest(
                 cryptoCreate(batchOperator),
                 atomicBatch(innerCryptoTxn).payingWith(batchOperator).hasPrecheck(INVALID_NODE_ACCOUNT_ID));
+    }
+
+    @HapiTest
+    @DisplayName("schedule transactions are blacklisted in atomic batch")
+    public Stream<DynamicTest> scheduleBlackList() {
+        return hapiTest(
+                cryptoCreate("batchOperator"),
+                atomicBatch(scheduleCreate("schedule", cryptoCreate("foo")).batchKey("batchOperator"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST),
+                scheduleCreate("schedule", cryptoCreate("foo")),
+                atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
+                        .payingWith("batchOperator")
+                        .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
     }
 }

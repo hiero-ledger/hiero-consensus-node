@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BA
 import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
-import static com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion.PAST;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -28,7 +27,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingVersion;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -46,7 +45,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.junit.hedera.embedded.SyntheticVersion;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -114,18 +112,18 @@ public class DuplicateManagementTest {
     }
 
     @EmbeddedHapiTest(MANIPULATES_EVENT_VERSION)
-    @DisplayName("only warns of missing creator if event version is current")
+    @DisplayName("only warns of missing creator if event birth round is greater than last freeze round")
     final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
                         .setNode("666")
-                        .withSubmissionStrategy(usingVersion(PAST))
+                        .withSubmissionStrategy(usingEventBirthRound(0L))
                         .hasAnyStatusAtAll(),
                 assertHgcaaLogDoesNotContain(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
                         .setNode("666")
-                        .withSubmissionStrategy(usingVersion(SyntheticVersion.PRESENT))
+                        .withSubmissionStrategy(usingEventBirthRound(42L))
                         .hasAnyStatusAtAll(),
                 assertHgcaaLogContains(
                         byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)));

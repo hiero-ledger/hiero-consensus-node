@@ -49,7 +49,7 @@ public class CreateDecoder extends CreateCommonDecoder {
         final var call = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1.decodeCall(encoded);
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
         final var initSupply = ((BigInteger) call.get(INIT_SUPPLY)).longValueExact();
-        final var decimals = ((BigInteger) call.get(DECIMALS)).intValue();
+        final var decimals = ((BigInteger) call.get(DECIMALS)).intValueExact();
         final var tokenCreateWrapper = getTokenCreateWrapper(
                 hederaToken, true, initSupply, decimals, senderId, nativeOperations, addressIdConverter);
         return bodyFor(tokenCreateWrapper);
@@ -341,7 +341,7 @@ public class CreateDecoder extends CreateCommonDecoder {
             @NonNull final AddressIdConverter addressIdConverter) {
         final var tokenCreateWrapper = getTokenCreateWrapper(
                 tokenCreateStruct, true, initSupply, decimals, senderId, nativeOperations, addressIdConverter);
-        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter);
+        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter, nativeOperations.entityIdFactory());
         final var fractionalFess = decodeFractionalFees(fractionalFeesTuple, addressIdConverter);
         tokenCreateWrapper.setFixedFees(fixedFees);
         tokenCreateWrapper.setFractionalFees(fractionalFess);
@@ -366,8 +366,9 @@ public class CreateDecoder extends CreateCommonDecoder {
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,
             @NonNull final AddressIdConverter addressIdConverter) {
-        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter);
-        final var royaltyFees = decodeRoyaltyFees(royaltyFeesTuple, addressIdConverter);
+        final var fixedFees = decodeFixedFees(fixedFeesTuple, addressIdConverter, nativeOperations.entityIdFactory());
+        final var royaltyFees =
+                decodeRoyaltyFees(royaltyFeesTuple, addressIdConverter, nativeOperations.entityIdFactory());
         final long initSupply = 0L;
         final int decimals = 0;
         final var tokenCreateWrapper = getTokenCreateWrapper(

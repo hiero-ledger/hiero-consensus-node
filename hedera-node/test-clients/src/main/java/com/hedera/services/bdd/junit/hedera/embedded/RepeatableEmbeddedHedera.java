@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 
@@ -92,6 +93,23 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     }
 
     @Override
+    public TransactionResponse submit(Transaction transaction, AccountID nodeAccountId, final long eventBirthRound) {
+        var response = OK_RESPONSE;
+        final Bytes payload = Bytes.wrap(transaction.toByteArray());
+        if (defaultNodeAccountId.equals(nodeAccountId)) {
+            final var responseBuffer = BufferedData.allocate(MAX_PLATFORM_TXN_SIZE);
+            hedera.ingestWorkflow().submitTransaction(payload, responseBuffer);
+            response = parseTransactionResponse(responseBuffer);
+        } else {
+            final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
+            warnOfSkippedIngestChecks(nodeAccountId, nodeId);
+            platform.lastCreatedEvent =
+                    new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(payload), eventBirthRound);
+        }
+        return handleNextRounds(response);
+    }
+
+    @Override
     public TransactionResponse submit(
             @NonNull final Transaction transaction,
             @NonNull final AccountID nodeAccountId,
@@ -108,21 +126,9 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         } else {
             final var nodeId = nodeIds.getOrDefault(nodeAccountId, MISSING_NODE_ID);
             warnOfSkippedIngestChecks(nodeAccountId, nodeId);
-            platform.lastCreatedEvent =
-                    new FakeEvent(nodeId, time.now(), semanticVersion, createAppPayloadWrapper(payload));
+            platform.lastCreatedEvent = new FakeEvent(nodeId, time.now(), createAppPayloadWrapper(payload));
         }
-        if (response.getNodeTransactionPrecheckCode() == OK) {
-            handleNextRoundIfPresent();
-            // If handling this transaction scheduled node transactions, handle them now
-            while (!pendingNodeSubmissions.isEmpty()) {
-                platform.lastCreatedEvent = null;
-                pendingNodeSubmissions.poll().run();
-                if (platform.lastCreatedEvent != null) {
-                    handleNextRoundIfPresent();
-                }
-            }
-        }
-        return response;
+        return handleNextRounds(response);
     }
 
     @Override
@@ -179,6 +185,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         }
     }
 
+    /**
+     * Handles a round with no user transactions.
+     */
+    public void handleRoundWithNoUserTransactions() {
+        handleRoundWith(mockStateSignatureTxn());
+    }
+
     private class SynchronousFakePlatform extends AbstractFakePlatform implements Platform {
         private FakeEvent lastCreatedEvent;
 
@@ -191,13 +204,18 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
 
         @Override
         public boolean createTransaction(@NonNull final byte[] transaction) {
-            lastCreatedEvent = new FakeEvent(defaultNodeId, time.now(), version, createAppPayloadWrapper(transaction));
+            lastCreatedEvent = new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(transaction));
             return true;
         }
 
         @Override
         public void start() {
             // No-op
+        }
+
+        @Override
+        public void destroy() throws InterruptedException {
+            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
         }
 
         /**
@@ -212,22 +230,33 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
                     roundNo.getAndIncrement(),
                     requireNonNull(roster),
                     List.of(new FakeConsensusEvent(
-                            new FakeEvent(
-                                    defaultNodeId, firstRoundTime, version, createAppPayloadWrapper(serializedTxn)),
+                            new FakeEvent(defaultNodeId, firstRoundTime, createAppPayloadWrapper(serializedTxn)),
                             consensusOrder.getAndIncrement(),
-                            firstRoundTime,
-                            version)));
+                            firstRoundTime)));
         }
 
         private Round nextConsensusRound() {
             time.tick(roundDuration);
             final var firstRoundTime = time.now();
             final var consensusEvents = List.<ConsensusEvent>of(new FakeConsensusEvent(
-                    requireNonNull(lastCreatedEvent),
-                    consensusOrder.getAndIncrement(),
-                    firstRoundTime,
-                    lastCreatedEvent.getSoftwareVersion()));
+                    requireNonNull(lastCreatedEvent), consensusOrder.getAndIncrement(), firstRoundTime));
             return new FakeRound(roundNo.getAndIncrement(), requireNonNull(roster), consensusEvents);
         }
+    }
+
+    @NonNull
+    private TransactionResponse handleNextRounds(final TransactionResponse response) {
+        if (response.getNodeTransactionPrecheckCode() == OK) {
+            handleNextRoundIfPresent();
+            // If handling this transaction scheduled node transactions, handle them now
+            while (!pendingNodeSubmissions.isEmpty()) {
+                platform.lastCreatedEvent = null;
+                pendingNodeSubmissions.poll().run();
+                if (platform.lastCreatedEvent != null) {
+                    handleNextRoundIfPresent();
+                }
+            }
+        }
+        return response;
     }
 }

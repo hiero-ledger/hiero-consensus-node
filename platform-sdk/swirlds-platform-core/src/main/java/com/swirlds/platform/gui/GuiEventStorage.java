@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -55,8 +54,7 @@ public class GuiEventStorage {
 
         this.consensus = new ConsensusImpl(
                 platformContext, new NoOpConsensusMetrics(), RosterRetriever.buildRoster(addressBook));
-        this.linker =
-                new SimpleLinker(configuration.getConfigData(EventConfig.class).getAncientMode());
+        this.linker = new SimpleLinker();
     }
 
     /**
@@ -73,7 +71,7 @@ public class GuiEventStorage {
         this.linker = linker;
         this.configuration = configuration;
         maxGeneration = linker.getNonAncientEvents().stream()
-                .mapToLong(EventImpl::getGeneration)
+                .mapToLong(EventImpl::getNGen)
                 .max()
                 .orElse(FIRST_GENERATION);
     }
@@ -92,7 +90,7 @@ public class GuiEventStorage {
      * @param event the event to handle
      */
     public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
-        maxGeneration = Math.max(maxGeneration, event.getGeneration());
+        maxGeneration = Math.max(maxGeneration, event.getNGen());
 
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());

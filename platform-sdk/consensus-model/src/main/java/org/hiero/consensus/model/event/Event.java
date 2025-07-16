@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
+import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -55,12 +55,11 @@ public interface Event {
     }
 
     /**
-     * Returns the software version of the node that created this event.
-     *
-     * @return the software version
+     * Returns the birth round of this event.
+     * @see EventDescriptor#birthRound()
+     * @return the birth round of the event
      */
-    @NonNull
-    SemanticVersion getSoftwareVersion();
+    long getBirthRound();
 
     /**
      * Returns the core data of the event.

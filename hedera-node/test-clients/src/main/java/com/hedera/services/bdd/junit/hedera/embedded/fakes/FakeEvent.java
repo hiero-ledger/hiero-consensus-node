@@ -4,7 +4,6 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -20,6 +19,13 @@ import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class FakeEvent implements Event {
+
+    /**
+     * The default event birth round used for fake events, it is greater than zero to ensure that
+     * it's greater than the default latest freeze round in state at genesis.
+     */
+    public static final long FAKE_EVENT_BIRTH_ROUND = 1L;
+
     private static final Bytes FAKE_SHA_384_SIGNATURE = Bytes.wrap(new byte[] {
         (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05, (byte) 0x06, (byte) 0x07, (byte) 0x08,
         (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05, (byte) 0x06, (byte) 0x07, (byte) 0x08,
@@ -31,23 +37,35 @@ public class FakeEvent implements Event {
 
     private final NodeId creatorId;
     private final Instant timeCreated;
-    private final SemanticVersion version;
     private final EventCore eventCore;
     public final TransactionWrapper transaction;
 
     public FakeEvent(
             @NonNull final NodeId creatorId,
             @NonNull final Instant timeCreated,
-            @NonNull final SemanticVersion version,
             @NonNull final TransactionWrapper transaction) {
-        this.version = requireNonNull(version);
         this.creatorId = requireNonNull(creatorId);
         this.timeCreated = requireNonNull(timeCreated);
         this.transaction = requireNonNull(transaction);
         this.eventCore = EventCore.newBuilder()
                 .creatorNodeId(creatorId.id())
                 .timeCreated(HapiUtils.asTimestamp(timeCreated))
-                .version(version)
+                .birthRound(FAKE_EVENT_BIRTH_ROUND)
+                .build();
+    }
+
+    public FakeEvent(
+            @NonNull final NodeId creatorId,
+            @NonNull final Instant timeCreated,
+            @NonNull final TransactionWrapper transaction,
+            final long eventBirthRound) {
+        this.creatorId = requireNonNull(creatorId);
+        this.timeCreated = requireNonNull(timeCreated);
+        this.transaction = requireNonNull(transaction);
+        this.eventCore = EventCore.newBuilder()
+                .creatorNodeId(creatorId.id())
+                .timeCreated(HapiUtils.asTimestamp(timeCreated))
+                .birthRound(eventBirthRound)
                 .build();
     }
 
@@ -67,10 +85,9 @@ public class FakeEvent implements Event {
         return creatorId;
     }
 
-    @NonNull
     @Override
-    public SemanticVersion getSoftwareVersion() {
-        return version;
+    public long getBirthRound() {
+        return eventCore.birthRound();
     }
 
     @NonNull

@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -17,17 +16,14 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  */
 public class ConsensusRoundValidator {
 
-    private final Set<ConsensusRoundValidation> validationsForDifferentNodes = new HashSet<>();
-    private final Set<ConsensusRoundValidation> validationsForSameNode = new HashSet<>();
+    private static final Set<ConsensusRoundComparisonValidation> validationsForDifferentNodes =
+            Set.of(RoundInternalEqualityValidation.INSTANCE);
+    private static final Set<ConsensusRoundConsistencyValidation> validationsForSameNode = Set.of(
+            RoundInternalConsistencyValidation.INSTANCE,
+            RoundTimestampCheckerValidation.INSTANCE,
+            RoundAncientThresholdIncreasesValidation.INSTANCE);
 
-    /**
-     * Creates a new instance of the validator with all available validations for {@link ConsensusRound}.
-     */
-    public ConsensusRoundValidator() {
-        validationsForDifferentNodes.add(new RoundTimestampCheckerValidation());
-        validationsForDifferentNodes.add(new RoundInternalEqualityValidation());
-        validationsForSameNode.add(new RoundAncientThresholdIncreasesValidation());
-    }
+    private ConsensusRoundValidator() {}
 
     /**
      * Validates the given {@link ConsensusRound} objects coming from separate nodes
@@ -35,7 +31,8 @@ public class ConsensusRoundValidator {
      * @param rounds1 the first list of rounds to use for validation from one node
      * @param rounds2 the second list of rounds to use for validation from another node
      */
-    public void validate(@NonNull final List<ConsensusRound> rounds1, @NonNull final List<ConsensusRound> rounds2) {
+    public static void validate(
+            @NonNull final List<ConsensusRound> rounds1, @NonNull final List<ConsensusRound> rounds2) {
         assertThat(rounds1)
                 .withFailMessage(String.format(
                         "The number of consensus rounds is not the same."
@@ -43,19 +40,21 @@ public class ConsensusRoundValidator {
                         rounds1.size(), rounds2.size()))
                 .hasSameSizeAs(rounds2);
 
-        for (final ConsensusRoundValidation validation : validationsForDifferentNodes) {
-            for (int i = 0; i < rounds1.size(); i++) {
+        for (final ConsensusRoundComparisonValidation validation : validationsForDifferentNodes) {
+            for (int i = 0, n = rounds1.size(); i < n; i++) {
                 validation.validate(rounds1.get(i), rounds2.get(i));
             }
         }
+    }
 
-        for (final ConsensusRoundValidation validation : validationsForSameNode) {
-            if (rounds1.size() > 1) {
-                for (int i = 0; i < rounds1.size() - 1; i++) {
-                    validation.validate(rounds1.get(i), rounds1.get(i + 1));
-                    validation.validate(rounds2.get(i), rounds2.get(i + 1));
-                }
-            }
+    /**
+     * Validates the given {@link ConsensusRound} objects coming from a single node
+     *
+     * @param rounds the list of rounds to use for validation from one node
+     */
+    public static void validate(@NonNull final List<ConsensusRound> rounds) {
+        for (final ConsensusRoundConsistencyValidation validation : validationsForSameNode) {
+            validation.validate(rounds);
         }
     }
 }

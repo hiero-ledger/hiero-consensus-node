@@ -1,0 +1,220 @@
+syntax = "proto3";
+
+package org.hiero.otter.fixtures.container.proto;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+import "services/state/roster/roster.proto";
+import "platform/state/platform_state.proto";
+import "platform/event/gossip_event.proto";
+import "platform/event/event_consensus_data.proto";
+import "platform/event/event_descriptor.proto";
+import "google/protobuf/empty.proto";
+
+option java_multiple_files = true;
+
+// Represents a set of cryptographic keys and certificates used for signing and agreement.
+message ProtoKeysAndCerts {
+  // Type of the signature key (e.g., RSA, ECDSA).
+  string sig_key_type = 1;
+  // Private key for signing.
+  bytes sig_private_key = 2;
+  // Public key for signing.
+  bytes sig_public_key = 3;
+
+  // Type of the agreement key (e.g., Diffie-Hellman).
+  string agr_key_type = 4;
+  // Private key for agreement.
+  bytes agr_private_key = 5;
+  // Public key for agreement.
+  bytes agr_public_key = 6;
+
+  // Type of the signature certificate.
+  string sig_cert_type = 7;
+  // Certificate for signing.
+  bytes sig_certificate = 8;
+
+  // Type of the agreement certificate.
+  string agr_cert_type = 9;
+  // Certificate for agreement.
+  bytes agr_certificate = 10;
+}
+
+// Represents a change in the platform's status.
+message PlatformStatusChange {
+  // The new status of the platform.
+  string new_status = 1;
+}
+
+// Represents a log entry with metadata.
+message LogEntry {
+  // Timestamp of the log entry.
+  uint64 timestamp = 1;
+  // Log level (e.g., INFO, WARN, ERROR).
+  string level = 2;
+  // Name of the logger.
+  string logger_name = 3;
+  // Name of the thread that generated the log.
+  string thread = 4;
+  // Log message content.
+  string message = 5;
+  // Marker associated with the log entry.
+  string marker = 6;
+  // ID of the node that generated the log.
+  uint64 nodeId = 7;
+}
+
+// Wrapper for event descriptor information.
+message EventDescriptorWrapper {
+  // Event descriptor containing metadata about the event.
+  com.hedera.hapi.platform.event.EventDescriptor event_descriptor = 1;
+  // Hash of the event.
+  bytes hash = 2;
+  // ID of the node that created the event.
+  com.hedera.hapi.platform.state.NodeId creator = 3;
+}
+
+// Wrapper for transaction information.
+message TransactionWrapper {
+  // Consensus timestamp of the transaction.
+  uint64 consensus_timestamp = 1;
+  // Hash of the transaction.
+  bytes hash = 2;
+  // Serialized transaction data.
+  bytes transaction = 3;
+}
+
+// Metadata associated with an event.
+message EventMetadata {
+  // ID of the node that created the event.
+  com.hedera.hapi.platform.state.NodeId creator_id = 1;
+  // Self-parent event descriptor.
+  EventDescriptorWrapper self_parent = 2;
+  // Other parent event descriptors.
+  repeated EventDescriptorWrapper other_parents = 3;
+  // All parent event descriptors.
+  repeated EventDescriptorWrapper all_parents = 4;
+  // Generation number of the event.
+  int64 generation = 5;
+  // Time the event was created.
+  uint64 time_created = 6;
+  // Transactions included in the event.
+  repeated TransactionWrapper transactions = 7;
+  // Event descriptor for the event.
+  EventDescriptorWrapper event_descriptor = 8; // Renamed from 'descriptor' to 'event_descriptor'
+  // Round in which the event was created.
+  int64 birth_round = 9;
+}
+
+// Represents a consensus event.
+message CesEvent {
+  // Gossip event associated with the platform.
+  com.hedera.hapi.platform.event.GossipEvent platform_event = 1;
+  // Running hash of the event.
+  bytes running_hash = 2;
+  // Round in which the event was received.
+  int64 round_received = 3;
+  // Indicates if this is the last event in the round received.
+  bool last_in_round_received = 4;
+}
+
+// Represents a window of events with thresholds.
+message EventWindow {
+  // Latest consensus round.
+  int64 latest_consensus_round = 1;
+  // Birth round for new events.
+  int64 new_event_birth_round = 2;
+  // Threshold for ancient events.
+  int64 ancient_threshold = 3;
+  // Threshold for expired events.
+  int64 expired_threshold = 4;
+}
+
+// Represents a single consensus round.
+message ProtoConsensusRound {
+  // Events that reached consensus in this round.
+  repeated com.hedera.hapi.platform.event.GossipEvent consensus_events = 1;
+  // Streamed events in this round.
+  repeated CesEvent streamed_events = 2;
+  // Window of events for this round.
+  EventWindow event_window = 3;
+  // Number of application transactions in this round.
+  int32 num_app_transactions = 4;
+  // Snapshot of the consensus state.
+  com.hedera.hapi.platform.state.ConsensusSnapshot snapshot = 5;
+  // Roster of nodes participating in consensus.
+  com.hedera.hapi.node.state.roster.Roster consensus_roster = 6;
+  // Indicates if this is a PCES round.
+  bool pces_round = 7;
+  // Timestamp when consensus was reached.
+  uint64 reached_cons_timestamp = 8;
+}
+
+// Represents multiple consensus rounds.
+message ProtoConsensusRounds {
+  // List of consensus rounds.
+  repeated ProtoConsensusRound rounds = 1;
+}
+
+// Wrapper for different types of event messages.
+message EventMessage {
+  // Oneof field to represent different event types.
+  oneof event {
+    // Platform status change event.
+    PlatformStatusChange platform_status_change = 1;
+    // Log entry event.
+    LogEntry log_entry = 2;
+    // Consensus rounds event.
+    ProtoConsensusRounds consensus_rounds = 3;
+  }
+}
+
+// Request to start the remote platform.
+message StartRequest {
+  // ID of the node starting the platform.
+  com.hedera.hapi.platform.state.NodeId self_id = 1;
+  // Semantic version of the platform.
+  .proto.SemanticVersion version = 2;
+  // Roster of nodes participating in the platform.
+  com.hedera.hapi.node.state.roster.Roster roster = 3;
+  // Cryptographic keys and certificates for the platform.
+  ProtoKeysAndCerts keys_and_certs = 4;
+  // Properties overridden for the platform.
+  map<string, string> overridden_properties = 5;
+}
+
+// Wrapper for a transaction submission request.
+message TransactionRequest {
+  // Serialized transaction data.
+  bytes payload = 1;
+}
+
+message TransactionRequestAnswer {
+  // indicator if the platform accepted the transaction
+  bool result = 1;
+}
+
+message KillImmediatelyRequest {
+  google.protobuf.Empty ignore = 1;
+}
+
+message SyntheticBottleneckRequest {
+  // The number of milliseconds to sleep per round on the handle thread
+  int64 sleep_millis_per_round = 1;
+}
+
+// Service definition for controlling tests.
+service TestControl {
+  // RPC to start the platform and stream event messages.
+  rpc Start(StartRequest) returns (stream EventMessage);
+
+  // RPC used by the test harness to submit a transaction to the running
+  // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.
+  rpc SubmitTransaction(TransactionRequest) returns (TransactionRequestAnswer);
+
+  // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
+  rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
+
+  // RPC to change the synthetic bottleneck of the handle thread.
+  rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);
+}

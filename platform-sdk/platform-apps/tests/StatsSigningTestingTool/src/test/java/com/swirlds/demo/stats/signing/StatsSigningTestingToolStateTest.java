@@ -5,7 +5,6 @@ import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
@@ -246,7 +245,6 @@ class StatsSigningTestingToolStateTest {
 
     private void givenRoundAndEvent() {
         when(event.getCreatorId()).thenReturn(new NodeId());
-        when(event.getSoftwareVersion()).thenReturn(new SemanticVersion(1, 1, 1, "", ""));
         when(event.getConsensusTimestamp()).thenReturn(Instant.now());
         when(event.consensusTransactionIterator())
                 .thenReturn(Collections.singletonList(consensusTransaction).iterator());

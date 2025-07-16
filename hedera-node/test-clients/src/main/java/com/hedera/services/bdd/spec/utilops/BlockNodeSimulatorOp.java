@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
-import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeSimulatorController;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,37 +22,29 @@ public class BlockNodeSimulatorOp extends UtilOp {
     private final long blockNumber;
     private final AtomicLong lastVerifiedBlockNumber;
     private final Consumer<Long> lastVerifiedBlockConsumer;
+    private final boolean sendBlockAcknowledgementsEnabled;
 
     private BlockNodeSimulatorOp(
-            int nodeIndex,
-            BlockNodeSimulatorAction action,
-            EndOfStream.Code responseCode,
-            long blockNumber,
-            AtomicLong lastVerifiedBlockNumber,
-            Consumer<Long> lastVerifiedBlockConsumer) {
+            final int nodeIndex,
+            final BlockNodeSimulatorAction action,
+            final EndOfStream.Code responseCode,
+            final long blockNumber,
+            final AtomicLong lastVerifiedBlockNumber,
+            final Consumer<Long> lastVerifiedBlockConsumer,
+            final boolean sendBlockAcknowledgementsEnabled) {
         this.nodeIndex = nodeIndex;
         this.action = action;
         this.responseCode = responseCode;
         this.blockNumber = blockNumber;
         this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
         this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
+        this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
     }
 
     @Override
-    protected boolean submitOp(HapiSpec spec) throws Throwable {
-        if (!(spec.targetNetworkOrThrow() instanceof SubProcessNetwork network)) {
-            throw new IllegalStateException("Block node simulator operations require a SubProcessNetwork");
-        }
-
-        // Check if block node mode is set to SIMULATOR
-        if (network.getBlockNodeMode() != BlockNodeMode.SIMULATOR) {
-            throw new IllegalStateException(
-                    "Block node simulator operations require BlockNodeMode.SIMULATOR to be set. " + "Current mode: "
-                            + network.getBlockNodeMode() + ". "
-                            + "Set system property 'hapi.spec.blocknode.mode=SIM' to enable simulator mode.");
-        }
-
-        BlockNodeSimulatorController controller = network.getBlockNodeSimulatorController();
+    protected boolean submitOp(final HapiSpec spec) throws Throwable {
+        final BlockNodeSimulatorController controller =
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.get().getBlockNodeSimulatorController();
         long verifiedBlock = 0;
 
         switch (action) {
@@ -112,7 +102,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 try {
                     controller.startSimulator(nodeIndex);
                     log.info("Started simulator {}", nodeIndex);
-                } catch (IOException e) {
+                } catch (final IOException e) {
                     log.error("Failed to start simulator {}", nodeIndex, e);
                     return false;
                 }
@@ -129,15 +119,15 @@ public class BlockNodeSimulatorOp extends UtilOp {
                 try {
                     controller.startAllSimulators();
                     log.info("Started all previously shutdown simulators");
-                } catch (IOException e) {
+                } catch (final IOException e) {
                     log.error("Failed to start simulators", e);
                     return false;
                 }
                 break;
             case ASSERT_BLOCK_RECEIVED:
-                boolean received = controller.hasReceivedBlock(nodeIndex, blockNumber);
+                final boolean received = controller.hasReceivedBlock(nodeIndex, blockNumber);
                 if (!received) {
-                    String errorMsg = String.format(
+                    final String errorMsg = String.format(
                             "Block %d has not been received by simulator %d. Received blocks: %s",
                             blockNumber, nodeIndex, controller.getReceivedBlockNumbers(nodeIndex));
                     log.error(errorMsg);
@@ -151,6 +141,13 @@ public class BlockNodeSimulatorOp extends UtilOp {
             case GET_LAST_VERIFIED_BLOCK:
                 verifiedBlock = controller.getLastVerifiedBlockNumber(nodeIndex);
                 log.info("Retrieved last verified block number {} from simulator {}", verifiedBlock, nodeIndex);
+                break;
+            case UPDATE_SENDING_BLOCK_ACKS:
+                log.info(
+                        "[node {}] Update sending block acknowledgements to: {}",
+                        nodeIndex,
+                        sendBlockAcknowledgementsEnabled);
+                controller.setSendBlockAcknowledgementsEnabled(nodeIndex, sendBlockAcknowledgementsEnabled);
                 break;
         }
 
@@ -179,7 +176,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
         SHUTDOWN_ALL_SIMULATORS,
         START_ALL_SIMULATORS,
         ASSERT_BLOCK_RECEIVED,
-        GET_LAST_VERIFIED_BLOCK
+        GET_LAST_VERIFIED_BLOCK,
+        UPDATE_SENDING_BLOCK_ACKS
     }
 
     /**
@@ -189,7 +187,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param responseCode the response code to send
      * @return a builder for the operation
      */
-    public static SendEndOfStreamBuilder sendEndOfStreamImmediately(int nodeIndex, EndOfStream.Code responseCode) {
+    public static SendEndOfStreamBuilder sendEndOfStreamImmediately(
+            final int nodeIndex, final EndOfStream.Code responseCode) {
         return new SendEndOfStreamBuilder(nodeIndex, responseCode);
     }
 
@@ -200,7 +199,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param blockNumber the block number to skip
      * @return a builder for the operation
      */
-    public static SendSkipBlockBuilder sendSkipBlockImmediately(int nodeIndex, long blockNumber) {
+    public static SendSkipBlockBuilder sendSkipBlockImmediately(final int nodeIndex, final long blockNumber) {
         return new SendSkipBlockBuilder(nodeIndex, blockNumber);
     }
 
@@ -211,7 +210,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param blockNumber the block number to resend
      * @return a builder for the operation
      */
-    public static SendResendBlockBuilder sendResendBlockImmediately(int nodeIndex, long blockNumber) {
+    public static SendResendBlockBuilder sendResendBlockImmediately(final int nodeIndex, final long blockNumber) {
         return new SendResendBlockBuilder(nodeIndex, blockNumber);
     }
 
@@ -221,7 +220,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation
      */
-    public static ShutdownBuilder shutdownImmediately(int nodeIndex) {
+    public static ShutdownBuilder shutdownImmediately(final int nodeIndex) {
         return new ShutdownBuilder(nodeIndex);
     }
 
@@ -240,7 +239,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation
      */
-    public static StartBuilder startImmediately(int nodeIndex) {
+    public static StartBuilder startImmediately(final int nodeIndex) {
         return new StartBuilder(nodeIndex);
     }
 
@@ -260,7 +259,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param blockNumber the block number to check
      * @return a builder for the operation
      */
-    public static AssertBlockReceivedBuilder assertBlockReceived(int nodeIndex, long blockNumber) {
+    public static AssertBlockReceivedBuilder assertBlockReceived(final int nodeIndex, final long blockNumber) {
         return new AssertBlockReceivedBuilder(nodeIndex, blockNumber);
     }
 
@@ -270,8 +269,20 @@ public class BlockNodeSimulatorOp extends UtilOp {
      * @param nodeIndex the index of the block node simulator (0-based)
      * @return a builder for the operation
      */
-    public static GetLastVerifiedBlockBuilder getLastVerifiedBlock(int nodeIndex) {
+    public static GetLastVerifiedBlockBuilder getLastVerifiedBlock(final int nodeIndex) {
         return new GetLastVerifiedBlockBuilder(nodeIndex);
+    }
+
+    /**
+     * Creates a builder that allows for updating whether block acknowledgements will be sent by the block node simulator.
+     *
+     * @param nodeIndex the index of the block node simulator to update (0-based)
+     * @param sendBlockAcknowledgementsEnabled true if block acknowledgements will be sent, otherwise they will not
+     * @return the builder
+     */
+    public static UpdateSendingBlockAcknowledgementsBuilder updateSendingBlockAcknowledgements(
+            final int nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
+        return new UpdateSendingBlockAcknowledgementsBuilder(nodeIndex, sendBlockAcknowledgementsEnabled);
     }
 
     /**
@@ -285,7 +296,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
         private AtomicLong lastVerifiedBlockNumber;
         private Consumer<Long> lastVerifiedBlockConsumer;
 
-        private SendEndOfStreamBuilder(int nodeIndex, EndOfStream.Code responseCode) {
+        private SendEndOfStreamBuilder(final int nodeIndex, final EndOfStream.Code responseCode) {
             this.nodeIndex = nodeIndex;
             this.responseCode = responseCode;
         }
@@ -296,7 +307,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @param blockNumber the block number
          * @return this builder
          */
-        public SendEndOfStreamBuilder withBlockNumber(long blockNumber) {
+        public SendEndOfStreamBuilder withBlockNumber(final long blockNumber) {
             this.blockNumber = blockNumber;
             return this;
         }
@@ -307,7 +318,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @param lastVerifiedBlockNumber the AtomicLong to store the last verified block number
          * @return this builder
          */
-        public SendEndOfStreamBuilder exposingLastVerifiedBlockNumber(AtomicLong lastVerifiedBlockNumber) {
+        public SendEndOfStreamBuilder exposingLastVerifiedBlockNumber(final AtomicLong lastVerifiedBlockNumber) {
             this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
             return this;
         }
@@ -318,7 +329,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @param lastVerifiedBlockConsumer the consumer to receive the last verified block number
          * @return this builder
          */
-        public SendEndOfStreamBuilder exposingLastVerifiedBlockNumber(Consumer<Long> lastVerifiedBlockConsumer) {
+        public SendEndOfStreamBuilder exposingLastVerifiedBlockNumber(final Consumer<Long> lastVerifiedBlockConsumer) {
             this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
             return this;
         }
@@ -335,11 +346,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
                     responseCode,
                     blockNumber,
                     lastVerifiedBlockNumber,
-                    lastVerifiedBlockConsumer);
+                    lastVerifiedBlockConsumer,
+                    true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -352,7 +364,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
         private final int nodeIndex;
         private final long blockNumber;
 
-        private SendSkipBlockBuilder(int nodeIndex, long blockNumber) {
+        private SendSkipBlockBuilder(final int nodeIndex, final long blockNumber) {
             this.nodeIndex = nodeIndex;
             this.blockNumber = blockNumber;
         }
@@ -364,11 +376,17 @@ public class BlockNodeSimulatorOp extends UtilOp {
          */
         public BlockNodeSimulatorOp build() {
             return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.SEND_SKIP_BLOCK_IMMEDIATELY, null, blockNumber, null, null);
+                    nodeIndex,
+                    BlockNodeSimulatorAction.SEND_SKIP_BLOCK_IMMEDIATELY,
+                    null,
+                    blockNumber,
+                    null,
+                    null,
+                    true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -381,7 +399,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
         private final int nodeIndex;
         private final long blockNumber;
 
-        private SendResendBlockBuilder(int nodeIndex, long blockNumber) {
+        private SendResendBlockBuilder(final int nodeIndex, final long blockNumber) {
             this.nodeIndex = nodeIndex;
             this.blockNumber = blockNumber;
         }
@@ -393,11 +411,17 @@ public class BlockNodeSimulatorOp extends UtilOp {
          */
         public BlockNodeSimulatorOp build() {
             return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.SEND_RESEND_BLOCK_IMMEDIATELY, null, blockNumber, null, null);
+                    nodeIndex,
+                    BlockNodeSimulatorAction.SEND_RESEND_BLOCK_IMMEDIATELY,
+                    null,
+                    blockNumber,
+                    null,
+                    null,
+                    true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -405,7 +429,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
     public static class ShutdownBuilder extends UtilOp {
         private final int nodeIndex;
 
-        private ShutdownBuilder(int nodeIndex) {
+        private ShutdownBuilder(final int nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -416,11 +440,11 @@ public class BlockNodeSimulatorOp extends UtilOp {
          */
         public BlockNodeSimulatorOp build() {
             return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.SHUTDOWN_SIMULATOR, null, 0, null, null);
+                    nodeIndex, BlockNodeSimulatorAction.SHUTDOWN_SIMULATOR, null, 0, null, null, true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -432,11 +456,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(0, BlockNodeSimulatorAction.SHUTDOWN_ALL_SIMULATORS, null, 0, null, null);
+            return new BlockNodeSimulatorOp(
+                    0, BlockNodeSimulatorAction.SHUTDOWN_ALL_SIMULATORS, null, 0, null, null, true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -444,7 +469,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
     public static class StartBuilder extends UtilOp {
         private final int nodeIndex;
 
-        private StartBuilder(int nodeIndex) {
+        private StartBuilder(final int nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -454,11 +479,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(nodeIndex, BlockNodeSimulatorAction.START_SIMULATOR, null, 0, null, null);
+            return new BlockNodeSimulatorOp(
+                    nodeIndex, BlockNodeSimulatorAction.START_SIMULATOR, null, 0, null, null, true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -470,11 +496,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @return the operation
          */
         public BlockNodeSimulatorOp build() {
-            return new BlockNodeSimulatorOp(0, BlockNodeSimulatorAction.START_ALL_SIMULATORS, null, 0, null, null);
+            return new BlockNodeSimulatorOp(
+                    0, BlockNodeSimulatorAction.START_ALL_SIMULATORS, null, 0, null, null, true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -483,7 +510,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
         private final int nodeIndex;
         private final long blockNumber;
 
-        AssertBlockReceivedBuilder(int nodeIndex, long blockNumber) {
+        AssertBlockReceivedBuilder(final int nodeIndex, final long blockNumber) {
             this.nodeIndex = nodeIndex;
             this.blockNumber = blockNumber;
         }
@@ -495,11 +522,38 @@ public class BlockNodeSimulatorOp extends UtilOp {
          */
         public BlockNodeSimulatorOp build() {
             return new BlockNodeSimulatorOp(
-                    nodeIndex, BlockNodeSimulatorAction.ASSERT_BLOCK_RECEIVED, null, blockNumber, null, null);
+                    nodeIndex, BlockNodeSimulatorAction.ASSERT_BLOCK_RECEIVED, null, blockNumber, null, null, true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    public static class UpdateSendingBlockAcknowledgementsBuilder extends UtilOp {
+        private final int nodeIndex;
+        private final boolean sendBlockAcknowledgementsEnabled;
+
+        private UpdateSendingBlockAcknowledgementsBuilder(
+                final int nodeIndex, final boolean sendBlockAcknowledgementsEnabled) {
+            this.nodeIndex = nodeIndex;
+            this.sendBlockAcknowledgementsEnabled = sendBlockAcknowledgementsEnabled;
+        }
+
+        public BlockNodeSimulatorOp build() {
+            return new BlockNodeSimulatorOp(
+                    nodeIndex,
+                    BlockNodeSimulatorAction.UPDATE_SENDING_BLOCK_ACKS,
+                    null,
+                    0,
+                    null,
+                    null,
+                    sendBlockAcknowledgementsEnabled);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }
@@ -509,7 +563,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
         private AtomicLong lastVerifiedBlockNumber;
         private Consumer<Long> lastVerifiedBlockConsumer;
 
-        GetLastVerifiedBlockBuilder(int nodeIndex) {
+        GetLastVerifiedBlockBuilder(final int nodeIndex) {
             this.nodeIndex = nodeIndex;
         }
 
@@ -519,7 +573,7 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @param lastVerifiedBlockNumber the AtomicLong to store the last verified block number
          * @return this builder
          */
-        public GetLastVerifiedBlockBuilder exposingLastVerifiedBlockNumber(AtomicLong lastVerifiedBlockNumber) {
+        public GetLastVerifiedBlockBuilder exposingLastVerifiedBlockNumber(final AtomicLong lastVerifiedBlockNumber) {
             this.lastVerifiedBlockNumber = lastVerifiedBlockNumber;
             return this;
         }
@@ -530,7 +584,8 @@ public class BlockNodeSimulatorOp extends UtilOp {
          * @param lastVerifiedBlockConsumer the consumer to receive the last verified block number
          * @return this builder
          */
-        public GetLastVerifiedBlockBuilder exposingLastVerifiedBlockNumber(Consumer<Long> lastVerifiedBlockConsumer) {
+        public GetLastVerifiedBlockBuilder exposingLastVerifiedBlockNumber(
+                final Consumer<Long> lastVerifiedBlockConsumer) {
             this.lastVerifiedBlockConsumer = lastVerifiedBlockConsumer;
             return this;
         }
@@ -547,11 +602,12 @@ public class BlockNodeSimulatorOp extends UtilOp {
                     null,
                     0,
                     lastVerifiedBlockNumber,
-                    lastVerifiedBlockConsumer);
+                    lastVerifiedBlockConsumer,
+                    true);
         }
 
         @Override
-        protected boolean submitOp(HapiSpec spec) throws Throwable {
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
             return build().submitOp(spec);
         }
     }

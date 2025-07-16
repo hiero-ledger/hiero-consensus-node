@@ -23,10 +23,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -51,9 +49,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     private final Consensus consensus;
 
-    /** The way the ancient threshold is defined */
-    private final AncientMode ancientMode;
-
     private final int roundsNonAncient;
 
     private final AddedEventMetrics eventAddedMetrics;
@@ -77,15 +72,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
-        linker = new ConsensusLinker(platformContext, selfId);
-        futureEventBuffer = new FutureEventBuffer(
-                platformContext.getConfiguration(),
-                platformContext.getMetrics(),
-                FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
-        ancientMode = platformContext
-                .getConfiguration()
-                .getConfigData(EventConfig.class)
-                .getAncientMode();
+        linker = new ConsensusLinker(platformContext);
+        futureEventBuffer =
+                new FutureEventBuffer(platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND);
         roundsNonAncient = platformContext
                 .getConfiguration()
                 .getConfigData(ConsensusConfig.class)
@@ -159,7 +148,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void outOfBandSnapshotUpdate(@NonNull final ConsensusSnapshot snapshot) {
-        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, ancientMode, roundsNonAncient);
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
         linker.clear();
         linker.setEventWindow(eventWindow);
         futureEventBuffer.clear();

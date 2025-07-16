@@ -136,40 +136,10 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
         update(previousState.copyBuilder().lastFrozenTime(toPbjTimestamp(lastFrozenTime)));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void setFirstVersionInBirthRoundMode(@NonNull final SemanticVersion firstVersionInBirthRoundMode) {
-        requireNonNull(firstVersionInBirthRoundMode);
+    public void setLatestFreezeRound(final long latestFreezeRound) {
         final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .firstVersionInBirthRoundMode(firstVersionInBirthRoundMode)
-                .build());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLastRoundBeforeBirthRoundMode(final long lastRoundBeforeBirthRoundMode) {
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .lastRoundBeforeBirthRoundMode(lastRoundBeforeBirthRoundMode)
-                .build());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setLowestJudgeGenerationBeforeBirthRoundMode(final long lowestJudgeGenerationBeforeBirthRoundMode) {
-        final var previousState = stateOrThrow();
-        update(previousState
-                .copyBuilder()
-                .lowestJudgeGenerationBeforeBirthRoundMode(lowestJudgeGenerationBeforeBirthRoundMode));
+        update(previousState.copyBuilder().latestFreezeRound(latestFreezeRound));
     }
 
     /**

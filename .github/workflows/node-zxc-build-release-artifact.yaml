@@ -3,6 +3,16 @@ name: "ZXC: [Node] Deploy Release Artifacts"
 on:
   workflow_call:
     inputs:
+      ref:
+        description: "Git Reference (branch, tag, or commit SHA)"
+        type: string
+        required: true
+        default: ""
+      ref-name:
+        description: "Git Reference Name (branch name or tag name)"
+        type: string
+        required: true
+        default: ""
       # Valid version policies are as follows: specified, branch-commit, adhoc-commit
       version-policy:
         description: "Version Policy:"
@@ -58,9 +68,9 @@ on:
         required: true
       cdn-bucket-name:
         required: true
-      svcs-ossrh-username:
+      central-publishing-username:
         required: true
-      svcs-ossrh-password:
+      central-publishing-password:
         required: true
       svcs-gpg-key-contents:
         required: true
@@ -116,7 +126,7 @@ jobs:
       prerelease: ${{ steps.effective-version.outputs.prerelease }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -134,8 +144,19 @@ jobs:
 
       - name: Verify Workflow Parameters
         id: parameters
+        env:
+          REF_CHECK: ${{ inputs.ref }}
+          REPO_URL: "https://github.com/${{ github.repository }}"
         run: |
-          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+          REF_INFO=$(git ls-remote "${REPO_URL}" "${REF_CHECK}")
+          if [[ -n "${REF_INFO/ /}" ]]; then
+            COMMIT_SHA="$(echo "${REF_INFO}" | awk '{print $1}')"
+          else
+            COMMIT_SHA="${REF_CHECK}"
+          fi
+
+          echo "COMMIT SHA is: ${COMMIT_SHA}"
+          BRANCH_NAME="${{ inputs.ref-name }}"
           BRANCH_NAME="${BRANCH_NAME##origin/}"
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BRANCH_NAME_SAFE="$(echo "${BRANCH_NAME_LOWER}" | tr '/' '-' | tr '_' '.')"
@@ -147,8 +168,16 @@ jobs:
           echo "branch-name-lower=${BRANCH_NAME_LOWER}" >>"${GITHUB_OUTPUT}"
           echo "branch-name-safe=${BRANCH_NAME_SAFE}" >>"${GITHUB_OUTPUT}"
           echo "commit-prefix=${COMMIT_PREFIX}" >>"${GITHUB_OUTPUT}"
-          echo "commit-id=${{ github.sha }}" >>"${GITHUB_OUTPUT}"
-          echo "commit-id-short=$(echo "${{ github.sha }}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
+          echo "commit-id=${COMMIT_SHA}" >>"${GITHUB_OUTPUT}"
+          echo "commit-id-short=$(echo "${COMMIT_SHA}" | cut -c1-8)" >>"${GITHUB_OUTPUT}"
+
+          echo "### Branch and Commit Metadata" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name: ${BRANCH_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name (lowercase): ${BRANCH_NAME_LOWER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Branch Name (safe): ${BRANCH_NAME_SAFE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit Prefix: ${COMMIT_PREFIX}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit SHA: ${COMMIT_SHA}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Commit SHA (short): $(echo "${COMMIT_SHA}" | cut -c1-8)" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Verify Version Update (As Specified)
         if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -162,6 +191,9 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ steps.parameters.outputs.commit-id }}
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -211,7 +243,7 @@ jobs:
       - validate
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -257,9 +289,12 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
@@ -281,15 +316,9 @@ jobs:
           gradle-version: ${{ inputs.gradle-version }}
 
       - name: Download Build Version
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: version.txt
-
-      - name: Cache Build Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          path: ~/artifact-build
-          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ github.sha }}
 
       - name: Gradle Assemble
         id: gradle-build
@@ -316,6 +345,12 @@ jobs:
         working-directory: ${{ steps.artifact-staging.outputs.folder }}
         run: |
           printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "${{ needs.validate.outputs.version }}" "${{ needs.validate.outputs.commit-id-short }}" "$(date -u)" | tee VERSION
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          path: ~/artifact-build
+          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Create Artifact Archive
         id: artifact-release
@@ -370,16 +405,19 @@ jobs:
       - build-artifact
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
         with:
           token_format: "access_token"
@@ -406,7 +444,7 @@ jobs:
         uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
 
       - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
         with:
           version: v0.16.2
           driver-opts: network=host
@@ -427,11 +465,10 @@ jobs:
           password: ${{ steps.google-auth.outputs.access_token }}
 
       - name: Restore Build Artifacts
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          fail-on-cache-miss: true
           path: ~/artifact-build
-          key: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ github.sha }}
+          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
 
       - name: Stage SDK Artifacts
         run: |
@@ -512,6 +549,7 @@ jobs:
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
       registry-name: gcp
       custom-job-name: "Publish Production Image (GCP)"
+      ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
@@ -530,6 +568,7 @@ jobs:
       dry-run-enabled: ${{ inputs.dry-run-enabled }}
       registry-name: jfrog
       custom-job-name: "Publish Production Image (JFrog)"
+      ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
@@ -545,23 +584,26 @@ jobs:
     if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           token_format: "access_token"
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@611876cbed7d009aab97257020a59ddde6e840c0 # v4.5.8
+        uses: jfrog/setup-jfrog-cli@ff5cb544114ffc152db9cea1cd3d5978d5074946 # v4.5.11
         env:
           JF_URL: ${{ secrets.jf-url }}
           JF_ACCESS_TOKEN: ${{ secrets.jf-access-token }}
@@ -658,12 +700,15 @@ jobs:
     if: ${{ inputs.release-profile != 'none' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}
@@ -679,7 +724,7 @@ jobs:
 
       - name: Import GPG key
         id: gpg_key
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           gpg_private_key: ${{ secrets.sdk-gpg-key-contents }}
           passphrase: ${{ secrets.sdk-gpg-key-passphrase }}
@@ -690,7 +735,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/229164983194/locations/global/workloadIdentityPools/registry-identity-pool/providers/gh-provider"
           service_account: "artifact-deployer@swirlds-registry.iam.gserviceaccount.com"
@@ -711,7 +756,7 @@ jobs:
           gradle-version: ${{ inputs.gradle-version }}
 
       - name: Download Build Version
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: version.txt
 
@@ -728,12 +773,6 @@ jobs:
           SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
           COMMIT_SHA="${{ needs.validate.outputs.commit-id-short }}"
 
-          #if [[ "${{ steps.archive-cache.outputs.cache-hit }}" == true ]]; then
-          #  echo "::group::Removing Existing Archive Cache Items"
-          #  rm -rvf "${SDK_ARCHIVE_DIR}"/*
-          #  echo "::endgroup::"
-          #fi
-
           echo "::group::Creating Release Directories"
             [[ -f "${SDK_RELEASE_DIR}" ]] || mkdir -p "${SDK_RELEASE_DIR}"
             [[ -f "${SDK_ARCHIVE_DIR}" ]] || mkdir -p "${SDK_ARCHIVE_DIR}"
@@ -748,7 +787,6 @@ jobs:
             rm -rvf "${SDK_RELEASE_DIR}/testing"
             rm -rvf "${SDK_RELEASE_DIR}/kernels"
             rm -rvf "${SDK_RELEASE_DIR}/data/configs"
-
 
             cat "sdk/config.txt" | \
               perl -0777 -pe 's/# \*\* BEGIN REMOVE FROM SDK RELEASES \*\*.*# \*\* END REMOVE FROM SDK RELEASES \*\*//igs' \
@@ -793,12 +831,16 @@ jobs:
             gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
           echo "::endgroup::"
 
-      - name: Gradle Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'Google Artifact Registry' }} (${{ inputs.release-profile }})
-        if: ${{ inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        env:
-          NEXUS_USERNAME: ${{ secrets.svcs-ossrh-username }}
-          NEXUS_PASSWORD: ${{ secrets.svcs-ossrh-password }}
+      - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
+        if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+
+      - name: Gradle Publish to Maven Central
+        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
+          NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -819,7 +861,7 @@ jobs:
     if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -841,7 +883,7 @@ jobs:
           echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
       - name: Send Slack Notification (Maven Central)
-        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.slack-webhook-url }}
           webhook-type: incoming-webhook
@@ -894,7 +936,7 @@ jobs:
                           },
                           {
                             "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ github.ref_name }}|${{ github.ref_name }}>"
+                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ inputs.ref-name }}|${{ inputs.ref-name }}>"
                           },
                           {
                             "type": "mrkdwn",

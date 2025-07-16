@@ -26,10 +26,13 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
@@ -53,7 +56,29 @@ public enum BlockStreamAccess {
      */
     public List<Block> readBlocks(@NonNull final Path path) {
         try {
-            return orderedBlocksFrom(path).stream().map(this::blockFrom).toList();
+            return orderedBlocksFrom(path).stream()
+                    .map(BlockStreamAccess::blockFrom)
+                    .toList();
+        } catch (IOException e) {
+            log.error("Failed to read blocks from path {}", path, e);
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Reads all files matching the marker file pattern from the given path
+     * and returns the latest marker file with the highest block number.
+     *
+     * @param path the path to read blocks from
+     * @return the ascending set of block marker file numbers
+     * @throws UncheckedIOException if an I/O error occurs
+     */
+    public static Set<Long> getAllMarkerFileNumbers(@NonNull final Path path) {
+        try (final var stream = Files.walk(path)) {
+            return stream.map(BlockStreamAccess::extractMarkerFileNumber)
+                    .filter(num -> num != -1)
+                    .sorted()
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
         } catch (IOException e) {
             log.error("Failed to read blocks from path {}", path, e);
             throw new UncheckedIOException(e);
@@ -179,14 +204,12 @@ public enum BlockStreamAccess {
         return upToDate;
     }
 
-    private static Stream<StateChange> stateChangesForState(@NonNull final List<Block> blocks, final int stateId) {
-        return blocks.stream().flatMap(block -> block.items().stream()
-                .filter(BlockItem::hasStateChanges)
-                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
-                .filter(change -> change.stateId() == stateId));
-    }
-
-    private Block blockFrom(@NonNull final Path path) {
+    /**
+     * Reads a single block from the given path.
+     * @param path the path to read the block from
+     * @return the block
+     */
+    public static Block blockFrom(@NonNull final Path path) {
         final var fileName = path.getFileName().toString();
         try {
             if (fileName.endsWith(".gz")) {
@@ -201,7 +224,14 @@ public enum BlockStreamAccess {
         }
     }
 
-    private List<Path> orderedBlocksFrom(@NonNull final Path path) throws IOException {
+    private static Stream<StateChange> stateChangesForState(@NonNull final List<Block> blocks, final int stateId) {
+        return blocks.stream().flatMap(block -> block.items().stream()
+                .filter(BlockItem::hasStateChanges)
+                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                .filter(change -> change.stateId() == stateId));
+    }
+
+    private static List<Path> orderedBlocksFrom(@NonNull final Path path) throws IOException {
         try (final var stream = Files.walk(path)) {
             return stream.filter(BlockStreamAccess::isBlockFile)
                     .sorted(comparing(BlockStreamAccess::extractBlockNumber))
@@ -209,7 +239,12 @@ public enum BlockStreamAccess {
         }
     }
 
-    private static boolean isBlockFile(@NonNull final Path path) {
+    /**
+     * Checks if the given path is a block file.
+     * @param path the path to check
+     * @return true if the path is a block file, false otherwise
+     */
+    public static boolean isBlockFile(@NonNull final Path path) {
         if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
             return false;
         }
@@ -263,6 +298,27 @@ public enum BlockStreamAccess {
             if (i == -1) {
                 i = fileName.indexOf(".pnd");
             }
+            return Long.parseLong(fileName.substring(0, i));
+        } catch (Exception ignore) {
+        }
+        return -1;
+    }
+
+    /**
+     * Extracts the number from the given marker file.
+     *
+     * @param path the file name
+     * @return the block number, or -1 if it cannot be extracted
+     */
+    private static long extractMarkerFileNumber(@NonNull final Path path) {
+        final var fileName = path.getFileName().toString();
+
+        if (!fileName.endsWith(".mf")) {
+            return -1;
+        }
+
+        try {
+            int i = fileName.indexOf(".mf");
             return Long.parseLong(fileName.substring(0, i));
         } catch (Exception ignore) {
         }

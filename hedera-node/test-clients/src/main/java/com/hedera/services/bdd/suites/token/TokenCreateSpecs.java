@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.account
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairsInAnyOrder;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -93,6 +94,7 @@ import com.hederahashgraph.api.proto.java.TokenKycStatus;
 import com.hederahashgraph.api.proto.java.TokenPauseStatus;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
+import java.time.Instant;
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.stream.Collectors;
@@ -495,6 +497,7 @@ public class TokenCreateSpecs {
                         .feeScheduleKey("feeScheduleKey")
                         .pauseKey(pauseKey)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT)
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 tokenCreate(PRIMARY)
                         .supplyType(TokenSupplyType.FINITE)
@@ -514,6 +517,8 @@ public class TokenCreateSpecs {
                         .feeScheduleKey("feeScheduleKey")
                         .pauseKey(pauseKey)
                         .signedBy(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT, TOKEN_TREASURY)
+                        .sigMapPrefixes(
+                                uniqueWithFullPrefixesFor(DEFAULT_PAYER, ADMIN_KEY, AUTO_RENEW_ACCOUNT, TOKEN_TREASURY))
                         .via(CREATE_TXN),
                 withOpContext((spec, opLog) -> {
                     var createTxn = getTxnRecord(CREATE_TXN);
@@ -932,6 +937,7 @@ public class TokenCreateSpecs {
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY)
+                                .sigMapPrefixes(uniqueWithFullPrefixesFor(PAYER, ADMIN_KEY))
                                 .hasKnownStatus(INVALID_SIGNATURE));
     }
 
@@ -1119,7 +1125,45 @@ public class TokenCreateSpecs {
     }
 
     @HapiTest
-    final Stream<DynamicTest> withLongMinAutoRenewPeriod() {
+    final Stream<DynamicTest> canOmitAutoRenewPeriod() {
+        String memo = "JUMP";
+        String saltedName = salted(PRIMARY);
+        final var pauseKey = "pauseKey";
+        final var expiry = Instant.now().getEpochSecond() + THREE_MONTHS_IN_SECONDS - 123L;
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY).balance(0L),
+                cryptoCreate(AUTO_RENEW_ACCOUNT).balance(0L),
+                newKeyNamed(ADMIN_KEY),
+                newKeyNamed("freezeKey"),
+                newKeyNamed("kycKey"),
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed("wipeKey"),
+                newKeyNamed("feeScheduleKey"),
+                newKeyNamed(pauseKey),
+                tokenCreate(PRIMARY)
+                        .supplyType(TokenSupplyType.FINITE)
+                        .entityMemo(memo)
+                        .name(saltedName)
+                        .treasury(TOKEN_TREASURY)
+                        .autoRenewAccount(AUTO_RENEW_ACCOUNT)
+                        .omitAutoRenewPeriod()
+                        .expiry(expiry)
+                        .maxSupply(1000)
+                        .initialSupply(500)
+                        .decimals(1)
+                        .adminKey(ADMIN_KEY)
+                        .freezeKey("freezeKey")
+                        .kycKey("kycKey")
+                        .supplyKey(SUPPLY_KEY)
+                        .wipeKey("wipeKey")
+                        .feeScheduleKey("feeScheduleKey")
+                        .pauseKey(pauseKey)
+                        .via(CREATE_TXN),
+                getTokenInfo(PRIMARY).hasAutoRenewPeriod(0L).logged());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withNegativeAutoRenewPeriod() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate("autoRenewAccount"),
@@ -1129,7 +1173,7 @@ public class TokenCreateSpecs {
                         .initialSupply(0L)
                         .treasury(TOKEN_TREASURY)
                         .autoRenewAccount("autoRenewAccount")
-                        .autoRenewPeriod(Long.MIN_VALUE)
+                        .autoRenewPeriod(-1L)
                         .hasPrecheck(INVALID_RENEWAL_PERIOD));
     }
 
@@ -1160,21 +1204,6 @@ public class TokenCreateSpecs {
                         .treasury(TOKEN_TREASURY)
                         .expiry(-1)
                         .hasKnownStatus(INVALID_EXPIRATION_TIME));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> tokenCreateWithAutoRenewAccountAndNoPeriod() {
-        return hapiTest(
-                cryptoCreate(TOKEN_TREASURY),
-                cryptoCreate("autoRenewAccount"),
-                tokenCreate(token)
-                        .skipAutoRenewPeriod()
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .supplyKey(GENESIS)
-                        .initialSupply(0L)
-                        .treasury(TOKEN_TREASURY)
-                        .autoRenewAccount("autoRenewAccount")
-                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
     }
 
     @HapiTest

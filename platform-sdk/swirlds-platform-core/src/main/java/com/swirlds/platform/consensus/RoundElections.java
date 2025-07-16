@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.event.AncientMode;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -38,8 +37,6 @@ public class RoundElections {
      * witnesses in a single round)
      */
     private final List<CandidateWitness> elections = new ArrayList<>();
-    /** the minimum generation of all the judges, this is only set once the judges are found */
-    private long minGeneration = EventConstants.GENERATION_UNDEFINED;
     /** The minimum non-deterministic generation of all the judges. Only set once the judges are found. */
     private long minNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
     /** the minimum birth round of all the judges, this is only set once the judges are found */
@@ -104,16 +101,6 @@ public class RoundElections {
     }
 
     /**
-     * @return the minimum generation of all the judges(unique famous witnesses) in this round
-     */
-    public long getMinGeneration() {
-        if (minGeneration == EventConstants.GENERATION_UNDEFINED) {
-            throw new IllegalStateException("Cannot provide the minimum generation until all judges are found");
-        }
-        return minGeneration;
-    }
-
-    /**
      * @return the minimum non-deterministic generation of all the judges(unique famous witnesses) in this round
      */
     public long getMinNGen() {
@@ -137,9 +124,8 @@ public class RoundElections {
     /**
      * @return create a {@link MinimumJudgeInfo} instance for this round
      */
-    public @NonNull MinimumJudgeInfo createMinimumJudgeInfo(final AncientMode ancientMode) {
-        return new MinimumJudgeInfo(
-                round, ancientMode == AncientMode.GENERATION_THRESHOLD ? getMinGeneration() : getMinBirthRound());
+    public @NonNull MinimumJudgeInfo createMinimumJudgeInfo() {
+        return new MinimumJudgeInfo(round, getMinBirthRound());
     }
 
     /**
@@ -167,11 +153,9 @@ public class RoundElections {
         }
         allJudges.sort(Comparator.comparingLong(e -> e.getCreatorId().id()));
         minNGen = Long.MAX_VALUE;
-        minGeneration = Long.MAX_VALUE;
         minBirthRound = Long.MAX_VALUE;
         for (final EventImpl judge : allJudges) {
             minNGen = Math.min(minNGen, judge.getNGen());
-            minGeneration = Math.min(minGeneration, judge.getGeneration());
             minBirthRound = Math.min(minBirthRound, judge.getBirthRound());
             judge.setJudgeTrue();
         }
@@ -206,7 +190,6 @@ public class RoundElections {
         numUnknownFame.set(0);
         elections.clear();
         minNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
-        minGeneration = EventConstants.GENERATION_UNDEFINED;
         minBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
     }
 

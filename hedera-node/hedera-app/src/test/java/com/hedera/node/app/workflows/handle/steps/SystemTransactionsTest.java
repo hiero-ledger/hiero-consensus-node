@@ -12,7 +12,6 @@ import static org.mockito.BDDMockito.verify;
 import static org.mockito.Mockito.times;
 
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -44,6 +43,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.EntityIdFactory;
+import com.swirlds.state.lifecycle.StartupNetworks;
 import com.swirlds.state.lifecycle.info.NetworkInfo;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -115,7 +115,10 @@ class SystemTransactionsTest {
     private HederaRecordCache recordCache;
 
     @Mock
-    private SemanticVersion softwareVersionFactory;
+    private StartupNetworks startupNetworks;
+
+    @Mock
+    private StakePeriodChanges stakePeriodChanges;
 
     @LoggingSubject
     private SystemTransactions subject;
@@ -144,7 +147,8 @@ class SystemTransactionsTest {
                 blockStreamManager,
                 exchangeRateManager,
                 recordCache,
-                softwareVersionFactory);
+                startupNetworks,
+                stakePeriodChanges);
     }
 
     @Test

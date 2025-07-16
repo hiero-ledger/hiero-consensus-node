@@ -2,7 +2,6 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
-import static org.hiero.consensus.event.creator.impl.tipset.Tipset.merge;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
@@ -16,9 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -141,13 +140,14 @@ class TipsetWeightCalculatorTests {
         final NodeId selfId =
                 NodeId.of(roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId());
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Time time = Time.getCurrent();
 
         final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, roster, selfId, tipsetTracker, childlessEventTracker);
+                new TipsetWeightCalculator(configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
 
         List<PlatformEvent> previousParents = List.of();
         TipsetAdvancementWeight runningAdvancementScore = ZERO_ADVANCEMENT_WEIGHT;
@@ -218,12 +218,7 @@ class TipsetWeightCalculatorTests {
                 parentTipsets.add(tipsetTracker.getTipset(parent));
             }
 
-            final Tipset newTipset;
-            if (parentTipsets.isEmpty()) {
-                newTipset = new Tipset(roster);
-            } else {
-                newTipset = merge(parentTipsets);
-            }
+            final Tipset newTipset = new Tipset(roster).merge(parentTipsets);
 
             final TipsetAdvancementWeight expectedAdvancementScoreChange =
                     previousSnapshot.getTipAdvancementWeight(selfId, newTipset).minus(runningAdvancementScore);
@@ -289,13 +284,14 @@ class TipsetWeightCalculatorTests {
         final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Time time = Time.getCurrent();
 
         final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
+                new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);
 
         final Tipset snapshot1 = calculator.getSnapshot();
 
@@ -515,13 +511,14 @@ class TipsetWeightCalculatorTests {
                         .toList())
                 .build();
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Time time = Time.getCurrent();
 
         final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
-                new TipsetWeightCalculator(platformContext, roster, nodeA, builder, childlessEventTracker);
+                new TipsetWeightCalculator(configuration, time, roster, nodeA, builder, childlessEventTracker);
 
         final Tipset snapshot1 = calculator.getSnapshot();
 
@@ -599,13 +596,14 @@ class TipsetWeightCalculatorTests {
         final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
         final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Time time = Time.getCurrent();
 
         final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator tipsetWeightCalculator =
-                new TipsetWeightCalculator(platformContext, roster, nodeA, tipsetTracker, childlessEventTracker);
+                new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);
 
         // Create generation 0 / birth round 1 events
         final PlatformEvent a0 = newEvent(random, nodeA, NonDeterministicGeneration.GENERATION_UNDEFINED);

@@ -12,14 +12,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
 
 /**
  * A test environment for the Turtle framework.
@@ -29,6 +32,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
  */
 public class TurtleTestEnvironment implements TestEnvironment {
 
+    public static final Set<Capability> CAPABILITIES = Set.of();
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
     static final String APP_NAME = "otter";
@@ -39,26 +43,28 @@ public class TurtleTestEnvironment implements TestEnvironment {
     static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
 
     private final TurtleNetwork network;
-    private final TurtleTransactionGenerator generator;
+    private final TurtleTransactionGenerator transactionGenerator;
     private final TurtleTimeManager timeManager;
 
     /**
      * Constructor for the {@link TurtleTestEnvironment} class.
+     *
+     * @param randomSeed the seed for the PRNG; if {@code 0}, a random seed will be generated
      */
-    public TurtleTestEnvironment() {
+    public TurtleTestEnvironment(final long randomSeed) {
         final Path rootOutputDirectory = Path.of("build", "turtle");
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
             }
             Files.createDirectories(rootOutputDirectory);
-        } catch (IOException ex) {
+        } catch (final IOException ex) {
             log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
         }
 
         final TurtleLogging logging = new TurtleLogging(rootOutputDirectory);
 
-        final Randotron randotron = Randotron.create();
+        final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
 
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
 
@@ -76,12 +82,10 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         timeManager = new TurtleTimeManager(time, GRANULARITY);
 
-        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory);
-
-        generator = new TurtleTransactionGenerator(network, randotron);
+        transactionGenerator = new TurtleTransactionGenerator(randotron);
+        network = new TurtleNetwork(randotron, timeManager, logging, rootOutputDirectory, transactionGenerator);
 
         timeManager.addTimeTickReceiver(network);
-        timeManager.addTimeTickReceiver(generator);
     }
 
     /**
@@ -108,7 +112,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     @Override
     @NonNull
     public TransactionGenerator transactionGenerator() {
-        return generator;
+        return transactionGenerator;
     }
 
     /**
@@ -116,7 +120,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
      */
     @Override
     public void destroy() throws InterruptedException {
-        generator.stop();
+        InMemoryAppender.reset();
         network.destroy();
         ConstructableRegistry.getInstance().reset();
         RuntimeObjectRegistry.reset();

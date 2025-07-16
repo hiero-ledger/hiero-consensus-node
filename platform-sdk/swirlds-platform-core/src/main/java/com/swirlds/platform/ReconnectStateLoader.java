@@ -12,7 +12,6 @@ import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.consensus.EventWindowUtils;
-import com.swirlds.platform.event.validation.RosterUpdate;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -29,7 +28,9 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterUtils;
 
 // FUTURE WORK: this data should be traveling out over the wiring framework.
 
@@ -140,8 +141,8 @@ public class ReconnectStateLoader {
                     Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(state));
             platformWiring.consensusSnapshotOverride(consensusSnapshot);
 
-            final Roster previousRoster = RosterRetriever.retrievePreviousRoster(state);
-            platformWiring.getRosterUpdateInput().inject(new RosterUpdate(previousRoster, roster));
+            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            platformWiring.getRosterHistoryInput().inject(rosterHistory);
 
             platformWiring.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));

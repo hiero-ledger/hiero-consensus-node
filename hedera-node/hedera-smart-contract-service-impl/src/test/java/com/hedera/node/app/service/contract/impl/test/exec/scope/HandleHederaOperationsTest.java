@@ -66,7 +66,6 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -86,9 +85,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HandleHederaOperationsTest {
     @Mock
     private TokenServiceApi tokenServiceApi;
-
-    @Mock
-    private StreamBuilder streamBuilder;
 
     @Mock
     private BlockRecordInfo blockRecordInfo;
@@ -330,7 +326,8 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(captor.capture())).willReturn(contractCreateRecordBuilder);
@@ -338,6 +335,8 @@ class HandleHederaOperationsTest {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(parent);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
+        given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.evmCreateTransactionResult(any())).willReturn(contractCreateRecordBuilder);
 
         subject.createContract(666L, NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), CANONICAL_ALIAS);
 
@@ -402,7 +401,10 @@ class HandleHederaOperationsTest {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.evmCreateTransactionResult(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(captor.capture())).willReturn(contractCreateRecordBuilder);
@@ -474,9 +476,12 @@ class HandleHederaOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.evmCreateTransactionResult(any())).willReturn(contractCreateRecordBuilder);
         given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
@@ -514,11 +519,14 @@ class HandleHederaOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        given(contractCreateRecordBuilder.contractID(any(ContractID.class))).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(any(ContractID.class)))
+                .willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
         given(context.dispatch(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status()).willReturn(SUCCESS);
+        given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.evmCreateTransactionResult(any())).willReturn(contractCreateRecordBuilder);
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
 
         subject.createContract(666L, someBody, CANONICAL_ALIAS);
@@ -582,17 +590,19 @@ class HandleHederaOperationsTest {
         given(context.savepointStack()).willReturn(stack);
         given(stack.addRemovableChildRecordBuilder(ContractCreateStreamBuilder.class, CONTRACT_CREATE))
                 .willReturn(contractCreateRecordBuilder);
-        given(contractCreateRecordBuilder.contractID(contractId)).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdContractID(contractId)).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.status(any())).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.transaction(any(Transaction.class))).willReturn(contractCreateRecordBuilder);
         given(contractCreateRecordBuilder.contractCreateResult(any(ContractFunctionResult.class)))
                 .willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.createdEvmAddress(any())).willReturn(contractCreateRecordBuilder);
+        given(contractCreateRecordBuilder.evmCreateTransactionResult(any())).willReturn(contractCreateRecordBuilder);
 
         // when
         subject.externalizeHollowAccountMerge(contractId, VALID_CONTRACT_ADDRESS.evmAddress());
 
         // then
-        verify(contractCreateRecordBuilder).contractID(contractId);
+        verify(contractCreateRecordBuilder).createdContractID(contractId);
         verify(contractCreateRecordBuilder).contractCreateResult(any(ContractFunctionResult.class));
     }
 }

@@ -12,6 +12,7 @@ import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxDat
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.nonNull;
@@ -43,6 +44,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -147,11 +149,18 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         final var outcome = component.contextTransactionProcessor().call();
 
         // Assemble the appropriate top-level record for the result
-        final var ethTxData =
-                requireNonNull(requireNonNull(component.hydratedEthTxData()).ethTxData());
-        context.savepointStack()
+        final var hydratedEthTxData = requireNonNull(component.hydratedEthTxData());
+        final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
+        final var ethStreamBuilder = context.savepointStack()
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
-                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
+                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
+        if (outcome.hasNewSenderNonce()) {
+            final var nonceCallback =
+                    context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class);
+            final var newNonce = outcome.newSenderNonceOrThrow();
+            nonceCallback.ifPresent(cb -> cb.accept(outcome.txResult().senderId(), newNonce));
+            ethStreamBuilder.newSenderNonce(newNonce);
+        }
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
             outcome.addCallDetailsTo(streamBuilder);
@@ -169,11 +178,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
      */
     public void handleThrottled(@NonNull final HandleContext context) {
         final var component = getTransactionComponent(context, ETHEREUM_TRANSACTION);
-        final var ethTxData =
-                requireNonNull(requireNonNull(component.hydratedEthTxData()).ethTxData());
+        final var hydratedEthTxData = requireNonNull(component.hydratedEthTxData());
+        final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
         context.savepointStack()
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
-                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
+                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
     }
 
     @Override

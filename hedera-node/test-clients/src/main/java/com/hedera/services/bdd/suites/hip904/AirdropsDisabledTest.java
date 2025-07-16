@@ -222,7 +222,8 @@ public class AirdropsDisabledTest {
                             .hasPriority(recordWith()
                                     .contractCallResult(resultWith()
                                             .contractWithNonce(
-                                                    contractIdFromHexedMirrorAddress(mergedMirrorAddr.get()), 3L)));
+                                                    contractIdFromHexedMirrorAddress(spec, mergedMirrorAddr.get()),
+                                                    3L)));
                     allRunFor(spec, opExpectedMergedNonce);
                 }),
                 sourcing(() -> getContractInfo(mergedAliasAddr.get())

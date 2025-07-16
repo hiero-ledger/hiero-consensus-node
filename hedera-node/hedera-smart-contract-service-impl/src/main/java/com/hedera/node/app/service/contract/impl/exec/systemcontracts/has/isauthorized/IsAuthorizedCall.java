@@ -82,8 +82,7 @@ public class IsAuthorizedCall extends AbstractCall {
         final var authorized = verifyMessage(
                 key, wrap(message), MessageType.RAW, sigMap, ky -> SimpleKeyStatus.ONLY_IF_CRYPTO_SIG_VALID);
 
-        final var result = encodedOutput(SUCCESS, authorized, gasRequirement);
-        return result;
+        return encodedOutput(SUCCESS, authorized, gasRequirement);
     }
 
     protected boolean verifyMessage(
@@ -100,13 +99,11 @@ public class IsAuthorizedCall extends AbstractCall {
             final ResponseCodeEnum rce, final boolean authorized, final long gasRequirement) {
         final long code = rce.protoOrdinal();
         final var output = IsAuthorizedTranslator.IS_AUTHORIZED.getOutputs().encode(Tuple.of(code, authorized));
-        final var result = gasOnly(successResult(output, gasRequirement), SUCCESS, true);
-        return result;
+        return gasOnly(successResult(output, gasRequirement), SUCCESS, true);
     }
 
     boolean isValidAccount(final long accountNum) {
         // invalid if accountNum is negative
-        if (accountNum < 0) return false;
-        return true;
+        return accountNum >= 0;
     }
 }

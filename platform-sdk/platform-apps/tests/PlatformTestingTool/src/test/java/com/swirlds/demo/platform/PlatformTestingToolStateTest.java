@@ -117,7 +117,6 @@ class PlatformTestingToolStateTest {
         consumer = systemTransaction -> consumedSystemTransactions.add(systemTransaction);
 
         when(platformEvent.getCreatorId()).thenReturn(new NodeId());
-        when(platformEvent.getSoftwareVersion()).thenReturn(new SemanticVersion(1, 1, 1, "", ""));
         when(platformEvent.getConsensusTimestamp()).thenReturn(Instant.now());
 
         final Randotron randotron = Randotron.create();

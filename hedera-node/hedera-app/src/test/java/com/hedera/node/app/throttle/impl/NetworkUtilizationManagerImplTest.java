@@ -75,4 +75,13 @@ class NetworkUtilizationManagerImplTest {
         verify(throttleAccumulator).checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
     }
+
+    @Test
+    void verifyShouldThrottleOpsDuration() {
+        // when
+        subject.shouldThrottleByOpsDuration(1_000_000, consensusNow);
+
+        // then
+        verify(throttleAccumulator).checkAndEnforceOpsDurationThrottle(1_000_000, consensusNow);
+    }
 }
