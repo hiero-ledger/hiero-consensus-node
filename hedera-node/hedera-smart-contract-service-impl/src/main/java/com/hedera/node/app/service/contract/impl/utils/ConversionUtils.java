@@ -18,6 +18,7 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.SlotRead;
+import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -365,8 +366,11 @@ public class ConversionUtils {
                 }
             }
             if (traceExplicitWrites) {
-                slotUsages.add(new ContractSlotUsage(
-                        storageAccess.contractID(), new OneOf<>(WRITTEN_SLOT_KEYS, writes), reads));
+                slotUsages.add(ContractSlotUsage.newBuilder()
+                        .contractId(storageAccess.contractID())
+                        .writtenSlotKeys(new WrittenSlotKeys(writes))
+                        .slotReads(reads)
+                        .build());
             } else {
                 slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), IMPLICIT_WRITES, reads));
             }

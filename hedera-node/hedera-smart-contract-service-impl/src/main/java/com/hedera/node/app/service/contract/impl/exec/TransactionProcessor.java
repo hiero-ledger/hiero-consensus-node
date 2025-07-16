@@ -167,12 +167,13 @@ public class TransactionProcessor {
             @Nullable final StorageAccessTracker accessTracker) {
         try {
             updater.commit();
-            final var txStorageUsage = txStorageUsageFrom((ProxyWorldUpdater) updater, accessTracker, true);
-            if (txStorageUsage != null) {
-                return result.withTxStorageUsage(txStorageUsage);
-            } else {
-                return result;
+            if (result.isSuccess()) {
+                final var txStorageUsage = txStorageUsageFrom((ProxyWorldUpdater) updater, accessTracker, true);
+                if (txStorageUsage != null) {
+                    return result.withTxStorageUsage(txStorageUsage);
+                }
             }
+            return result;
         } catch (ResourceExhaustedException e) {
             updater.revert();
             final var sender = updater.getHederaAccount(transaction.senderId());
