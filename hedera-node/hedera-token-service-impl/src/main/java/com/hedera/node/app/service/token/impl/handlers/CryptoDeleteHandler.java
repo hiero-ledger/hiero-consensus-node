@@ -21,7 +21,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.AccountsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -70,7 +69,6 @@ public class CryptoDeleteHandler implements TransactionHandler {
     @Override
     public void handle(@NonNull final HandleContext context) {
         requireNonNull(context);
-        final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var op = context.body().cryptoDeleteOrThrow();
         context.storeFactory()
                 .serviceApi(TokenServiceApi.class)

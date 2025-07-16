@@ -69,7 +69,7 @@ public class AtomicTokenMetadataSpecs {
                 .when()
                 .then(atomicBatch(tokenCreate(PRIMARY)
                                 .metaData(metadataStringTooLong)
-                                .hasPrecheck(METADATA_TOO_LONG)
+                                .hasKnownStatus(METADATA_TOO_LONG)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
