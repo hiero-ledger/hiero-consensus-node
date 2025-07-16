@@ -315,7 +315,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     private void doStartNode() {
 
-        final Configuration currentConfiguration = nodeConfiguration.createConfiguration();
+        final Configuration currentConfiguration = nodeConfiguration.current();
         final org.hiero.consensus.model.node.NodeId legacyNodeId =
                 org.hiero.consensus.model.node.NodeId.of(selfId.id());
 

@@ -4,6 +4,8 @@ package org.hiero.otter.fixtures.container;
 import static com.swirlds.config.extensions.export.ConfigExport.getPropertiesForConfigDataRecords;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.source.ConfigSource;
+import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -33,6 +35,18 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
         return this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    protected ConfigSource getEnvironmentOverrideSource() {
+        return new SimpleConfigSource();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     public Map<String, String> overriddenProperties() {
         return overriddenProperties;
