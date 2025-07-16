@@ -65,9 +65,12 @@ import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.jetbrains.annotations.NotNull;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A temporary implementation of {@link StreamBuilder} that forwards all mutating calls to an
@@ -117,6 +120,17 @@ public class PairedStreamBuilder
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         blockStreamBuilder.stateChanges(stateChanges);
         return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        blockStreamBuilder.testForIdenticalKeys(test);
+        return this;
+    }
+
+    @Override
+    public @Nullable Predicate<Object> logicallyIdenticalValueTest() {
+        return blockStreamBuilder.logicallyIdenticalValueTest();
     }
 
     public BlockStreamBuilder blockStreamBuilder() {

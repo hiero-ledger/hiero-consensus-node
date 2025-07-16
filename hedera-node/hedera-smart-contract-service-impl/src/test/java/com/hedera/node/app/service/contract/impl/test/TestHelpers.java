@@ -624,7 +624,7 @@ public class TestHelpers {
             null,
             null,
             null,
-            null);
+            null, null);
 
     public static final StorageAccesses ONE_STORAGE_ACCESSES = new StorageAccesses(
             ContractID.newBuilder().contractNum(123L).build(),
@@ -1075,6 +1075,6 @@ public class TestHelpers {
                 slotUsages,
                 null,
                 actions,
-                null);
+                null, null);
     }
 }

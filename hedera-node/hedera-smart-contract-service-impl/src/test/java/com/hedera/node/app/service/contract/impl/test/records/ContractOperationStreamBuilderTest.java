@@ -18,6 +18,8 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import java.util.List;
+
+import com.hedera.node.app.spi.workflows.HandleContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,11 +29,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ContractOperationStreamBuilderTest {
     @Mock
+    private HandleContext context;
+
+    @Mock
     private ContractOperationStreamBuilder subject;
 
     @BeforeEach
     void setUp() {
-        doCallRealMethod().when(subject).withCommonFieldsSetFrom(any());
+        doCallRealMethod().when(subject).withCommonFieldsSetFrom(any(), context);
     }
 
     @Test
@@ -42,15 +47,13 @@ class ContractOperationStreamBuilderTest {
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
                 List.of(),
-                stateChanges,
-                null,
                 null,
                 null,
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
-                null);
-        final var builder = subject.withCommonFieldsSetFrom(outcome);
+                null, null);
+        final var builder = subject.withCommonFieldsSetFrom(outcome, context);
 
         verify(subject).addContractActions(ContractActions.DEFAULT, false);
         verify(subject).addContractStateChanges(stateChanges, false);
@@ -64,15 +67,13 @@ class ContractOperationStreamBuilderTest {
                 ResponseCodeEnum.SUCCESS,
                 ContractID.DEFAULT,
                 null,
-                ContractStateChanges.DEFAULT,
-                null,
                 null,
                 null,
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
                 null,
-                null);
-        final var builder = subject.withCommonFieldsSetFrom(outcome);
+                null, null);
+        final var builder = subject.withCommonFieldsSetFrom(outcome, context);
 
         verify(subject, never()).addContractActions(any(), anyBoolean());
         verify(subject, never()).addContractStateChanges(any(), anyBoolean());

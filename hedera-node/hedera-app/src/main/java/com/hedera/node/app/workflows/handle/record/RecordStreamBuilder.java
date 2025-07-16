@@ -90,7 +90,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+
 import org.hiero.base.crypto.DigestType;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A custom builder for create a {@link SingleTransactionRecord}.
@@ -1098,6 +1101,12 @@ public class RecordStreamBuilder
 
     // ------------------------------------------------------------------------------------------------------------------------
     // Sidecar data, booleans are the migration flag
+
+
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        throw new UnsupportedOperationException("Record stream uses verbose sidecars");
+    }
 
     /**
      * Sets the contractStateChanges which are part of sidecar records.

@@ -102,7 +102,7 @@ public class KVStateChangeListener implements StateChangeListener {
     public <K, V> void mapUpdateChange(final int stateId, @NonNull final K key, @NonNull final V value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
-        final boolean identical = logicallyIdentical != null && logicallyIdentical.test(value);
+        final boolean identical = logicallyIdentical != null && logicallyIdentical.test(key);
         final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();

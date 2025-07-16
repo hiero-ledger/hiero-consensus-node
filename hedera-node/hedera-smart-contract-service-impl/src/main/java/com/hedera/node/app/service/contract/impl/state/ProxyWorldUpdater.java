@@ -289,8 +289,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     @Override
-    public @NonNull List<StorageAccesses> pendingStorageUpdates() {
-        return evmFrameState.getStorageChanges();
+    public @NonNull TxStorageUsage getTxStorageUsage() {
+        throw new UnsupportedOperationException("Only root updater can summarize transaction storage usage");
     }
 
     /**

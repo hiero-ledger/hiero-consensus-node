@@ -217,7 +217,7 @@ class DispatchingEvmFrameStateTest {
         givenOrigAndNewValues(iter.next(), UInt256.MIN_VALUE, UInt256.ONE);
         givenOrigAndNewValues(iter.next(), UInt256.ONE, UInt256.MAX_VALUE);
 
-        final var actual = subject.getStorageChanges();
+        final var actual = subject.getTxStorageUsage(true);
 
         assertEquals(expected, actual);
     }

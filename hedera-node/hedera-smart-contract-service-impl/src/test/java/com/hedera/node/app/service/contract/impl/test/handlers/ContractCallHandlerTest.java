@@ -76,6 +76,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private RootProxyWorldUpdater baseProxyWorldUpdater;
 
     @Mock
+    private HandleContext context;
+
+    @Mock
     private HederaOperations hederaOperations;
 
     @Mock
@@ -118,17 +121,15 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, null),
                 SUCCESS_RESULT.signerNonce(),
-                null);
+                null, null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
 
         given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(recordBuilder);
 
         assertDoesNotThrow(() -> subject.handle(handleContext));
     }
@@ -149,16 +150,14 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 HALT_RESULT.asEvmTxResultOf(null, null),
                 null,
-                null);
+                null, null);
         given(processor.call()).willReturn(expectedOutcome);
 
         given(recordBuilder.contractID(null)).willReturn(recordBuilder);
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
-        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(recordBuilder);
 
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
     }

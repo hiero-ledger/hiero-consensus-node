@@ -14,13 +14,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.errorMessageFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHederaLogs;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.txStorageUsageFrom;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -42,7 +42,7 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -70,7 +70,8 @@ public record HederaEvmTransactionResult(
         @Nullable List<ContractSlotUsage> slotUsages,
         @Nullable ResponseCodeEnum finalStatus,
         @Nullable List<ContractAction> actions,
-        @Nullable Long signerNonce) {
+        @Nullable Long signerNonce,
+        @Nullable TxStorageUsage txStorageUsage) {
     public HederaEvmTransactionResult {
         requireNonNull(senderId);
         requireNonNull(output);
@@ -224,10 +225,6 @@ public record HederaEvmTransactionResult(
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(entityIdFactory);
-        final var storageAccesses = maybeAllStateChangesFrom(frame);
-        final var streamMode = FrameUtils.configOf(frame)
-                .getConfigData(BlockStreamConfig.class)
-                .streamMode();
         final var besuLogs = frame.getLogs();
         final var evmLogs = besuLogs.isEmpty() ? null : asHederaLogs(besuLogs, entityIdFactory);
         return new HederaEvmTransactionResult(
@@ -241,10 +238,11 @@ public record HederaEvmTransactionResult(
                 null,
                 besuLogs,
                 evmLogs,
-                streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
-                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
+                null,
+                null,
                 null,
                 maybeActionsFrom(frame, tracer),
+                null,
                 null);
     }
 
@@ -266,7 +264,8 @@ public record HederaEvmTransactionResult(
             @NonNull final ActionSidecarContentTracer tracer) {
         requireNonNull(frame);
         requireNonNull(tracer);
-        final var storageAccesses = maybeReadOnlyStateChangesFrom(frame);
+        final var txStorageUsage = txStorageUsageFrom(null, accessTrackerFor(frame), false);
+        final var storageAccesses = txStorageUsage == null ? null : txStorageUsage.accesses();
         final var streamMode = FrameUtils.configOf(frame)
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
@@ -282,9 +281,10 @@ public record HederaEvmTransactionResult(
                 Collections.emptyList(),
                 null,
                 streamMode != BLOCKS ? asPbjStateChanges(storageAccesses) : null,
-                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses) : null,
+                streamMode != RECORDS ? asPbjSlotUsages(storageAccesses, true) : null,
                 null,
                 maybeActionsFrom(frame, tracer),
+                null,
                 null);
     }
 
@@ -312,6 +312,7 @@ public record HederaEvmTransactionResult(
                 null,
                 Bytes.wrap(reason.name()),
                 Collections.emptyList(),
+                null,
                 null,
                 null,
                 null,
@@ -348,6 +349,7 @@ public record HederaEvmTransactionResult(
                 null,
                 null,
                 reason,
+                null,
                 null,
                 null);
     }
@@ -471,40 +473,14 @@ public record HederaEvmTransactionResult(
         return revertReason == null && haltReason == null;
     }
 
-    private static @Nullable List<StorageAccesses> maybeAllStateChangesFrom(@NonNull final MessageFrame frame) {
-        return storageAccessesFrom(frame, true);
-    }
-
     private static @Nullable List<ContractAction> maybeActionsFrom(
             @NonNull final MessageFrame frame, @NonNull final ActionSidecarContentTracer tracer) {
         return hasActionSidecarsEnabled(frame) ? tracer.contractActions() : null;
     }
 
-    private static @Nullable List<StorageAccesses> maybeReadOnlyStateChangesFrom(@NonNull final MessageFrame frame) {
-        return storageAccessesFrom(frame, false);
-    }
-
     private static String errorMessageForRevert(@NonNull final Bytes reason) {
         requireNonNull(reason);
         return "0x" + reason.toHex();
-    }
-
-    private static @Nullable List<StorageAccesses> storageAccessesFrom(
-            @NonNull final MessageFrame frame, final boolean includeWrites) {
-        requireNonNull(frame);
-        final var accessTracker = accessTrackerFor(frame);
-        if (accessTracker == null) {
-            return null;
-        } else {
-            final List<StorageAccesses> accesses;
-            if (includeWrites) {
-                final var worldUpdater = proxyUpdaterFor(frame);
-                accesses = accessTracker.getReadsMergedWith(worldUpdater.pendingStorageUpdates());
-            } else {
-                accesses = accessTracker.getJustReads();
-            }
-            return accesses;
-        }
     }
 
     public HederaEvmTransactionResult withSignerNonce(@Nullable final Long signerNonce) {
@@ -523,6 +499,27 @@ public record HederaEvmTransactionResult(
                 slotUsages,
                 finalStatus,
                 actions,
-                signerNonce);
+                signerNonce,
+                txStorageUsage);
+    }
+
+    public HederaEvmTransactionResult withTxStorageUsage(@Nullable final TxStorageUsage txStorageUsage) {
+        return new HederaEvmTransactionResult(
+                gasUsed,
+                gasPrice,
+                senderId,
+                recipientId,
+                recipientEvmAddress,
+                output,
+                haltReason,
+                revertReason,
+                logs,
+                evmLogs,
+                stateChanges,
+                slotUsages,
+                finalStatus,
+                actions,
+                signerNonce,
+                txStorageUsage);
     }
 }

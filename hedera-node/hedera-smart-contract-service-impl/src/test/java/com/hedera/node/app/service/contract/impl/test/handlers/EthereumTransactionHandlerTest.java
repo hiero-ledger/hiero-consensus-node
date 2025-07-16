@@ -94,7 +94,7 @@ class EthereumTransactionHandlerTest {
     private TransactionComponent component;
 
     @Mock
-    private HandleContext handleContext;
+    private HandleContext context;
 
     @Mock
     private PreHandleContext preHandleContext;
@@ -177,7 +177,7 @@ class EthereumTransactionHandlerTest {
 
         final var contextTransactionProcessor = new ContextTransactionProcessor(
                 HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false),
-                handleContext,
+                context,
                 defaultContractsConfig,
                 DEFAULT_CONFIG,
                 hederaEvmContext,
@@ -193,10 +193,10 @@ class EthereumTransactionHandlerTest {
         final var body = TransactionBody.newBuilder()
                 .transactionID(TransactionID.DEFAULT)
                 .build();
-        given(handleContext.body()).willReturn(body);
-        given(handleContext.payer()).willReturn(AccountID.DEFAULT);
-        given(handleContext.dispatchMetadata()).willReturn(EMPTY_METADATA);
-        given(hevmTransactionFactory.fromHapiTransaction(handleContext.body(), handleContext.payer()))
+        given(context.body()).willReturn(body);
+        given(context.payer()).willReturn(AccountID.DEFAULT);
+        given(context.dispatchMetadata()).willReturn(EMPTY_METADATA);
+        given(hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer()))
                 .willReturn(HEVM_CREATION);
 
         given(transactionProcessor.processTransaction(
@@ -206,11 +206,11 @@ class EthereumTransactionHandlerTest {
 
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCallWithToAddress() {
-        given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(callRecordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
@@ -224,43 +224,41 @@ class EthereumTransactionHandlerTest {
                 CALLED_CONTRACT_ID,
                 null,
                 null,
-                null,
-                null,
                 List.of(),
                 List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITH_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                null);
+                null, null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
-        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(callRecordBuilder);
+        given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(callRecordBuilder);
 
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
     }
 
     @Test
     void setsEthHashOnThrottledContext() {
-        given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
 
-        assertDoesNotThrow(() -> subject.handleThrottled(handleContext));
+        assertDoesNotThrow(() -> subject.handleThrottled(context));
     }
 
     @Test
     void delegatesToCreatedComponentAndExposesEthTxDataCreateWithoutToAddress() {
-        given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData())
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
@@ -273,25 +271,23 @@ class EthereumTransactionHandlerTest {
                 CALLED_CONTRACT_ID,
                 null,
                 null,
-                null,
-                null,
                 List.of(),
                 List.of(CALLED_CONTRACT_ID),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater));
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater), null);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
-        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
 
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
     }
 
     @Test
@@ -408,12 +404,12 @@ class EthereumTransactionHandlerTest {
     @Test
     @SuppressWarnings("unchecked")
     void handleSetsNewSenderNonceWhenPresent() {
-        given(factory.create(handleContext, ETHEREUM_TRANSACTION)).willReturn(component);
+        given(factory.create(context, ETHEREUM_TRANSACTION)).willReturn(component);
         given(component.hydratedEthTxData())
                 .willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITHOUT_TO_ADDRESS, false));
         given(component.hederaOperations()).willReturn(hederaOperations);
         setUpTransactionProcessing();
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
         given(stack.getBaseBuilder(ContractCreateStreamBuilder.class)).willReturn(createRecordBuilder);
         given(baseProxyWorldUpdater.getCreatedContractIds()).willReturn(List.of(CALLED_CONTRACT_ID));
@@ -426,19 +422,17 @@ class EthereumTransactionHandlerTest {
                 CALLED_CONTRACT_ID,
                 null,
                 null,
-                null,
-                null,
                 List.of(),
                 List.of(CALLED_CONTRACT_ID),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
                         ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
-                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater));
+                SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater), null);
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
-        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome)).willReturn(createRecordBuilder);
+        given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(createRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
@@ -447,12 +441,12 @@ class EthereumTransactionHandlerTest {
         final var nonceCallback = mock(BiConsumer.class);
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
         final var optionalCallback = Optional.of(nonceCallback);
-        given(handleContext.dispatchMetadata()).willReturn(dispatchMetadata);
+        given(context.dispatchMetadata()).willReturn(dispatchMetadata);
         given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
                 .willReturn(optionalCallback);
 
         // Execute the handler
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
 
         // Verify the callback was called with the expected arguments
         verify(nonceCallback).accept(SENDER_ID, SIGNER_NONCE);

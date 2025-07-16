@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CONTRACT_STORAGE;
+import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES;
+import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -26,6 +30,7 @@ import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EVMTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -101,6 +106,7 @@ import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -114,6 +120,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * An implementation of {@link BlockStreamBuilder} that produces block items for a single user or
@@ -149,6 +156,8 @@ public class BlockStreamBuilder
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder {
+    private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES =
+            new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
             Comparator.<TokenAssociation>comparingLong(a -> a.tokenIdOrThrow().tokenNum())
                     .thenComparingLong(a -> a.accountIdOrThrow().accountNumOrThrow());
@@ -378,6 +387,12 @@ public class BlockStreamBuilder
      */
     private ScheduleID scheduleId;
 
+    /**
+     * Test to use to determine if two map change keys are logically identical.
+     */
+    @Nullable
+    private Predicate<Object> logicallyIdentical;
+
     // --- Fields used to build the StateChanges items ---
     /**
      * The state changes resulting from the transaction.
@@ -561,7 +576,7 @@ public class BlockStreamBuilder
         final var translationContext = translationContext();
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
-        if (category != HandleContext.TransactionCategory.BATCH_INNER) {
+        if (category != BATCH_INNER) {
             if (customizer != null) {
                 signedTx = customizer.apply(signedTx);
             }
@@ -579,7 +594,54 @@ public class BlockStreamBuilder
         if (slotUsages != null || contractActions != null || initcodes != null || logs != null) {
             final var builder = EVMTraceData.newBuilder();
             if (slotUsages != null) {
-                builder.contractSlotUsages(slotUsages);
+                final boolean traceExplicitWrites = logicallyIdentical == null;
+                if (traceExplicitWrites) {
+                    // Nothing else to do if these slot usages already traced their written keys explicitly
+                    builder.contractSlotUsages(slotUsages);
+                } else {
+                    // If writes are implicit as the non-identical slot updates in the state changes list,
+                    // we need to index the corresponding reads to minimize the size of the output stream
+                    int numImplicitWrites = 0;
+                    final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
+                    for (final var stateChange : stateChanges) {
+                        if (stateChange.hasMapUpdate()
+                                && !stateChange.mapUpdateOrThrow().identical()
+                                && stateChange.stateId() == STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
+                            final var slotKey =
+                                    stateChange.mapUpdateOrThrow().keyOrThrow().slotKeyKeyOrThrow();
+                            implicitWriteIndexes
+                                    .computeIfAbsent(slotKey.contractID(), k -> new HashMap<>())
+                                    .put(slotKey.key(), numImplicitWrites);
+                            numImplicitWrites++;
+                        }
+                    }
+                    final List<ContractSlotUsage> indexedSlotUsages = new ArrayList<>(slotUsages.size());
+                    for (final var slotUsage : slotUsages) {
+                        final var reads = slotUsage.slotReads();
+                        if (reads.isEmpty()) {
+                            indexedSlotUsages.add(slotUsage);
+                        } else {
+                            final var contractId = slotUsage.contractIdOrThrow();
+                            final var writeIndexes = implicitWriteIndexes.get(contractId);
+                            if (writeIndexes != null) {
+                                final List<SlotRead> indexedReads = new ArrayList<>(reads.size());
+                                for (final var read : reads) {
+                                    final var key = read.keyOrThrow();
+                                    final var index = writeIndexes.get(key);
+                                    if (index != null) {
+                                        indexedReads.add(new SlotRead(new OneOf<>(INDEX, index), read.readValue()));
+                                    } else {
+                                        indexedReads.add(read);
+                                    }
+                                }
+                                indexedSlotUsages.add(new ContractSlotUsage(contractId, IMPLICIT_WRITES, indexedReads));
+                            } else {
+                                indexedSlotUsages.add(slotUsage);
+                            }
+                        }
+                    }
+                    builder.contractSlotUsages(indexedSlotUsages);
+                }
             }
             if (contractActions != null) {
                 builder.contractActions(contractActions);
@@ -609,6 +671,17 @@ public class BlockStreamBuilder
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         this.stateChanges.addAll(stateChanges);
         return this;
+    }
+
+    @Override
+    public ContractOperationStreamBuilder testForIdenticalKeys(@NonNull final Predicate<Object> test) {
+        logicallyIdentical = requireNonNull(test);
+        return this;
+    }
+
+    @Override
+    public @Nullable Predicate<Object> logicallyIdenticalValueTest() {
+        return logicallyIdentical;
     }
 
     @Override

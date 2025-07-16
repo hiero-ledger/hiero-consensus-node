@@ -43,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -149,7 +150,7 @@ class HederaEvmTransactionResultTest {
         givenFrameWithAllSidecarsEnabled();
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         final var pendingWrites = List.of(TWO_STORAGE_ACCESSES);
-        given(proxyWorldUpdater.pendingStorageUpdates()).willReturn(pendingWrites);
+        given(proxyWorldUpdater.getTxStorageUsage()).willReturn(new TxStorageUsage(pendingWrites, null));
         given(accessTracker.getReadsMergedWith(pendingWrites)).willReturn(SOME_STORAGE_ACCESSES);
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);
@@ -189,7 +190,7 @@ class HederaEvmTransactionResultTest {
         givenFrameWithAllSidecarsEnabled();
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         final var pendingWrites = List.of(TWO_STORAGE_ACCESSES);
-        given(proxyWorldUpdater.pendingStorageUpdates()).willReturn(pendingWrites);
+        given(proxyWorldUpdater.getTxStorageUsage()).willReturn(new TxStorageUsage(pendingWrites, null));
         given(accessTracker.getReadsMergedWith(pendingWrites)).willReturn(SOME_STORAGE_ACCESSES);
         given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
         given(frame.getLogs()).willReturn(BESU_LOGS);

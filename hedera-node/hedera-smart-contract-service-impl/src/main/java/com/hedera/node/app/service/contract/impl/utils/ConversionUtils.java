@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
+import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES;
 import static com.hedera.hapi.block.stream.trace.ContractSlotUsage.WrittenKeysOneOfType.WRITTEN_SLOT_KEYS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
@@ -34,8 +35,12 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
@@ -47,6 +52,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -61,6 +67,8 @@ import org.hyperledger.besu.evm.log.LogsBloomFilter;
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
  */
 public class ConversionUtils {
+    private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES = new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
+
     /** The standard length as long of an address in Ethereum.*/
     public static final long EVM_ADDRESS_LENGTH_AS_LONG = 20L;
     /** The standard length of an address in Ethereum.*/
@@ -321,26 +329,34 @@ public class ConversionUtils {
 
     /**
      * Given a list of {@link StorageAccesses}, converts them to a list of PBJ {@link ContractSlotUsage}s.
-     *
      * @param storageAccesses the {@link StorageAccesses}
+     * @param traceExplicitWrites whether the writes should be traced explicitly
      * @return the list of slot usages
      */
     public static @Nullable List<ContractSlotUsage> asPbjSlotUsages(
-            @Nullable final List<StorageAccesses> storageAccesses) {
+            @Nullable final List<StorageAccesses> storageAccesses, final boolean traceExplicitWrites) {
         if (storageAccesses == null) {
             return null;
         }
         final List<ContractSlotUsage> slotUsages = new ArrayList<>();
         for (final var storageAccess : storageAccesses) {
             final List<SlotRead> reads = new ArrayList<>();
-            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = new ArrayList<>();
+            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = traceExplicitWrites ? new ArrayList<>() : null;
             for (final var access : storageAccess.accesses()) {
                 if (!access.isReadOnly()) {
-                    writes.add(access.trimmedKeyBytes());
-                    reads.add(SlotRead.newBuilder()
-                            .index(writes.size() - 1)
-                            .readValue(access.trimmedValueBytes())
-                            .build());
+                    if (writes != null) {
+                        writes.add(access.trimmedKeyBytes());
+                        reads.add(SlotRead.newBuilder()
+                                .index(writes.size() - 1)
+                                .readValue(access.trimmedValueBytes())
+                                .build());
+                    } else {
+                        // The block stream builder replaces the key with its index in the writes list once known
+                        reads.add(SlotRead.newBuilder()
+                                .key(tuweniToPbjBytes(access.key()))
+                                .readValue(access.trimmedValueBytes())
+                                .build());
+                    }
                 } else {
                     reads.add(SlotRead.newBuilder()
                             .key(access.trimmedKeyBytes())
@@ -348,15 +364,19 @@ public class ConversionUtils {
                             .build());
                 }
             }
-            slotUsages.add(
-                    new ContractSlotUsage(storageAccess.contractID(), new OneOf<>(WRITTEN_SLOT_KEYS, writes), reads));
+            if (traceExplicitWrites) {
+                slotUsages.add(
+                        new ContractSlotUsage(storageAccess.contractID(), new OneOf<>(WRITTEN_SLOT_KEYS, writes), reads));
+            } else {
+                slotUsages.add(
+                        new ContractSlotUsage(storageAccess.contractID(), IMPLICIT_WRITES, reads));
+            }
         }
         return slotUsages;
     }
 
     /**
      * Given a Besu {@link Log}, converts it a PBJ {@link ContractLoginfo}.
-     *
      * @param entityIdFactory the entity id factory
      * @param log the Besu {@link Log}
      * @return the PBJ {@link ContractLoginfo}
@@ -1081,5 +1101,36 @@ public class ConversionUtils {
                         .map(ConversionUtils::pbjToTuweniBytes)
                         .map(LogTopic::create)
                         .toList());
+    }
+
+    /**
+     * If the frame has an access tracker, returns a {@link TxStorageUsage} that contains the reads and (if applicable)
+     * writes to storage int the frame's full EVM transaction.
+     * @param updater the proxy world updater to extract write accesses from
+     * @param accessTracker the access tracker to extract reads from
+     * @param checkForWrites whether to check if the updater has writes to include
+     * @return the storage usage for the transaction, or null if the frame has no access tracker
+     */
+    public static @Nullable TxStorageUsage txStorageUsageFrom(
+            @Nullable final ProxyWorldUpdater updater,
+            @Nullable final StorageAccessTracker accessTracker,
+            final boolean checkForWrites) {
+        if (accessTracker == null) {
+            return null;
+        } else {
+            if (checkForWrites) {
+                requireNonNull(updater);
+                if (updater instanceof RootProxyWorldUpdater rootProxyWorldUpdater) {
+                    final var txStorageUsage = rootProxyWorldUpdater.getTxStorageUsage();
+                    final var accesses = accessTracker.getReadsMergedWith(txStorageUsage.accesses());
+                    return new TxStorageUsage(accesses, txStorageUsage.changedKeys());
+                } else {
+                    // This was a static call, so we only have reads
+                    return new TxStorageUsage(accessTracker.getJustReads(), null);
+                }
+            } else {
+                return new TxStorageUsage(accessTracker.getJustReads(), null);
+            }
+        }
     }
 }

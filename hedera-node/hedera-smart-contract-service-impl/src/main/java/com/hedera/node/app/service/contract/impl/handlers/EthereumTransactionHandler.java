@@ -163,11 +163,11 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
-            outcome.addCallDetailsTo(streamBuilder);
+            outcome.addCallDetailsTo(streamBuilder, context);
             throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
-            outcome.addCreateDetailsTo(streamBuilder);
+            outcome.addCreateDetailsTo(streamBuilder, context);
             throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
     }

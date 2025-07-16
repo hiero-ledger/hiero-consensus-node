@@ -246,7 +246,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public void commitTransaction(@NonNull final StreamBuilder builder) {
         requireNonNull(builder);
         if (streamMode != RECORDS && kvStateChangeListener != null) {
-            kvStateChangeListener.reset(builder.logicallyIdenticalValue());
+            kvStateChangeListener.reset(builder.logicallyIdenticalValueTest());
         }
         while (!stack.isEmpty()) {
             final var savepoint = stack.pop();

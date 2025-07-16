@@ -8,6 +8,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategor
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -45,9 +46,10 @@ public interface StreamBuilder {
     /**
      * If applicable, returns a test that can be used to check whether a map value in this builder's state changes
      * is logically identical to the previous value of the key.
+     *
      * @return if applicable, a predicate that checks whether a value is logically identical to the previous value
      */
-    default @Nullable Predicate<Object> logicallyIdenticalValue() {
+    default @Nullable Predicate<Object> logicallyIdenticalValueTest() {
         return null;
     }
 
