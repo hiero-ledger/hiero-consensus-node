@@ -97,6 +97,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: ${{ github.ref }}
+
+      - name: Checkout target CN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: target_consensus_node
           ref: ${{ inputs.ref }}
 
       - name: Checkout solo Repo
@@ -203,11 +209,14 @@ jobs:
 
       - name: Set hederahash sha value
         run: |
-          hederahash=`git rev-parse HEAD`
+          hederahash=`git -C target_consensus_node rev-parse HEAD`
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Compile
-        run: ./gradlew clean assemble
+        run: |
+          cd "${{ github.workspace }}"/target_consensus_node
+          ./gradlew clean assemble
+          cd "${{ github.workspace }}"
 
       - name: Build Solo
         run: |
@@ -266,7 +275,7 @@ jobs:
 
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ env.namespace }}@g" \
-          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
+          -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
           # Update Init Containers values
           NETWORK_ID=`echo "${{ env.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
@@ -632,7 +641,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Set namespace
         run: |
@@ -828,7 +837,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.ref }}
 
       - name: Set namespace
         run: |
