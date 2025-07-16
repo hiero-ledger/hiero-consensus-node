@@ -116,6 +116,7 @@ public class BaseTranslator {
     private final Map<ScheduleID, TransactionID> scheduleTxnIds = new HashMap<>();
     private final Set<TokenAssociation> knownAssociations = new HashSet<>();
     private final Map<PendingAirdropId, PendingAirdropValue> pendingAirdrops = new HashMap<>();
+    private final Map<Long, Bytes> userFileContents = new HashMap<>();
 
     /**
      * These fields are used to translate a single "unit" of block items connected to a {@link TransactionID}.
@@ -142,6 +143,35 @@ public class BaseTranslator {
      */
     public BaseTranslator() {
         // Using default field values
+    }
+
+    /**
+     * Sets the contents of a file identified by the given number.
+     * @param num the file number
+     * @param content the content to set
+     */
+    public void setFile(long num, @NonNull final Bytes content) {
+        requireNonNull(content);
+        userFileContents.put(num, content);
+    }
+
+    /**
+     * Appends content to a file identified by the given number.
+     * @param num the file number
+     * @param content the content to append
+     */
+    public void appendToFile(long num, @NonNull final Bytes content) {
+        requireNonNull(content);
+        userFileContents.merge(num, content, Bytes::append);
+    }
+
+    /**
+     * Retrieves the contents of a file identified by the given number.
+     * @param num the file number
+     * @return the contents of the file, or an empty Bytes if not found
+     */
+    public Bytes getFileContents(final long num) {
+        return userFileContents.getOrDefault(num, Bytes.EMPTY);
     }
 
     /**
