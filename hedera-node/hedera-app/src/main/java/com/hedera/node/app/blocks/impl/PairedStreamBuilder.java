@@ -115,6 +115,11 @@ public class PairedStreamBuilder
     }
 
     @Override
+    public List<StateChange> getStateChanges() {
+        return blockStreamBuilder.getStateChanges();
+    }
+
+    @Override
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         blockStreamBuilder.stateChanges(stateChanges);
         return this;

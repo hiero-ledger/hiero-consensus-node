@@ -40,13 +40,9 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
 import com.hedera.node.app.service.contract.impl.state.PendingCreation;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.StorageAccess;
-import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
-import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import java.util.List;
 import java.util.Optional;
-import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.account.Account;
@@ -223,15 +219,8 @@ class ProxyWorldUpdaterTest {
     }
 
     @Test
-    void providesAccessToPendingStorageChanges() {
-        final var someChanges = new StorageAccesses(
-                ContractID.newBuilder().contractNum(123L).build(),
-                List.of(new StorageAccess(UInt256.ONE, UInt256.MIN_VALUE, UInt256.MAX_VALUE)));
-        final var expected = new TxStorageUsage(List.of(someChanges), null);
-
-        given(evmFrameState.getTxStorageUsage(false)).willReturn(expected);
-
-        assertSame(expected, subject.getTxStorageUsage());
+    void doesnotProvideAccessToPendingStorageChanges() {
+        assertThrows(UnsupportedOperationException.class, () -> subject.getTxStorageUsage());
     }
 
     @Test

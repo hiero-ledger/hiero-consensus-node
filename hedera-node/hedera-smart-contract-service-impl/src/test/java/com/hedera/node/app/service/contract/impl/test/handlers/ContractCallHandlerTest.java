@@ -55,7 +55,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private TransactionComponent component;
 
     @Mock
-    private HandleContext handleContext;
+    private HandleContext context;
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -74,9 +74,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Mock
     private RootProxyWorldUpdater baseProxyWorldUpdater;
-
-    @Mock
-    private HandleContext context;
 
     @Mock
     private HederaOperations hederaOperations;
@@ -107,9 +104,9 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
         final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
@@ -132,15 +129,15 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(recordBuilder);
 
-        assertDoesNotThrow(() -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(context));
     }
 
     @Test
     void delegatesToCreatedComponentAndThrowsOnFailure() {
-        given(factory.create(handleContext, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL)).willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
-        given(handleContext.savepointStack()).willReturn(stack);
+        given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
         final var expectedOutcome = new CallOutcome(
@@ -161,7 +158,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context)).willReturn(recordBuilder);
 
-        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(handleContext));
+        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
     }
 
     @Test

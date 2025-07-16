@@ -567,10 +567,12 @@ public class BlockStreamBuilder
 
     /**
      * Builds the list of block items with their translation contexts.
+     *
      * @param topLevel if true, indicates the output should always include a following {@link StateChanges} item
+     * @param batchStateChanges if not null, the state changes for the batch tx containing this builder
      * @return the list of block items
      */
-    public Output build(final boolean topLevel) {
+    public Output build(final boolean topLevel, @Nullable final List<StateChange> batchStateChanges) {
         final var blockItems = new ArrayList<BlockItem>();
         // Construct the context here to capture any additional Ethereum transaction details needed
         // for the legacy record before they are removed from the block stream output item
@@ -603,7 +605,8 @@ public class BlockStreamBuilder
                     // If writes are implicit as the non-identical slot updates in the state changes list,
                     // we need to index the corresponding reads to minimize the size of the output stream
                     final Map<ContractID, Map<Bytes, Integer>> implicitWriteIndexes = new HashMap<>();
-                    for (final var stateChange : stateChanges) {
+                    final var relevantStateChanges = batchStateChanges != null ? batchStateChanges : stateChanges;
+                    for (final var stateChange : relevantStateChanges) {
                         if (stateChange.stateId() != STATE_ID_CONTRACT_STORAGE.protoOrdinal()) {
                             continue;
                         }
@@ -679,6 +682,11 @@ public class BlockStreamBuilder
     public StreamBuilder stateChanges(@NonNull List<StateChange> stateChanges) {
         this.stateChanges.addAll(stateChanges);
         return this;
+    }
+
+    @Override
+    public List<StateChange> getStateChanges() {
+        return stateChanges;
     }
 
     @Override

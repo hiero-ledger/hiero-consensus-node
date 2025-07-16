@@ -5,9 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
-import static com.hedera.services.stream.proto.TransactionSidecarRecord.SidecarRecordsCase.STATE_CHANGES;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.counting;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.transaction.TransactionRecord;
@@ -30,7 +28,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -152,22 +149,6 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                         r, com.hedera.hapi.streams.TransactionSidecarRecord.class, TransactionSidecarRecord.class))
                 .toList();
         if (expectedSidecars.size() != actualSidecars.size()) {
-            final var expectedTypes = expectedSidecars.stream()
-                    .collect(Collectors.groupingBy(TransactionSidecarRecord::getSidecarRecordsCase, counting()));
-            final var numEmptyStateChanges = expectedSidecars.stream()
-                    .filter(s -> s.getSidecarRecordsCase() == STATE_CHANGES)
-                    .filter(s -> s.getStateChanges().getContractStateChangesCount() == 0)
-                    .count();
-            final var actualTypes = actualSidecars.stream()
-                    .collect(Collectors.groupingBy(TransactionSidecarRecord::getSidecarRecordsCase, counting()));
-            for (int i = 0, n = expectedSidecars.size(); i < n; i++) {
-                System.out.println(i + " -> " + expectedSidecars.get(i).getSidecarRecordsCase());
-            }
-            System.out.println("EXPECTED: " + expectedTypes + " (" + numEmptyStateChanges + " empty state changes)");
-            System.out.println("ACTUAL: " + actualTypes);
-            System.out.println(expectedSidecars.get(162));
-            System.out.println("ooo");
-            System.out.println(expectedSidecars.get(163));
             Assertions.fail("Mismatch in number of sidecars - expected " + expectedSidecars.size() + ", found "
                     + actualSidecars.size());
         } else {

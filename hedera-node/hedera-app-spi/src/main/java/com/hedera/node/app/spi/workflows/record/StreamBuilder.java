@@ -43,6 +43,11 @@ public interface StreamBuilder {
     }
 
     /**
+     * Returns any state changes recorded during the construction of this builder so far.
+     */
+    List<StateChange> getStateChanges();
+
+    /**
      * If applicable, returns a test that can be used to check whether a map value in this builder's state changes
      * is logically identical to the previous value of the key.
      *

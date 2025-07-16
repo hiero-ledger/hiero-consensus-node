@@ -8,6 +8,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -1121,6 +1122,11 @@ public class RecordStreamBuilder
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
         this.contractStateChanges = contractStateChanges;
         return this;
+    }
+
+    @Override
+    public List<StateChange> getStateChanges() {
+        throw new UnsupportedOperationException("Record stream does not accumulate state changes");
     }
 
     /**

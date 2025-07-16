@@ -76,7 +76,7 @@ public class BlockStreamBuilderTest {
                 .assessedCustomFees(List.of(assessedCustomFee))
                 .functionality(HederaFunctionality.CRYPTO_TRANSFER);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -93,7 +93,7 @@ public class BlockStreamBuilderTest {
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyBytes(prngBytes);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -105,7 +105,7 @@ public class BlockStreamBuilderTest {
         } else {
             final var itemsBuilder =
                     createBaseBuilder().functionality(UTIL_PRNG).entropyNumber(ENTROPY_NUMBER);
-            List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+            List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
             validateTransactionBlockItems(blockItems);
             validateTransactionResult(blockItems);
 
@@ -127,7 +127,7 @@ public class BlockStreamBuilderTest {
                 .evmCallTransactionResult(evmTxResult)
                 .addContractSlotUsages(usages);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
@@ -149,7 +149,7 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder =
                 createBaseBuilder().functionality(CRYPTO_CREATE).accountID(accountID);
 
-        List<BlockItem> blockItems = itemsBuilder.build(false).blockItems();
+        List<BlockItem> blockItems = itemsBuilder.build(false, null).blockItems();
         validateTransactionBlockItems(blockItems);
         validateTransactionResult(blockItems);
 
