@@ -150,15 +150,15 @@ public class BlockStreamBuilderTest {
 
     @Test
     void testBlockItemsWithAdditionalAutomaticTokenAssociationTraceData() {
-        final var tokenAssociation = TokenAssociation.newBuilder()
+        final var association = TokenAssociation.newBuilder()
                 .tokenId(TokenID.newBuilder().tokenNum(1L))
                 .accountId(AccountID.newBuilder().accountNum(2L))
                 .build();
 
         final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_UPDATE);
         // set additional trace data
-        itemsBuilder.addAutomaticTokenAssociation(tokenAssociation);
-        List<BlockItem> blockItems = itemsBuilder.build(false, true).blockItems();
+        itemsBuilder.addAutomaticTokenAssociation(association);
+        final var blockItems = itemsBuilder.build(false, true).blockItems();
 
         final var traceItem = blockItems.get(2);
         assertTrue(traceItem.hasTraceData());
@@ -166,8 +166,8 @@ public class BlockStreamBuilderTest {
 
         assertTrue(trace.hasAutoAssociateTraceData());
         final var autoAssociateTraceData = trace.autoAssociateTraceData();
-        assertNotNull(autoAssociateTraceData);
-        assertEquals(2, autoAssociateTraceData.automaticTokenAssociations().accountNum());
+        assertNotNull(autoAssociateTraceData, "Auto associate trace data should be not null!");
+        assertEquals(2, autoAssociateTraceData.automaticTokenAssociations().accountNum(), "Wrong account num!");
     }
 
     @Test
@@ -175,7 +175,7 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_MINT);
         // set additional trace data
         itemsBuilder.newTotalSupply(1).serialNumbers(List.of(1L));
-        List<BlockItem> blockItems = itemsBuilder.build(false, true).blockItems();
+        final var blockItems = itemsBuilder.build(false, true).blockItems();
 
         final var traceItem = blockItems.get(2);
         assertTrue(traceItem.hasTraceData());
@@ -183,8 +183,8 @@ public class BlockStreamBuilderTest {
 
         assertTrue(trace.hasTokenSupplyTraceData());
         final var tokenSupplyTraceData = trace.tokenSupplyTraceData();
-        assertNotNull(tokenSupplyTraceData);
-        assertEquals(1, tokenSupplyTraceData.newTotalSupply());
+        assertNotNull(tokenSupplyTraceData, "Token supply trace data should be not null!");
+        assertEquals(1, tokenSupplyTraceData.newTotalSupply(), "Wrong new total supply!");
     }
 
     @Test
@@ -192,7 +192,7 @@ public class BlockStreamBuilderTest {
         final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
         // set additional trace data
         itemsBuilder.topicSequenceNumber(66);
-        List<BlockItem> blockItems = itemsBuilder.build(false, true).blockItems();
+        final var blockItems = itemsBuilder.build(false, true).blockItems();
 
         final var traceItem = blockItems.get(2);
         assertTrue(traceItem.hasTraceData());
@@ -200,8 +200,8 @@ public class BlockStreamBuilderTest {
 
         assertTrue(trace.hasSubmitMessageTraceData());
         final var submitMessageTraceData = trace.submitMessageTraceData();
-        assertNotNull(submitMessageTraceData);
-        assertEquals(66, submitMessageTraceData.sequenceNumber());
+        assertNotNull(submitMessageTraceData, "Submit message trace data should be not null!");
+        assertEquals(66, submitMessageTraceData.sequenceNumber(), "Wrong sequence number!");
     }
 
     @Test

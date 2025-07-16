@@ -37,8 +37,6 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
-import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
-import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +49,17 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
+/**
+ * Tests the construction of legacy records for inner transactions within atomic batches
+ * using trace data.
+ * <p>
+ * Some operations require state changes to translate the block stream in to records,
+ * later transactions in the same atomic batch can overwrite earlier changes.
+ * These tests verify that the system correctly captures each transaction's
+ * effects using trace data, allowing accurate record generation even when
+ * state is overwritten within the same batch.
+ */
+@SuppressWarnings("PMD.JUnitTestsShouldIncludeAssert") // Uses dynamic tests and codacy is failing
 @OrderedInIsolation
 @HapiTestLifecycle
 @Tag(TOKEN)
@@ -67,9 +76,13 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         // "50"));
     }
 
+    /**
+     * Mint, Burn and Delete NFT token
+     * @return HAPI test
+     */
     @Order(1)
     @HapiTest
-    @DisplayName("Mint, Burn and Delete NFT token without custom fees success in batch")
+    @DisplayName("Mint, Burn and Delete NFT token")
     public Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
         final String nft = "nft";
         final String adminKey = ADMIN_KEY;
@@ -102,44 +115,55 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                 newKeyNamed(adminKey),
                 newKeyNamed(nftSupplyKey),
                 // create non-fungible token
-                createMutableNft(nft, owner, nftSupplyKey, adminKey),
+                tokenCreate(nft)
+                        .initialSupply(0)
+                        .treasury(owner)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .adminKey(adminKey)
+                        .supplyKey(nftSupplyKey),
                 // perform the atomic batch transaction
                 atomicBatch(mintNft, mintNft, burnNft, mintNft, deleteToken)
                         .payingWith(batchOperator)
                         .hasKnownStatus(SUCCESS)));
     }
 
+    /**
+     * Multiple crypto updates on same state key
+     *
+     * @return HAPI test
+     */
     @Order(2)
     @HapiTest
-    @DisplayName("Multiple crypto updates on same state key in batch")
+    @DisplayName("Multiple crypto updates on same state key")
     public Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
         final var key = "key";
         final var newKey = "newKey1";
         final var newKey2 = "newKey2";
         final var newKey3 = "newKey3";
+        final var account = "account";
 
         return hapiTest(
                 newKeyNamed(key),
                 cryptoCreate(OPERATOR),
-                cryptoCreate("test").key(key).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(account).key(key).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(newKey),
                 newKeyNamed(newKey2),
                 newKeyNamed(newKey3),
                 atomicBatch(
-                                cryptoUpdate("test")
+                                cryptoUpdate(account)
                                         .key(newKey)
                                         .memo("memo1")
                                         .payingWith(GENESIS)
                                         .signedBy(GENESIS, key, newKey)
                                         .batchKey(OPERATOR),
                                 cryptoCreate("foo").batchKey(OPERATOR),
-                                cryptoUpdate("test")
+                                cryptoUpdate(account)
                                         .key(newKey2)
                                         .memo("memo2")
                                         .payingWith(GENESIS)
                                         .signedBy(GENESIS, newKey, newKey2)
                                         .batchKey(OPERATOR),
-                                cryptoUpdate("test")
+                                cryptoUpdate(account)
                                         .key(newKey3)
                                         .memo("memo3")
                                         .payingWith(GENESIS)
@@ -150,6 +174,11 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         // just because the same slot they use is overwritten by the third one.
     }
 
+    /**
+     * Multiple token updates on same state key in batch
+     *
+     * @return HAPI test
+     */
     @Order(3)
     @HapiTest
     @DisplayName("Multiple token updates on same state key in batch")
@@ -195,6 +224,11 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         // just because the same slot they use is overwritten by the third one.
     }
 
+    /**
+     * Submit to topic twice in batch
+     *
+     * @return HAPI test
+     */
     @Order(4)
     @HapiTest
     @DisplayName("Submit to topic twice in batch")
@@ -222,10 +256,15 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                 atomicBatch(submit1, submit2).signedByPayerAnd(batchOperator));
     }
 
+    /**
+     * Multiple mint precompile calls
+     *
+     * @return HAPI test
+     */
     @Order(5)
     @HapiTest
-    @DisplayName("Validate mint precompile gas used for inner transaction")
-    public Stream<DynamicTest> validateInnerCallToMintPrecompile() {
+    @DisplayName("Multiple mint precompile calls")
+    public Stream<DynamicTest> multipleMintPrecompileCalls() {
         final var nft = "nft";
         final var gasToOffer = 2_000_000L;
         final var mintContract = "MintContract";
@@ -236,7 +275,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
         return hapiTest(
                 cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
                 tokenCreate(nft)
-                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .supplyKey(ALICE)
                         .adminKey(ALICE)
@@ -278,13 +317,4 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     //        final Stream<DynamicTest> streamsAreValid() {
     //            return hapiTest(validateStreams());
     //        }
-
-    private HapiTokenCreate createMutableNft(String tokenName, String treasury, String supplyKey, String adminKey) {
-        return tokenCreate(tokenName)
-                .initialSupply(0)
-                .treasury(treasury)
-                .tokenType(NON_FUNGIBLE_UNIQUE)
-                .adminKey(adminKey)
-                .supplyKey(supplyKey);
-    }
 }
