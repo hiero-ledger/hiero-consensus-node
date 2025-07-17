@@ -198,9 +198,9 @@ message EvmTransactionLog {
  */
 message EVMTraceData {
     /**
-     * The initcode of child contracts created during execution.
+     * The initcode of for an internal contract creation.
      */
-    repeated ContractInitcode initcodes = 1;
+    ContractInitcode initcode = 1;
 
     /**
      * All contract actions executed during the transaction.

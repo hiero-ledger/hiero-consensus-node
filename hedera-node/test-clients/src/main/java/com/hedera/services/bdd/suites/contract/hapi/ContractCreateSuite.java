@@ -128,6 +128,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@Tag(TestTags.ADHOC)
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 public class ContractCreateSuite {
 
@@ -148,7 +149,6 @@ public class ContractCreateSuite {
     private static final String MULTI_KEY = "multiKey";
 
     @HapiTest
-    @Tag(TestTags.ADHOC)
     final Stream<DynamicTest> createDeterministicDeployer() {
         final var creatorAddress = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_SIGNER)));
         final var transaction = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_TRANSACTION)));

@@ -83,6 +83,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
@@ -531,6 +532,8 @@ public class BaseTranslator {
                 new SingleTransactionRecord.TransactionOutputs(null));
     }
 
+    private static final AtomicInteger numInitcodes = new AtomicInteger();
+
     private List<TransactionSidecarRecord> recoveredSidecars(
             @NonNull final Timestamp now,
             @NonNull final List<TraceData> tracesHere,
@@ -565,9 +568,6 @@ public class BaseTranslator {
                 final var slotUsages = evmTraceData.contractSlotUsages();
                 final List<ContractStateChange> recoveredStateChanges = new ArrayList<>();
                 for (final var slotUsage : slotUsages) {
-                    if (slotUsage.contractIdOrThrow().contractNumOrThrow() == 1097L) {
-                        System.out.println("BOOP");
-                    }
                     final var contractId = slotUsage.contractIdOrThrow();
                     final List<StorageChange> recoveredChanges = new ArrayList<>();
                     final var writes = writtenKeysFrom(slotUsage, remainingStateChanges);
@@ -624,50 +624,49 @@ public class BaseTranslator {
                         .actions(new ContractActions(actions))
                         .build());
             }
-            if (!evmTraceData.initcodes().isEmpty()) {
-                for (final var initcode : evmTraceData.initcodes()) {
-                    if (initcode.hasFailedInitcode()) {
-                        sidecars.add(TransactionSidecarRecord.newBuilder()
-                                .consensusTimestamp(now)
-                                .bytecode(ContractBytecode.newBuilder()
-                                        .initcode(initcode.failedInitcodeOrThrow())
-                                        .build())
-                                .build());
-                    } else {
-                        final var executedInitcode = initcode.executedInitcodeOrThrow();
-                        final var contractId = executedInitcode.contractIdOrThrow();
-                        final var bytecodeBuilder =
-                                ContractBytecode.newBuilder().contractId(contractId);
-                        final var bytecode = remainingStateChanges.stream()
-                                .filter(StateChange::hasMapUpdate)
-                                .filter(update -> update.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
-                                .filter(update -> update.mapUpdateOrThrow()
-                                        .keyOrThrow()
-                                        .contractIdKeyOrThrow()
-                                        .equals(contractId))
-                                .map(update ->
-                                        update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
-                                .findAny();
-                        // Runtime bytecode should always be recoverable from the state changes
-                        if (bytecode.isEmpty()) {
-                            throw new IllegalStateException("No bytecode state change found for contract " + contractId
-                                    + " in " + remainingStateChanges + " (parts were " + parts + ")");
-                        }
-                        final var runtimeBytecode = bytecode.get().code();
-                        bytecodeBuilder.runtimeBytecode(runtimeBytecode);
-                        if (executedInitcode.hasExplicitInitcode()) {
-                            bytecodeBuilder.initcode(executedInitcode.explicitInitcodeOrThrow());
-                        } else if (executedInitcode.hasInitcodeBookends()) {
-                            final var bookends = executedInitcode.initcodeBookendsOrThrow();
-                            bytecodeBuilder.initcode(Bytes.merge(
-                                    bookends.deployBytecode(),
-                                    Bytes.merge(runtimeBytecode, bookends.metadataBytecode())));
-                        }
-                        sidecars.add(TransactionSidecarRecord.newBuilder()
-                                .consensusTimestamp(now)
-                                .bytecode(bytecodeBuilder)
-                                .build());
+            if (evmTraceData.hasInitcode()) {
+                numInitcodes.incrementAndGet();
+                System.out.println("Saw initcode #" + numInitcodes.get() + " in " + parts.consensusTimestamp());
+                final var initcode = evmTraceData.initcodeOrThrow();
+                if (initcode.hasFailedInitcode()) {
+                    sidecars.add(TransactionSidecarRecord.newBuilder()
+                            .consensusTimestamp(now)
+                            .bytecode(ContractBytecode.newBuilder()
+                                    .initcode(initcode.failedInitcodeOrThrow())
+                                    .build())
+                            .build());
+                } else {
+                    final var executedInitcode = initcode.executedInitcodeOrThrow();
+                    final var contractId = executedInitcode.contractIdOrThrow();
+                    final var bytecodeBuilder = ContractBytecode.newBuilder().contractId(contractId);
+                    final var bytecode = remainingStateChanges.stream()
+                            .filter(StateChange::hasMapUpdate)
+                            .filter(update -> update.stateId() == STATE_ID_CONTRACT_BYTECODE.protoOrdinal())
+                            .filter(update -> update.mapUpdateOrThrow()
+                                    .keyOrThrow()
+                                    .contractIdKeyOrThrow()
+                                    .equals(contractId))
+                            .map(update ->
+                                    update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
+                            .findAny();
+                    // Runtime bytecode should always be recoverable from the state changes
+                    if (bytecode.isEmpty()) {
+                        throw new IllegalStateException("No bytecode state change found for contract " + contractId
+                                + " in " + remainingStateChanges + " (parts were " + parts + ")");
                     }
+                    final var runtimeBytecode = bytecode.get().code();
+                    bytecodeBuilder.runtimeBytecode(runtimeBytecode);
+                    if (executedInitcode.hasExplicitInitcode()) {
+                        bytecodeBuilder.initcode(executedInitcode.explicitInitcodeOrThrow());
+                    } else if (executedInitcode.hasInitcodeBookends()) {
+                        final var bookends = executedInitcode.initcodeBookendsOrThrow();
+                        bytecodeBuilder.initcode(Bytes.merge(
+                                bookends.deployBytecode(), Bytes.merge(runtimeBytecode, bookends.metadataBytecode())));
+                    }
+                    sidecars.add(TransactionSidecarRecord.newBuilder()
+                            .consensusTimestamp(now)
+                            .bytecode(bytecodeBuilder)
+                            .build());
                 }
             }
         }

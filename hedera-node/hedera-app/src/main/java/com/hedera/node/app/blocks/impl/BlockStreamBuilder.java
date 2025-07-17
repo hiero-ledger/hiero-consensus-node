@@ -122,6 +122,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * An implementation of {@link BlockStreamBuilder} that produces block items for a single user or
@@ -157,6 +159,9 @@ public class BlockStreamBuilder
                 NodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder {
+
+    private static final Logger log = LogManager.getLogger(BlockStreamBuilder.class);
+
     private static final OneOf<ContractSlotUsage.WrittenKeysOneOfType> IMPLICIT_WRITES =
             new OneOf<>(WRITTEN_KEYS_ARE_NON_IDENTICAL_STATE_CHANGES, true);
     private static final Comparator<TokenAssociation> TOKEN_ASSOCIATION_COMPARATOR =
@@ -356,10 +361,10 @@ public class BlockStreamBuilder
     private List<ContractAction> contractActions;
 
     /**
-     * Any contract initcodes used in the transaction.
+     * The contract initcode for this builder's EVM transaction or internal creation.
      */
     @Nullable
-    private List<ContractInitcode> initcodes;
+    private ContractInitcode initcode;
 
     /**
      * The hash of the Ethereum payload if relevant to the transaction.
@@ -590,7 +595,7 @@ public class BlockStreamBuilder
         }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (slotUsages != null || contractActions != null || initcodes != null || logs != null) {
+        if (slotUsages != null || contractActions != null || initcode != null || logs != null) {
             final var builder = EVMTraceData.newBuilder();
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
@@ -653,8 +658,8 @@ public class BlockStreamBuilder
             if (contractActions != null) {
                 builder.contractActions(contractActions);
             }
-            if (initcodes != null) {
-                builder.initcodes(initcodes);
+            if (initcode != null) {
+                builder.initcode(initcode);
             }
             if (logs != null) {
                 builder.logs(logs);
@@ -1218,11 +1223,10 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
-        requireNonNull(initcode);
-        if (initcodes == null) {
-            initcodes = new LinkedList<>();
+        if (this.initcode != null) {
+            log.warn("Overwriting existing initcode {} in with new initcode {}", this.initcode, initcode);
         }
-        initcodes.add(initcode);
+        this.initcode = requireNonNull(initcode);
         return this;
     }
 

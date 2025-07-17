@@ -44,10 +44,6 @@ public record HederaEvmTransaction(
         return contractId == null;
     }
 
-    public boolean needsInitcodeExternalizedOnFailure() {
-        return hapiCreation != null && !hapiCreation.hasInitcode();
-    }
-
     public boolean isEthereumTransaction() {
         return relayerId != null;
     }
