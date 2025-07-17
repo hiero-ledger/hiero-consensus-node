@@ -7,6 +7,7 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.fileSanityCh
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,7 +34,8 @@ public class PcesFileReader {
     /**
      * Scan the file system for event files and add them to the collection of tracked files.
      *
-     * @param platformContext the platform context
+     * @param configuration the platform configuration
+     * @param recycleBin the recycle bin to use for deleted files
      * @param databaseDirectory the directory to scan for files
      * @param startingRound the round to start reading from
      * @param permitGaps if gaps are permitted in sequence number
@@ -41,45 +43,19 @@ public class PcesFileReader {
      * @throws IOException if there is an error reading the files
      */
     public static PcesFileTracker readFilesFromDisk(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final RecycleBin recycleBin,
             @NonNull final Path databaseDirectory,
             final long startingRound,
             final boolean permitGaps)
             throws IOException {
 
-        Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(recycleBin);
         Objects.requireNonNull(databaseDirectory);
 
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
-        final boolean doInitialSpanCompaction = preconsensusEventStreamConfig.compactLastFileOnStartup();
-
-        return readFilesFromDisk(databaseDirectory, startingRound, permitGaps, doInitialSpanCompaction,
-                platformContext.getRecycleBin());
-    }
-
-    /**
-     * Scan the file system for event files and add them to the collection of tracked files.
-     * <p>
-     * This method is helpful for testing purposes when configuration and platform context are not available.
-     *
-     * @param databaseDirectory the directory to scan for files
-     * @param startingRound the round to start reading from
-     * @param permitGaps if gaps are permitted in sequence number
-     * @param compactLastFileOnStartup if the last file should be compacted on startup
-     * @param recycleBin the recycle bin to use for deleted files
-     * @return the files read from disk
-     * @throws IOException if there is an error reading the files
-     */
-    public static PcesFileTracker readFilesFromDisk(
-            @NonNull final Path databaseDirectory,
-            final long startingRound,
-            final boolean permitGaps,
-            final boolean compactLastFileOnStartup,
-            @NonNull final RecycleBin recycleBin)
-            throws IOException {
-
-        Objects.requireNonNull(databaseDirectory);
+        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
+        final boolean doInitialSpanCompaction = pcesConfig.compactLastFileOnStartup();
 
         final PcesFileTracker files = new PcesFileTracker();
         try (final Stream<Path> fileStream = Files.walk(databaseDirectory)) {
@@ -91,7 +67,7 @@ public class PcesFileReader {
                     .forEachOrdered(buildFileHandler(files, permitGaps));
         }
 
-        if (files.getFileCount() != 0 && compactLastFileOnStartup) {
+        if (files.getFileCount() != 0 && doInitialSpanCompaction) {
             compactSpanOfLastFile(files);
         }
 

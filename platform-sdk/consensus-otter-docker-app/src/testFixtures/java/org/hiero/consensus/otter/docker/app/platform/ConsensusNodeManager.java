@@ -226,7 +226,7 @@ public class ConsensusNodeManager {
     }
 
     public Path getPcesDir() throws IOException {
-        return getDatabaseDirectory(platformContext, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+        return Path.of(".");
     }
 
     /**

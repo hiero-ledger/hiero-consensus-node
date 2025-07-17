@@ -15,9 +15,12 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
+import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**
  * The most simple sanity test for the Otter framework.
@@ -47,7 +50,8 @@ public class HappyPathTest {
         network.start();
 
         // Wait for two minutes
-        timeManager.waitFor(Duration.ofSeconds(30L));
+        timeManager.waitFor(Duration.ofSeconds(60L));
+
 
         // Validations
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();
@@ -55,6 +59,10 @@ public class HappyPathTest {
         assertThat(network.getConsensusResults())
                 .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(10));
+
+        final Node firstNode = network.getNodes().getFirst();
+        firstNode.killImmediately();
+        final SingleNodePcesResult pcesResult = firstNode.getPcesResult();
 
         assertThat(network.getPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));

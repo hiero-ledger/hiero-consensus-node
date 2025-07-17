@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.platform.config.BasicConfig_;
+import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
+import org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration;
 
 /**
  * An implementation of {@link NodeConfiguration} for a container environment.
@@ -15,12 +20,18 @@ import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
 
     /**
-     * Constructor for the {@link ContainerNodeConfiguration} class.
+     * Constructor for the {@link TurtleNodeConfiguration} class.
      *
-     * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
+     * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
-    public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier) {
-        super(lifecycleSupplier);
+    public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier,
+            @NonNull final Path outputDirectory) {
+        super(lifecycleSupplier, outputDirectory);
+        setContainerSpecificOverrides();
+    }
+
+    private void setContainerSpecificOverrides() {
+//        overriddenProperties.put(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory);
     }
 
     /**

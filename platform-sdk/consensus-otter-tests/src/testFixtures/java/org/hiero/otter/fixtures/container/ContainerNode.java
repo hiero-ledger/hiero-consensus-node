@@ -1,27 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.junit.jupiter.api.Assertions.fail;
-
 import com.google.protobuf.ByteString;
-import com.google.protobuf.Empty;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
@@ -37,7 +30,6 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
-import org.hiero.otter.fixtures.container.proto.PcesFileDir;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
@@ -57,6 +49,15 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
+
 /**
  * Implementation of {@link Node} for a container environment.
  */
@@ -68,6 +69,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
     private final ContainerImage container;
+    private final Path mountedDir;
     private final Roster roster;
     private final KeysAndCerts keysAndCerts;
     private final ManagedChannel channel;
@@ -96,9 +98,10 @@ public class ContainerNode extends AbstractNode implements Node {
         super(selfId, getWeight(roster, selfId));
         this.roster = requireNonNull(roster, "roster must not be null");
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
+        this.mountedDir = requireNonNull(mountedDir, "mountedDir must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
-        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
+        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle, mountedDir);
 
         //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId, mountedDir);
@@ -220,9 +223,15 @@ public class ContainerNode extends AbstractNode implements Node {
     public SingleNodePcesResult getPcesResult() {
         throwIfNotIn(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
 
-        final PcesFileDir pcesDir = blockingStub.getPcesDir(Empty.newBuilder().build());
-        final Path pcesDirectory = Paths.get(pcesDir.getFilePath());
-        return new SingleNodePcesResultImpl(selfId, pcesDirectory);
+        final Configuration configuration = nodeConfiguration.current();
+        try {
+            final Path databaseDirectory = getDatabaseDirectory(configuration,
+                    org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+            final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
+            return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to resolve directory of PCES files", e);
+        }
     }
 
     /**

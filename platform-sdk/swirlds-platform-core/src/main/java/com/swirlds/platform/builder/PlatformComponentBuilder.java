@@ -152,7 +152,7 @@ public class PlatformComponentBuilder {
      * Constructor.
      *
      * @param blocks the build context for the platform under construction, contains all data needed to construct
-     *               platform components
+     * platform components
      */
     public PlatformComponentBuilder(@NonNull final PlatformBuildingBlocks blocks) {
         this.blocks = Objects.requireNonNull(blocks);
@@ -568,7 +568,7 @@ public class PlatformComponentBuilder {
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
                             && blocks.freezeCheckHolder()
-                                    .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
+                            .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
     }
@@ -704,7 +704,8 @@ public class PlatformComponentBuilder {
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
                         blocks.platformContext(),
                         blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(blocks.platformContext(), blocks.selfId()),
+                        PcesUtilities.getDatabaseDirectory(blocks.platformContext().getConfiguration(),
+                                blocks.selfId()),
                         blocks.initialState().get().getRound());
                 inlinePcesWriter = new DefaultInlinePcesWriter(
                         blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
@@ -769,9 +770,9 @@ public class PlatformComponentBuilder {
             // A round that we will completely skip ISS detection for. Needed for tests that do janky state modification
             // without a software upgrade (in production this feature should not be used).
             final long roundToIgnore = blocks.platformContext()
-                            .getConfiguration()
-                            .getConfigData(StateConfig.class)
-                            .validateInitialState()
+                    .getConfiguration()
+                    .getConfigData(StateConfig.class)
+                    .validateInitialState()
                     ? DO_NOT_IGNORE_ROUNDS
                     : initialStateRound;
             final long latestFreezeRound = blocks.platformStateFacade()

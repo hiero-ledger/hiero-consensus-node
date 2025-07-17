@@ -39,7 +39,7 @@ public class ContainerImage extends GenericContainer<ContainerImage> {
         // Apply the common configuration expected by tests
         withNetwork(network).withNetworkAliases(alias).withExposedPorts(CONTROL_PORT);
 
-        withFileSystemBind(mountedDir.toAbsolutePath().toString(), "/data");
+        withFileSystemBind(mountedDir.toAbsolutePath().toString(), "/data/saved");
 
         withEnv(
                 "JAVA_TOOL_OPTIONS",
