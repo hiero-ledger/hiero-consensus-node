@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -196,8 +195,8 @@ public final class PcesUtilities {
      * @throws IOException if an error occurs while creating the directory
      */
     @NonNull
-    public static Path getDatabaseDirectory(
-            @NonNull final Configuration configuration, @NonNull final NodeId selfId) throws IOException {
+    public static Path getDatabaseDirectory(@NonNull final Configuration configuration, @NonNull final NodeId selfId)
+            throws IOException {
 
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final PcesConfig preconsensusEventStreamConfig = configuration.getConfigData(PcesConfig.class);

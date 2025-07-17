@@ -97,8 +97,8 @@ class PcesFileReaderTests {
 
         final PlatformContext context = TestPlatformContexts.context(true, dataDir, fileSystemDirectory);
 
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(context.getConfiguration(),
-                context.getRecycleBin(), fileDirectory, 0, true);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, true);
         // Gaps are allowed. We should see all files except for the one that was skipped.
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
     }
@@ -116,8 +116,8 @@ class PcesFileReaderTests {
         // Gaps are not allowed.
         assertThrows(
                 IllegalStateException.class,
-                () -> PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(),
-                        platformContext.getRecycleBin(), fileDirectory, 0, false));
+                () -> PcesFileReader.readFilesFromDisk(
+                        platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false));
     }
 
     @Test
@@ -129,14 +129,14 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(context.getConfiguration(),
-                context.getRecycleBin(), fileDirectory, 0, false);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
         // with an ancient indicator greater than or equal to the target threshold. Choose an ancient indicator
         // that falls roughly in the middle of the sequence of files.
         final long targetAncientIdentifier = (expectedFiles.getFirst().getUpperBound()
-                + expectedFiles.getLast().getUpperBound())
+                        + expectedFiles.getLast().getUpperBound())
                 / 2;
 
         final List<PcesFile> iteratedFiles = new ArrayList<>();
@@ -181,14 +181,14 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(context.getConfiguration(),
-                context.getRecycleBin(), fileDirectory, 0, false);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // For this test, we want to iterate over files so that we are guaranteed to observe every event
         // with an ancient indicator greater than or equal to the target. Choose an ancient indicator that falls
         // roughly in the middle of the sequence of files.
         final long targetAncientIdentifier = (expectedFiles.getFirst().getUpperBound()
-                + expectedFiles.getLast().getUpperBound())
+                        + expectedFiles.getLast().getUpperBound())
                 / 2;
 
         final List<PcesFile> iteratedFiles = new ArrayList<>();
@@ -226,8 +226,8 @@ class PcesFileReaderTests {
         final List<PcesFile> expectedFiles = pcesFilesGeneratorResult.files();
 
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
-        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(context.getConfiguration(),
-                context.getRecycleBin(), fileDirectory, 0, false);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+                context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false);
 
         // Request an ancient indicator higher than all files in the data store
         final long targetAncientIdentifier = expectedFiles.getLast().getUpperBound() + 1;
@@ -242,8 +242,8 @@ class PcesFileReaderTests {
         final PlatformContext context = TestPlatformContexts.context(dataDir, fileSystemDirectory);
         assertThrows(
                 NoSuchFileException.class,
-                () -> PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(),
-                        fileDirectory, 0, false));
+                () -> PcesFileReader.readFilesFromDisk(
+                        context.getConfiguration(), context.getRecycleBin(), fileDirectory, 0, false));
     }
 
     /**
@@ -271,17 +271,23 @@ class PcesFileReaderTests {
                 TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory,
-                pcesFilesGenerator.resultingUnbrokenOrigin(), false);
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                pcesFilesGenerator.resultingUnbrokenOrigin(),
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(NO_LOWER_BOUND, pcesFilesGenerator.resultingUnbrokenOrigin()));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound2, false);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(NO_LOWER_BOUND, startingRound2));
@@ -290,9 +296,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound3, false);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
 
         assertIteratorEquality(
                 pcesFilesGenerator.filesBeforeDiscontinuity().iterator(),
@@ -305,9 +314,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound4, false);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
 
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(NO_LOWER_BOUND, startingRound4));
@@ -339,18 +351,24 @@ class PcesFileReaderTests {
 
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound1, false);
+        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound1,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound2, false);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
@@ -359,9 +377,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound3, false);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesBeforeDiscontinuity().iterator(),
                 fileTracker3.getFileIterator(startAncientIdentifier, startingRound3));
@@ -372,9 +393,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound4, false);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(startAncientIdentifier, startingRound4));
 
@@ -402,18 +426,24 @@ class PcesFileReaderTests {
                 TestPlatformContexts.context(false, recycleBinPath, dataDir, fileSystemDirectory);
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound1, false);
+        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound1,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientIdentifier, startingRound1));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound2, false);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientIdentifier, startingRound2));
@@ -422,9 +452,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound3, false);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
         // There is no files with a compatible origin and events with ancient indicators in the span we
         // want.
         assertIteratorEquality(
@@ -437,9 +470,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound4, false);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(startAncientIdentifier, startingRound4));
 
@@ -468,18 +504,24 @@ class PcesFileReaderTests {
 
         // Scenario 1: choose an origin that lands on the resultingUnbrokenOrigin exactly.
         final long startingRound1 = pcesFilesGenerator.resultingUnbrokenOrigin();
-        final PcesFileTracker fileTracker1 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound1, false);
+        final PcesFileTracker fileTracker1 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound1,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker1.getFileIterator(startAncientBoundary, startingRound1));
 
         // Scenario 2: choose an origin that lands after the resultingUnbrokenOrigin.
         final long startingRound2 = pcesFilesGenerator.pointAfterUnbrokenOrigin();
-        final PcesFileTracker fileTracker2 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound2, false);
+        final PcesFileTracker fileTracker2 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound2,
+                false);
         assertIteratorEquality(
                 pcesFilesGenerator.filesAfterDiscontinuity().iterator(),
                 fileTracker2.getFileIterator(startAncientBoundary, startingRound2));
@@ -488,9 +530,12 @@ class PcesFileReaderTests {
         // the files
         // after the origin to be deleted.
         final long startingRound3 = pcesFilesGenerator.pointBeforeUnbrokenOrigin();
-        final PcesFileTracker fileTracker3 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound3, false);
+        final PcesFileTracker fileTracker3 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound3,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker3.getFileIterator(startAncientBoundary, startingRound3));
 
@@ -501,9 +546,12 @@ class PcesFileReaderTests {
         // remaining
         // files to be deleted.
         final long startingRound4 = ORIGIN_RANGE.start() - 1;
-        final PcesFileTracker fileTracker4 =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        fileDirectory, startingRound4, false);
+        final PcesFileTracker fileTracker4 = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                fileDirectory,
+                startingRound4,
+                false);
         assertIteratorEquality(
                 Collections.emptyIterator(), fileTracker4.getFileIterator(startAncientBoundary, startingRound4));
 

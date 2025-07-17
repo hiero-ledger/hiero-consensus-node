@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.compactPreconsensusEventFile;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.fileSanityChecks;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -105,8 +104,7 @@ public class PcesFileReader {
      * @return the handler
      */
     @NonNull
-    private static Consumer<PcesFile> buildFileHandler(@NonNull final PcesFileTracker files,
-            final boolean permitGaps) {
+    private static Consumer<PcesFile> buildFileHandler(@NonNull final PcesFileTracker files, final boolean permitGaps) {
         final ValueReference<Long> previousSequenceNumber = new ValueReference<>(-1L);
         final ValueReference<Long> previousMinimumBound = new ValueReference<>(-1L);
         final ValueReference<Long> previousMaximumBound = new ValueReference<>(-1L);

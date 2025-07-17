@@ -233,10 +233,12 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      * @param responseObserver the observer to send the response back to the test framework
      */
     @Override
-    public synchronized void getPcesDir(@NonNull final Empty request, @NonNull final StreamObserver<PcesFileDir> responseObserver) {
+    public synchronized void getPcesDir(
+            @NonNull final Empty request, @NonNull final StreamObserver<PcesFileDir> responseObserver) {
         try {
             final Path pcesPath = nodeManager.getPcesDir().toAbsolutePath();
-            responseObserver.onNext(PcesFileDir.newBuilder().setFilePath(pcesPath.toString()).build());
+            responseObserver.onNext(
+                    PcesFileDir.newBuilder().setFilePath(pcesPath.toString()).build());
             responseObserver.onCompleted();
         } catch (final IOException e) {
             responseObserver.onError(Status.INTERNAL.withCause(e).asException());

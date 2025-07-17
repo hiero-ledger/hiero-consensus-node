@@ -201,8 +201,8 @@ public final class BestEffortPcesFileCopy {
     private static List<PcesFile> gatherPcesFilesOnDisk(
             @NonNull final NodeId selfId, @NonNull final PlatformContext platformContext) throws IOException {
         final List<PcesFile> allFiles = new ArrayList<>();
-        final Path preconsensusEventStreamDirectory = PcesUtilities.getDatabaseDirectory(
-                platformContext.getConfiguration(), selfId);
+        final Path preconsensusEventStreamDirectory =
+                PcesUtilities.getDatabaseDirectory(platformContext.getConfiguration(), selfId);
         try (final Stream<Path> stream = Files.walk(preconsensusEventStreamDirectory)) {
             stream.filter(Files::isRegularFile).forEach(path -> {
                 try {

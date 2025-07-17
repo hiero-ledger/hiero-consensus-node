@@ -30,7 +30,8 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node, used to determine if
      * modifying the configuration is allowed
      */
-    protected AbstractNodeConfiguration(@NonNull final Supplier<AbstractNode.LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
+    protected AbstractNodeConfiguration(
+            @NonNull final Supplier<AbstractNode.LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
         this.lifecycleSupplier = lifecycleSupplier;
         this.outputDirectory = outputDirectory.toString();
     }

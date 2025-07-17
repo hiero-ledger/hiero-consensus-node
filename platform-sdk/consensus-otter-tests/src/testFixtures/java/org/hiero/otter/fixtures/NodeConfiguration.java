@@ -13,7 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
-     * Updates a single property of the configuration.
+     * Updates a single property of the configuration. Can only be invoked when the node is not running.
      *
      * @param key the key of the property
      * @param value the value of the property
@@ -23,7 +23,7 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
     T set(@NonNull String key, boolean value);
 
     /**
-     * Updates a single property of the configuration.
+     * Updates a single property of the configuration. Can only be invoked when the node is not running.
      *
      * @param key the key of the property
      * @param value the value of the property
@@ -34,9 +34,6 @@ public interface NodeConfiguration<T extends NodeConfiguration<T>> {
 
     /**
      * Returns the current configuration of the node including all overridden properties.
-     * <br>
-     * <strong>Note:</strong> This may not be the
-     * configuration used by the running platform, as new configuration is only adopted on node start.
      *
      * @return the current configuration of the node
      */

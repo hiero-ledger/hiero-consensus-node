@@ -47,10 +47,12 @@ public final class SavedStateUtils {
         final SavedStateMetadata stateMetadata =
                 SavedStateMetadata.parse(statePath.resolve(SavedStateMetadata.FILE_NAME));
 
-        final PcesFileTracker fileTracker =
-                PcesFileReader.readFilesFromDisk(platformContext.getConfiguration(), platformContext.getRecycleBin(),
-                        pcesTmp, stateMetadata.round(),
-                        false);
+        final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
+                platformContext.getConfiguration(),
+                platformContext.getRecycleBin(),
+                pcesTmp,
+                stateMetadata.round(),
+                false);
 
         final PcesMultiFileIterator eventIterator =
                 fileTracker.getEventIterator(stateMetadata.minimumBirthRoundNonAncient(), stateMetadata.round());

@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.platform.config.BasicConfig_;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collections;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -24,14 +21,14 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
      *
      * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
-    public ContainerNodeConfiguration(@NonNull final Supplier<LifeCycle> lifecycleSupplier,
-            @NonNull final Path outputDirectory) {
+    public ContainerNodeConfiguration(
+            @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
         super(lifecycleSupplier, outputDirectory);
         setContainerSpecificOverrides();
     }
 
     private void setContainerSpecificOverrides() {
-//        overriddenProperties.put(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory);
+        //        overriddenProperties.put(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory);
     }
 
     /**

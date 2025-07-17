@@ -6,10 +6,8 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.NodeId;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -40,8 +38,8 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
         this.nodeId = requireNonNull(nodeId);
 
         try {
-            final Path databaseDirectory = getDatabaseDirectory(configuration,
-                    org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
+            final Path databaseDirectory =
+                    getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId.id()));
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
                     configuration, new NoOpRecycleBin(), databaseDirectory, NO_LOWER_BOUND, true);
         } catch (final IOException e) {
@@ -56,7 +54,9 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      * @param configuration The {@link Configuration} to use for reading PCES files
      * @param pcesDirectory The directory where PCES files are stored
      */
-    public SingleNodePcesResultImpl(@NonNull final NodeId nodeId, @NonNull final Configuration configuration,
+    public SingleNodePcesResultImpl(
+            @NonNull final NodeId nodeId,
+            @NonNull final Configuration configuration,
             @NonNull final Path pcesDirectory) {
         this.nodeId = requireNonNull(nodeId);
         try {

@@ -19,7 +19,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**
@@ -51,7 +50,6 @@ public class HappyPathTest {
 
         // Wait for two minutes
         timeManager.waitFor(Duration.ofSeconds(60L));
-
 
         // Validations
         assertThat(network.getLogResults()).haveNoErrorLevelMessages();

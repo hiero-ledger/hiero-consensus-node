@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -48,15 +57,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
-
-import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Implementation of {@link Node} for a container environment.
@@ -225,8 +225,8 @@ public class ContainerNode extends AbstractNode implements Node {
 
         final Configuration configuration = nodeConfiguration.current();
         try {
-            final Path databaseDirectory = getDatabaseDirectory(configuration,
-                    org.hiero.consensus.model.node.NodeId.of(selfId.id()));
+            final Path databaseDirectory =
+                    getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(selfId.id()));
             final Path pcesDirectory = mountedDir.resolve(databaseDirectory);
             return new SingleNodePcesResultImpl(selfId, nodeConfiguration.current(), pcesDirectory);
         } catch (final IOException e) {
