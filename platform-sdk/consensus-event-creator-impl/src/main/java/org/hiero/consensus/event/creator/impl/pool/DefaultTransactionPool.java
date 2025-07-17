@@ -3,7 +3,6 @@ package org.hiero.consensus.event.creator.impl.pool;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.util.Objects;
 import org.hiero.consensus.model.status.PlatformStatus;
 

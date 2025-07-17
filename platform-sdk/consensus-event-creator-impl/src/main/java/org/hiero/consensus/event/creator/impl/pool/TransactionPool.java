@@ -4,7 +4,6 @@ package org.hiero.consensus.event.creator.impl.pool;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
