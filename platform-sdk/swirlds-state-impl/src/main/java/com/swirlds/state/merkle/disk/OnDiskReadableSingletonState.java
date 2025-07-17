@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle.disk;
 
-import static com.swirlds.state.merkle.StateUtils.computeLabel;
+import static com.swirlds.state.BinaryStateUtils.computeLabel;
+import static com.swirlds.state.BinaryStateUtils.getValidatedStateId;
 import static com.swirlds.state.merkle.logging.StateLogger.logSingletonRead;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.Codec;
+import com.swirlds.state.BinaryState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
@@ -21,10 +23,13 @@ public class OnDiskReadableSingletonState<T> extends ReadableSingletonStateBase<
 
     /** The backing merkle data structure to use */
     @NonNull
-    private final VirtualMap virtualMap;
+    private final BinaryState binaryState;
 
     @NonNull
     private final Codec<T> valueCodec;
+
+    private final int stateId;
+    private final String label;
 
     /**
      * Create a new instance
@@ -32,16 +37,18 @@ public class OnDiskReadableSingletonState<T> extends ReadableSingletonStateBase<
      * @param serviceName  the service name
      * @param stateKey     the state key
      * @param valueCodec   the codec for the value
-     * @param virtualMap   the backing merkle data structure to use
+     * @param binaryState  the interface for accessing and modifying state
      */
     public OnDiskReadableSingletonState(
             @NonNull final String serviceName,
             @NonNull final String stateKey,
             @NonNull final Codec<T> valueCodec,
-            @NonNull final VirtualMap virtualMap) {
+            @NonNull final BinaryState binaryState) {
         super(serviceName, stateKey);
-        this.virtualMap = requireNonNull(virtualMap);
+        this.binaryState = requireNonNull(binaryState);
         this.valueCodec = requireNonNull(valueCodec);
+        this.stateId = getValidatedStateId(serviceName, stateKey);
+        this.label = computeLabel(serviceName, stateKey);
     }
 
     /**
@@ -49,9 +56,9 @@ public class OnDiskReadableSingletonState<T> extends ReadableSingletonStateBase<
      */
     @Override
     protected T readFromDataSource() {
-        final var value = OnDiskSingletonHelper.getFromStore(serviceName, stateKey, virtualMap, valueCodec);
+        final T value = binaryState.getSingleton(stateId, valueCodec);
         // Log to transaction state log, what was read
-        logSingletonRead(computeLabel(serviceName, stateKey), value);
+        logSingletonRead(label, value);
         return value;
     }
 }

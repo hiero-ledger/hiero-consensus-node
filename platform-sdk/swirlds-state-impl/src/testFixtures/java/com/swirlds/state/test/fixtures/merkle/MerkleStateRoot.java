@@ -3,14 +3,15 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static com.swirlds.state.BinaryStateUtils.createVirtualMapKeyBytesForKv;
+import static com.swirlds.state.BinaryStateUtils.decomposeLabel;
+import static com.swirlds.state.BinaryStateUtils.getVirtualMapKeyForQueue;
+import static com.swirlds.state.BinaryStateUtils.getVirtualMapKeyForSingleton;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
-import static com.swirlds.state.merkle.StateUtils.createVirtualMapKeyBytesForKV;
-import static com.swirlds.state.merkle.StateUtils.decomposeLabel;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForQueue;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
 import static com.swirlds.state.merkle.VirtualMapState.VM_LABEL;
 import static java.util.Objects.requireNonNull;
 
@@ -948,7 +949,23 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         throwIfMutable();
         throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(this, targetPath, roundSupplier.getAsLong());
+        long round = roundSupplier.getAsLong();
+        logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for round {}", targetPath, round);
+        try {
+            MerkleTreeSnapshotWriter.createSnapshot(this, targetPath);
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    "Successfully created a snapshot on demand in {}  for round {}",
+                    targetPath,
+                    round);
+        } catch (IOException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Unable to write a snapshot on demand for round {} to {}.",
+                    round,
+                    targetPath,
+                    e);
+        }
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 
@@ -1229,8 +1246,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
                             older.release();
                             virtualMapRef.set(currentMap);
                         }
-                        final var keyBytes = Bytes.wrap(createVirtualMapKeyBytesForKV(
-                                serviceName, stateKey, pair.key().toByteArray()));
+                        final var keyBytes = createVirtualMapKeyBytesForKv(serviceName, stateKey, pair.key());
                         virtualMapRef.get().putBytes(keyBytes, pair.value());
                     };
 
@@ -1295,8 +1311,7 @@ public abstract class MerkleStateRoot<T extends MerkleStateRoot<T>> extends Part
         while (merkleNodeMerkleIterator.hasNext()) {
             MerkleNode next = merkleNodeMerkleIterator.next();
             if (next instanceof VirtualLeafNode virtualLeafNode) {
-                final var keyBytes = Bytes.wrap(createVirtualMapKeyBytesForKV(
-                        serviceName, stateKey, virtualLeafNode.getKey().toByteArray()));
+                final var keyBytes = createVirtualMapKeyBytesForKv(serviceName, stateKey, virtualLeafNode.getKey());
                 assert virtualMap.containsKey(keyBytes);
             }
         }

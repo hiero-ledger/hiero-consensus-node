@@ -18,6 +18,7 @@ module com.swirlds.state.impl {
     requires transitive org.hiero.base.utility;
     requires com.hedera.node.hapi;
     requires com.swirlds.config.api;
+    requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires org.apache.logging.log4j;
     requires org.json;

@@ -9,21 +9,21 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.virtualmap.internal.merkle.VirtualLeafNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class OnDiskIterator<K, V> implements Iterator<K> {
+public class OnDiskIterator<K> implements Iterator<K> {
 
     private final int stateId;
     private final MerkleIterator<MerkleNode> itr;
     private K next = null;
 
-    public OnDiskIterator(@NonNull final VirtualMap virtualMap, final int stateId) {
+    public OnDiskIterator(@NonNull final VirtualMapBinaryState binaryState, final int stateId) {
         this.stateId = stateId;
-        itr = requireNonNull(virtualMap).treeIterator();
+        itr = requireNonNull(binaryState).treeIterator();
     }
 
     @Override

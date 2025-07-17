@@ -8,10 +8,12 @@ import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SCHEDULE
 import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.SINGLETON;
 import static com.hedera.hapi.platform.state.VirtualMapKey.KeyOneOfType.TOKENSERVICE_I_ALIASES;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
+import static com.swirlds.state.BinaryStateUtils.createVirtualMapKeyBytesForKv;
+import static com.swirlds.state.BinaryStateUtils.getVirtualMapKeyForSingleton;
 import static com.swirlds.state.lifecycle.StateMetadata.computeClassId;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForKv;
-import static com.swirlds.state.merkle.StateUtils.getVirtualMapKeyForSingleton;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -39,9 +41,9 @@ import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
+import com.swirlds.state.BinaryStateUtils;
 import com.swirlds.state.lifecycle.StateMetadata;
-import com.swirlds.state.merkle.StateUtils;
+import com.swirlds.state.merkle.VirtualMapBinaryState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.TestArgumentUtils;
 import com.swirlds.state.test.fixtures.merkle.memory.InMemoryKey;
@@ -143,6 +145,7 @@ public class MerkleTestBase extends StateTestBase {
     // An alternative "FRUIT" Map that is also part of FIRST_SERVICE, but based on VirtualMap
     protected String fruitVirtualLabel;
     protected VirtualMap fruitVirtualMap;
+    protected VirtualMapBinaryState binaryState;
 
     // The "ANIMAL" map is part of FIRST_SERVICE
     protected String animalLabel;
@@ -164,7 +167,7 @@ public class MerkleTestBase extends StateTestBase {
      * This static mock instance will override calls to the static methods in StateUtils
      * (specifically {@code #stateIdFor} method for now).
      */
-    private static MockedStatic<StateUtils> stateUtilsMock;
+    private static MockedStatic<BinaryStateUtils> stateUtilsMock;
 
     /**
      * Sets up a static mock for {@code StateUtils} before all tests, partially mocking
@@ -179,9 +182,9 @@ public class MerkleTestBase extends StateTestBase {
      */
     @BeforeAll
     static void init() {
-        stateUtilsMock = mockStatic(StateUtils.class, CALLS_REAL_METHODS);
+        stateUtilsMock = mockStatic(BinaryStateUtils.class, CALLS_REAL_METHODS);
         stateUtilsMock
-                .when(() -> StateUtils.stateIdFor(anyString(), anyString()))
+                .when(() -> BinaryStateUtils.stateIdFor(anyString(), anyString()))
                 .thenAnswer(invocation -> {
                     try {
                         // First, try calling the real method.
@@ -209,7 +212,7 @@ public class MerkleTestBase extends StateTestBase {
                     }
                 });
         stateUtilsMock
-                .when(() -> StateUtils.getVirtualMapKeyForKv(anyString(), anyString(), anyString()))
+                .when(() -> createVirtualMapKeyBytesForKv(anyString(), anyString(), any(Bytes.class)))
                 .thenAnswer(invocation -> {
                     try {
                         // First, try calling the real method.
@@ -233,7 +236,7 @@ public class MerkleTestBase extends StateTestBase {
                     }
                 });
         stateUtilsMock
-                .when(() -> StateUtils.getVirtualMapKeyForQueue(anyString(), anyString(), anyLong()))
+                .when(() -> BinaryStateUtils.getVirtualMapKeyForQueue(anyString(), anyString(), anyLong()))
                 .thenAnswer(invocation -> {
                     try {
                         // First, try calling the real method.
@@ -255,7 +258,7 @@ public class MerkleTestBase extends StateTestBase {
                     }
                 });
         stateUtilsMock
-                .when(() -> StateUtils.getVirtualMapKeyForSingleton(anyString(), anyString()))
+                .when(() -> getVirtualMapKeyForSingleton(anyString(), anyString()))
                 .thenAnswer(invocation -> {
                     try {
                         // First, try calling the real method.
@@ -304,6 +307,7 @@ public class MerkleTestBase extends StateTestBase {
     protected void setupFruitVirtualMap() {
         fruitVirtualLabel = StateMetadata.computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
         fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
+        binaryState = new VirtualMapBinaryState(fruitVirtualMap);
     }
 
     protected static long queueNodeClassId(String stateKey) {
@@ -419,7 +423,10 @@ public class MerkleTestBase extends StateTestBase {
             Codec<String> valueCodec,
             ProtoBytes key,
             String value) {
-        map.put(getVirtualMapKeyForKv(serviceName, stateKey, key), value, valueCodec);
+        map.put(
+                createVirtualMapKeyBytesForKv(serviceName, stateKey, ProtoBytes.PROTOBUF.toBytes(key)),
+                value,
+                valueCodec);
     }
 
     /** A convenience method used to serialize a merkle tree */
@@ -458,8 +465,7 @@ public class MerkleTestBase extends StateTestBase {
             fruitVirtualMap.release();
         }
 
-        MerkleDbTestUtils.assertAllDatabasesClosed();
-
+        assertAllDatabasesClosed();
         assertEventuallyDoesNotThrow(
                 () -> {
                     try {

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.platform.state.PlatformStateAccessor.GENESIS_ROUND;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
@@ -20,7 +18,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.platform.state.PlatformStateAccessor;
@@ -39,9 +37,6 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.merkle.TestSchema;
 import com.swirlds.virtualmap.VirtualMap;
-import java.io.IOException;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
@@ -520,7 +515,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @Test
         @DisplayName("Getting WritableStates on an unknown service returns an empty entity")
         void unknownServiceNameUsingWritableStates() {
-            final var states = virtualMapState.getWritableStates(UNKNOWN_SERVICE);
+            final var states =
+                    virtualMapState.getWritableStates(Randotron.create().nextString(5));
             assertThat(states).isNotNull();
             assertThat(states.isEmpty()).isTrue();
         }
@@ -838,19 +834,5 @@ public class VirtualMapStateTest extends MerkleTestBase {
         if (virtualMapState.getRoot().getReservationCount() >= 0) {
             virtualMapState.release();
         }
-        if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() >= 0) {
-            fruitVirtualMap.release();
-        }
-        assertAllDatabasesClosed();
-        assertEventuallyDoesNotThrow(
-                () -> {
-                    try {
-                        FileUtils.deleteDirectory(virtualDbPath);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                },
-                Duration.of(1, ChronoUnit.SECONDS),
-                "Unable to delete virtual map directory");
     }
 }

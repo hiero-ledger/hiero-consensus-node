@@ -92,7 +92,7 @@ public class VirtualLeafBytes<V> {
         return keyBytes;
     }
 
-    public V value(final Codec<V> valueCodec) {
+    public V value(@NonNull final Codec<V> valueCodec) {
         if (value == null) {
             // No synchronization here. In the worst case, value will be initialized multiple
             // times, but always to the same object

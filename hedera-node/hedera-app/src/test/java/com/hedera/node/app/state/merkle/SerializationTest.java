@@ -39,7 +39,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Set;
@@ -135,19 +134,14 @@ class SerializationTest extends MerkleTestBase {
         };
     }
 
-    private void forceFlush(ReadableKVState<?, ?> state) {
-        if (state instanceof OnDiskReadableKVState<?, ?>) {
+    private void forceFlush(MerkleNodeState merkleNodeState) {
+        VirtualMap vm = (VirtualMap) merkleNodeState.getRoot();
+        if (vm.size() > 1) {
+            vm.enableFlush();
+            vm.release();
             try {
-                Field vmField = OnDiskReadableKVState.class.getDeclaredField("virtualMap");
-                vmField.setAccessible(true);
-                VirtualMap vm = (VirtualMap) vmField.get(state);
-
-                if (vm.size() > 1) {
-                    vm.enableFlush();
-                    vm.release();
-                    vm.waitUntilFlushed();
-                }
-            } catch (IllegalAccessException | NoSuchFieldException | InterruptedException e) {
+                vm.waitUntilFlushed();
+            } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         }
@@ -172,7 +166,7 @@ class SerializationTest extends MerkleTestBase {
         final byte[] serializedBytes;
         if (forceFlush) {
             // Force flush the VMs to disk to test serialization and deserialization
-            forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
+            forceFlush(originalTree);
             copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
             copy.getRoot().getHash();
             serializedBytes = writeTree(copy.getRoot(), dir);
@@ -230,7 +224,7 @@ class SerializationTest extends MerkleTestBase {
 
         MerkleNodeState copy = originalTree.copy(); // make a copy to make VM flushable
 
-        forceFlush(originalTree.getReadableStates(FIRST_SERVICE).get(ANIMAL_STATE_KEY));
+        forceFlush(originalTree);
         copy.copy().release(); // make a fast copy because we can only write to disk an immutable copy
         copy.getRoot().getHash();
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);

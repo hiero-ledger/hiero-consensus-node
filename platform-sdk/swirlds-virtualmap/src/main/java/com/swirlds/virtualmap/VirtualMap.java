@@ -616,7 +616,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * 		The key. This must not be null.
      * @return The value. The value may be null, or will be read only.
      */
-    public <V> V get(@NonNull final Bytes key, final Codec<V> valueCodec) {
+    public <V> V get(@NonNull final Bytes key, @NonNull final Codec<V> valueCodec) {
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
         final VirtualLeafBytes<V> rec = records.findLeafRecord(key);
         statistics.countReadEntities();
@@ -658,7 +658,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         put(keyBytes, null, null, valueBytes);
     }
 
-    private <V> void put(final Bytes key, final V value, final Codec<V> valueCodec, final Bytes valueBytes) {
+    private <V> void put(
+            @NonNull final Bytes key,
+            @Nullable final V value,
+            @Nullable final Codec<V> valueCodec,
+            final Bytes valueBytes) {
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
