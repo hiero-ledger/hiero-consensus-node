@@ -366,10 +366,6 @@ public class BlockStreamBuilder
      */
     private Bytes ethereumHash = Bytes.EMPTY;
     /**
-     * Whether any non-empty Ethereum transaction hash was hydrated from a file.
-     */
-    private boolean hydratedFromFile = false;
-    /**
      * Whether the transaction creates or deletes a schedule.
      */
     private boolean createsOrDeletesSchedule;
@@ -959,10 +955,9 @@ public class BlockStreamBuilder
 
     @Override
     @NonNull
-    public BlockStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash, final boolean hydratedFromFile) {
+    public BlockStreamBuilder ethereumHash(@NonNull final Bytes ethereumHash) {
         contractOpType = ContractOpType.ETH_THROTTLED;
         this.ethereumHash = requireNonNull(ethereumHash);
-        this.hydratedFromFile = hydratedFromFile;
         return this;
     }
 
@@ -1390,13 +1385,9 @@ public class BlockStreamBuilder
         if (!evmTransactionResult.hasInternalCallContext()) {
             return evmTransactionResult;
         }
-        final var externalizedContext = !hydratedFromFile
-                ? null
-                : new InternalCallContext(
-                        0, 0, evmTransactionResult.internalCallContextOrThrow().callData());
         return evmTransactionResult
                 .copyBuilder()
-                .internalCallContext(externalizedContext)
+                .internalCallContext((InternalCallContext) null)
                 .build();
     }
 

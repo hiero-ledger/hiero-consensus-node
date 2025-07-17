@@ -143,7 +143,7 @@ public class StreamBuilderTest {
                 .scheduleRef(scheduleRef)
                 .assessedCustomFees(assessedCustomFees)
                 .automaticTokenAssociations(automaticTokenAssociations)
-                .ethereumHash(ethereumHash, false)
+                .ethereumHash(ethereumHash)
                 .paidStakingRewards(paidStakingRewards)
                 .evmAddress(evmAddress)
                 .status(status)

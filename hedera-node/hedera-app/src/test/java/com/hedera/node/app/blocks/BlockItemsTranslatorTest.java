@@ -541,7 +541,6 @@ class BlockItemsTranslatorTest {
     void ethTxCallUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
                 .ethereumCall(EthereumOutput.newBuilder()
-                        .ethereumHash(ETH_HASH)
                         .evmCallTransactionResult(EVM_TRANSACTION_RESULT)
                         .build())
                 .build();
@@ -591,7 +590,6 @@ class BlockItemsTranslatorTest {
     void ethTxCreateUsesResultOutputIfPresent() {
         final var output = TransactionOutput.newBuilder()
                 .ethereumCall(EthereumOutput.newBuilder()
-                        .ethereumHash(ETH_HASH)
                         .evmCreateTransactionResult(EVM_TRANSACTION_RESULT)
                         .build())
                 .build();

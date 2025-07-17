@@ -411,9 +411,9 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash, boolean hydratedFromFile) {
-        recordStreamBuilder.ethereumHash(ethereumHash, hydratedFromFile);
-        blockStreamBuilder.ethereumHash(ethereumHash, hydratedFromFile);
+    public EthereumTransactionStreamBuilder ethereumHash(@NonNull Bytes ethereumHash) {
+        recordStreamBuilder.ethereumHash(ethereumHash);
+        blockStreamBuilder.ethereumHash(ethereumHash);
         return this;
     }
 

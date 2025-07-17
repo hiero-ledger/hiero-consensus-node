@@ -233,7 +233,7 @@ class EthereumTransactionHandlerTest {
                 null);
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         given(callRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
                 .willReturn(callRecordBuilder);
@@ -247,7 +247,7 @@ class EthereumTransactionHandlerTest {
         given(component.hydratedEthTxData()).willReturn(HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false));
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(EthereumTransactionStreamBuilder.class)).willReturn(recordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash()), false))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
 
         assertDoesNotThrow(() -> subject.handleThrottled(context));
@@ -287,7 +287,7 @@ class EthereumTransactionHandlerTest {
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
                 .willReturn(createRecordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
 
@@ -439,7 +439,7 @@ class EthereumTransactionHandlerTest {
         given(createRecordBuilder.createdEvmAddress(any())).willReturn(createRecordBuilder);
         given(createRecordBuilder.withCommonFieldsSetFrom(expectedOutcome, context))
                 .willReturn(createRecordBuilder);
-        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash()), false))
+        given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.getEthereumHash())))
                 .willReturn(recordBuilder);
         givenSenderAccountWithNonce(SIGNER_NONCE);
 

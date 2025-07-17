@@ -153,7 +153,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
         final var ethStreamBuilder = context.savepointStack()
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
-                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
+                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
         if (outcome.hasNewSenderNonce()) {
             final var nonceCallback =
                     context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class);
@@ -182,7 +182,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         final var ethTxData = requireNonNull(hydratedEthTxData.ethTxData());
         context.savepointStack()
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
-                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()), hydratedEthTxData.hydratedFromFile());
+                .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
     }
 
     @Override
