@@ -72,10 +72,7 @@ message EventCore {
   reserved 4;
 
   /**
-   * The event specification version.<br/>
-   * The specification described by this version SHALL encompass the format of the `GossipEvent` message, and also the
-   * format of all contained messages.<br/>
-   * This SHALL exactly match the specification version passed into the platform at construction.
+   * Previously used as the software version of the node that created this event.
    */
-  proto.SemanticVersion version = 17; // This field is temporary until birth_round migration is complete. Field number 17 chosen to avoid polluting cheaper 1 byte field numbers 1-16
+  reserved 17;
 }

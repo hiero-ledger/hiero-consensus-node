@@ -2,7 +2,7 @@
 version: 3
 includes:
   main:
-    taskfile: Taskfile.examples.yml
+    taskfile: ../../Taskfile.examples.yml
     flatten: true
 vars:
   solo_home_override_dir: "%HOME%/.solo"
