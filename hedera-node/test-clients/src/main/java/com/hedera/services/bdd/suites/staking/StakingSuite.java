@@ -39,7 +39,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hedera.services.bdd.suites.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
+import static com.hedera.services.bdd.suites.contract.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -75,7 +75,7 @@ public class StakingSuite {
     private static final long STAKING_PERIOD_MINS = 1L;
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) throws Throwable {
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(
                 overridingThree(
                         "staking.startThreshold", "" + 10 * ONE_HBAR,

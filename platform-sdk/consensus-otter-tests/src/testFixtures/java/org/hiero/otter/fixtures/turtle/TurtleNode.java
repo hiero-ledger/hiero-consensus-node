@@ -52,6 +52,9 @@ import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.TransactionFactory;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
@@ -60,10 +63,9 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
-import org.hiero.otter.fixtures.turtle.app.TurtleApp;
-import org.hiero.otter.fixtures.turtle.app.TurtleAppState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A node in the turtle network.
@@ -82,7 +84,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     private final TurtleLogging logging;
     private final TurtleNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
-    private final AsyncNodeActions asyncNodeActions = new TurtleAcyncNodeActions();
+    private final AsyncNodeActions asyncNodeActions = new TurtleAsyncNodeActions();
 
     private PlatformContext platformContext;
 
@@ -97,6 +99,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
     /**
      * Constructor of {@link TurtleNode}.
+     *
      * @param randotron the random number generator
      * @param time the time provider
      * @param selfId the node ID of the node
@@ -115,7 +118,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory) {
-        super(selfId);
+        super(selfId, roster);
         logging.addNodeLogging(selfId, outputDirectory);
         try {
             ThreadContext.put(THREAD_CONTEXT_NODE_ID, this.selfId.toString());
@@ -147,6 +150,26 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         } finally {
             ThreadContext.remove(THREAD_CONTEXT_NODE_ID);
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
+     */
+    @Override
+    public void startSyntheticBottleneck(@NotNull final Duration delayPerRound) {
+        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
+     */
+    @Override
+    public void stopSyntheticBottleneck() {
+        throw new UnsupportedOperationException("Synthetic bottleneck is not supported in TurtleNode.");
     }
 
     /**
@@ -321,7 +344,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> TurtleAppState.createGenesisState(currentConfiguration, roster, version),
+                () -> OtterAppState.createGenesisState(currentConfiguration, roster, version),
                 APP_NAME,
                 SWIRLD_NAME,
                 legacyNodeId,
@@ -338,7 +361,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                         SWIRLD_NAME,
                         version,
                         initialState,
-                        TurtleApp.INSTANCE,
+                        OtterApp.INSTANCE,
                         legacyNodeId,
                         eventStreamLoc,
                         rosterHistory,
@@ -386,7 +409,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     /**
      * Turtle-specific implementation of {@link AsyncNodeActions}.
      */
-    private class TurtleAcyncNodeActions implements AsyncNodeActions {
+    private class TurtleAsyncNodeActions implements AsyncNodeActions {
 
         /**
          * {@inheritDoc}
@@ -394,6 +417,22 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
         @Override
         public void killImmediately() throws InterruptedException {
             TurtleNode.this.killImmediately();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            throw new UnsupportedOperationException("startSyntheticBottleneck is not supported in TurtleNode.");
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void stopSyntheticBottleneck() {
+            throw new UnsupportedOperationException("stopSyntheticBottleneck is not supported in TurtleNode.");
         }
 
         /**
