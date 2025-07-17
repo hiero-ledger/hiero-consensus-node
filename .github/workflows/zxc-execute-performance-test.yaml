@@ -8,7 +8,7 @@ on:
         description: "Which cluster to run tests on"
         required: true
         type: string
-        default: "Latitude4"
+        default: "AdHoc5"
       ref:
         description: "Version of hiero-consensus-node: branch, tag, commit"
         required: true
@@ -55,8 +55,8 @@ on:
 
 env:
   LC_ALL: C.UTF-8
-  LATITUDE_NAMESPACE_PREFIX: solo-sdpt-n
-  DEFAULT_NAMESPACE: Latitude4
+  ADHOC_NAMESPACE_PREFIX: solo-sdpt-n
+  DEFAULT_NAMESPACE: AdHoc5
   DEFAULT_HEDERAVERSION: main
   timeout_6h_limit: 330
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
@@ -82,7 +82,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
 
@@ -140,8 +140,8 @@ jobs:
 
           #trim run-hcn-version
           echo "run-hcn-version=`echo ${{ inputs.ref }} | awk '{print $1}'`" >> "${GITHUB_ENV}"
-          n=`echo "${{ inputs.test-asset }}" | perl -ne 'print "$1\n" if /^Latitude(\d+)$/'`
-          echo "namespace=${LATITUDE_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
+          n=`echo "${{ inputs.test-asset }}" | perl -ne 'print "$1\n" if /^AdHoc(\d+)$/'`
+          echo "namespace=${ADHOC_NAMESPACE_PREFIX}${n}" >> "${GITHUB_ENV}"
 
       - name: Print parameters
         run: |

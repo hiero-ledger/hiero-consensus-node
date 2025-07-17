@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.utils.contracts.precompile;
 
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ADDRESS;
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BRACKETS;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.BYTES32;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FIXED_FEE;
@@ -58,27 +57,21 @@ public class HTSPrecompileResult implements ContractCallResult {
             + HEDERA_TOKEN_V3.replace(removeBrackets(ADDRESS), removeBrackets(BYTES32))
             + ",int64,bool,bool,bool,"
             + FIXED_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + FRACTIONAL_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + ROYALTY_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ",string"
+            + "[],string"
             + ")";
     public static final String TOKEN_INFO_V2 = "("
             + HEDERA_TOKEN_WITH_METADATA.replace(removeBrackets(ADDRESS), removeBrackets(BYTES32))
             + ",int64,bool,bool,bool,"
             + FIXED_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + FRACTIONAL_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + ROYALTY_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ",string"
+            + "[],string"
             + ")";
     public static final String FUNGIBLE_TOKEN_INFO_REPLACED_ADDRESS =
             "(" + TOKEN_INFO_REPLACED_ADDRESS + ",int32" + ")";
@@ -103,14 +96,11 @@ public class HTSPrecompileResult implements ContractCallResult {
             TupleType.parse(RESPONSE_STATUS_AT_BEGINNING + NON_FUNGIBLE_TOKEN_INFO_V2 + ")");
     public static final TupleType tokenGetCustomFeesReplacedAddress = TupleType.parse(RESPONSE_STATUS_AT_BEGINNING
             + FIXED_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + FRACTIONAL_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ","
+            + "[],"
             + ROYALTY_FEE_REPLACED_ADDRESS
-            + ARRAY_BRACKETS
-            + ")");
+            + "[])");
     public static final TupleType getTokenExpiryInfoTypeReplacedAddress =
             TupleType.parse(RESPONSE_STATUS_AT_BEGINNING + EXPIRY_REPLACED_ADDRESS + ")");
     public static final TupleType getTokenKeyReplacedAddress =
@@ -176,7 +166,8 @@ public class HTSPrecompileResult implements ContractCallResult {
             case HAPI_GET_TOKEN_KEY -> getTokenKeyReplacedAddress;
             case HAPI_GET_TOKEN_TYPE -> intPairTuple;
             case HAPI_GET_TOKEN_EXPIRY_INFO -> getTokenExpiryInfoTypeReplacedAddress;
-            default -> notSpecifiedType;};
+            default -> notSpecifiedType;
+        };
 
         this.functionType = functionType;
         return this;
@@ -208,12 +199,12 @@ public class HTSPrecompileResult implements ContractCallResult {
     }
 
     public HTSPrecompileResult withOwner(final byte[] address) {
-        this.owner = address;
+        owner = address;
         return this;
     }
 
     public HTSPrecompileResult withSpender(final byte[] spender) {
-        this.approved = spender;
+        approved = spender;
         return this;
     }
 
@@ -234,7 +225,7 @@ public class HTSPrecompileResult implements ContractCallResult {
     }
 
     public HTSPrecompileResult withTokenUri(final String tokenUri) {
-        this.metadata = tokenUri;
+        metadata = tokenUri;
         return this;
     }
 
@@ -613,7 +604,7 @@ public class HTSPrecompileResult implements ContractCallResult {
     }
 
     public static byte[] expandByteArrayTo32Length(final byte[] bytesToExpand) {
-        byte[] expandedArray = new byte[32];
+        final byte[] expandedArray = new byte[32];
 
         System.arraycopy(
                 bytesToExpand, 0, expandedArray, expandedArray.length - bytesToExpand.length, bytesToExpand.length);

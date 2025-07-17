@@ -14,6 +14,7 @@ import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
@@ -27,6 +28,15 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 @SuppressWarnings("removal")
 public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     INSTANCE;
+
+    /**
+     * The number of milliseconds to sleep per handled consensus round. Sleeping for long enough over a period of time
+     * will cause a backup of data in the platform as cause it to fall into CHECKING or even BEHIND.
+     * <p>
+     * Held in an {@link AtomicLong} because value is set by the container handler thread and is read by the consensus
+     * node's handle thread.
+     */
+    private final AtomicLong syntheticBottleneckMillis = new AtomicLong(0);
 
     /**
      * {@inheritDoc}
@@ -53,10 +63,26 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
                 try {
                     final OtterTransaction transaction = OtterTransaction.parseFrom(payload.toInputStream());
                     handleTransaction(state, event, transaction, callback);
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     fail("Failed to parse transaction: " + payload, ex);
                 }
             });
+        }
+        maybeDoBottleneck();
+    }
+
+    /**
+     * Engages a bottleneck by sleeping for the configured number of milliseconds. Does nothing if the number of
+     * milliseconds to sleep is zero or negative.
+     */
+    private void maybeDoBottleneck() {
+        final long millisToSleep = syntheticBottleneckMillis.get();
+        if (millisToSleep > 0) {
+            try {
+                Thread.sleep(millisToSleep);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -97,5 +123,14 @@ public enum OtterApp implements ConsensusStateEventHandler<OtterAppState> {
     @Override
     public void onNewRecoveredState(@NonNull final OtterAppState recoveredState) {
         // No new recovered state required yet
+    }
+
+    /**
+     * Updates the synthetic bottleneck value.
+     *
+     * @param millisToSleepPerRound the number of milliseconds to sleep per round
+     */
+    public void updateSyntheticBottleneck(final long millisToSleepPerRound) {
+        this.syntheticBottleneckMillis.set(millisToSleepPerRound);
     }
 }
