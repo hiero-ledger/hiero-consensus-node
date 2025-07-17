@@ -188,8 +188,8 @@ public final class EventRecoveryWorkflow {
             final PcesFile preconsensusEventFile = PcesFile.of(
                     Instant.now(),
                     0,
-                    recoveredState.judge().getGeneration(),
-                    recoveredState.judge().getGeneration(),
+                    recoveredState.judge().getBirthRound(),
+                    recoveredState.judge().getBirthRound(),
                     recoveredState.state().get().getRound(),
                     resultingStateDirectory);
             final PcesFileWriterType type = platformContext

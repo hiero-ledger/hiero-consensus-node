@@ -237,15 +237,10 @@ public class ConsensusImpl implements Consensus {
     @Override
     public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
         reset();
-        final Set<Hash> judgeHashes;
-        if (!snapshot.judgeHashes().isEmpty()) {
-            // Deprecated case, we are loading from a snapshot that contains just judge hashes, no ids
-            judgeHashes = snapshot.judgeHashes().stream().map(Hash::new).collect(toSet());
-        } else {
-            judgeHashes = snapshot.judgeIds().stream()
-                    .map(judge -> new Hash(judge.judgeHash()))
-                    .collect(toSet());
-        }
+        final Set<Hash> judgeHashes = snapshot.judgeIds().stream()
+                .map(judge -> new Hash(judge.judgeHash()))
+                .collect(toSet());
+
         initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
@@ -762,7 +757,6 @@ public class ConsensusImpl implements Consensus {
                         nonExpiredThreshold),
                 new ConsensusSnapshot(
                         decidedRoundNumber,
-                        List.of(),
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
                         CommonUtils.toPbjTimestamp(lastConsensusTime),

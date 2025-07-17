@@ -64,7 +64,8 @@ module com.swirlds.platform.core {
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             com.swirlds.platform.core.test.fixtures,
-            com.hedera.node.app;
+            com.hedera.node.app,
+            org.hiero.otter.fixtures;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
@@ -107,6 +108,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
+    exports com.swirlds.platform.network.protocol.rpc;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

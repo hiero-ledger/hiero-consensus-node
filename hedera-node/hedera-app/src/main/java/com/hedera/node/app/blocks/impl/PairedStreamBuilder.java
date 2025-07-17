@@ -27,7 +27,6 @@ import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.platform.event.TransactionGroupRole;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -126,11 +125,6 @@ public class PairedStreamBuilder
 
     public RecordStreamBuilder recordStreamBuilder() {
         return recordStreamBuilder;
-    }
-
-    @Override
-    public void setTransactionGroupRole(@NonNull final TransactionGroupRole role) {
-        blockStreamBuilder.setTransactionGroupRole(role);
     }
 
     @Override
@@ -391,6 +385,13 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
+    public ContractOperationStreamBuilder createdContractIds(@NonNull final List<ContractID> contractIds) {
+        blockStreamBuilder.createdContractIds(contractIds);
+        return this;
+    }
+
+    @NonNull
+    @Override
     public PairedStreamBuilder contractCreateResult(@Nullable ContractFunctionResult result) {
         recordStreamBuilder.contractCreateResult(result);
         return this;
@@ -538,7 +539,7 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public CryptoTransferStreamBuilder transferList(@NonNull TransferList hbarTransfers) {
+    public CryptoTransferStreamBuilder transferList(@NonNull final TransferList hbarTransfers) {
         recordStreamBuilder.transferList(hbarTransfers);
         blockStreamBuilder.transferList(hbarTransfers);
         return this;

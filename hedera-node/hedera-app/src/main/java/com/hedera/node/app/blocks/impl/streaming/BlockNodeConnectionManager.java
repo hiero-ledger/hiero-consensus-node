@@ -72,10 +72,8 @@ public class BlockNodeConnectionManager {
      */
     public static final Duration INITIAL_RETRY_DELAY = Duration.ofSeconds(1);
     /**
-     * The amount of time the worker thread will sleep when there is no work available to process.
+     * The multiplier used for exponential backoff when retrying connections.
      */
-    private static final int PROCESSOR_LOOP_DELAY_MS = 10;
-
     private static final long RETRY_BACKOFF_MULTIPLIER = 2;
     /**
      * The maximum delay used for reties.
@@ -221,6 +219,18 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * The amount of time the worker thread will sleep when there is no work available to process.
+     *
+     * @return the sleep duration of the worker loop
+     */
+    private Duration workerLoopSleepDuration() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .workerLoopSleepDuration();
+    }
+
+    /**
      * Extracts block node configurations from the specified configuration file.
      *
      * @param blockNodeConfigPath the path to the block node configuration file
@@ -293,9 +303,9 @@ public class BlockNodeConnectionManager {
         logger.warn("[{}] Rescheduling connection for reconnect attempt", connection);
 
         // Schedule retry for the failed connection after a delay (initialDelay)
-        scheduleConnectionAttempt(connection, initialDelay, null);
+        scheduleConnectionAttempt(connection, initialDelay, null, false);
         // Immediately try to find and connect to the next available node
-        selectNewBlockNodeForStreaming();
+        selectNewBlockNodeForStreaming(false);
     }
 
     /**
@@ -310,6 +320,14 @@ public class BlockNodeConnectionManager {
             @NonNull final BlockNodeConnection connection,
             @NonNull final Duration initialDelay,
             @Nullable final Long blockNumber) {
+        scheduleConnectionAttempt(connection, initialDelay, blockNumber, false);
+    }
+
+    private void scheduleConnectionAttempt(
+            @NonNull final BlockNodeConnection connection,
+            @NonNull final Duration initialDelay,
+            @Nullable final Long blockNumber,
+            final boolean force) {
         if (!isStreamingEnabled.get()) {
             return;
         }
@@ -326,7 +344,7 @@ public class BlockNodeConnectionManager {
         // Schedule the first attempt using the connectionExecutor
         try {
             executorService.schedule(
-                    new BlockNodeConnectionTask(connection, initialDelay, blockNumber),
+                    new BlockNodeConnectionTask(connection, initialDelay, blockNumber, force),
                     delayMillis,
                     TimeUnit.MILLISECONDS);
             logger.debug("[{}] Successfully scheduled reconnection task", connection);
@@ -394,7 +412,7 @@ public class BlockNodeConnectionManager {
         final Thread t = Thread.ofPlatform().name("BlockStreamWorkerLoop").start(this::blockStreamWorkerLoop);
         blockStreamWorkerThreadRef.set(t);
 
-        if (!selectNewBlockNodeForStreaming()) {
+        if (!selectNewBlockNodeForStreaming(false)) {
             isConnectionManagerActive.set(false);
             throw new NoBlockNodesAvailableException();
         }
@@ -402,9 +420,13 @@ public class BlockNodeConnectionManager {
 
     /**
      * Selects the next highest priority available block node and schedules a connection attempt.
+     *
+     * @param force if true then the new connection will take precedence over the current active connection regardless
+     *              of priority; if false then connection priority will be used to determine if it is OK to connect to
+     *              a different block node
      * @return true if a connection attempt will be made to a node, else false (i.e. no available nodes to connect)
      */
-    public boolean selectNewBlockNodeForStreaming() {
+    public boolean selectNewBlockNodeForStreaming(final boolean force) {
         if (!isStreamingEnabled.get()) {
             return false;
         }
@@ -418,7 +440,7 @@ public class BlockNodeConnectionManager {
 
         logger.debug("Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
         // If we selected a node, schedule the connection attempt.
-        connectToNode(selectedNode);
+        connectToNode(selectedNode, force);
 
         return true;
     }
@@ -483,7 +505,7 @@ public class BlockNodeConnectionManager {
      *
      * @param nodeConfig the configuration of the node to connect to.
      */
-    private void connectToNode(@NonNull final BlockNodeConfig nodeConfig) {
+    private void connectToNode(@NonNull final BlockNodeConfig nodeConfig, final boolean force) {
         requireNonNull(nodeConfig);
         logger.info("Scheduling connection attempt for block node {}:{}", nodeConfig.address(), nodeConfig.port());
 
@@ -494,7 +516,7 @@ public class BlockNodeConnectionManager {
 
         connections.put(nodeConfig, connection);
         // Immediately schedule the FIRST connection attempt.
-        scheduleConnectionAttempt(connection, Duration.ZERO, null);
+        scheduleConnectionAttempt(connection, Duration.ZERO, null, force);
     }
 
     /**
@@ -549,8 +571,7 @@ public class BlockNodeConnectionManager {
 
                 // Sleep for a short duration to avoid busy waiting
                 if (shouldSleep) {
-                    // TODO: make sleep duration configurable
-                    Thread.sleep(PROCESSOR_LOOP_DELAY_MS);
+                    Thread.sleep(workerLoopSleepDuration());
                 }
             } catch (final InterruptedException e) {
                 logger.error("Block stream worker interrupted", e);
@@ -674,15 +695,18 @@ public class BlockNodeConnectionManager {
         private final BlockNodeConnection connection;
         private Duration currentBackoffDelay; // Represents the delay *before* the next attempt
         private final Long blockNumber; // If becoming ACTIVE, the blockNumber to jump to
+        private final boolean force;
 
         BlockNodeConnectionTask(
                 @NonNull final BlockNodeConnection connection,
                 @NonNull final Duration initialDelay,
-                @Nullable final Long blockNumber) {
+                @Nullable final Long blockNumber,
+                final boolean force) {
             this.connection = requireNonNull(connection);
             // Ensure initial delay is non-negative for backoff calculation
             this.currentBackoffDelay = initialDelay.isNegative() ? Duration.ZERO : initialDelay;
             this.blockNumber = blockNumber;
+            this.force = force;
         }
 
         /**
@@ -709,6 +733,17 @@ public class BlockNodeConnectionManager {
                     if (activeConnection.equals(connection)) {
                         // not sure how the active connection is in a connectivity task... ignoring
                         return;
+                    } else if (force) {
+                        final BlockNodeConfig newConnConfig = connection.getNodeConfig();
+                        final BlockNodeConfig oldConnConfig = activeConnection.getNodeConfig();
+                        logger.debug(
+                                "New connection ({}:{} priority={}) is being forced as the new connection (old: {}:{} priority={})",
+                                newConnConfig.address(),
+                                newConnConfig.port(),
+                                newConnConfig.priority(),
+                                oldConnConfig.address(),
+                                oldConnConfig.port(),
+                                oldConnConfig.priority());
                     } else if (activeConnection.getNodeConfig().priority()
                             <= connection.getNodeConfig().priority()) {
                         // this new connection has a lower (or equal) priority than the existing active connection
