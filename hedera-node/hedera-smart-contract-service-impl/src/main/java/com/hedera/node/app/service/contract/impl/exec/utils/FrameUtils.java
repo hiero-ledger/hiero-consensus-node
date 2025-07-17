@@ -21,6 +21,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -37,6 +38,7 @@ public class FrameUtils {
     public static final String SYSTEM_CONTRACT_GAS_CALCULATOR_CONTEXT_VARIABLE = "systemContractGasCalculator";
     public static final String PENDING_CREATION_BUILDER_CONTEXT_VARIABLE = "pendingCreationBuilder";
     public static final String HEDERA_OPS_DURATION = "hederaOpsDuration";
+    public static final String THROTTLE_BY_OPS_DURATION = "throttleByOpsDuration";
 
     public enum EntityType {
         TOKEN,
@@ -386,13 +388,23 @@ public class FrameUtils {
      * @param frame the current frame
      * @param opsDuration the amount ops duration to increment by
      */
-    public static void incrementOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
-        final HederaOpsDurationCounter opsDurationCounter =
-                initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
-        if (opsDurationCounter != null) {
-            opsDurationCounter.incrementOpsDuration(opsDuration);
-            checkHederaOpsDuration(frame, opsDuration);
-        }
+    public static void incrementOpsDuration(
+            @NonNull final MessageFrame frame,
+            @NonNull final HederaOpsDurationCounter opsDurationCounter,
+            final long opsDuration) {
+        Objects.requireNonNull(opsDurationCounter);
+        opsDurationCounter.incrementOpsDuration(opsDuration);
+        checkHederaOpsDuration(frame, opsDuration);
+    }
+
+    /**
+     * Returns the Hedera ops duration counter in the top level frame.
+     *
+     * @param frame the current frame
+     * @return the Hedera ops duration counter
+     */
+    public static HederaOpsDurationCounter opsDurationCounterOf(@NonNull final MessageFrame frame) {
+        return initialFrameOf(frame).getContextVariable(HEDERA_OPS_DURATION);
     }
 
     /**
@@ -407,7 +419,10 @@ public class FrameUtils {
         return opsDurationCounter == null ? 0L : opsDurationCounter.getOpsDurationCounter();
     }
 
-    public static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
-        proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
+    private static void checkHederaOpsDuration(@NonNull final MessageFrame frame, final long opsDuration) {
+        final boolean throttleByOpsDuration = initialFrameOf(frame).getContextVariable(THROTTLE_BY_OPS_DURATION, false);
+        if (throttleByOpsDuration) {
+            proxyUpdaterFor(frame).checkOpsDurationThrottle(opsDuration);
+        }
     }
 }

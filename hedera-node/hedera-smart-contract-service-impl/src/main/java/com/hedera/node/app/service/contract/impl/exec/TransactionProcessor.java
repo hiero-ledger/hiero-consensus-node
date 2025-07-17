@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getHederaOpsDuration;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isEvmAddress;
@@ -16,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
@@ -44,6 +46,7 @@ public class TransactionProcessor {
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
+    private final ContractMetrics contractMetrics;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -51,13 +54,15 @@ public class TransactionProcessor {
             @NonNull final CustomGasCharging gasCharging,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final FeatureFlags featureFlags) {
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final ContractMetrics contractMetrics) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
+        this.contractMetrics = requireNonNull(contractMetrics);
     }
 
     /**
@@ -112,6 +117,10 @@ public class TransactionProcessor {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final Configuration config,
             @NonNull final InvolvedParties parties) {
+
+        // Measure the actual execution time, for metrics only
+        final var startTimeNano = System.nanoTime();
+
         final var gasCharges =
                 gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
         final var initialFrame = frameBuilder.buildInitialFrameWith(
@@ -139,7 +148,18 @@ public class TransactionProcessor {
         initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
 
         // Tries to commit and return the original result; returns a fees-only result on resource exhaustion
-        return safeCommit(result, transaction, updater, context);
+        final var commitResult = safeCommit(result, transaction, updater, context);
+
+        // Update the metrics
+        final var elapsedNs = System.nanoTime() - startTimeNano;
+        contractMetrics.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(
+                elapsedNs,
+                getHederaOpsDuration(initialFrame),
+                result.gasUsed(),
+                result.gasPrice(),
+                result.isSuccess()));
+
+        return commitResult;
     }
 
     private InvolvedParties computeInvolvedPartiesOrAbort(
