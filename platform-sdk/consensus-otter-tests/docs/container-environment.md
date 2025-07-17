@@ -168,7 +168,7 @@ The `Network` interface and its abstract implementation `AbstractNetwork` provid
 
 ### Image Building
 
-The framework automatically builds Docker images from the DockerApp implemented in the module `consensus-otter-docker-app`. The Dockerfile is generated based on the contents of the `apps` and `lib` directories in the module. The image is built using the Eclipse Temurin base image for Java 21.:
+The framework automatically builds Docker images from the DockerApp implemented in the module `consensus-otter-docker-app`. The Dockerfile is generated based on the contents of the `apps` and `lib` directories in the module. The image is built using the Eclipse Temurin base image for Java 21:
 
 ```dockerfile
 FROM eclipse-temurin:21
@@ -279,7 +279,7 @@ message TransactionRequestAnswer {...}
 message KillImmediatelyRequest {...}
 ```
 
-### Event Streaming Flow
+### Notification Flow
 
 ```mermaid
 sequenceDiagram
@@ -328,9 +328,6 @@ docker network ls
 
 # Inspect test network
 docker network inspect <network_name>
-
-# Check container connectivity
-docker exec <container_name> ping node-2
 ```
 
 #### 3. Resource Monitoring
