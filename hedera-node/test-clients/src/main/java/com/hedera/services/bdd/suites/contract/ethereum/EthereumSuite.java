@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
@@ -130,6 +131,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(LONG_RUNNING)
 @SuppressWarnings("java:S5960")
+@Tag(ADHOC)
 public class EthereumSuite {
     public static final long GAS_LIMIT = 1_000_000;
     public static final String ERC20_CONTRACT = "ERC20Contract";

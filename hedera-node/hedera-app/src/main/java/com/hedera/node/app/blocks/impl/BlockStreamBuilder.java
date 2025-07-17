@@ -1343,14 +1343,14 @@ public class BlockStreamBuilder
                             .evmTransactionResult(evmTransactionResult)
                             .build());
                 case ETH_CALL ->
-                    builder.ethereumCall(ethOutputBuilder()
+                    builder.ethereumCall(EthereumOutput.newBuilder()
                             .evmCallTransactionResult(ethEvmTransactionResult())
                             .build());
                 case ETH_CREATE ->
-                    builder.ethereumCall(ethOutputBuilder()
+                    builder.ethereumCall(EthereumOutput.newBuilder()
                             .evmCreateTransactionResult(ethEvmTransactionResult())
                             .build());
-                case ETH_THROTTLED -> builder.ethereumCall(ethOutputBuilder().build());
+                case ETH_THROTTLED -> builder.ethereumCall(EthereumOutput.DEFAULT);
             }
             items.add(itemWith(builder));
         }
@@ -1398,14 +1398,6 @@ public class BlockStreamBuilder
                 .copyBuilder()
                 .internalCallContext(externalizedContext)
                 .build();
-    }
-
-    private EthereumOutput.Builder ethOutputBuilder() {
-        final var builder = EthereumOutput.newBuilder();
-        if (hydratedFromFile) {
-            builder.ethereumHash(ethereumHash);
-        }
-        return builder;
     }
 
     private BlockItem itemWith(@NonNull final TransactionOutput.Builder output) {
