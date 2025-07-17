@@ -366,7 +366,8 @@ public class TopicUpdateSuite {
         return hapiTest(
                 cryptoCreate(submitKey),
                 createTopic(topic).submitKeyName(submitKey),
-                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey));
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasNoSubmitKey());
     }
 
     @HapiTest
@@ -378,7 +379,8 @@ public class TopicUpdateSuite {
                 cryptoCreate(submitKey),
                 cryptoCreate(newSubmitKey),
                 createTopic(topic).submitKeyName(submitKey),
-                updateTopic(topic).submitKey(newSubmitKey).signedBy(submitKey).payingWith(submitKey));
+                updateTopic(topic).submitKey(newSubmitKey).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasSubmitKey(newSubmitKey));
     }
 
     @HapiTest
@@ -413,5 +415,76 @@ public class TopicUpdateSuite {
                         .signedBy(randomKey)
                         .payingWith(randomKey)
                         .hasKnownStatus(INVALID_SIGNATURE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> adminKeyCanSetItselfToSentinelAndItRemainsSentinel() {
+        var adminKey = "adminKey";
+        var newAdminKey = "newAdminKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(newAdminKey),
+                createTopic(topic).adminKeyName(adminKey),
+                getTopicInfo(topic).hasAdminKey(adminKey),
+                updateTopic(topic).adminKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasNoAdminKey(),
+                updateTopic(topic)
+                        .adminKey(newAdminKey)
+                        .signedBy(adminKey)
+                        .payingWith(adminKey)
+                        .hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withAdminKeyCanMakeSubmitKeySentinelAndThenUpdateIt() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasNoSubmitKey(),
+                updateTopic(topic).submitKey(newSubmitKey).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasSubmitKey(newSubmitKey));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> withoutAdminKeyWhenSubmitKeyIsSentinelItCannotBeUpdatedBack() {
+        var submitKey = "submitKey";
+        var newSubmitKey = "newSubmitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(submitKey),
+                cryptoCreate(newSubmitKey),
+                createTopic(topic).submitKeyName(submitKey),
+                getTopicInfo(topic).hasSubmitKey(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(submitKey).payingWith(submitKey),
+                getTopicInfo(topic).hasNoSubmitKey(),
+                updateTopic(topic)
+                        .submitKey(newSubmitKey)
+                        .signedBy(submitKey)
+                        .payingWith(submitKey)
+                        .hasKnownStatus(UNAUTHORIZED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> removingAdminAndSubmitKeys() {
+        var adminKey = "adminKey";
+        var submitKey = "submitKey";
+        final var topic = "topic";
+        return hapiTest(
+                cryptoCreate(adminKey),
+                cryptoCreate(submitKey),
+                createTopic(topic).adminKeyName(adminKey).submitKeyName(submitKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasSubmitKey(submitKey),
+                updateTopic(topic).submitKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasAdminKey(adminKey).hasNoSubmitKey(),
+                updateTopic(topic).adminKey(EMPTY_KEY).signedBy(adminKey).payingWith(adminKey),
+                getTopicInfo(topic).hasNoAdminKey().hasNoSubmitKey());
     }
 }
