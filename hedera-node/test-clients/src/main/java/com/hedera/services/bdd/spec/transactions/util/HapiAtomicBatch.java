@@ -120,7 +120,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
             if (!op.shouldResolveStatus()) {
                 continue;
             }
-            validateOperationState(op, hasInnerTxnFailed);
 
             if (!hasInnerTxnFailed) {
                 configureDefaultExpectedStatus(op);
@@ -128,6 +127,10 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 if (!isTxnSuccessful(op)) {
                     hasInnerTxnFailed = true;
                 }
+            } else {
+                // When a previous inner transaction fails with its expected status, the batch stops execution.
+                // Later operations won't be executed and should not have expected status configured.
+                throwIfExpectedStatusSet(op);
             }
         }
         return result;
@@ -192,14 +195,12 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 && (getExpectedStatus() == INNER_TRANSACTION_FAILED || getExpectedStatus() == SUCCESS);
     }
 
-    /**
-     * Validates that operations don't have expected status set after inner transaction failure.
-     */
-    private void validateOperationState(final HapiTxnOp<?> op, boolean hasInnerTxnFailed) {
-        if (hasInnerTxnFailed && op.isExpectedStatusSet()) {
+    private void throwIfExpectedStatusSet(final HapiTxnOp<?> op) {
+        if (op.isExpectedStatusSet()) {
             String errorMessage = String.format(
-                    "Invalid state: Expected status is set for operation '%s' after a previously failed inner transaction. "
-                            + "Operations following a failed inner transaction should not have expected status configured.",
+                    "Invalid test configuration: Operation '%s' has an expected status configured, but it cannot be "
+                            + "validated because a previous inner transaction failed with its expected status, causing the batch "
+                            + "to terminate execution. Remove expected status from operations that follow an expected failure.",
                     op);
             log.error(errorMessage);
             throw new HapiTxnCheckStateException(errorMessage);
