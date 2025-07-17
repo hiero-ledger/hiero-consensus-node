@@ -434,7 +434,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         if (dataSource == null) {
             dataSource = dataSourceBuilder.build(state.getLabel(), true);
         }
-        this.records = new RecordAccessorImpl<>(this.state, cache, keySerializer, valueSerializer, dataSource);
+        this.records = new RecordAccessor<>(this.state, cache, keySerializer, valueSerializer, dataSource);
         if (statistics == null) {
             // Only create statistics instance if we don't yet have statistics. During a reconnect operation.
             // it is necessary to use the statistics object from the previous instance of the state.
@@ -1377,7 +1377,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         // record state.
         final VirtualDataSource dataSourceCopy = dataSourceBuilder.copy(dataSource, false, false);
         final VirtualNodeCache<K, V> cacheSnapshot = cache.snapshot();
-        return new RecordAccessorImpl<>(state, cacheSnapshot, keySerializer, valueSerializer, dataSourceCopy);
+        return new RecordAccessor<>(state, cacheSnapshot, keySerializer, valueSerializer, dataSourceCopy);
     }
 
     /**
@@ -1428,14 +1428,14 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
     @Override
     public TeacherTreeView<Long> buildTeacherView(final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH -> new TeacherPushVirtualTreeView<>(
-                    getStaticThreadManager(), reconnectConfig, this, state, pipeline);
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TeacherPullVirtualTreeView<>(
-                    getStaticThreadManager(), reconnectConfig, this, state, pipeline);
-            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TeacherPullVirtualTreeView<>(
-                    getStaticThreadManager(), reconnectConfig, this, state, pipeline);
-            default -> throw new UnsupportedOperationException(
-                    "Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
+            case VirtualMapReconnectMode.PUSH ->
+                new TeacherPushVirtualTreeView<>(getStaticThreadManager(), reconnectConfig, this, state, pipeline);
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
+                new TeacherPullVirtualTreeView<>(getStaticThreadManager(), reconnectConfig, this, state, pipeline);
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
+                new TeacherPullVirtualTreeView<>(getStaticThreadManager(), reconnectConfig, this, state, pipeline);
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
     }
 
@@ -1478,7 +1478,7 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
             // I assume an empty node cache can be used below rather than snapshotCache, since all the
             // cache entries are flushed to the data source anyway. However, using snapshotCache may
             // be slightly faster, because it's in memory
-            return new RecordAccessorImpl<>(reconnectState, snapshotCache, keySerializer, valueSerializer, dataSource);
+            return new RecordAccessor<>(reconnectState, snapshotCache, keySerializer, valueSerializer, dataSource);
         });
 
         // Set up the VirtualHasher which we will use during reconnect.
@@ -1511,19 +1511,22 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
         // During reconnect we want to look up state from the original records
         final VirtualStateAccessor originalState = originalMap.getState();
         reconnectFlusher = new ReconnectHashLeafFlusher<>(
-                keySerializer,
-                valueSerializer,
-                reconnectRecords.getDataSource(),
-                virtualMapConfig.reconnectFlushInterval(),
-                statistics);
+                keySerializer, valueSerializer, dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
         nodeRemover = new ReconnectNodeRemover<>(
                 originalMap.getRecords(),
                 originalState.getFirstLeafPath(),
                 originalState.getLastLeafPath(),
                 reconnectFlusher);
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH -> new LearnerPushVirtualTreeView<>(
-                    reconnectConfig, this, originalMap.records, originalState, reconnectState, nodeRemover, mapStats);
+            case VirtualMapReconnectMode.PUSH ->
+                new LearnerPushVirtualTreeView<>(
+                        reconnectConfig,
+                        this,
+                        originalMap.records,
+                        originalState,
+                        reconnectState,
+                        nodeRemover,
+                        mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> {
                 final NodeTraversalOrder topToBottom = new TopToBottomTraversalOrder();
                 yield new LearnerPullVirtualTreeView<>(
@@ -1548,8 +1551,8 @@ public final class VirtualRootNode<K extends VirtualKey, V extends VirtualValue>
                         twoPhasePessimistic,
                         mapStats);
             }
-            default -> throw new UnsupportedOperationException(
-                    "Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: " + virtualMapConfig.reconnectMode());
         };
     }
 
