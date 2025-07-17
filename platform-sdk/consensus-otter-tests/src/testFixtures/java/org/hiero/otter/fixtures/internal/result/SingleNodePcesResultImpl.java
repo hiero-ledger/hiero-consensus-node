@@ -29,7 +29,8 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
     private final PcesFileTracker pcesFileTracker;
 
     /**
-     * Constructor for {@code PcesFilesResultImpl}.
+     * Constructor for {@code SingleNodePcesResultImpl} using the default PCES directory based on the node ID and
+     * configuration.
      *
      * @param nodeId The {@link NodeId} of the files' node
      * @param configuration The {@link Configuration} to use for reading PCES files
@@ -39,7 +40,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
     }
 
     /**
-     * Constructor for {@code PcesFilesResultImpl}.
+     * Constructor for {@code SingleNodePcesResultImpl} using a custom PCES directory.
      *
      * @param nodeId The {@link NodeId} of the files' node
      * @param configuration The {@link Configuration} to use for reading PCES files
@@ -58,6 +59,13 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
         }
     }
 
+    /**
+     * Construct the default PCES directory based on the node ID and configuration.
+     *
+     * @param nodeId the ID of the node
+     * @param configuration the configuration of the node
+     * @return the default PCES directory path
+     */
     private static Path defaultPcesDirectory(final long nodeId, final Configuration configuration) {
         try {
             return getDatabaseDirectory(configuration, org.hiero.consensus.model.node.NodeId.of(nodeId));

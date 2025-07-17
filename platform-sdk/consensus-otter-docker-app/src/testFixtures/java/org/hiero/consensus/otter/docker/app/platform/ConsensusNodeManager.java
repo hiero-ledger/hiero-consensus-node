@@ -61,8 +61,6 @@ public class ConsensusNodeManager {
     private static final String SWIRLD_NAME = "123";
 
     private final Platform platform;
-    private final Configuration platformConfig;
-    private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> status = new AtomicReference<>();
     private final List<ConsensusRoundListener> consensusRoundListeners = new CopyOnWriteArrayList<>();
 
@@ -88,7 +86,7 @@ public class ConsensusNodeManager {
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-        platformConfig = createConfiguration(overriddenProperties);
+        final Configuration platformConfig = createConfiguration(overriddenProperties);
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
@@ -105,7 +103,7 @@ public class ConsensusNodeManager {
         final RecycleBin recycleBin = RecycleBin.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, legacySelfId);
 
-        platformContext = PlatformContext.create(
+        final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
 
         final HashedReservedSignedState reservedState = loadInitialState(

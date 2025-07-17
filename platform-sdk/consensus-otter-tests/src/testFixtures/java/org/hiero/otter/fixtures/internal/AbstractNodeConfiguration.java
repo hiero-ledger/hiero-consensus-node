@@ -21,7 +21,7 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
         implements NodeConfiguration<T> {
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
-    private final Supplier<AbstractNode.LifeCycle> lifecycleSupplier;
+    private final Supplier<LifeCycle> lifecycleSupplier;
     protected final String outputDirectory;
 
     /**
@@ -31,7 +31,7 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      * modifying the configuration is allowed
      */
     protected AbstractNodeConfiguration(
-            @NonNull final Supplier<AbstractNode.LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
+            @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
         this.lifecycleSupplier = lifecycleSupplier;
         this.outputDirectory = outputDirectory.toString();
     }

@@ -9,7 +9,6 @@ import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
-import org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration;
 
 /**
  * An implementation of {@link NodeConfiguration} for a container environment.
@@ -17,9 +16,9 @@ import org.hiero.otter.fixtures.turtle.TurtleNodeConfiguration;
 public class ContainerNodeConfiguration extends AbstractNodeConfiguration<ContainerNodeConfiguration> {
 
     /**
-     * Constructor for the {@link TurtleNodeConfiguration} class.
+     * Constructor for the {@link ContainerNodeConfiguration} class.
      *
-     * @param outputDirectory the directory where the node output will be stored, like saved state and so on
+     * @param outputDirectory the directory where the node output will be stored
      */
     public ContainerNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
@@ -35,7 +34,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the overridden properties for this node configuration.
      */
     @NonNull
     public Map<String, String> overriddenProperties() {
