@@ -79,18 +79,13 @@ public class ConsensusNodeManager {
             @NonNull final SemanticVersion version,
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
-            @Nullable final Map<String, String> overriddenProperties) {
+            @NonNull final Map<String, String> overriddenProperties) {
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
 
         final var legacySelfId = org.hiero.consensus.model.node.NodeId.of(selfId.id());
-        final Configuration platformConfig;
-        if (overriddenProperties == null) {
-            platformConfig = createConfiguration();
-        } else {
-            platformConfig = createConfiguration(overriddenProperties);
-        }
+        final Configuration platformConfig = createConfiguration(overriddenProperties);
 
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig

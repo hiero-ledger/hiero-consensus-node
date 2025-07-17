@@ -10,7 +10,9 @@ import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.function.Supplier;
 import org.hiero.otter.fixtures.NodeConfiguration;
+import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 
 /**
@@ -23,9 +25,12 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration<TurtleNod
     /**
      * Constructor for the {@link TurtleNodeConfiguration} class.
      *
+     * @param lifeCycleSupplier a supplier that provides the current lifecycle state of the node
      * @param outputDirectory the directory where the node output will be stored, like saved state and so on
      */
-    public TurtleNodeConfiguration(@NonNull final Path outputDirectory) {
+    public TurtleNodeConfiguration(
+            @NonNull final Supplier<LifeCycle> lifeCycleSupplier, @NonNull final Path outputDirectory) {
+        super(lifeCycleSupplier);
         this.outputDirectory = outputDirectory.toString();
         setTurtleSpecificOverrides();
     }

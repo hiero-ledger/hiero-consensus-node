@@ -12,7 +12,6 @@ import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -56,11 +55,12 @@ public class Utils {
         return Stream.concat(Stream.of(first), restStream).collect(Collectors.toSet());
     }
 
-    @NonNull
-    public static Configuration createConfiguration() {
-        return createConfiguration(Collections.emptyMap());
-    }
-
+    /**
+     * Creates a {@link Configuration} with overridden properties.
+     *
+     * @param overriddenProperties a map of properties to override in the configuration
+     * @return a new {@link Configuration} instance with the specified overridden properties
+     */
     @NonNull
     public static Configuration createConfiguration(@NonNull final Map<String, String> overriddenProperties) {
         requireNonNull(overriddenProperties, "Overridden properties must not be null");
