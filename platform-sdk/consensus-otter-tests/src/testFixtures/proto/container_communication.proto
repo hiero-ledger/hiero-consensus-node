@@ -198,11 +198,6 @@ message KillImmediatelyRequest {
   google.protobuf.Empty ignore = 1;
 }
 
-message PcesFileDir {
-  // The root directory containing PCES files.
-  string file_path = 1;
-}
-
 message SyntheticBottleneckRequest {
   // The number of milliseconds to sleep per round on the handle thread
   int64 sleep_millis_per_round = 1;
@@ -219,9 +214,6 @@ service TestControl {
 
   // RCP to kill the consensus node app, but not shutdown the container. The dispatcher will still operate for remote calls
   rpc KillImmediately(KillImmediatelyRequest) returns (google.protobuf.Empty);
-
-  // RPC to retrieve the file paths of all PCES files.
-  rpc GetPcesDir(google.protobuf.Empty) returns (PcesFileDir);
 
   // RPC to change the synthetic bottleneck of the handle thread.
   rpc SyntheticBottleneckUpdate(SyntheticBottleneckRequest) returns (google.protobuf.Empty);

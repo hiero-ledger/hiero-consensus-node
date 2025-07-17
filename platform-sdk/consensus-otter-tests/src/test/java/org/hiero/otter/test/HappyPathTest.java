@@ -15,11 +15,9 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**
  * The most simple sanity test for the Otter framework.

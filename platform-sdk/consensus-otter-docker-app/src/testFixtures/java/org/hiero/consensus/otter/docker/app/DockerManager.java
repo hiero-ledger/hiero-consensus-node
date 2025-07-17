@@ -7,8 +7,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import org.apache.logging.log4j.LogManager;
@@ -19,7 +17,6 @@ import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
-import org.hiero.otter.fixtures.container.proto.PcesFileDir;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
@@ -223,25 +220,6 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             responseObserver.onCompleted();
         } catch (final InterruptedException ie) {
             throw new RuntimeException(ie);
-        }
-    }
-
-    /**
-     * Retrieves the file paths of all PCES files on disk.
-     *
-     * @param request the empty request
-     * @param responseObserver the observer to send the response back to the test framework
-     */
-    @Override
-    public synchronized void getPcesDir(
-            @NonNull final Empty request, @NonNull final StreamObserver<PcesFileDir> responseObserver) {
-        try {
-            final Path pcesPath = nodeManager.getPcesDir().toAbsolutePath();
-            responseObserver.onNext(
-                    PcesFileDir.newBuilder().setFilePath(pcesPath.toString()).build());
-            responseObserver.onCompleted();
-        } catch (final IOException e) {
-            responseObserver.onError(Status.INTERNAL.withCause(e).asException());
         }
     }
 }

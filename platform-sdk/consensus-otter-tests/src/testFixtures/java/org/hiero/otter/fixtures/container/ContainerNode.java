@@ -104,8 +104,11 @@ public class ContainerNode extends AbstractNode implements Node {
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle, outputDirectory);
 
-        final String savedStateDirectory = nodeConfiguration.current().getConfigData(StateCommonConfig.class)
-                .savedStateDirectory().toString();
+        final String savedStateDirectory = nodeConfiguration
+                .current()
+                .getConfigData(StateCommonConfig.class)
+                .savedStateDirectory()
+                .toString();
 
         //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId, outputDirectory, savedStateDirectory);
@@ -296,8 +299,8 @@ public class ContainerNode extends AbstractNode implements Node {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
                         case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS -> resultsCollector.addConsensusRounds(
-                                ProtobufConverter.toPbj(value.getConsensusRounds()));
+                        case CONSENSUS_ROUNDS ->
+                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
                         default -> {
                             final String message = String.format(
                                     "Received unknown message type from node %s: %s", selfId, value.getEventCase());

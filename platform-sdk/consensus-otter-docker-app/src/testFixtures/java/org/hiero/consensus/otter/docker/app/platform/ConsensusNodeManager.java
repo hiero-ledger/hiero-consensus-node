@@ -34,8 +34,6 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -62,7 +60,6 @@ public class ConsensusNodeManager {
     private static final String APP_NAME = "org.hiero.consensus.otter.docker.app.platform.DockerApp";
     private static final String SWIRLD_NAME = "123";
 
-    private final NodeId selfId;
     private final Platform platform;
     private final Configuration platformConfig;
     private final PlatformContext platformContext;
@@ -85,7 +82,7 @@ public class ConsensusNodeManager {
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Map<String, String> overriddenProperties) {
-        this.selfId = requireNonNull(selfId);
+        requireNonNull(selfId);
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
@@ -208,10 +205,6 @@ public class ConsensusNodeManager {
      */
     public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
         consensusRoundListeners.add(listener);
-    }
-
-    public Path getPcesDir() throws IOException {
-        return Path.of(".");
     }
 
     /**
