@@ -45,15 +45,6 @@ public class DefaultTransactionPool implements TransactionPool {
      * {@inheritDoc}
      */
     @Override
-    public void reportUnhealthyDuration(@NonNull final Duration duration) {
-        Objects.requireNonNull(duration);
-        transactionPoolNexus.reportUnhealthyDuration(duration);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void clear() {
         transactionPoolNexus.clear();
     }

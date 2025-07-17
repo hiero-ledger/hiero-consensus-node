@@ -30,15 +30,6 @@ public interface TransactionPool {
     void updatePlatformStatus(@NonNull PlatformStatus platformStatus);
 
     /**
-     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
-     * {@link Duration#ZERO} when the system enters a healthy state.
-     *
-     * @param duration the amount of time that the system has been in an unhealthy state
-     */
-    @InputWireLabel("health info")
-    void reportUnhealthyDuration(@NonNull final Duration duration);
-
-    /**
      * Clear the transaction pool.
      */
     void clear();

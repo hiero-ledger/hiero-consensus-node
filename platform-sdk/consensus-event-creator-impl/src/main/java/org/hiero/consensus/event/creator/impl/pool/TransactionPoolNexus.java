@@ -81,11 +81,6 @@ public class TransactionPoolNexus implements TransactionSupplier {
     private final Duration maximumPermissibleUnhealthyDuration;
 
     /**
-     * Whether the platform is currently in a healthy state.
-     */
-    private boolean healthy = true;
-
-    /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
      * @param configuration the configuration to use
@@ -122,7 +117,7 @@ public class TransactionPoolNexus implements TransactionSupplier {
      * @return true if the transaction passed all validity checks and was accepted by the consumer
      */
     public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
-        if (!healthy || platformStatus != PlatformStatus.ACTIVE) {
+        if (platformStatus != PlatformStatus.ACTIVE) {
             return false;
         }
 
@@ -188,16 +183,6 @@ public class TransactionPoolNexus implements TransactionSupplier {
      */
     public synchronized void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
         this.platformStatus = platformStatus;
-    }
-
-    /**
-     * Report the amount of time that the system has been in an unhealthy state. Will receive a report of
-     * {@link Duration#ZERO} when the system enters a healthy state.
-     *
-     * @param duration the amount of time that the system has been in an unhealthy state
-     */
-    public synchronized void reportUnhealthyDuration(@NonNull final Duration duration) {
-        healthy = isLessThan(duration, maximumPermissibleUnhealthyDuration);
     }
 
     /**

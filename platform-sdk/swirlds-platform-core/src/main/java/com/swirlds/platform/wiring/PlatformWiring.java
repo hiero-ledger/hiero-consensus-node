@@ -368,9 +368,6 @@ public class PlatformWiring {
 
         model.getHealthMonitorWire().solderTo(gossipWiring.getSystemHealthInput());
 
-        model.getHealthMonitorWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::reportUnhealthyDuration));
-
         splitOrphanBufferOutput.solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
         branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
 
