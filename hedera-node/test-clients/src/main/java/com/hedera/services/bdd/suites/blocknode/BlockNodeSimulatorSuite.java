@@ -10,6 +10,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogConta
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static java.time.temporal.ChronoUnit.SECONDS;
@@ -24,9 +26,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.block.api.protoc.PublishStreamResponse.EndOfStream.Code;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -263,5 +268,89 @@ public class BlockNodeSimulatorSuite {
         return hapiTest(
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 assertHgcaaLogDoesNotContain(allNodes(), "ERROR", Duration.ofSeconds(5)));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1})
+            })
+    @Order(5)
+    final Stream<DynamicTest> testProactiveBlockBufferAction() {
+        // NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                blockNodeSimulator(0).updateSendingBlockAcknowledgements(false),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                sourcingContextual(
+                        spec -> assertHgcaaLogContainsTimeframe(
+                                byNodeId(0),
+                                timeRef::get,
+                                Duration.ofMinutes(6),
+                                Duration.ofMinutes(6),
+                                // look for the saturation reaching the action stage (50%)
+                                "saturation=50.0%",
+                                // look for the log that shows we are forcing a reconnect to a different block node
+                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(6),
+                        Duration.ofMinutes(6),
+                        // saturation should fall back to low levels after the reconnect to the different node
+                        "saturation=0.0%")));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(6)
+    final Stream<DynamicTest> testBlockBufferBackPressure() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+
+        return hapiTest(
+                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                blockNodeSimulator(0).shutDownImmediately(),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(6),
+                        Duration.ofMinutes(6),
+                        "Block buffer is saturated; backpressure is being enabled",
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
+                doingContextual(spec -> {
+                    timeRef.set(Instant.now());
+                    LockSupport.parkNanos(TimeUnit.SECONDS.toNanos(20));
+                }),
+                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
+                blockNodeSimulator(0).startImmediately(),
+                sourcingContextual(
+                        spec -> assertHgcaaLogContainsTimeframe(
+                                byNodeId(0),
+                                timeRef::get,
+                                Duration.ofMinutes(6),
+                                Duration.ofMinutes(6),
+                                "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled")),
+                waitForActive(byNodeId(0), Duration.ofSeconds(30)),
+                waitUntilNextBlocks(10).withBackgroundTraffic(true));
     }
 }
