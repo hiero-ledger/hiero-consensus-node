@@ -24,7 +24,6 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,7 +43,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
     private final List<HapiTxnOp<?>> operationsToBatch = new ArrayList<>();
     private final Map<TransactionID, HapiTxnOp<?>> innerOpsByTxnId = new HashMap<>();
     private final Map<TransactionID, Transaction> innerTnxsByTxnId = new HashMap<>();
-    private final List<String> txnIdsForOrderValidation = new ArrayList<>();
 
     public HapiAtomicBatch() {}
 
@@ -112,40 +109,22 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
 
     @Override
     protected boolean submitOp(HapiSpec spec) throws Throwable {
-        boolean hasInnerTxnFailed = false;
         var result = super.submitOp(spec);
+
         if (!shouldResolveInnerTransactions()) {
             return result;
         }
+
+        boolean hasInnerTxnFailed = false;
         for (final var op : operationsToBatch) {
             if (!op.shouldResolveStatus()) {
                 continue;
             }
-            if (hasInnerTxnFailed && op.isExpectedStatusSet()) {
-                String errorMessage = String.format(
-                        "Invalid state: Expected status is set for operation '%s' after a previously failed inner transaction. "
-                                + "Operations following a failed inner transaction should not have expected status configured.",
-                        op);
-                log.error(errorMessage);
-                throw new HapiTxnCheckStateException(errorMessage);
-            }
+            validateOperationState(op, hasInnerTxnFailed);
 
-            // Only resolve status if no previous inner transaction has failed
             if (!hasInnerTxnFailed) {
-                if (expectedStatus.isPresent() && expectedStatus.get() == INNER_TRANSACTION_FAILED) {
-                    if (!op.isExpectedStatusSet()) {
-                        op.hasKnownStatus(REVERTED_SUCCESS);
-                    }
-                }
-                // Overwrite the nodeId for inner transactions, so we can call the txnRecord query and resolve the
-                // status
-                op.setNode(fixNodeFor(spec).getAccountNum());
-                op.resolveStatus(spec);
-                op.setNode(DEFAULT_NODE_ACCOUNT_ID); // Reset the node to default
-
-                if (op.getActualStatus() != SUCCESS && op.getActualStatus() != REVERTED_SUCCESS) {
-                    hasInnerTxnFailed = true;
-                }
+                configureDefaultExpectedStatus(op);
+                hasInnerTxnFailed = !resolveInnerTxnStatus(op, spec);
             }
         }
         return result;
@@ -189,14 +168,6 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 op.updateStateFromRecord(recordQuery.getResponseRecord(), spec);
             }
         }
-
-        // validate execution order of specific transactions
-        validateExecutionOrder(spec, txnIdsForOrderValidation);
-    }
-
-    @Override
-    protected List<Function<HapiSpec, Key>> defaultSigners() {
-        return List.of(spec -> spec.registry().getKey(effectivePayer(spec)));
     }
 
     @Override
@@ -204,52 +175,49 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         return super.toStringHelper().add("range", operationsToBatch);
     }
 
-    public HapiAtomicBatch validateTxnOrder(String... txnIds) {
-        txnIdsForOrderValidation.addAll(Arrays.asList(txnIds));
-        return this;
+    /**
+     * Determines whether inner transactions within this batch should have their status resolved.
+     * <p>
+     * Inner transaction status resolution is performed only when:
+     * 1. The batch pre-check is expected to pass (OK status)
+     * 2. The batch is expected to either succeed (SUCCESS) or contain failed inner transactions (INNER_TRANSACTION_FAILED)
+     *
+     * @return true if inner transaction status should be resolved, false otherwise
+     */
+    private boolean shouldResolveInnerTransactions() {
+        return getExpectedPrecheck() == OK
+                && (getExpectedStatus() == INNER_TRANSACTION_FAILED || getExpectedStatus() == SUCCESS);
     }
 
-    private void validateExecutionOrder(HapiSpec spec, List<String> transactionIds) throws Throwable {
-        for (int i = 0; i < transactionIds.size() - 1; i++) {
-            final var txnId1 = spec.registry().getTxnId(transactionIds.get(i));
-            final var txnId2 = spec.registry().getTxnId(transactionIds.get(i + 1));
+    private void validateOperationState(final HapiTxnOp<?> operation, boolean hasInnerTxnFailed) {
+        if (hasInnerTxnFailed && operation.isExpectedStatusSet()) {
+            String errorMessage = String.format(
+                    "Invalid state: Expected status is set for operation '%s' after a previously failed inner transaction. "
+                            + "Operations following a failed inner transaction should not have expected status configured.",
+                    operation);
+            log.error(errorMessage);
+            throw new HapiTxnCheckStateException(errorMessage);
+        }
+    }
 
-            if (txnId1 == null || txnId2 == null) {
-                throw new IllegalArgumentException("Invalid transaction id to validate execution order");
-            }
-            final var record1 = getTxnRecord(txnId1).noLogging().assertingNothing();
-            final var record2 = getTxnRecord(txnId2).noLogging().assertingNothing();
-
-            final var error1 = record1.execFor(spec);
-            final var error2 = record2.execFor(spec);
-
-            if (error1.isPresent()) {
-                throw error1.get();
-            }
-
-            if (error2.isPresent()) {
-                throw error2.get();
-            }
-
-            final var consensus1 = record1.getResponseRecord().getConsensusTimestamp();
-            final var consensus2 = record2.getResponseRecord().getConsensusTimestamp();
-
-            // throw if second consensus is before the first
-            // 1. compare seconds
-            if (consensus2.getSeconds() < consensus1.getSeconds()) {
-                throw new IllegalArgumentException("Invalid execution order");
-            }
-            // 2. compare nanos
-            if (consensus2.getNanos() <= consensus1.getNanos()) {
-                throw new IllegalArgumentException("Invalid execution order");
+    private void configureDefaultExpectedStatus(final HapiTxnOp<?> operation) {
+        if (expectedStatus.isPresent() && expectedStatus.get() == INNER_TRANSACTION_FAILED) {
+            if (!operation.isExpectedStatusSet()) {
+                operation.hasKnownStatus(REVERTED_SUCCESS);
             }
         }
     }
 
-    private boolean shouldResolveInnerTransactions() {
-        // If the pre-check passed, we should resolve inner transactions
-        // If the expected status is INNER_TRANSACTION_FAILED or SUCCESS, we should resolve inner transactions
-        return getExpectedPrecheck() == OK
-                && (getExpectedStatus() == INNER_TRANSACTION_FAILED || getExpectedStatus() == SUCCESS);
+    private boolean resolveInnerTxnStatus(final HapiTxnOp<?> operation, HapiSpec spec) throws Throwable {
+        // Set node ID for inner transaction to enable status resolution via txnRecord query
+        operation.setNode(fixNodeFor(spec).getAccountNum());
+
+        try {
+            operation.resolveStatus(spec);
+            return operation.getActualStatus() == SUCCESS || operation.getActualStatus() == REVERTED_SUCCESS;
+        } finally {
+            // Always reset node ID to default value
+            operation.setNode(DEFAULT_NODE_ACCOUNT_ID);
+        }
     }
 }
