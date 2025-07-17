@@ -10,6 +10,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityI
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
@@ -45,6 +47,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import java.util.List;
+import java.util.Set;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -182,8 +185,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
         basicMetaAssertions(context, 1);
         assertThat(context.payerKey()).isEqualTo(payerKey);
-        //        FUTURE: uncomment this after JKey removal
-        //        assertIterableEquals(List.of(adminHederaKey), meta.requiredNonPayerKeys());
+        assertIterableEquals(Set.of(adminKey), context.requiredNonPayerKeys());
     }
 
     @Test
@@ -230,9 +232,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
         basicMetaAssertions(context, 2);
         assertThat(context.payerKey()).isEqualTo(payerKey);
-        //        FUTURE: uncomment this after JKey removal
-        //        assertEquals(List.of(adminHederaKey, autoRenewHederaKey),
-        // meta.requiredNonPayerKeys());
+        assertEquals(Set.of(adminKey, autoRenewKey), context.requiredNonPayerKeys());
     }
 
     @Test

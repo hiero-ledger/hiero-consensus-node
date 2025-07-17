@@ -914,6 +914,10 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return self();
     }
 
+    public boolean hasBatchKey() {
+        return batchKey.isPresent();
+    }
+
     public Optional<String> getNode() {
         return node;
     }
