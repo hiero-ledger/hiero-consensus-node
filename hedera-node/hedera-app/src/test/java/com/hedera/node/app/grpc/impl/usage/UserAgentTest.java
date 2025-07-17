@@ -99,10 +99,8 @@ class UserAgentTest {
         assertThat(ua)
                 .satisfiesAnyOf(
                         // Depending on the exact scenario, the result will either be UNKNOWN or UNSPECIFIED. Given the
-                        // volume
-                        // of scenarios, it is difficult to resolve each one exactly to one outcome so we just check
-                        // that its
-                        // one of the failure outcomes
+                        // volume of scenarios, it is difficult to resolve each one exactly to one outcome so we just
+                        // check that its one of the failure outcomes
                         result -> assertThat(result).isEqualTo(UserAgent.UNKNOWN),
                         result -> assertThat(result).isEqualTo(UserAgent.UNSPECIFIED));
     }
