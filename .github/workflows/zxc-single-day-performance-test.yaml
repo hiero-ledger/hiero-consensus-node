@@ -240,7 +240,7 @@ jobs:
 
       - name: Deploy with Solo
         env:
-          NAMESPACE_ALIAS: "${{ inputs.test-asset }}"
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
         run: |
           set +x
           set +e
@@ -346,7 +346,7 @@ jobs:
 
       - name: Prepare NLG parameters
         env:
-          NAMESPACE_ALIAS: "${{ inputs.test-asset }}"
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
         run: |
           set +x
           set +e
