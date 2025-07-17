@@ -276,11 +276,12 @@ jobs:
           NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT\d+$ ]]; then
+          if [[ "${NAMESPACE_ALIAS}" =~ SDPT\d+ ]]; then
             NETWORK_OWNER="single-day-perf-test"
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
+          echo "Network Owner: ${NETWORK_OWNER}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
           # Remove application.properties
@@ -378,6 +379,7 @@ jobs:
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
+          echo "Network Owner: ${NETWORK_OWNER}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
           NETWORK_ID=`echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g'`
@@ -387,6 +389,7 @@ jobs:
           else
             NETWORK_OWNER="adhoc-performance-test"
           fi
+          echo "Network Owner: ${NETWORK_OWNER}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" merkledb-values.yaml
 
       - name: Deploy NLG test
