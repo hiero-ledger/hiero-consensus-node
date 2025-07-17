@@ -14,7 +14,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
@@ -446,12 +445,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         @Nested
         @DisplayName("Migration State Impact Tests")
         class StateImpactTest {
-            @BeforeEach
-            void setUp() {
-                // Use a fresh database instance for each test
-                MerkleDb.resetDefaultInstancePath();
-            }
-
             Schema createV1Schema() {
                 return new TestSchema(versions[1]) {
                     @NonNull

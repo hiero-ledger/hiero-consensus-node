@@ -161,17 +161,17 @@ public final class BootstrapUtils {
     }
 
     /**
-     * Add classes to the constructable registry which need the configuration.
-     *
-     * @param configuration configuration
+     * Add all classes to the constructable registry which need the configuration.
      */
-    public static void setupConstructableRegistryWithConfiguration(Configuration configuration)
-            throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(
-                        MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-
-        registerVirtualMapConstructables(configuration);
+    public static void setupConstructableRegistryWithConfiguration(final Configuration configuration) {
+        try {
+            ConstructableRegistry.getInstance()
+                    .registerConstructable(new ClassConstructorPair(
+                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
+            registerVirtualMapConstructables(configuration);
+        } catch (final ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

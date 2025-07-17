@@ -3,8 +3,6 @@ package com.swirlds.virtualmap.datasource;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -241,28 +239,4 @@ public interface VirtualDataSource {
     long getFirstLeafPath();
 
     long getLastLeafPath();
-
-    /**
-     * This method is used by VirtualMap / VirtualRootNode to get a key serializer from the
-     * data source, when it's deserialized from an existing state snapshot, where serializers
-     * are stored in the data source rather than in the root node.
-     *
-     * <p>The method is only used to migrate data sources to work with bytes rather than with
-     * strictly typed objects. It will be removed in the next version.
-     */
-    @Deprecated
-    @SuppressWarnings("rawtypes")
-    KeySerializer getKeySerializer();
-
-    /**
-     * This method is used by VirtualMap / VirtualRootNode to get a value serializer from the
-     * data source, when it's deserialized from an existing state snapshot, where serializers
-     * are stored in the data source rather than in the root node.
-     *
-     * <p>This method is only used to migrate data sources to work with bytes rather than with
-     * strictly typed objects. It will be removed in the next version.
-     */
-    @Deprecated
-    @SuppressWarnings("rawtypes")
-    ValueSerializer getValueSerializer();
 }

@@ -9,9 +9,7 @@ import com.swirlds.demo.migration.virtual.AccountVirtualMapKeySerializer;
 import com.swirlds.demo.migration.virtual.AccountVirtualMapValue;
 import com.swirlds.demo.migration.virtual.AccountVirtualMapValueSerializer;
 import com.swirlds.merkle.map.MerkleMap;
-import com.swirlds.merkledb.MerkleDb;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -23,7 +21,6 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableIgnored;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.roster.AddressBook;
 
 @ConstructableIgnored
@@ -183,12 +180,8 @@ public class MigrationTestingToolState extends MerkleStateRoot<MigrationTestingT
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         setMerkleMap(new MerkleMap<>());
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
-                (short) 1, DigestType.SHA_384, INITIAL_ACCOUNTS_HINT, merkleDbConfig.hashesRamToDiskThreshold());
-        // to make it work for the multiple node in one JVM case, we need reset the default instance path every time
-        // we create another instance of MerkleDB.
-        MerkleDb.resetDefaultInstancePath();
-        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
+                configuration, INITIAL_ACCOUNTS_HINT, merkleDbConfig.hashesRamToDiskThreshold());
         setVirtualMap(new VirtualMap<>(
                 "virtualMap",
                 new AccountVirtualMapKeySerializer(),

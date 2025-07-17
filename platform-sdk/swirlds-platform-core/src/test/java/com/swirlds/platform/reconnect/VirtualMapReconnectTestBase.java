@@ -201,9 +201,10 @@ public abstract class VirtualMapReconnectTestBase {
 
         @Override
         public BreakableDataSource copy(
-                final VirtualDataSource snapshotMe, final boolean makeCopyActive, final boolean offlineUse) {
+                final VirtualDataSource snapshotMe, final boolean compactionEnabled, final boolean offlineUse) {
             final var breakableSnapshot = (BreakableDataSource) snapshotMe;
-            return new BreakableDataSource(this, delegate.copy(breakableSnapshot.delegate, makeCopyActive, offlineUse));
+            return new BreakableDataSource(
+                    this, delegate.copy(breakableSnapshot.delegate, compactionEnabled, offlineUse));
         }
 
         @Override
@@ -324,18 +325,6 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             delegate.stopAndDisableBackgroundCompaction();
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public KeySerializer getKeySerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public ValueSerializer getValueSerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
         }
     }
 

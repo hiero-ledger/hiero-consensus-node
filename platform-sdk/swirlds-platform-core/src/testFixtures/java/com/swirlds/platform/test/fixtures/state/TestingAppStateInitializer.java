@@ -14,7 +14,6 @@ import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.MerkleDbTableConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
@@ -43,7 +42,6 @@ import java.util.List;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.RosterStateId;
 
 /**
@@ -191,10 +189,8 @@ public class TestingAppStateInitializer {
                                     md.onDiskValueSerializerClassId(),
                                     md.onDiskValueClassId(),
                                     md.stateDefinition().valueCodec());
-                            final var tableConfig =
-                                    new MerkleDbTableConfig((short) 1, DigestType.SHA_384, def.maxKeysHint(), 16);
                             final var label = StateMetadata.computeLabel(RosterStateId.NAME, def.stateKey());
-                            final var dsBuilder = new MerkleDbDataSourceBuilder(tableConfig, configuration);
+                            final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, def.maxKeysHint(), 16);
                             final var virtualMap =
                                     new VirtualMap<>(label, keySerializer, valueSerializer, dsBuilder, configuration);
                             return virtualMap;
