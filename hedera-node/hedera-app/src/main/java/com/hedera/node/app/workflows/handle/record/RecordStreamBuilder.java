@@ -9,9 +9,9 @@ import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -1160,7 +1160,7 @@ public class RecordStreamBuilder
 
     @NonNull
     @Override
-    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         throw new UnsupportedOperationException("Record stream uses legacy sidecars");
     }
 

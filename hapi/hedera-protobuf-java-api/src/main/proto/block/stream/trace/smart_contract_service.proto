@@ -106,16 +106,6 @@ message SlotRead {
 }
 
 /**
- * Information about the initcode of an internal contract creation.
- */
-message ContractInitcode {
-    /**
-     * The initcode executed for an internal contract creation.
-     */
-    ExecutedInitcode executed_initcode = 3;
-}
-
-/**
   * Information about the initcode executed to create a contract.
  */
 message ExecutedInitcode {
@@ -190,9 +180,9 @@ message EvmTransactionLog {
  */
 message EVMTraceData {
     /**
-     * The initcode of for an internal contract creation.
+     * The initcode executed for an internal contract creation.
      */
-    ContractInitcode initcode = 1;
+    ExecutedInitcode executed_initcode = 1;
 
     /**
      * All contract actions executed during the transaction.

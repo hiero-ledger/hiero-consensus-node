@@ -6,7 +6,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ class PairedStreamBuilderTest {
 
     @Test
     void doesNotDelegateInitcodeToRecordBuilder() {
-        assertThrows(UnsupportedOperationException.class, () -> recordBuilder.addInitcode(ContractInitcode.DEFAULT));
-        assertDoesNotThrow(() -> pairedBuilder.addInitcode(ContractInitcode.DEFAULT));
+        assertThrows(UnsupportedOperationException.class, () -> recordBuilder.addInitcode(ExecutedInitcode.DEFAULT));
+        assertDoesNotThrow(() -> pairedBuilder.addInitcode(ExecutedInitcode.DEFAULT));
     }
 }

@@ -26,10 +26,10 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.block.stream.output.UtilPrngOutput;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EVMTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -364,7 +364,7 @@ public class BlockStreamBuilder
      * The contract initcode for this builder's EVM transaction or internal creation.
      */
     @Nullable
-    private ContractInitcode initcode;
+    private ExecutedInitcode initcode;
 
     /**
      * The hash of the Ethereum payload if relevant to the transaction.
@@ -660,7 +660,7 @@ public class BlockStreamBuilder
             }
             // No reason to externalize top-level initcode because a stream consumer must be able to compute it
             if (initcode != null && !topLevel) {
-                builder.initcode(initcode);
+                builder.executedInitcode(initcode);
             }
             if (logs != null) {
                 builder.logs(logs);
@@ -1223,7 +1223,7 @@ public class BlockStreamBuilder
 
     @NonNull
     @Override
-    public BlockStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+    public BlockStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         if (this.initcode != null) {
             log.warn("Overwriting existing initcode {} in with new initcode {}", this.initcode, initcode);
         }

@@ -9,7 +9,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.InitcodeBookends;
 import com.hedera.hapi.streams.ContractBytecode;
@@ -153,11 +152,7 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
                 } else {
                     initcodeBuilder.explicitInitcode(initcode);
                 }
-                pendingCreationMetadata
-                        .streamBuilder()
-                        .addInitcode(ContractInitcode.newBuilder()
-                                .executedInitcode(initcodeBuilder)
-                                .build());
+                pendingCreationMetadata.streamBuilder().addInitcode(initcodeBuilder.build());
             }
         }
     }

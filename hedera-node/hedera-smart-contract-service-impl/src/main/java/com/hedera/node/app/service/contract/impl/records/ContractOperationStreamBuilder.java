@@ -8,9 +8,9 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -165,7 +165,7 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      * @return this builder
      */
     @NonNull
-    ContractOperationStreamBuilder addInitcode(@NonNull ContractInitcode initcode);
+    ContractOperationStreamBuilder addInitcode(@NonNull ExecutedInitcode initcode);
 
     /**
      * Updates this record builder to include contract state changes.

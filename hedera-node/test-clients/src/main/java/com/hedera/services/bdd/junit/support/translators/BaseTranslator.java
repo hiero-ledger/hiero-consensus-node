@@ -31,7 +31,6 @@ import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
@@ -644,13 +643,10 @@ public class BaseTranslator {
                         .actions(new ContractActions(actions))
                         .build());
             }
-            if (evmTraceData.hasInitcode() || initcodes.containsKey(now)) {
-                final var initcode = evmTraceData.hasInitcode()
-                        ? evmTraceData.initcodeOrThrow()
-                        : ContractInitcode.newBuilder()
-                                .executedInitcode(initcodes.get(now))
-                                .build();
-                final var executedInitcode = initcode.executedInitcodeOrThrow();
+            if (evmTraceData.hasExecutedInitcode() || initcodes.containsKey(now)) {
+                final var executedInitcode = evmTraceData.hasExecutedInitcode()
+                        ? evmTraceData.executedInitcodeOrThrow()
+                        : initcodes.get(now);
                 if (!executedInitcode.hasContractId()) {
                     sidecars.add(TransactionSidecarRecord.newBuilder()
                             .consensusTimestamp(now)

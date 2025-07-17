@@ -2,9 +2,9 @@
 package com.hedera.node.app.blocks.impl;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -448,7 +448,7 @@ public class PairedStreamBuilder
 
     @NonNull
     @Override
-    public ContractOperationStreamBuilder addInitcode(@NonNull final ContractInitcode initcode) {
+    public ContractOperationStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         blockStreamBuilder.addInitcode(initcode);
         return this;
     }
