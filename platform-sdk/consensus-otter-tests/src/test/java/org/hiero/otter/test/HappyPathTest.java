@@ -58,10 +58,6 @@ public class HappyPathTest {
                 .haveEqualCommonRounds()
                 .haveMaxDifferenceInLastRoundNum(withPercentage(10));
 
-        final Node firstNode = network.getNodes().getFirst();
-        firstNode.killImmediately();
-        final SingleNodePcesResult pcesResult = firstNode.getPcesResult();
-
         assertThat(network.getPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import com.swirlds.common.config.StateCommonConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -24,11 +25,6 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration<Contai
     public ContainerNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
         super(lifecycleSupplier, outputDirectory);
-        setContainerSpecificOverrides();
-    }
-
-    private void setContainerSpecificOverrides() {
-        //        overriddenProperties.put(StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory);
     }
 
     /**
