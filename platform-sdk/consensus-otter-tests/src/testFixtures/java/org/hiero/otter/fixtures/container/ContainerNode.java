@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Empty;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -23,7 +28,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
@@ -53,15 +57,6 @@ import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
-import static com.swirlds.platform.event.preconsensus.PcesFileManager.NO_LOWER_BOUND;
-import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.container.ContainerImage.CONTROL_PORT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
-import static org.junit.jupiter.api.Assertions.fail;
-
 /**
  * Implementation of {@link Node} for a container environment.
  */
@@ -78,7 +73,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final ManagedChannel channel;
     private final TestControlGrpc.TestControlBlockingStub blockingStub;
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
-    private final ContainerNodeConfiguration nodeConfiguration = new ContainerNodeConfiguration();
+    private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
 
@@ -103,6 +98,7 @@ public class ContainerNode extends AbstractNode implements Node {
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
+        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
         //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId, mountedDir);
@@ -287,8 +283,8 @@ public class ContainerNode extends AbstractNode implements Node {
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
                         case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
-                        case CONSENSUS_ROUNDS -> resultsCollector.addConsensusRounds(
-                                ProtobufConverter.toPbj(value.getConsensusRounds()));
+                        case CONSENSUS_ROUNDS ->
+                            resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(value.getConsensusRounds()));
                         default -> {
                             final String message = String.format(
                                     "Received unknown message type from node %s: %s", selfId, value.getEventCase());

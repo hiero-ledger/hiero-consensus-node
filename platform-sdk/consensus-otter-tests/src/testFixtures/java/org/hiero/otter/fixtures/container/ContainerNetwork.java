@@ -23,7 +23,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -37,7 +36,6 @@ import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
-import org.hiero.otter.fixtures.turtle.TurtleNode;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -155,11 +153,10 @@ public class ContainerNetwork extends AbstractNetwork {
         return Collections.unmodifiableList(newNodes);
     }
 
-    private ContainerNode createContainerNode(@NonNull final NodeId nodeId, @NonNull final Roster roster,
-            @NonNull final KeysAndCerts keysAndCerts) {
+    private ContainerNode createContainerNode(
+            @NonNull final NodeId nodeId, @NonNull final Roster roster, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve("node-" + nodeId.id());
         return new ContainerNode(nodeId, roster, keysAndCerts, network, dockerImage, outputDir);
-
     }
 
     @NonNull

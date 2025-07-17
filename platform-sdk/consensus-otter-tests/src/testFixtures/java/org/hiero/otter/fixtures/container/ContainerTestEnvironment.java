@@ -15,7 +15,6 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
-import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 
 /**
  * Implementation of {@link TestEnvironment} for tests running on a container network.

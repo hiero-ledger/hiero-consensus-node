@@ -18,7 +18,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Iterator;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
@@ -60,11 +59,7 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
 
         try {
             this.pcesFileTracker = PcesFileReader.readFilesFromDisk(
-                    databaseDirectory,
-                    NO_LOWER_BOUND,
-                    true,
-                    false,
-                    new NoOpRecycleBin());
+                    databaseDirectory, NO_LOWER_BOUND, true, false, new NoOpRecycleBin());
         } catch (final IOException e) {
             throw new UncheckedIOException("Error initializing SingleNodePcesResultImpl", e);
         }
