@@ -106,14 +106,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                 if (finalEthTxData != null) {
                                                     derivedBuilder.gas(finalEthTxData.gasLimit());
                                                     derivedBuilder.amount(finalEthTxData.getAmount());
-                                                    if (txCreateResult.hasInternalCallContext()) {
-                                                        derivedBuilder.functionParameters(txCreateResult
-                                                                .internalCallContextOrThrow()
-                                                                .callData());
-                                                    } else {
-                                                        derivedBuilder.functionParameters(
-                                                                Bytes.wrap(finalEthTxData.callData()));
-                                                    }
+                                                    derivedBuilder.functionParameters(
+                                                            Bytes.wrap(finalEthTxData.callData()));
                                                 }
                                                 if (parts.status() == SUCCESS) {
                                                     if (parts.isTopLevel() || parts.inBatch()) {
