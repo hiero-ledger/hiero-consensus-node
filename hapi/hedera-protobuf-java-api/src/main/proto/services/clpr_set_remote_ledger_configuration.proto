@@ -1,0 +1,34 @@
+/**
+ * # Register Ledger
+ * Register a ledger for the CLPR Service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/state/clpr/clpr_ledger.proto";
+
+
+/**
+ * Register a ledger for CLPR based interledger communication.
+ *
+ */
+message ClprSetRemoteLedgerConfigurationTransactionBody {
+  /**
+   * The ledger configuration to set.
+   */
+  ClprLedgerConfiguration ledger_configuration = 1;
+}

@@ -226,7 +226,7 @@ public class HapiUtils {
             case HISTORY_PROOF_KEY_PUBLICATION -> HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
             case HISTORY_PROOF_VOTE -> HederaFunctionality.HISTORY_PROOF_VOTE;
             case CRS_PUBLICATION -> HederaFunctionality.CRS_PUBLICATION;
-            case UNSET -> throw new UnknownHederaFunctionality();
+            case CLPR_LEDGER_CONFIGURATION, UNSET -> throw new UnknownHederaFunctionality();
         };
     }
 
@@ -257,7 +257,7 @@ public class HapiUtils {
             case TRANSACTION_GET_RECEIPT -> HederaFunctionality.TRANSACTION_GET_RECEIPT;
             case TRANSACTION_GET_RECORD -> HederaFunctionality.TRANSACTION_GET_RECORD;
             case TRANSACTION_GET_FAST_RECORD -> HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
-            case UNSET -> throw new UnknownHederaFunctionality();
+            case CLPR_LEDGER_CONFIGURATION, UNSET -> throw new UnknownHederaFunctionality();
         };
     }
 

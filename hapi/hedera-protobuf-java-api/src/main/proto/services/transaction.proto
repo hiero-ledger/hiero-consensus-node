@@ -98,6 +98,7 @@ import "services/auxiliary/history/history_proof_signature.proto";
 import "services/auxiliary/history/history_proof_key_publication.proto";
 import "services/auxiliary/history/history_proof_vote.proto";
 
+import "services/clpr_set_remote_ledger_configuration.proto";
 /**
  * A wrapper around signed transaction bytes.<br/>
  * This was originally a transaction with body, signatures, and/or bytes,
@@ -648,6 +649,11 @@ message TransactionBody {
          * A transaction body for handling a set of transactions atomically.
          */
         AtomicBatchTransactionBody atomic_batch = 74;
+
+        /**
+         * A transaction body for setting remote CLPR Ledger Configuration.
+         */
+        ClprSetRemoteLedgerConfigurationTransactionBody clpr_ledger_configuration = 75;
     }
 
     /**

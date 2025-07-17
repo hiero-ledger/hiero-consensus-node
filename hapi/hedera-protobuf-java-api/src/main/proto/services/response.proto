@@ -53,6 +53,8 @@ import "services/schedule_get_info.proto";
 
 import "services/get_account_details.proto";
 
+import "services/clpr_get_ledger_configuration.proto";
+
 /**
  * A single query response.
  *
@@ -233,5 +235,11 @@ message Response {
          * is REQUIRED for this query.
          */
         GetAccountDetailsResponse accountDetails = 158;
+
+        /**
+         * A response for a query requesting the clpr ledger configuration
+         * for a specific ledger id.
+         */
+        ClprGetLedgerConfigurationResponse clpr_ledger_configuration = 159;
     }
 }

@@ -1,0 +1,70 @@
+/**
+ * # Get Version
+ * Standard query for services and API message versions.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/state/clpr/clpr_ledger.proto";
+
+/**
+ * Query for the CLPR Ledger Configuration matching the given ledger id,
+ * if it exists. If the ledger id is not provided, the configuration for
+ * the local ledger is provided.
+ */
+message ClprGetLedgerConfigurationQuery {
+  /**
+   * Standard information sent with every query operation.<br/>
+   * This includes the signed payment and what kind of response is requested
+   * (cost, state proof, both, or neither).
+   */
+  QueryHeader header = 1;
+  /**
+   * The ledger id of the CLPR ledger configuration desired.
+   * <p>
+   * If this field is absent, the CLPR configuration for the
+   * ledger answering the query is returned.
+   */
+  ClprLedgerId ledger_id = 2;
+}
+
+/**
+ * A response to a `ClprGetLedgerConfigurationQuery`.
+ *
+ * This MAY return a state proof of the `ClprLedgerConfiguration` for the
+ * ledger id provided in the query. <br/>
+ * If the ledger id is not provided in the query, this SHALL return a
+ * state proof for this ledger's CLPR Configuration.
+ */
+message ClprGetLedgerConfigurationResponse {
+  /**
+   * The standard response information for queries.<br/>
+   * This includes the values requested in the `QueryHeader`
+   * (cost, state proof, both, or neither).
+   */
+  ResponseHeader header = 1;
+
+  /**
+   * The ledger configuration requested by the query
+   * <p>
+   * This value may be absent if there does not exist
+   * a ledger configuration for the given ledger id.
+   */
+  ClprLedgerConfiguration ledger_configuration = 2;
+}

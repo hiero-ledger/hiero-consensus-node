@@ -1,0 +1,65 @@
+/**
+ * # CLPR Ledger Configuration
+ * The public ledger configuration format.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119)
+ * and clarified in [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+
+/**
+ * A Ledger Id for a CLPR Ledger
+ * <p>
+ * The ledger id is used as a key in the state key-value store.
+ */
+message ClprLedgerId {
+  /**
+   * The ledger id as a byte array.
+   */
+  bytes ledger_id = 1;
+}
+
+/**
+ * A CLPR Ledger Configuration.
+ */
+message ClprLedgerConfiguration {
+  /**
+   * The ledger id.
+   */
+  ClprLedgerId ledger_id = 1;
+
+  /*
+   * The list of CLPR Endpoints for the ledger
+   */
+  repeated ClprEndpoint endpoints = 2;
+}
+
+/**
+ * CLPR Endpoint.
+ *
+ * The service endpoint is optional. </br>
+ * The signing certificate MUST be present. </br>
+ */
+message ClprEndpoint {
+  /**
+   * A CLPR network endpoint.
+   */
+  ServiceEndpoint endpoint = 1;
+  /**
+   * The signing certificate for the endpoint.
+   */
+  bytes signing_certificate = 2;
+}

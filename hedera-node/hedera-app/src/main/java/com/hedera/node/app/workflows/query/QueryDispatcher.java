@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.spi.workflows.QueryHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -72,7 +73,7 @@ public class QueryDispatcher {
             case TOKEN_GET_NFT_INFO -> handlers.tokenGetNftInfoHandler();
             case TOKEN_GET_NFT_INFOS -> handlers.tokenGetNftInfosHandler();
 
-            case UNSET -> throw new UnsupportedOperationException(QUERY_NOT_SET);
+            case CLPR_LEDGER_CONFIGURATION, UNSET -> throw new UnsupportedOperationException(QUERY_NOT_SET);
         };
     }
 }
