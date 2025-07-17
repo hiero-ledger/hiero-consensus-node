@@ -645,8 +645,11 @@ public class BaseTranslator {
                         .build());
             }
             if (evmTraceData.hasInitcode() || initcodes.containsKey(now)) {
-                final var initcode = evmTraceData.hasInitcode() ? evmTraceData.initcodeOrThrow() : ContractInitcode.newBuilder().executedInitcode(initcodes.get(now))
-                        .build();
+                final var initcode = evmTraceData.hasInitcode()
+                        ? evmTraceData.initcodeOrThrow()
+                        : ContractInitcode.newBuilder()
+                                .executedInitcode(initcodes.get(now))
+                                .build();
                 final var executedInitcode = initcode.executedInitcodeOrThrow();
                 if (!executedInitcode.hasContractId()) {
                     sidecars.add(TransactionSidecarRecord.newBuilder()
@@ -665,12 +668,13 @@ public class BaseTranslator {
                                     .keyOrThrow()
                                     .contractIdKeyOrThrow()
                                     .equals(contractId))
-                            .map(update -> update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
+                            .map(update ->
+                                    update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
                             .findAny();
                     // Runtime bytecode should always be recoverable from the state changes
                     if (bytecode.isEmpty()) {
-                        throw new IllegalStateException("No bytecode state change found for contract " + contractId + " in "
-                                + remainingStateChanges + " (parts were " + parts + ")");
+                        throw new IllegalStateException("No bytecode state change found for contract " + contractId
+                                + " in " + remainingStateChanges + " (parts were " + parts + ")");
                     }
                     final var runtimeBytecode = bytecode.get().code();
                     bytecodeBuilder.runtimeBytecode(runtimeBytecode);

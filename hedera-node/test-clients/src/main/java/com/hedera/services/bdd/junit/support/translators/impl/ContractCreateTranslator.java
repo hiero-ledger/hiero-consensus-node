@@ -3,7 +3,6 @@ package com.hedera.services.bdd.junit.support.translators.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -14,7 +13,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
-import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ContractID;
@@ -31,7 +29,6 @@ import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.util.encoders.Hex;
 
 /**
  * Translates a contract create transaction into a {@link SingleTransactionRecord}.
@@ -95,17 +92,20 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                         if (baseTranslator.knowsFileContents(fileNum)) {
                                             initcode = baseTranslator.getFileContents(fileNum);
                                             final var hexedInitcode = new String(removeIfAnyLeading0x(initcode));
-                                            initcode = Bytes.fromHex(hexedInitcode + op.constructorParameters().toHex());
+                                            initcode = Bytes.fromHex(hexedInitcode
+                                                    + op.constructorParameters().toHex());
                                         } else {
                                             initcode = null;
                                         }
                                     }
                                     if (initcode != null) {
-                                        final var builder = ExecutedInitcode.newBuilder().explicitInitcode(initcode);
+                                        final var builder =
+                                                ExecutedInitcode.newBuilder().explicitInitcode(initcode);
                                         if (createdId != null) {
                                             builder.contractId(createdId);
                                         }
-                                        if (parts.consensusTimestamp().seconds() == 1752767242L && parts.consensusTimestamp().nanos() == 339269000) {
+                                        if (parts.consensusTimestamp().seconds() == 1752767242L
+                                                && parts.consensusTimestamp().nanos() == 339269000) {
                                             System.out.println("BOOP _ " + parts);
                                         }
                                         baseTranslator.trackInitcode(parts.consensusTimestamp(), builder.build());

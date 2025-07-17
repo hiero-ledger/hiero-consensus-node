@@ -115,7 +115,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                             Bytes.wrap(finalEthTxData.callData()));
                                                 }
                                                 if (parts.status() == SUCCESS) {
-                                                    System.out.println("BOOP BOOP - " + asInstant(parts.consensusTimestamp()));
+                                                    System.out.println(
+                                                            "BOOP BOOP - " + asInstant(parts.consensusTimestamp()));
                                                     if (parts.isTopLevel() || parts.inBatch()) {
                                                         // If all sidecars are disabled and there were no logs for a
                                                         // top-level creation,
