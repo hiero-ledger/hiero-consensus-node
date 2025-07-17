@@ -265,7 +265,7 @@ jobs:
 
           # Remove init-containers-values7.yaml
           rm -f init-containers-values7.yaml
-          # Generate the init-containers-values8.yaml inline
+          # Generate the init-containers-values7.yaml inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
           # Update Taskfile values
