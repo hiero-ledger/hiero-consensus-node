@@ -312,6 +312,7 @@ public class Browser {
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
             }
             builder.withSystemTransactionEncoderCallback(appMain::encodeSystemTransaction);
+            //TODO call the new methods in main
 
             // Build platform using the Inversion of Control pattern by injecting all needed
             // dependencies into the PlatformBuilder.

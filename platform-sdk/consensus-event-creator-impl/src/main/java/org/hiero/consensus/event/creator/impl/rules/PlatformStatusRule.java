@@ -5,9 +5,9 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.PLATFOR
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -16,20 +16,20 @@ import org.hiero.consensus.model.status.PlatformStatus;
 public class PlatformStatusRule implements EventCreationRule {
 
     private final Supplier<PlatformStatus> platformStatusSupplier;
-    private final TransactionPoolNexus transactionPoolNexus;
+    private final BooleanSupplier hasBufferedSignatureTransactions;
 
     /**
      * Constructor.
      *
      * @param platformStatusSupplier provides the current platform status
-     * @param transactionPoolNexus   provides transactions to be added to new events
+     * @param hasBufferedSignatureTransactions   TODO
      */
     public PlatformStatusRule(
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
-            @NonNull final TransactionPoolNexus transactionPoolNexus) {
+            @NonNull final BooleanSupplier hasBufferedSignatureTransactions) {
 
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.transactionPoolNexus = Objects.requireNonNull(transactionPoolNexus);
+        this.hasBufferedSignatureTransactions = Objects.requireNonNull(hasBufferedSignatureTransactions);
     }
 
     /**
@@ -40,7 +40,7 @@ public class PlatformStatusRule implements EventCreationRule {
         final PlatformStatus currentStatus = platformStatusSupplier.get();
 
         if (currentStatus == PlatformStatus.FREEZING) {
-            return transactionPoolNexus.hasBufferedSignatureTransactions();
+            return hasBufferedSignatureTransactions.getAsBoolean();
         }
 
         if (currentStatus != PlatformStatus.ACTIVE && currentStatus != PlatformStatus.CHECKING) {

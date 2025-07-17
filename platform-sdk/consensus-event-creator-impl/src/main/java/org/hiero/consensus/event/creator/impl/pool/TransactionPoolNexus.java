@@ -20,7 +20,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.config.TransactionConfig;
 import org.hiero.consensus.event.creator.impl.TransactionSupplier;
-import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -75,11 +74,6 @@ public class TransactionPoolNexus implements TransactionSupplier {
     private PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
 
     /**
-     * The maximum amount of time the platform may be in an unhealthy state before we start rejecting transactions.
-     */
-    private final Duration maximumPermissibleUnhealthyDuration;
-
-    /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
      *
      * @param configuration the configuration to use
@@ -99,9 +93,6 @@ public class TransactionPoolNexus implements TransactionSupplier {
                 metrics, this::getBufferedTransactionCount, this::getPriorityBufferedTransactionCount);
 
         maximumTransactionSize = transactionConfig.transactionMaxBytes();
-
-        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
-        maximumPermissibleUnhealthyDuration = eventCreationConfig.maximumPermissibleUnhealthyDuration();
     }
 
     // FUTURE WORK: these checks should be unified with the checks performed when a system transaction is submitted.

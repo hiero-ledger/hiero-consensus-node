@@ -75,7 +75,6 @@ import java.util.function.Function;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.stale.StaleEventDetector;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.StaleEventDetectorOutput;
@@ -138,7 +137,6 @@ public class PlatformWiring {
     private final ComponentWiring<StaleEventDetector, List<RoutableData<StaleEventDetectorOutput>>>
             staleEventDetectorWiring;
     private final ComponentWiring<TransactionResubmitter, List<TransactionWrapper>> transactionResubmitterWiring;
-    private final ComponentWiring<TransactionPool, Void> transactionPoolWiring;
     private final ComponentWiring<StatusStateMachine, PlatformStatus> statusStateMachineWiring;
     private final ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
     private final ComponentWiring<BranchReporter, Void> branchReporterWiring;
@@ -246,7 +244,6 @@ public class PlatformWiring {
         staleEventDetectorWiring = new ComponentWiring<>(model, StaleEventDetector.class, config.staleEventDetector());
         transactionResubmitterWiring =
                 new ComponentWiring<>(model, TransactionResubmitter.class, config.transactionResubmitter());
-        transactionPoolWiring = new ComponentWiring<>(model, TransactionPool.class, config.transactionPool());
         branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, config.branchDetector());
         branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, config.branchReporter());
 
@@ -264,7 +261,6 @@ public class PlatformWiring {
                 transactionHandlerWiring,
                 stateHasherWiring,
                 staleEventDetectorWiring,
-                transactionPoolWiring,
                 statusStateMachineWiring,
                 branchDetectorWiring,
                 branchReporterWiring,
@@ -535,8 +531,7 @@ public class PlatformWiring {
                         "postSigner_encode_systemTransactions",
                         "system transactions from signer",
                         systemTransactionEncoder);
-        systemTransactionEncoderOutputWireForStateSigner.solderTo(
-                transactionPoolWiring.getInputWire(TransactionPool::submitSystemTransaction));
+        //TODO does not need to be a transformer, will just submit the system transaction to the application
 
         // FUTURE WORK: combine the signedStateHasherWiring State and Round outputs into a single StateAndRound output.
         // FUTURE WORK: Split the single StateAndRound output into separate State and Round wires.
@@ -577,9 +572,10 @@ public class PlatformWiring {
         statusStateMachineWiring
                 .getOutputWire()
                 .solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::updatePlatformStatus), INJECT);
-        statusStateMachineWiring
-                .getOutputWire()
-                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
+        //TODO maybe wire to app
+//        statusStateMachineWiring
+//                .getOutputWire()
+//                .solderTo(transactionPoolWiring.getInputWire(TransactionPool::updatePlatformStatus));
         statusStateMachineWiring.getOutputWire().solderTo(gossipWiring.getPlatformStatusInput(), INJECT);
 
         solderNotifier();
@@ -615,7 +611,6 @@ public class PlatformWiring {
         issDetectorWiring.getInputWire(IssDetector::signalEndOfPreconsensusReplay);
         staleEventDetectorWiring.getInputWire(StaleEventDetector::setInitialEventWindow);
         staleEventDetectorWiring.getInputWire(StaleEventDetector::clear);
-        transactionPoolWiring.getInputWire(TransactionPool::clear);
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
         branchDetectorWiring.getInputWire(BranchDetector::clear);
         branchReporterWiring.getInputWire(BranchReporter::clear);
@@ -681,7 +676,6 @@ public class PlatformWiring {
         signedStateSentinelWiring.bind(builder::buildSignedStateSentinel);
         staleEventDetectorWiring.bind(builder::buildStaleEventDetector);
         transactionResubmitterWiring.bind(builder::buildTransactionResubmitter);
-        transactionPoolWiring.bind(builder::buildTransactionPool);
         gossipWiring.bind(builder.buildGossip());
         branchDetectorWiring.bind(builder::buildBranchDetector);
         branchReporterWiring.bind(builder::buildBranchReporter);

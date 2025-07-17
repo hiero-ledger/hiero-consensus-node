@@ -17,7 +17,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
@@ -45,7 +44,7 @@ class EventCreationManagerTests {
         final Metrics metrics = new NoOpMetrics();
 
         manager = new DefaultEventCreationManager(
-                configuration, metrics, time, mock(TransactionPoolNexus.class), creator);
+                configuration, metrics, time, ()->false, creator);
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }

@@ -48,7 +48,6 @@ import java.util.stream.Stream;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
-import org.hiero.consensus.event.creator.impl.pool.TransactionPool;
 import org.hiero.consensus.event.creator.impl.signing.SelfEventSigner;
 import org.hiero.consensus.event.creator.impl.stale.DefaultStaleEventDetector;
 import org.junit.jupiter.api.DisplayName;
@@ -111,7 +110,6 @@ class PlatformWiringTests {
                 .withStateHasher(mock(StateHasher.class))
                 .withStaleEventDetector(mock(DefaultStaleEventDetector.class))
                 .withTransactionResubmitter(mock(TransactionResubmitter.class))
-                .withTransactionPool(mock(TransactionPool.class))
                 .withStateSnapshotManager(mock(StateSnapshotManager.class))
                 .withHashLogger(mock(HashLogger.class))
                 .withBranchDetector(mock(BranchDetector.class))

@@ -24,9 +24,11 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.creator.impl.TransactionSupplier;
 import org.hiero.consensus.event.creator.impl.pool.TransactionPoolNexus;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -100,7 +102,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull RandomBuilder randomBuilder,
-        @NonNull TransactionPoolNexus transactionPoolNexus,
+        @NonNull BooleanSupplier hasBufferedSignatureTransactions,
         @NonNull FreezeCheckHolder freezeCheckHolder,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
@@ -114,7 +116,8 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade) {
+        @NonNull PlatformStateFacade platformStateFacade,
+        @NonNull TransactionSupplier transactionSupplier) {
 
     public PlatformBuildingBlocks {
         requireNonNull(platformWiring);
@@ -130,7 +133,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(randomBuilder);
-        requireNonNull(transactionPoolNexus);
+        requireNonNull(hasBufferedSignatureTransactions);
         requireNonNull(freezeCheckHolder);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
