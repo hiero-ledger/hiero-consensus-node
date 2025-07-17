@@ -33,6 +33,7 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
+import org.hiero.otter.fixtures.container.proto.InitRequest;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
@@ -93,7 +94,6 @@ public class ContainerNode extends AbstractNode implements Node {
 
         this.resultsCollector = new NodeResultsCollector(selfId);
 
-        //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId);
         container.start();
         channel = ManagedChannelBuilder.forAddress(container.getHost(), container.getMappedPort(CONTROL_PORT))
@@ -102,6 +102,12 @@ public class ContainerNode extends AbstractNode implements Node {
                 .build();
 
         blockingStub = TestControlGrpc.newBlockingStub(channel);
+
+        final InitRequest initRequest = InitRequest.newBuilder()
+                .setSelfId(ProtobufConverter.fromPbj(selfId))
+                .build();
+        //noinspection ResultOfMethodCallIgnored
+        blockingStub.init(initRequest);
     }
 
     private static long getWeight(@NonNull final Roster roster, @NonNull final NodeId selfId) {
@@ -219,8 +225,6 @@ public class ContainerNode extends AbstractNode implements Node {
      * and no more data can be retrieved. This method is idempotent and can be called multiple times without any side
      * effects.
      */
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    // ignoring the Empty answer from destroyContainer
     void destroy() {
         if (lifeCycle == RUNNING) {
             log.info("Destroying container of node {}...", selfId);
@@ -259,7 +263,6 @@ public class ContainerNode extends AbstractNode implements Node {
             log.info("Starting node {}...", selfId);
 
             final StartRequest startRequest = StartRequest.newBuilder()
-                    .setSelfId(ProtobufConverter.fromPbj(selfId))
                     .setRoster(ProtobufConverter.fromPbj(roster))
                     .setKeysAndCerts(KeysAndCertsConverter.toProto(keysAndCerts))
                     .setVersion(ProtobufConverter.fromPbj(version))
@@ -290,16 +293,14 @@ public class ContainerNode extends AbstractNode implements Node {
                      * client receives an INTERNAL error. This is expected and must *not* fail the test.
                      * Only report unexpected errors that occur while the node is still running.
                      */
-                    if (lifeCycle == RUNNING) {
-                        if (!isExpectedError(error)) {
-                            final String message = String.format("gRPC error from node %s", selfId);
-                            fail(message, error);
-                        }
+                    if ((lifeCycle == RUNNING) && !isExpectedError(error)) {
+                        final String message = String.format("gRPC error from node %s", selfId);
+                        fail(message, error);
                     }
                 }
 
                 private static boolean isExpectedError(final @NonNull Throwable error) {
-                    if (error instanceof StatusRuntimeException sre) {
+                    if (error instanceof final StatusRuntimeException sre) {
                         final Code code = sre.getStatus().getCode();
                         return code == Code.UNAVAILABLE || code == Code.CANCELLED || code == Code.INTERNAL;
                     }
@@ -342,6 +343,7 @@ public class ContainerNode extends AbstractNode implements Node {
          */
         @Override
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
+            //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
                     .build());
@@ -352,6 +354,7 @@ public class ContainerNode extends AbstractNode implements Node {
          */
         @Override
         public void stopSyntheticBottleneck() {
+            //noinspection ResultOfMethodCallIgnored
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
                     .build());
