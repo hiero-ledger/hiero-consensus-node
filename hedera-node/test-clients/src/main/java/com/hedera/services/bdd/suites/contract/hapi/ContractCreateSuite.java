@@ -94,6 +94,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -147,6 +148,7 @@ public class ContractCreateSuite {
     private static final String MULTI_KEY = "multiKey";
 
     @HapiTest
+    @Tag(TestTags.ADHOC)
     final Stream<DynamicTest> createDeterministicDeployer() {
         final var creatorAddress = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_SIGNER)));
         final var transaction = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_TRANSACTION)));

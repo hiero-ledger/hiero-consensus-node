@@ -54,7 +54,11 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                     final var ethTx = parts.body().ethereumTransactionOrThrow();
                     var ethTxData =
                             EthTxData.populateEthTxData(ethTx.ethereumData().toByteArray());
-                    if (ethTxData != null && !HYDRATION_FAILURE_CODES.contains(parts.status()) && ethTx.hasCallData()) {
+                    // Consensus node only tries to hydrate if the call data is not already present
+                    if (ethTxData != null
+                            && !ethTxData.hasCallData()
+                            && !HYDRATION_FAILURE_CODES.contains(parts.status())
+                            && ethTx.hasCallData()) {
                         final var callDataFileNum = ethTx.callDataOrThrow().fileNum();
                         final var hexedCallData = baseTranslator.getFileContents(callDataFileNum);
                         final var callData = Hex.decode(removeIfAnyLeading0x(hexedCallData));
