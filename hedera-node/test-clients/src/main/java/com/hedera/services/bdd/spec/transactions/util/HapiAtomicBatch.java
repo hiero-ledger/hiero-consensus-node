@@ -124,7 +124,10 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
 
             if (!hasInnerTxnFailed) {
                 configureDefaultExpectedStatus(op);
-                hasInnerTxnFailed = !resolveInnerTxnStatus(op, spec);
+                resolveInnerTxnStatus(op, spec);
+                if (!isTxnSuccessful(op)) {
+                    hasInnerTxnFailed = true;
+                }
             }
         }
         return result;
@@ -189,35 +192,38 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
                 && (getExpectedStatus() == INNER_TRANSACTION_FAILED || getExpectedStatus() == SUCCESS);
     }
 
-    private void validateOperationState(final HapiTxnOp<?> operation, boolean hasInnerTxnFailed) {
-        if (hasInnerTxnFailed && operation.isExpectedStatusSet()) {
+    /**
+     * Validates that operations don't have expected status set after inner transaction failure.
+     */
+    private void validateOperationState(final HapiTxnOp<?> op, boolean hasInnerTxnFailed) {
+        if (hasInnerTxnFailed && op.isExpectedStatusSet()) {
             String errorMessage = String.format(
                     "Invalid state: Expected status is set for operation '%s' after a previously failed inner transaction. "
                             + "Operations following a failed inner transaction should not have expected status configured.",
-                    operation);
+                    op);
             log.error(errorMessage);
             throw new HapiTxnCheckStateException(errorMessage);
         }
     }
 
-    private void configureDefaultExpectedStatus(final HapiTxnOp<?> operation) {
+    private void configureDefaultExpectedStatus(final HapiTxnOp<?> op) {
         if (expectedStatus.isPresent() && expectedStatus.get() == INNER_TRANSACTION_FAILED) {
-            if (!operation.isExpectedStatusSet()) {
-                operation.hasKnownStatus(REVERTED_SUCCESS);
+            if (!op.isExpectedStatusSet()) {
+                op.hasKnownStatus(REVERTED_SUCCESS);
             }
         }
     }
 
-    private boolean resolveInnerTxnStatus(final HapiTxnOp<?> operation, HapiSpec spec) throws Throwable {
-        // Set node ID for inner transaction to enable status resolution via txnRecord query
-        operation.setNode(fixNodeFor(spec).getAccountNum());
-
+    private void resolveInnerTxnStatus(final HapiTxnOp<?> op, HapiSpec spec) throws Throwable {
+        op.setNode(fixNodeFor(spec).getAccountNum());
         try {
-            operation.resolveStatus(spec);
-            return operation.getActualStatus() == SUCCESS || operation.getActualStatus() == REVERTED_SUCCESS;
+            op.resolveStatus(spec);
         } finally {
-            // Always reset node ID to default value
-            operation.setNode(DEFAULT_NODE_ACCOUNT_ID);
+            op.setNode(DEFAULT_NODE_ACCOUNT_ID);
         }
+    }
+
+    private boolean isTxnSuccessful(final HapiTxnOp<?> op) {
+        return op.getActualStatus() == SUCCESS || op.getActualStatus() == REVERTED_SUCCESS;
     }
 }
