@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -28,7 +29,6 @@ import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EVMTraceData;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.SubmitMessageTraceData;
-import com.hedera.hapi.block.stream.trace.TokenSupplyTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -597,19 +597,8 @@ public class BlockStreamBuilder
 
         // Add trace data for batch inner transaction fields, that are normally computed by state changes
         if (includeAdditionalTraceData) {
-            // nft mint and burn trace data
-            if (newTotalSupplyChanged || !serialNumbers.isEmpty()) {
-                final var builder = TokenSupplyTraceData.newBuilder();
-                builder.newTotalSupply(newTotalSupply);
-                // Todo check how to remove serial numbers from the trace data
-                builder.serialNumbers(serialNumbers);
-                blockItems.add(BlockItem.newBuilder()
-                        .traceData(TraceData.newBuilder().tokenSupplyTraceData(builder))
-                        .build());
-            }
             // automatic token association trace data
-            if (!automaticTokenAssociations.isEmpty()) {
-                // Todo check if we need list of TokenAssociation
+            if (!automaticTokenAssociations.isEmpty() && TOKEN_UPDATE.equals(functionality)) {
                 final var builder = AutoAssociateTraceData.newBuilder()
                         .automaticTokenAssociations(
                                 automaticTokenAssociations.getLast().accountId());

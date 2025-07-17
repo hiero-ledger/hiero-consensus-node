@@ -6,8 +6,9 @@ import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.block.stream.trace.TokenSupplyTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.NftID;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
@@ -42,44 +43,31 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
                         final var tokenId = op.tokenOrThrow();
                         final var numMints = op.metadata().size();
                         if (numMints > 0 && baseTranslator.tokenTypeOrThrow(tokenId) == NON_FUNGIBLE_UNIQUE) {
-                            // Within batch transactions (inner or their children), state changes from earlier
-                            // transactions can be overwritten by subsequent transactions in the same batch
-                            // (e.g., mint followed by burn).
-                            // Therefore, construct the record from trace data when available.
-                            final var maybeTraceData = maybeTokenSupplyTraceData(tracesSoFar);
-                            if (maybeTraceData != null) {
-                                baseTranslator.initTotalSupply(tokenId, maybeTraceData.newTotalSupply());
-                                receiptBuilder.newTotalSupply(maybeTraceData.newTotalSupply());
-                                receiptBuilder.serialNumbers(maybeTraceData.serialNumbers());
-                                return;
-                            }
                             final var mintedSerialNos = baseTranslator.nextNMints(tokenId, numMints);
                             receiptBuilder.serialNumbers(List.copyOf(mintedSerialNos));
-                            final var iter = remainingStateChanges.listIterator();
-                            while (iter.hasNext()) {
-                                final var stateChange = iter.next();
-                                if (stateChange.hasMapUpdate()
-                                        && stateChange
-                                                .mapUpdateOrThrow()
-                                                .keyOrThrow()
-                                                .hasNftIdKey()) {
-                                    final var nftId = stateChange
-                                            .mapUpdateOrThrow()
-                                            .keyOrThrow()
-                                            .nftIdKeyOrThrow();
-                                    if (!nftId.tokenIdOrThrow().equals(tokenId)) {
-                                        continue;
-                                    }
+                            for (StateChange stateChange : remainingStateChanges) {
+                                final var nftId = isNftUpdate(stateChange, tokenId);
+                                if (nftId != null) {
                                     final var serialNo = nftId.serialNumber();
-                                    if (mintedSerialNos.remove(serialNo)) {
-                                        iter.remove();
-                                        if (mintedSerialNos.isEmpty()) {
-                                            final var newTotalSupply = baseTranslator.newTotalSupply(tokenId, numMints);
-                                            receiptBuilder.newTotalSupply(newTotalSupply);
-                                            return;
-                                        }
+                                    mintedSerialNos.remove(serialNo);
+                                }
+                            }
+
+                            // if there are some missing serials, try finding them in mapDelete state changes
+                            if (!mintedSerialNos.isEmpty() && parts.isBatchScoped()) {
+                                for (StateChange stateChange : remainingStateChanges) {
+                                    final var nftId = isNftDelete(stateChange, tokenId);
+                                    if (nftId != null) {
+                                        final var serialNo = nftId.serialNumber();
+                                        mintedSerialNos.remove(serialNo);
                                     }
                                 }
+                            }
+
+                            if (mintedSerialNos.isEmpty()) {
+                                final var newTotalSupply = baseTranslator.newTotalSupply(tokenId, numMints);
+                                receiptBuilder.newTotalSupply(newTotalSupply);
+                                return;
                             }
                             log.error(
                                     "Not all mints had matching state changes found for successful mint with id {}",
@@ -95,18 +83,19 @@ public class TokenMintTranslator implements BlockTransactionPartsTranslator {
                 followingUnitTraces);
     }
 
-    private TokenSupplyTraceData maybeTokenSupplyTraceData(final List<TraceData> tracesSoFar) {
-        TokenSupplyTraceData result = null;
-        if (tracesSoFar != null) {
-            // Start from the end of the list to find last trace with token supply data
-            for (int i = tracesSoFar.size() - 1; i >= 0; i--) {
-                final var trace = tracesSoFar.get(i);
-                if (trace.hasTokenSupplyTraceData()) {
-                    result = trace.tokenSupplyTraceDataOrThrow();
-                    break;
-                }
-            }
-        }
-        return result;
+    // check if given state change is mapUpdate nft id of a target token.
+    private NftID isNftUpdate(StateChange stateChange, TokenID targetTokenId) {
+        final var isUpdate = stateChange.hasMapUpdate()
+                && stateChange.mapUpdateOrThrow().keyOrThrow().hasNftIdKey();
+        final var nftId = isUpdate ? stateChange.mapUpdateOrThrow().keyOrThrow().nftIdKeyOrThrow() : null;
+        return isUpdate && nftId.tokenIdOrThrow().equals(targetTokenId) ? nftId : null;
+    }
+
+    // check if given state change is mapDelete nft id of a target token.
+    private NftID isNftDelete(StateChange stateChange, TokenID targetTokenId) {
+        final var isDelete = stateChange.hasMapDelete()
+                && stateChange.mapDeleteOrThrow().keyOrThrow().hasNftIdKey();
+        final var nftId = isDelete ? stateChange.mapDeleteOrThrow().keyOrThrow().nftIdKeyOrThrow() : null;
+        return isDelete && nftId.tokenIdOrThrow().equals(targetTokenId) ? nftId : null;
     }
 }

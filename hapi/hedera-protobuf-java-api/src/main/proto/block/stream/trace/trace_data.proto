@@ -36,8 +36,7 @@ import "block/stream/trace/consensus_service.proto";
 message TraceData {
   oneof data {
     EVMTraceData evm_trace_data = 1;
-    TokenSupplyTraceData token_supply_trace_data = 2;
-    AutoAssociateTraceData auto_associate_trace_data = 3;
-    SubmitMessageTraceData submit_message_trace_data = 4;
+    AutoAssociateTraceData auto_associate_trace_data = 2;
+    SubmitMessageTraceData submit_message_trace_data = 3;
   }
 }

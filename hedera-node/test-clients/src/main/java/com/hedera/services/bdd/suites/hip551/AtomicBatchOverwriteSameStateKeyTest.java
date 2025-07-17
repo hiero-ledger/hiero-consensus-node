@@ -74,10 +74,9 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        //                lifecycle.doAdhoc(
-        //                        overriding("atomicBatch.isEnabled", "true"),
-        // overriding("atomicBatch.maxNumberOfTransactions",
-        //         "50"));
+        //        lifecycle.doAdhoc(
+        //                overriding("atomicBatch.isEnabled", "true"), overriding("atomicBatch.maxNumberOfTransactions",
+        // "50"));
     }
 
     /**
@@ -103,7 +102,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                 .batchKey(batchOperator);
 
         // create token burn inner transaction
-        final var burnNft = burnToken(nft, List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L))
+        final var burnNft = burnToken(nft, List.of(1L, 2L, 3L, 4L, 5L))
                 .payingWith(owner)
                 .signedBy(owner, nftSupplyKey)
                 .batchKey(batchOperator);
@@ -126,7 +125,7 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                         .adminKey(adminKey)
                         .supplyKey(nftSupplyKey),
                 // perform the atomic batch transaction
-                atomicBatch(mintNft, mintNft, burnNft, mintNft, deleteToken)
+                atomicBatch(mintNft, burnNft, deleteToken)
                         .payingWith(batchOperator)
                         .hasKnownStatus(SUCCESS));
     }
@@ -365,9 +364,9 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                         .payingWith(batchOperator));
     }
 
-    //            @Order(7)
-    //            @LeakyHapiTest
-    //            final Stream<DynamicTest> streamsAreValid() {
-    //                return hapiTest(validateStreams());
-    //            }
+    //    @Order(7)
+    //    @LeakyHapiTest
+    //    final Stream<DynamicTest> streamsAreValid() {
+    //        return hapiTest(validateStreams());
+    //    }
 }

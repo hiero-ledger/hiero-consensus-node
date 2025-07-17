@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -168,23 +167,6 @@ public class BlockStreamBuilderTest {
         final var autoAssociateTraceData = trace.autoAssociateTraceData();
         assertNotNull(autoAssociateTraceData, "Auto associate trace data should be not null!");
         assertEquals(2, autoAssociateTraceData.automaticTokenAssociations().accountNum(), "Wrong account num!");
-    }
-
-    @Test
-    void testBlockItemsWithAdditionalTokenSupplyTraceData() {
-        final var itemsBuilder = createEmptyBuilder().functionality(TOKEN_MINT);
-        // set additional trace data
-        itemsBuilder.newTotalSupply(1).serialNumbers(List.of(1L));
-        final var blockItems = itemsBuilder.build(false, true).blockItems();
-
-        final var traceItem = blockItems.get(2);
-        assertTrue(traceItem.hasTraceData());
-        final var trace = traceItem.traceDataOrThrow();
-
-        assertTrue(trace.hasTokenSupplyTraceData());
-        final var tokenSupplyTraceData = trace.tokenSupplyTraceData();
-        assertNotNull(tokenSupplyTraceData, "Token supply trace data should be not null!");
-        assertEquals(1, tokenSupplyTraceData.newTotalSupply(), "Wrong new total supply!");
     }
 
     @Test

@@ -21,14 +21,6 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 
-message TokenSupplyTraceData {
-
-  int64 new_total_supply = 1;
-
-  // Todo check how to remove serial numbers from the trace data
-  repeated int64 serial_numbers = 2;
-}
-
 message AutoAssociateTraceData {
 
   proto.AccountID automatic_token_associations = 1;
