@@ -49,13 +49,14 @@ message ContractSlotUsage {
 
     oneof written_keys {
         /**
-         * If true, the list of written slot keys is implied by the non-identical
+         * If true, the list of written slot keys is contained in the non-identical
          * state changes in the Hiero transactional unit of this EVM transaction.
          */
         bool written_keys_are_non_identical_state_changes = 2;
 
         /**
-         * The storage slots that were written to in the EVM transaction.
+         * When this EVM transaction was one of several within its Hiero
+         * transactional unit, the storage slots that it wrote.
          * <p>
          * The written value can be unambiguously derived from the block items
          * in this EVM transaction's Hiero transactional unit. In particular,

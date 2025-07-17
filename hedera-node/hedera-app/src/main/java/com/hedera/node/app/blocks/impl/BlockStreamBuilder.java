@@ -588,8 +588,6 @@ public class BlockStreamBuilder
             if (serializedSignedTx == null) {
                 serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
             }
-            // Use a "pass-through" BlockItem variant to ensure we don't re-serialize the parsed
-            // SignedTransaction into something different from what the client submitted
             blockItems.add(
                     BlockItem.newBuilder().signedTransaction(serializedSignedTx).build());
         }
@@ -1224,10 +1222,11 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
+        requireNonNull(initcode);
         if (this.initcode != null) {
-            log.warn("Overwriting existing initcode {} in with new initcode {}", this.initcode, initcode);
+            log.warn("Overwriting existing initcode {} with new initcode {}", this.initcode, initcode);
         }
-        this.initcode = requireNonNull(initcode);
+        this.initcode = initcode;
         return this;
     }
 
