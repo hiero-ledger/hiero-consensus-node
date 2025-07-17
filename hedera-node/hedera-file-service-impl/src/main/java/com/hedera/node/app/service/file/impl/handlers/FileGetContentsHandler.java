@@ -17,6 +17,7 @@ import com.hedera.hapi.node.file.FileGetContentsResponse;
 import com.hedera.hapi.node.file.FileGetContentsResponse.FileContents;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
+import com.hedera.node.app.hapi.fees.apis.file.FileOperations;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
@@ -26,6 +27,7 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -33,6 +35,8 @@ import com.hederahashgraph.api.proto.java.ResponseType;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import javax.inject.Inject;
@@ -88,6 +92,15 @@ public class FileGetContentsHandler extends FileQueryBase {
         final var fileId = op.fileIDOrElse(FileID.DEFAULT);
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         final FileContents fileContents = contentFile(fileId, fileStore, queryContext.configuration(), nodeStore);
+        if(queryContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            FileOperations entity = new FileOperations("FileGetContents", "get file contents");
+            Map<String, Object> params = new HashMap<>();
+            params.put("numSignatures", 0);
+            params.put("numKeys", 0);
+            params.put("numBytes", (int)fileContents.contents().length());
+            return entity.computeFee(params, queryContext.activeRate());
+        }
+
         return queryContext
                 .feeCalculator()
                 .legacyCalculate(sigValueObj ->

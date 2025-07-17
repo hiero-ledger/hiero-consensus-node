@@ -208,8 +208,8 @@ public class TokenServiceFeesSuite {
 
                 // do claim
                 tokenClaimAirdrop(
-                                HapiTokenClaimAirdrop.pendingAirdrop(OWNER, RECEIVER, FUNGIBLE_TOKEN),
-                                HapiTokenClaimAirdrop.pendingNFTAirdrop(OWNER, RECEIVER, NON_FUNGIBLE_TOKEN, 1))
+                        HapiTokenClaimAirdrop.pendingAirdrop(OWNER, RECEIVER, FUNGIBLE_TOKEN),
+                        HapiTokenClaimAirdrop.pendingNFTAirdrop(OWNER, RECEIVER, NON_FUNGIBLE_TOKEN, 1))
                         .payingWith(RECEIVER)
                         .via("claimTxn"), // assert txn record
                 getTxnRecord("claimTxn")
@@ -305,7 +305,7 @@ public class TokenServiceFeesSuite {
 
                 // Cancel the airdrop
                 tokenCancelAirdrop(
-                                pendingNFTAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L))
+                        pendingNFTAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L))
                         .payingWith(account)
                         .via("cancelAirdrop"),
 
@@ -514,18 +514,18 @@ public class TokenServiceFeesSuite {
                         .supplyKey(SUPPLY_KEY)
                         .tokenType(NON_FUNGIBLE_UNIQUE),
                 mintToken(
-                                UNIQUE_TOKEN,
-                                List.of(
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata,
-                                        standard100ByteMetadata))
+                        UNIQUE_TOKEN,
+                        List.of(
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata,
+                                standard100ByteMetadata))
                         .payingWith(CIVILIAN_ACCT)
                         .signedBy(SUPPLY_KEY)
                         .blankMemo()
@@ -960,10 +960,10 @@ public class TokenServiceFeesSuite {
                             .supplyType(TokenSupplyType.INFINITE)
                             .initialSupply(0),
                     mintToken(
-                                    NFT_TOKEN,
-                                    IntStream.range(0, rangeAmount)
-                                            .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                            .toList())
+                            NFT_TOKEN,
+                            IntStream.range(0, rangeAmount)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList())
                             .payingWith(OWNER)
                             .signedBy(supplyKey)
                             .blankMemo()
@@ -1000,10 +1000,10 @@ public class TokenServiceFeesSuite {
                             .supplyType(TokenSupplyType.INFINITE)
                             .initialSupply(0),
                     mintToken(
-                                    NFT_TOKEN,
-                                    IntStream.range(0, mintAmount)
-                                            .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
-                                            .toList())
+                            NFT_TOKEN,
+                            IntStream.range(0, mintAmount)
+                                    .mapToObj(a -> ByteString.copyFromUtf8(String.valueOf(a)))
+                                    .toList())
                             .payingWith(OWNER)
                             .signedBy(supplyKey)
                             .blankMemo(),

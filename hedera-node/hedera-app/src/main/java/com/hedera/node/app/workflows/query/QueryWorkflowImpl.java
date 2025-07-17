@@ -201,6 +201,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         // get payer
                         payerID = requireNonNull(checkerResult.txnInfoOrThrow().payerID());
                         context = new QueryContextImpl(
+                                consensusTime,
                                 state,
                                 storeFactory,
                                 query,
@@ -254,6 +255,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         throw new PreCheckException(NOT_SUPPORTED);
                     }
                     context = new QueryContextImpl(
+                            consensusTime,
                             state,
                             storeFactory,
                             query,

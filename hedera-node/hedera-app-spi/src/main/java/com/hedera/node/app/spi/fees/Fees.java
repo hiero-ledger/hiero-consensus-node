@@ -3,9 +3,13 @@ package com.hedera.node.app.spi.fees;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.hapi.fees.FeeResult;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Represents the combination of node, network, and service fees.
@@ -24,9 +28,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *                   This must be non-negative. The sum of node, network, and service fees must be less than
  *                   {@link Long#MAX_VALUE}.
  */
-public record Fees(long nodeFee, long networkFee, long serviceFee) {
+public record Fees(long nodeFee, long networkFee, long serviceFee, double usd, Map<String, FeeResult.FeeDetail> details ) {
     /** A constant representing zero fees. */
-    public static final Fees FREE = new Fees(0, 0, 0);
+    public static final Fees FREE = new Fees(0, 0, 0, 0, new HashMap<>());
     /**
      * A constant representing fees of 1 constant resource usage for each of the node, network, and service components.
      * This is useful when a fee is required, but the entity is not present in state to determine the actual fee.
@@ -42,6 +46,11 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
         if (nodeFee < 0) throw new IllegalArgumentException("Node fees must be non-negative");
         if (networkFee < 0) throw new IllegalArgumentException("Network fees must be non-negative");
         if (serviceFee < 0) throw new IllegalArgumentException("Service fees must be non-negative");
+        if (usd < 0) throw new IllegalArgumentException("New fees must be non-negative");
+    }
+
+    public Fees(long nodeFee, long networkFee, long serviceFee) {
+        this(nodeFee, networkFee, serviceFee, 0, new HashMap<>());
     }
 
     /**
@@ -50,7 +59,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return true if there is nothing to charge for these fees
      */
     public boolean nothingToCharge() {
-        return nodeFee == 0 && networkFee == 0 && serviceFee == 0;
+        return nodeFee == 0 && networkFee == 0 && serviceFee == 0 && usd == 0;
     }
 
     /**
@@ -60,7 +69,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return this {@link Fees} with the service fee zeroed out
      */
     public Fees withoutServiceComponent() {
-        return new Fees(nodeFee, networkFee, 0);
+        return new Fees(nodeFee, networkFee, 0, 0, new HashMap<>());
     }
 
     /**
@@ -69,7 +78,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return this {@link Fees} with the node fee replaced by the actually charged amount
      */
     public Fees withChargedNodeComponent(final long fee) {
-        return new Fees(fee, networkFee, serviceFee);
+        return new Fees(fee, networkFee, serviceFee, usd, new HashMap<>());
     }
 
     /**
@@ -77,7 +86,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      * @return this {@link Fees} with the node fee and network fee zeroed out
      */
     public Fees onlyServiceComponent() {
-        return new Fees(0, 0, serviceFee);
+        return new Fees(0, 0, serviceFee, 0, new HashMap<>());
     }
 
     /**
@@ -124,7 +133,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
      */
     public Fees plus(@NonNull final Fees fees) {
         requireNonNull(fees);
-        return new Fees(nodeFee + fees.nodeFee(), networkFee + fees.networkFee(), serviceFee + fees.serviceFee());
+        return new Fees(nodeFee + fees.nodeFee(), networkFee + fees.networkFee(), serviceFee + fees.serviceFee(), usd + fees.usd(), details);
     }
 
     /**
@@ -134,6 +143,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
         private long nodeFee;
         private long networkFee;
         private long serviceFee;
+        private double newFee;
 
         /**
          * Set the node fee.
@@ -168,12 +178,18 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
             return this;
         }
 
+        public Builder newFee(double newFee) {
+            System.out.println("returning the new fee " + newFee);
+            this.newFee = newFee;
+            return this;
+        }
+
         /**
          * Build a {@link Fees} object from the data in this builder.
          * @return a {@link Fees} object
          */
         public Fees build() {
-            return new Fees(nodeFee, networkFee, serviceFee);
+            return new Fees(nodeFee, networkFee, serviceFee, newFee, new HashMap<>());
         }
     }
 }

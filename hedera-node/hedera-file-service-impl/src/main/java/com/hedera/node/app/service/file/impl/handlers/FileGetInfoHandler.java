@@ -18,6 +18,7 @@ import com.hedera.hapi.node.file.FileGetInfoResponse.FileInfo;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
+import com.hedera.node.app.hapi.fees.apis.file.FileOperations;
 import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
 import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -28,6 +29,7 @@ import com.hedera.node.app.service.file.impl.base.FileQueryBase;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -36,6 +38,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -89,6 +93,14 @@ public class FileGetInfoHandler extends FileQueryBase {
         final var op = query.fileGetInfoOrThrow();
         final var fileId = op.fileIDOrElse(FileID.DEFAULT);
         final File file = fileStore.getFileLeaf(fileId);
+        if(queryContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            FileOperations transfer = new FileOperations("FileGetInfo", "get file information");
+            Map<String, Object> params = new HashMap<>();
+            params.put("numSignatures", 0);
+            params.put("numKeys", 0);
+            params.put("numBytes", (int)file.contents().length());
+            return transfer.computeFee(params, queryContext.activeRate());
+        }
 
         return queryContext
                 .feeCalculator()

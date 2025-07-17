@@ -1,0 +1,70 @@
+{
+  "extras": [
+    {
+      "name": "SignatureVerifications",
+      "fee": 0.00001
+    },
+    {
+      "name": "Gas",
+      "fee": 0.0000000852
+    },
+    {
+      "name": "Keys",
+      "fee": 0.01
+    },
+    {
+      "name": "Bytes",
+      "fee": 0.000011
+    }
+  ],
+  "services": [
+    {
+      "name": "Consensus",
+      "transactions": [
+        {
+          "name": "ConsensusCreateTopic",
+          "baseFee": 0.01000,
+          "extras": [
+            {
+              "name": "SignatureVerifications",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ConsensusCreateTopicWithCustomFee",
+          "baseFee": 2.0,
+          "extras": [
+            {
+              "name": "SignatureVerifications",
+              "includedCount": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "File",
+      "transactions": [
+        {
+          "name": "FileCreate",
+          "baseFee": 0.05000,
+          "extras": [
+            {
+              "name": "SignatureVerifications",
+              "includedCount": 1
+            },
+            {
+              "name": "Keys",
+              "includedCount": 1
+            },
+            {
+              "name": "Bytes",
+              "includedCount": 1000
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

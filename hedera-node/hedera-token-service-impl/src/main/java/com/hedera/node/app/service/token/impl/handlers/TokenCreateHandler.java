@@ -22,6 +22,10 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.EntityCreate;
+import com.hedera.node.app.hapi.fees.apis.common.FeesHelper;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -40,11 +44,15 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -420,6 +428,22 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         final var meta = TOKEN_OPS_USAGE_UTILS.tokenCreateUsageFrom(CommonPbjConverters.fromPbj(body));
         final var op = body.tokenCreationOrThrow();
         final var type = op.tokenType();
+
+        if(feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            EntityCreate entity = FeesHelper.makeEntity(HederaFunctionality.TOKEN_CREATE, "Create a token type", 7, true);
+            Map<String, Object> params = new HashMap<>();
+            params.put("numSignatures", feeContext.numTxnSignatures());
+            params.put("numKeys", 0);
+            params.put("hasCustomFee", YesOrNo.NO);
+            params.put("numFTWithCustomFeeEntries",1);
+            if(op.hasFeeScheduleKey()) {
+                params.put("hasCustomFee", YesOrNo.YES);
+                for(final var fee : op.customFees() ) {
+                    System.out.println("fee is " + fee.fixedFee());
+                }
+            }
+            return entity.computeFee(params, feeContext.activeRate());
+        }
 
         final long tokenSizes = TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
                         meta.getNumTokens(), meta.getFungibleNumTransfers(), meta.getNftsTransfers())

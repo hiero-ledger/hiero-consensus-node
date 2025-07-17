@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
@@ -73,4 +74,7 @@ public interface QueryContext {
      */
     @NonNull
     FeeCalculator feeCalculator();
+
+    ExchangeRate activeRate();
+
 }

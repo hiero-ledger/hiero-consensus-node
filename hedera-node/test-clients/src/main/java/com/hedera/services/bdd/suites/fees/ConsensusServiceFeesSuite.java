@@ -61,9 +61,10 @@ public class ConsensusServiceFeesSuite {
                         .withConsensusCustomFee(fixedConsensusHbarFee(4, "collector"))
                         .withConsensusCustomFee(fixedConsensusHbarFee(5, "collector"))
                         .via("topicCreateWithMultipleCustomFees"),
-                validateChargedUsd("topicCreate", BASE_FEE_TOPIC_CREATE),
-                validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5),
-                validateChargedUsd("topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5));
+                validateChargedUsd("topicCreate", BASE_FEE_TOPIC_CREATE)
+                ,validateChargedUsd("topicCreateWithCustomFee", BASE_FEE_TOPIC_CREATE_WITH_CUSTOM_FEE, 1.5)
+                ,validateChargedUsd("topicCreateWithMultipleCustomFees", TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES, 1.5)
+        );
     }
 
     @HapiTest

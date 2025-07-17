@@ -13,6 +13,8 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.file.FileOperations;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
@@ -25,11 +27,14 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#FILE_DELETE}.
@@ -122,6 +127,14 @@ public class FileDeleteHandler implements TransactionHandler {
     @Override
     public Fees calculateFees(@NonNull FeeContext feeContext) {
         final var txnBody = feeContext.body();
+        if(feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            FileOperations transfer = new FileOperations("FileDelete", "dummy description");
+            Map<String, Object> params = new HashMap<>();
+            params.put("numSignatures", 0);//feeContext.numTxnSignatures());
+            params.put("numKeys", 0);
+            params.put("numBytes", 0);//(int)txnBody.fileDeleteOrThrow().contents().length());
+            return transfer.computeFee(params, feeContext.activeRate());
+        }
         return feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)

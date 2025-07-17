@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.swirlds.config.api.Configuration;
@@ -75,4 +76,6 @@ public interface FeeContext {
      * @return the computed fees
      */
     Fees dispatchComputeFees(@NonNull TransactionBody txBody, @NonNull AccountID syntheticPayerId);
+
+    ExchangeRate activeRate();
 }

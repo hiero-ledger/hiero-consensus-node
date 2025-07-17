@@ -32,6 +32,9 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
+import com.hedera.node.app.hapi.fees.FeeResult;
+import com.hedera.node.app.hapi.fees.apis.common.EntityCreate;
+import com.hedera.node.app.hapi.fees.apis.common.YesOrNo;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -52,10 +55,13 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FeesConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -592,6 +598,14 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
     @Override
     public Fees calculateFees(@NonNull final FeeContext feeContext) {
         requireNonNull(feeContext);
+        if(feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            EntityCreate entity = new EntityCreate("Token", "TokenUpdate", "Update a token type", 0, false);
+            Map<String, Object> params = new HashMap<>();
+            params.put("numSignatures", 0);
+            params.put("numKeys", 0);
+            params.put("hasCustomFee", YesOrNo.NO);
+            return entity.computeFee(params, feeContext.activeRate());
+        }
         final var body = feeContext.body();
         final var op = body.tokenUpdateOrThrow();
         final var readableStore = feeContext.readableStore(ReadableTokenStore.class);
@@ -601,6 +615,7 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(body), sigValueObj, token));
+
     }
 
     private boolean isHapiCallOrNonZeroTreasuryAccount(final boolean isHapiCall, final TokenUpdateTransactionBody op) {

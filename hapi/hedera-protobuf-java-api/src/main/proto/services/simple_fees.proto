@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package proto;
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.consensus">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/custom_fees.proto";
+import "services/duration.proto";
+import "services/timestamp.proto";
+
+message SimpleFeesSchedule {
+  repeated Extra extras = 1;
+  repeated ServiceFee services = 2;
+}
+message Extra {
+  string name = 1;
+  double fee = 2;
+}
+message ServiceFee {
+  string name = 1;
+  repeated TransactionFee transactions = 2;
+}
+message TransactionFee {
+  string name = 1;
+  double baseFee = 2;
+  repeated TransactionExtra extras = 3;
+}
+message TransactionExtra {
+  string name = 1;
+  int32 includedCount = 2;
+}
