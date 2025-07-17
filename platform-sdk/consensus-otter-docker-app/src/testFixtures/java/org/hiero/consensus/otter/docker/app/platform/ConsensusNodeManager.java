@@ -6,7 +6,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -80,7 +79,6 @@ public class ConsensusNodeManager {
             @NonNull final Roster genesisRoster,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Map<String, String> overriddenProperties) {
-        requireNonNull(selfId);
         initLogging();
         BootstrapUtils.setupConstructableRegistry();
         TestingAppStateInitializer.registerMerkleStateRootClassIds();
