@@ -90,7 +90,7 @@ message SystemDeleteContractOutput {}
  * the original transaction.
  */
 message EthereumOutput {
-    oneof txn_result {
+    oneof transaction_result {
         /**
          * An EVM transaction result for an Ethereum transaction executed as a
          * call. Contains just the information not already externalized in the

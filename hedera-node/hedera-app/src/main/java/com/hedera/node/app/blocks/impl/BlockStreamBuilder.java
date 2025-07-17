@@ -658,7 +658,8 @@ public class BlockStreamBuilder
             if (contractActions != null) {
                 builder.contractActions(contractActions);
             }
-            if (initcode != null) {
+            // No reason to externalize top-level initcode because a stream consumer must be able to compute it
+            if (initcode != null && !topLevel) {
                 builder.initcode(initcode);
             }
             if (logs != null) {

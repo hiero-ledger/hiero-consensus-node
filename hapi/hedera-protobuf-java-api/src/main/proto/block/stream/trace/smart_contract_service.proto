@@ -106,21 +106,13 @@ message SlotRead {
 }
 
 /**
- * Information about the initcode of a contract whose creation was attempted
- * during the EVM transaction.
+ * Information about the initcode of an internal contract creation.
  */
 message ContractInitcode {
-    oneof code {
-        /**
-         * The initcode used for a failed top-level creation.
-         */
-        bytes failed_initcode = 2;
-
-        /**
-         * The initcode "bookends" around a newly created contract's runtime bytecode.
-         */
-        ExecutedInitcode executed_initcode = 3;
-    }
+    /**
+     * The initcode executed for an internal contract creation.
+     */
+    ExecutedInitcode executed_initcode = 3;
 }
 
 /**

@@ -1191,7 +1191,10 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractBytecode(
             @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
         requireNonNull(contractBytecode, "contractBytecode must not be null");
-        contractBytecodes.add(new AbstractMap.SimpleEntry<>(contractBytecode, isMigration));
+        final var entry = new AbstractMap.SimpleEntry<>(contractBytecode, isMigration);
+        if (!contractBytecodes.contains(entry)) {
+            contractBytecodes.add(entry);
+        }
         return this;
     }
 

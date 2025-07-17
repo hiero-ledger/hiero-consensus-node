@@ -141,16 +141,8 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor {
                         .build();
                 pendingCreationMetadata.streamBuilder().addContractBytecode(sidecar, false);
             }
-            // No-op for the RecordStreamBuilder
-            if (validationRuleFailed) {
-                if (initcode != null) {
-                    pendingCreationMetadata
-                            .streamBuilder()
-                            .addInitcode(ContractInitcode.newBuilder()
-                                    .failedInitcode(initcode)
-                                    .build());
-                }
-            } else if (initcode != null) {
+            // Below is a no-op for the RecordStreamBuilder
+            if (!validationRuleFailed && initcode != null) {
                 final var initcodeBuilder = ExecutedInitcode.newBuilder().contractId(recipientId);
                 final int i = indexOf(initcode, bytecode);
                 if (i != -1) {

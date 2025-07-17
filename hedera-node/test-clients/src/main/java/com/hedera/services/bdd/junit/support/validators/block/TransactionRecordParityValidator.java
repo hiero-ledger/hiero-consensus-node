@@ -27,11 +27,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -157,11 +160,34 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                     .filter(s -> s.getSidecarRecordsCase() == TransactionSidecarRecord.SidecarRecordsCase.STATE_CHANGES)
                     .filter(s -> s.getStateChanges().getContractStateChangesCount() == 0)
                     .count();
+            final var expectedBytecodes = expectedSidecars.stream()
+                    .filter(s -> s.getSidecarRecordsCase() == TransactionSidecarRecord.SidecarRecordsCase.BYTECODE)
+                    .collect(Collectors.toSet());
+            final var actualBytecodes = actualSidecars.stream()
+                    .filter(s -> s.getSidecarRecordsCase() == TransactionSidecarRecord.SidecarRecordsCase.BYTECODE)
+                    .collect(Collectors.toSet());
+            System.out.println("=== Expected, not actual ===");
+            expectedBytecodes.stream().filter(b -> !actualBytecodes.contains(b))
+                    .forEach(r -> {
+                            System.out.println(r.getConsensusTimestamp() + " hasInitcode? " + !r.getBytecode().getInitcode().isEmpty() + " hasBytecode? " + !r.getBytecode().getRuntimeBytecode().isEmpty());
+//                            if (r.getConsensusTimestamp().getSeconds() == 1752767279L && r.getConsensusTimestamp().getNanos() == 959102000) {
+//                                System.out.println(r);
+//                            }
+                    });
+            System.out.println("=== Actual, not expected ===");
+            actualBytecodes.stream().filter(b -> !expectedBytecodes.contains(b))
+                    .forEach(r -> {
+                        System.out.println(r.getConsensusTimestamp() + " hasInitcode? " + !r.getBytecode().getInitcode().isEmpty() + " hasBytecode? " + !r.getBytecode().getRuntimeBytecode().isEmpty());
+//                        if (r.getConsensusTimestamp().getSeconds() == 1752767279L && r.getConsensusTimestamp().getNanos() == 959102000) {
+//                            System.out.println(r);
+//                        }
+                    });
+            System.out.println("Equals? " + expectedBytecodes.equals(actualBytecodes));
             final var actualTypes = actualSidecars.stream()
                     .collect(Collectors.groupingBy(TransactionSidecarRecord::getSidecarRecordsCase, counting()));
-            for (int i = 0, n = expectedSidecars.size(); i < n; i++) {
-                System.out.println(i + " -> " + expectedSidecars.get(i).getSidecarRecordsCase());
-            }
+//            for (int i = 0, n = expectedSidecars.size(); i < n; i++) {
+//                System.out.println(i + " -> " + expectedSidecars.get(i).getSidecarRecordsCase());
+//            }
             System.out.println("EXPECTED: " + expectedTypes + " (" + numEmptyStateChanges + " empty state changes)");
             System.out.println("ACTUAL: " + actualTypes);
             Assertions.fail("Mismatch in number of sidecars - expected " + expectedSidecars.size() + ", found "

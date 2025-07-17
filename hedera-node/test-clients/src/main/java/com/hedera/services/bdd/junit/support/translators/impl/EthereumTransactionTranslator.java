@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
 import static com.hedera.services.bdd.junit.support.translators.BaseTranslator.mapTracesToVerboseLogs;
@@ -73,7 +74,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                             requireNonNull(finalEthTxData).getEthereumHash()));
                                 }
                                 final var result =
-                                        switch (ethTxOutput.txnResult().kind()) {
+                                        switch (ethTxOutput.transactionResult().kind()) {
                                             // CONSENSUS_GAS_EXHAUSTED
                                             case UNSET -> ContractFunctionResult.DEFAULT;
                                             case EVM_CALL_TRANSACTION_RESULT -> {
@@ -114,6 +115,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                             Bytes.wrap(finalEthTxData.callData()));
                                                 }
                                                 if (parts.status() == SUCCESS) {
+                                                    System.out.println("BOOP BOOP - " + asInstant(parts.consensusTimestamp()));
                                                     if (parts.isTopLevel() || parts.inBatch()) {
                                                         // If all sidecars are disabled and there were no logs for a
                                                         // top-level creation,

@@ -31,8 +31,10 @@ import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.block.stream.trace.ContractInitcode;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -83,7 +85,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
@@ -118,6 +119,7 @@ public class BaseTranslator {
     private final Set<TokenAssociation> knownAssociations = new HashSet<>();
     private final Map<PendingAirdropId, PendingAirdropValue> pendingAirdrops = new HashMap<>();
     private final Map<Long, Bytes> userFileContents = new HashMap<>();
+    private final Map<Timestamp, ExecutedInitcode> initcodes = new HashMap<>();
 
     /**
      * These fields are used to translate a single "unit" of block items connected to a {@link TransactionID}.
@@ -173,6 +175,26 @@ public class BaseTranslator {
      */
     public Bytes getFileContents(final long num) {
         return userFileContents.getOrDefault(num, Bytes.EMPTY);
+    }
+
+    /**
+     * Checks if the contents of a file identified by the given number are known.
+     * @param num the file number
+     * @return true if the contents are known, false otherwise
+     */
+    public boolean knowsFileContents(final long num) {
+        return userFileContents.containsKey(num);
+    }
+
+    /**
+     * Tracks the initcode for a contract creation at the given time.
+     * @param now the consensus timestamp of the transaction
+     * @param initcode the initcode
+     */
+    public void trackInitcode(@NonNull final Timestamp now, @NonNull final ExecutedInitcode initcode) {
+        requireNonNull(now);
+        requireNonNull(initcode);
+        initcodes.put(now, initcode);
     }
 
     /**
@@ -532,8 +554,6 @@ public class BaseTranslator {
                 new SingleTransactionRecord.TransactionOutputs(null));
     }
 
-    private static final AtomicInteger numInitcodes = new AtomicInteger();
-
     private List<TransactionSidecarRecord> recoveredSidecars(
             @NonNull final Timestamp now,
             @NonNull final List<TraceData> tracesHere,
@@ -624,19 +644,18 @@ public class BaseTranslator {
                         .actions(new ContractActions(actions))
                         .build());
             }
-            if (evmTraceData.hasInitcode()) {
-                numInitcodes.incrementAndGet();
-                System.out.println("Saw initcode #" + numInitcodes.get() + " in " + parts.consensusTimestamp());
-                final var initcode = evmTraceData.initcodeOrThrow();
-                if (initcode.hasFailedInitcode()) {
+            if (evmTraceData.hasInitcode() || initcodes.containsKey(now)) {
+                final var initcode = evmTraceData.hasInitcode() ? evmTraceData.initcodeOrThrow() : ContractInitcode.newBuilder().executedInitcode(initcodes.get(now))
+                        .build();
+                final var executedInitcode = initcode.executedInitcodeOrThrow();
+                if (!executedInitcode.hasContractId()) {
                     sidecars.add(TransactionSidecarRecord.newBuilder()
                             .consensusTimestamp(now)
                             .bytecode(ContractBytecode.newBuilder()
-                                    .initcode(initcode.failedInitcodeOrThrow())
+                                    .initcode(executedInitcode.explicitInitcodeOrThrow())
                                     .build())
                             .build());
                 } else {
-                    final var executedInitcode = initcode.executedInitcodeOrThrow();
                     final var contractId = executedInitcode.contractIdOrThrow();
                     final var bytecodeBuilder = ContractBytecode.newBuilder().contractId(contractId);
                     final var bytecode = remainingStateChanges.stream()
@@ -646,13 +665,12 @@ public class BaseTranslator {
                                     .keyOrThrow()
                                     .contractIdKeyOrThrow()
                                     .equals(contractId))
-                            .map(update ->
-                                    update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
+                            .map(update -> update.mapUpdateOrThrow().valueOrThrow().bytecodeValueOrThrow())
                             .findAny();
                     // Runtime bytecode should always be recoverable from the state changes
                     if (bytecode.isEmpty()) {
-                        throw new IllegalStateException("No bytecode state change found for contract " + contractId
-                                + " in " + remainingStateChanges + " (parts were " + parts + ")");
+                        throw new IllegalStateException("No bytecode state change found for contract " + contractId + " in "
+                                + remainingStateChanges + " (parts were " + parts + ")");
                     }
                     final var runtimeBytecode = bytecode.get().code();
                     bytecodeBuilder.runtimeBytecode(runtimeBytecode);
