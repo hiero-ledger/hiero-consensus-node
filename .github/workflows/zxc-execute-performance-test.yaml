@@ -288,7 +288,8 @@ jobs:
 
           counter=0
           start_time=`date +%s`
-          max_counter=330 #max_counter=330 mins
+
+          max_counter=340 #max_counter=330 mins of max test time + 10 min waiting time
 
           ec=2
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ env.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
@@ -355,6 +356,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
 
       - name: Publish logs
+        if: ${{ !cancelled() }}
         run: |
           cd "${{ github.workspace }}"/
 
