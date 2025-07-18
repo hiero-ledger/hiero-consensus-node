@@ -44,11 +44,14 @@ import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
+import org.jetbrains.annotations.NotNull;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -213,6 +216,15 @@ public class ContainerNode extends AbstractNode implements Node {
     @NonNull
     public SingleNodePcesResult getPcesResult() {
         throw new UnsupportedOperationException("Not implemented yet!");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public @NotNull SingleNodeReconnectResult getReconnectResults() {
+        return new SingleNodeReconnectResultImpl(getPlatformStatusResults(), getLogResult());
     }
 
     /**

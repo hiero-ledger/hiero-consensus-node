@@ -18,6 +18,7 @@ import org.hiero.otter.fixtures.assertions.SingleNodeLogResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
@@ -26,6 +27,7 @@ import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * This class contains all {@code assertThat()} methods for test results of the Otter framework.
@@ -194,5 +196,10 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodePcesResultsAssert assertThat(@Nullable final MultipleNodePcesResults actual) {
         return MultipleNodePcesResultsAssert.assertThat(actual);
+    }
+
+    @NonNull
+    public static SingleNodeReconnectResultsAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
+        return SingleNodeReconnectResultsAssert.assertThat(actual);
     }
 }

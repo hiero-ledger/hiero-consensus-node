@@ -59,10 +59,12 @@ import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeLogResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
+import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.jetbrains.annotations.NotNull;
@@ -262,6 +264,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
     @NonNull
     public SingleNodePcesResult getPcesResult() {
         return new SingleNodePcesResultImpl(selfId(), platformContext);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>This method is not supported in TurtleNode and will throw an {@link UnsupportedOperationException}.
+     */
+    @Override
+    public @NotNull SingleNodeReconnectResult getReconnectResults() {
+        throw new UnsupportedOperationException("Reconnect is not supported in TurtleNode.");
     }
 
     /**
