@@ -85,28 +85,6 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
-    - name: node8
-      nodeId: 7
-      accountId: 0.0.10
-      root:
-        resources:
-          requests:
-            cpu: 18
-            memory: 256Gi
-          limits:
-            cpu: 22
-            memory: 256Gi
-    - name: node9
-      nodeId: 8
-      accountId: 0.0.11
-      root:
-        resources:
-          requests:
-            cpu: 18
-            memory: 256Gi
-          limits:
-            cpu: 22
-            memory: 256Gi
 defaults:
   sidecars:
     recordStreamUploader:
