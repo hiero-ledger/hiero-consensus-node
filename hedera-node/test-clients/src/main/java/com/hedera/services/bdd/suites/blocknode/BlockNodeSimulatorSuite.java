@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.restartAtNextConfigVersion;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static java.time.temporal.ChronoUnit.SECONDS;
 
@@ -352,5 +353,30 @@ public class BlockNodeSimulatorSuite {
                                 "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled")),
                 waitForActive(byNodeId(0), Duration.ofSeconds(30)),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true));
+    }
+
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {@BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR)},
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0})
+            })
+    @Order(7)
+    final Stream<DynamicTest> testBlockBufferDurability() {
+        final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        return hapiTest(
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
+                doingContextual(spec -> timeRef.set(Instant.now())),
+                restartAtNextConfigVersion(),
+                sourcingContextual(spec -> assertHgcaaLogContainsTimeframe(
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
+                        "Block buffer is being restored from disk")));
     }
 }
