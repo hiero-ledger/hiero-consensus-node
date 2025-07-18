@@ -21,7 +21,21 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 
+/**
+ * Trace data for TokenUpdate transactions that automatically associate tokens.
+ * <p>
+ * This data SHALL capture intermediate state changes that would otherwise be lost
+ * when multiple token update transactions are executed inside of a batch transaction.
+ * These details MUST be recorded to correctly recreate legacy records for inner
+ * transactions, as only the final state would otherwise be visible after batch execution.
+ */
 message AutoAssociateTraceData {
 
+  /**
+   * The account that was automatically associated with tokens.
+   * <p>
+   * This field SHALL contain the ID of the account that received automatic token
+   * associations as part of the token update operation in the batch transaction.
+   */
   proto.AccountID automatic_token_associations = 1;
 }

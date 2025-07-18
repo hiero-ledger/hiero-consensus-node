@@ -21,9 +21,23 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 
+/**
+ * Trace data for ConsensusSubmitMessage transactions executed within an atomic batch.
+ * <p>
+ * This data SHALL capture intermediate state changes that would otherwise be lost
+ * when multiple messages are submitted to the same topic inside an atomic batch.
+ * These details MUST be recorded to correctly recreate legacy records for inner
+ * transactions, as only the final state would otherwise be visible after batch execution.
+ */
 message SubmitMessageTraceData {
 
+  /**
+   * The sequence number assigned to this message within the topic.
+   */
   int64 sequence_number = 1;
 
+  /**
+   * The running hash of the topic after incorporating this message.
+   */
   bytes running_hash = 2;
 }
