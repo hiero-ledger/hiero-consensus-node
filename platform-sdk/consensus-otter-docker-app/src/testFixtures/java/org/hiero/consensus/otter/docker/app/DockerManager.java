@@ -44,7 +44,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     private final ExecutorService executor;
 
     /** The ID of the node that this instance represents */
-    private volatile NodeId selfId;
+    private NodeId selfId;
 
     /** Manages the consensus nodes and platform lifecycle */
     @Nullable
@@ -64,7 +64,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     }
 
     @Override
-    public void init(final InitRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void init(final InitRequest request, final StreamObserver<Empty> responseObserver) {
         this.selfId = ProtobufConverter.toPbj(request.getSelfId());
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
