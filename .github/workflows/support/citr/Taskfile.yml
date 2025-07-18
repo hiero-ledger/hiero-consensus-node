@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: Apache-2.0
+version: 3
+includes:
+  main:
+    taskfile: ../../Taskfile.examples.yml
+    flatten: true
+vars:
+  solo_home_override_dir: "%HOME%/.solo"
+env:
+  SOLO_NETWORK_SIZE: 7
+  SOLO_NAMESPACE: %SOLO_NAMESPACE%
+  SOLO_CHART_VERSION: 0.49.1
+  CONSENSUS_NODE_VERSION: v0.59.0
+  VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values7.yaml"
+  SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
+  SOLO_HOME: "{{.solo_home_override_dir}}"
+  LOG4J2_FLAG: "--log4j2-xml {{.USER_WORKING_DIR}}/log4j2.xml"
+  APPLICATION_PROPERTIES_FLAG: "--application-properties {{.USER_WORKING_DIR}}/application.properties"
+  HEDERA_SERVICES_ROOT: "%HEDERA_SERVICES_ROOT%"
+  LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
+
+  #ENABLE_EXPLORER_TLS_FLAG: "--enable-hedera-explorer-tls"
+  ENABLE_EXPLORER_INGRESS: "--enable-ingress"
+  ENABLE_MIRROR_INGRESS: "--enable-ingress"
+  #EXPLORER_NAME_SPACE: "explorer-name-space"
+  #EXPLORER_DEPLOYMENT: "explorer-deployment"
+  #EXPLORER_CLUSTER_CONTEXT: "kind-solo-cluster"
+  SOLO_DEPLOYMENT: %SOLO_NAMESPACE%-test
+  CLUSTER_REF: %SOLO_NAMESPACE%-ref
+  SOLO_CLUSTER_RELEASE_NAME: cluster_name
+  CONTEXT: hashgraph.teleport.sh-k8s.pft.dal.lat.ope.eng.hashgraph.io
+  SOLO_CLUSTER_SETUP_NAMESPACE: solo-setup
+  SOLO_CLUSTER_NAME: solo-cluster-name
+  MIRROR_RELEASE_NAME: release_name

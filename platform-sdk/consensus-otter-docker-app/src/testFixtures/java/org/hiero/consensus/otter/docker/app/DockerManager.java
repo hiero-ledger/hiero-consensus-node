@@ -18,6 +18,7 @@ import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.KillImmediatelyRequest;
 import org.hiero.otter.fixtures.container.proto.LogEntry;
 import org.hiero.otter.fixtures.container.proto.StartRequest;
+import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
@@ -158,9 +159,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
         if (nodeManager == null) {
-            responseObserver.onError(Status.FAILED_PRECONDITION
-                    .withDescription("Application not started yet")
-                    .asRuntimeException());
+            sendNodeNotInitializeError(responseObserver);
             return;
         }
 
@@ -176,6 +175,32 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     }
 
     /**
+     * Updates the synthetic bottleneck settings for the platform.
+     * <p>
+     * This method allows the test framework to control the synthetic bottleneck behavior of the platform.
+     *
+     * @param request The request containing the sleep duration per round.
+     * @param responseObserver The observer used to confirm the update.
+     */
+    @Override
+    public synchronized void syntheticBottleneckUpdate(
+            @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        if (nodeManager == null) {
+            sendNodeNotInitializeError(responseObserver);
+            return;
+        }
+        nodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
+        responseObserver.onNext(Empty.getDefaultInstance());
+        responseObserver.onCompleted();
+    }
+
+    private void sendNodeNotInitializeError(@NonNull final StreamObserver<?> responseObserver) {
+        responseObserver.onError(Status.FAILED_PRECONDITION
+                .withDescription("Application not started yet")
+                .asRuntimeException());
+    }
+
+    /**
      * Immediately terminates the platform. The container and dispatcher are left intact to allow data to be gathered
      * for verification.
      *
@@ -185,7 +210,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
      */
     @Override
     public synchronized void killImmediately(
-            final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
+            @NonNull final KillImmediatelyRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();

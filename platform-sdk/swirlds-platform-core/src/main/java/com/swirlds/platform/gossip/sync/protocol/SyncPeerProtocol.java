@@ -32,6 +32,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * This object will be instantiated once per peer, and is bidirectional
  */
 public class SyncPeerProtocol implements PeerProtocol {
+
     /**
      * The id of the peer being synced with in this protocol
      */

@@ -89,6 +89,7 @@ public final class ScheduleUtils {
         Builder scheduleBuilder = SchedulableTransactionBody.newBuilder();
         scheduleBuilder.setTransactionFee(txn.getTransactionFee());
         scheduleBuilder.setMemo(txn.getMemo());
+        scheduleBuilder.addAllMaxCustomFees(txn.getMaxCustomFeesList());
 
         if (txn.hasContractCall()) {
             scheduleBuilder.setContractCall(txn.getContractCall());

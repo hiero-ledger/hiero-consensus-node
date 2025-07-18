@@ -47,7 +47,6 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
     private final RateLimitedLogger missingParentLogger;
-    private final RateLimitedLogger generationMismatchLogger;
     private final RateLimitedLogger birthRoundMismatchLogger;
     private final RateLimitedLogger timeCreatedMismatchLogger;
 
@@ -85,7 +84,6 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
         final Logger logger = LogManager.getLogger(this.getClass());
 
         this.missingParentLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.generationMismatchLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.birthRoundMismatchLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
         this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
 
@@ -161,27 +159,6 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
                 "Child has a missing parent. This should not be possible. Child: {}, Parent EventDescriptor: {}",
                 child,
                 parentDescriptor);
-    }
-
-    /**
-     * This method is called when a child event has a parent with a different generation than claimed.
-     *
-     * @param child            the child event
-     * @param parentDescriptor the claimed descriptor of the parent
-     * @param candidateParent  the parent event that we found in the parentHashMap
-     */
-    protected void parentHasIncorrectGeneration(
-            @NonNull final PlatformEvent child,
-            @NonNull final EventDescriptorWrapper parentDescriptor,
-            @NonNull final EventImpl candidateParent) {
-        generationMismatchLogger.warn(
-                EXCEPTION.getMarker(),
-                "Event has a parent with a different generation than claimed. Child: {}, parent: {}, "
-                        + "claimed generation: {}, actual generation: {}",
-                child,
-                candidateParent,
-                parentDescriptor.eventDescriptor().generation(),
-                candidateParent.getGeneration());
     }
 
     /**
@@ -279,12 +256,6 @@ abstract class AbstractInOrderLinker implements InOrderLinker {
         final EventImpl candidateParent = parentHashMap.get(parentDescriptor.hash());
         if (candidateParent == null) {
             childHasMissingParent(child, parentDescriptor);
-            return null;
-        }
-
-        if (candidateParent.getGeneration()
-                != parentDescriptor.eventDescriptor().generation()) {
-            parentHasIncorrectGeneration(child, parentDescriptor, candidateParent);
             return null;
         }
 
