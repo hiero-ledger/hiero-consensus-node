@@ -10,8 +10,8 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.TransactionCustomizer.NOOP_TRANSACTION_CUSTOMIZER;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -160,13 +160,14 @@ public class BlockStreamBuilderTest {
         final var blockItems = itemsBuilder.build(false, true).blockItems();
 
         final var traceItem = blockItems.get(2);
-        assertTrue(traceItem.hasTraceData());
+        assertThat(traceItem.hasTraceData()).isTrue();
         final var trace = traceItem.traceDataOrThrow();
 
-        assertTrue(trace.hasAutoAssociateTraceData());
+        assertThat(trace.hasAutoAssociateTraceData()).isTrue();
         final var autoAssociateTraceData = trace.autoAssociateTraceData();
-        assertNotNull(autoAssociateTraceData, "Auto associate trace data should be not null!");
-        assertEquals(2, autoAssociateTraceData.automaticTokenAssociations().accountNum(), "Wrong account num!");
+        assertThat(autoAssociateTraceData).isNotNull();
+        assertThat(autoAssociateTraceData.automaticTokenAssociations().accountNum())
+                .isEqualTo(2);
     }
 
     @Test
@@ -177,13 +178,13 @@ public class BlockStreamBuilderTest {
         final var blockItems = itemsBuilder.build(false, true).blockItems();
 
         final var traceItem = blockItems.get(2);
-        assertTrue(traceItem.hasTraceData());
+        assertThat(traceItem.hasTraceData()).isTrue();
         final var trace = traceItem.traceDataOrThrow();
 
-        assertTrue(trace.hasSubmitMessageTraceData());
+        assertThat(trace.hasSubmitMessageTraceData()).isTrue();
         final var submitMessageTraceData = trace.submitMessageTraceData();
-        assertNotNull(submitMessageTraceData, "Submit message trace data should be not null!");
-        assertEquals(66, submitMessageTraceData.sequenceNumber(), "Wrong sequence number!");
+        assertThat(submitMessageTraceData).isNotNull();
+        assertThat(submitMessageTraceData.sequenceNumber()).isEqualTo(66);
     }
 
     @Test
