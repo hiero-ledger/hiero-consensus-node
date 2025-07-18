@@ -417,6 +417,13 @@ public class DataFileCompactor {
     }
 
     /**
+     * @return true if compaction is currently running, false otherwise.
+     */
+    public boolean isCompactionRunning() {
+        return currentCompactionStartTime.get() != null;
+    }
+
+    /**
      * Compact data files in the collection according to the compaction algorithm.
      *
      * @throws IOException          if there was a problem merging

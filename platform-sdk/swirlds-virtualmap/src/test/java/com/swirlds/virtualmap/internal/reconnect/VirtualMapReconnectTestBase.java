@@ -18,20 +18,13 @@ import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
 import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
-import com.swirlds.virtualmap.internal.pipeline.VirtualRoot;
-import com.swirlds.virtualmap.serialize.KeySerializer;
-import com.swirlds.virtualmap.serialize.ValueSerializer;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
-import com.swirlds.virtualmap.test.fixtures.TestKeySerializer;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
-import com.swirlds.virtualmap.test.fixtures.TestValueSerializer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -53,13 +46,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
 public abstract class VirtualMapReconnectTestBase {
-    protected static final TestKey A_KEY = new TestKey('a');
-    protected static final TestKey B_KEY = new TestKey('b');
-    protected static final TestKey C_KEY = new TestKey('c');
-    protected static final TestKey D_KEY = new TestKey('d');
-    protected static final TestKey E_KEY = new TestKey('e');
-    protected static final TestKey F_KEY = new TestKey('f');
-    protected static final TestKey G_KEY = new TestKey('g');
+
+    protected static final Bytes A_KEY = TestKey.charToKey('a');
+    protected static final Bytes B_KEY = TestKey.charToKey('b');
+    protected static final Bytes C_KEY = TestKey.charToKey('c');
+    protected static final Bytes D_KEY = TestKey.charToKey('d');
+    protected static final Bytes E_KEY = TestKey.charToKey('e');
+    protected static final Bytes F_KEY = TestKey.charToKey('f');
+    protected static final Bytes G_KEY = TestKey.charToKey('g');
 
     protected static final TestValue APPLE = new TestValue("APPLE");
     protected static final TestValue BANANA = new TestValue("BANANA");
@@ -77,8 +71,8 @@ public abstract class VirtualMapReconnectTestBase {
     protected static final TestValue FOX = new TestValue("FOX");
     protected static final TestValue GOOSE = new TestValue("GOOSE");
 
-    protected VirtualMap<TestKey, TestValue> teacherMap;
-    protected VirtualMap<TestKey, TestValue> learnerMap;
+    protected VirtualMap teacherMap;
+    protected VirtualMap learnerMap;
     protected BrokenBuilder teacherBuilder;
     protected BrokenBuilder learnerBuilder;
 
@@ -96,10 +90,8 @@ public abstract class VirtualMapReconnectTestBase {
         final VirtualDataSourceBuilder dataSourceBuilder = createBuilder();
         teacherBuilder = new BrokenBuilder(dataSourceBuilder);
         learnerBuilder = new BrokenBuilder(dataSourceBuilder);
-        teacherMap = new VirtualMap<>(
-                "Teacher", TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap<>(
-                "Learner", TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap("Teacher", teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap("Learner", learnerBuilder, CONFIGURATION);
     }
 
     @BeforeAll
@@ -111,16 +103,12 @@ public abstract class VirtualMapReconnectTestBase {
         registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
         registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(TestKey.class, TestKey::new));
-        registry.registerConstructable(new ClassConstructorPair(TestValue.class, TestValue::new));
         registry.registerConstructable(new ClassConstructorPair(BrokenBuilder.class, BrokenBuilder::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMapState.class, VirtualMapState::new));
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualRootNode.class, () -> new VirtualRootNode(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
+        registry.registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
     }
 
-    protected MerkleInternal createTreeForMap(VirtualMap<TestKey, TestValue> map) {
+    protected MerkleInternal createTreeForMap(VirtualMap map) {
         final var tree = MerkleTestUtils.buildLessSimpleTree();
         tree.getChild(1).asInternal().setChild(3, map);
         tree.reserve();
@@ -133,7 +121,7 @@ public abstract class VirtualMapReconnectTestBase {
 
     protected void reconnectMultipleTimes(int attempts) {
         final MerkleInternal teacherTree = createTreeForMap(teacherMap);
-        final VirtualMap<TestKey, TestValue> copy = teacherMap.copy();
+        final VirtualMap copy = teacherMap.copy();
         final MerkleInternal learnerTree = createTreeForMap(learnerMap);
 
         withSuppressedErr(() -> {
@@ -144,8 +132,7 @@ public abstract class VirtualMapReconnectTestBase {
                                 MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
                         node.release();
                         assertEquals(attempts - 1, i, "We should only succeed on the last try");
-                        final VirtualRoot root = learnerMap.getRight();
-                        assertTrue(root.isHashed(), "Learner root node must be hashed");
+                        assertTrue(learnerMap.isHashed(), "Learner map must be hashed");
 
                     } catch (Exception e) {
                         if (i == attempts - 1) {
@@ -289,8 +276,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public VirtualLeafBytes loadLeafRecord(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.loadLeafRecord(key, keyHashCode);
+        public VirtualLeafBytes loadLeafRecord(final Bytes key) throws IOException {
+            return delegate.loadLeafRecord(key);
         }
 
         @Override
@@ -299,8 +286,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public long findKey(final Bytes key, final int keyHashCode) throws IOException {
-            return delegate.findKey(key, keyHashCode);
+        public long findKey(final Bytes key) throws IOException {
+            return delegate.findKey(key);
         }
 
         @Override
@@ -341,18 +328,6 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public void stopAndDisableBackgroundCompaction() {
             // no op
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public KeySerializer getKeySerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public ValueSerializer getValueSerializer() {
-            throw new UnsupportedOperationException("This method should never be called");
         }
     }
 
