@@ -29,6 +29,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "256") @Min(0) @NetworkProperty int blockItemBatchSize,
+        @ConfigProperty(defaultValue = "4194304") @Min(0) @NetworkProperty int publishStreamRequestMaxSizeBytes,
         @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty Duration workerLoopSleepDuration) {
 
     /**
