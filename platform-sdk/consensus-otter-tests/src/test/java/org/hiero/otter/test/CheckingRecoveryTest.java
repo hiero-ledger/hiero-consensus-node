@@ -12,12 +12,12 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import java.time.Duration;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.junit.jupiter.api.Disabled;
 
 /**
  * Tests to verify that a node can recover from {@link org.hiero.consensus.model.status.PlatformStatus#CHECKING} status
@@ -32,9 +32,7 @@ public class CheckingRecoveryTest {
      * @param env the test environment for this test
      * @throws InterruptedException if an operation times out
      */
-    @Disabled(
-            "This test works, but is disabled until we can indicate which environments support the required capabilities.")
-    @OtterTest
+    @OtterTest(requires = Capability.BACK_PRESSURE)
     void testCheckingRecovery(final TestEnvironment env) throws InterruptedException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();

@@ -600,13 +600,22 @@ jobs:
           path: "**/consensus-otter-tests/build/test-results/test/TEST-*.xml"
           retention-days: 7
 
-      - name: Upload Otter Tests Network Logs
+      - name: Upload Otter Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
-          name: Otter Tests Network Logs
+          name: Otter Tests Turtle Logs
           path: |
             platform-sdk/consensus-otter-tests/build/turtle/**
+          retention-days: 7
+
+      - name: Upload Otter Container Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-otter-tests && inputs.enable-network-log-capture && steps.gradle-otter-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Tests Container Logs
+          path: |
+            platform-sdk/consensus-otter-tests/build/container/**
           retention-days: 7
 
       - name: Publish To Codecov
