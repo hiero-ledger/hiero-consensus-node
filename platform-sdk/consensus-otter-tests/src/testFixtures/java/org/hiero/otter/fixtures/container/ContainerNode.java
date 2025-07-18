@@ -68,7 +68,7 @@ public class ContainerNode extends AbstractNode implements Node {
     private final ManagedChannel channel;
     private final TestControlGrpc.TestControlBlockingStub blockingStub;
     private final AsyncNodeActions defaultAsyncAction = withTimeout(DEFAULT_TIMEOUT);
-    private final ContainerNodeConfiguration nodeConfiguration = new ContainerNodeConfiguration();
+    private final ContainerNodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
 
@@ -92,6 +92,7 @@ public class ContainerNode extends AbstractNode implements Node {
         this.keysAndCerts = requireNonNull(keysAndCerts, "keysAndCerts must not be null");
 
         this.resultsCollector = new NodeResultsCollector(selfId);
+        this.nodeConfiguration = new ContainerNodeConfiguration(() -> lifeCycle);
 
         //noinspection resource
         container = new ContainerImage(dockerImage, network, selfId);
@@ -341,6 +342,7 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void startSyntheticBottleneck(@NonNull final Duration delayPerRound) {
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(delayPerRound.toMillis())
@@ -351,6 +353,7 @@ public class ContainerNode extends AbstractNode implements Node {
          * {@inheritDoc}
          */
         @Override
+        @SuppressWarnings("ResultOfMethodCallIgnored") // ignoring the Empty answer from killImmediately
         public void stopSyntheticBottleneck() {
             blockingStub.syntheticBottleneckUpdate(SyntheticBottleneckRequest.newBuilder()
                     .setSleepMillisPerRound(0)
