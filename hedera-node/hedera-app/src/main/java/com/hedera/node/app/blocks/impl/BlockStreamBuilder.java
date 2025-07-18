@@ -197,8 +197,6 @@ public class BlockStreamBuilder
      * The new total supply of a token affected by the transaction.
      */
     private long newTotalSupply = 0L;
-
-    private boolean newTotalSupplyChanged = false;
     /**
      * The id of a node created by the transaction.
      */
@@ -1093,7 +1091,6 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder newTotalSupply(final long newTotalSupply) {
         this.newTotalSupply = newTotalSupply;
-        this.newTotalSupplyChanged = true;
         return this;
     }
 

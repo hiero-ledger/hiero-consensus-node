@@ -37,7 +37,6 @@ import static java.lang.String.valueOf;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -49,7 +48,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -62,8 +60,6 @@ import org.junit.jupiter.api.Tag;
  * effects using trace data, allowing accurate record generation even when
  * state is overwritten within the same batch.
  */
-@SuppressWarnings("PMD.JUnitTestsShouldIncludeAssert") // Uses dynamic tests and codacy is failing
-@OrderedInIsolation
 @HapiTestLifecycle
 @Tag(TOKEN)
 public class AtomicBatchOverwriteSameStateKeyTest {
@@ -74,16 +70,12 @@ public class AtomicBatchOverwriteSameStateKeyTest {
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of("atomicBatch.isEnabled", "true", "atomicBatch.maxNumberOfTransactions", "50"));
-        //        lifecycle.doAdhoc(
-        //                overriding("atomicBatch.isEnabled", "true"), overriding("atomicBatch.maxNumberOfTransactions",
-        // "50"));
     }
 
     /**
      * Mint, Burn and Delete NFT token
      * @return HAPI test
      */
-    @Order(1)
     @HapiTest
     @DisplayName("Mint, Burn and Delete NFT token")
     public Stream<DynamicTest> mintBurnAndDeleteNftWithoutCustomFeesSuccessInBatch() {
@@ -134,7 +126,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      * Multiple crypto updates on same state key
      * @return HAPI test
      */
-    @Order(2)
     @HapiTest
     @DisplayName("Multiple crypto updates on same state key")
     public Stream<DynamicTest> multipleCryptoUpdatesOnSameStateInBatch() {
@@ -180,7 +171,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      * Multiple token updates on same state key in batch
      * @return HAPI test
      */
-    @Order(3)
     @HapiTest
     @DisplayName("Multiple token updates on same state key in batch")
     public Stream<DynamicTest> multipleTokenUpdatesOnSameStateInBatch() {
@@ -229,7 +219,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      * Submit to topic twice in batch
      * @return HAPI test
      */
-    @Order(4)
     @HapiTest
     @DisplayName("Submit to topic twice in batch")
     public Stream<DynamicTest> submitToTopicTwiceInBatch() {
@@ -260,7 +249,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      * Multiple mint precompile calls
      * @return HAPI test
      */
-    @Order(5)
     @HapiTest
     @DisplayName("Multiple mint precompile calls")
     public Stream<DynamicTest> multipleMintPrecompileCalls() {
@@ -315,7 +303,6 @@ public class AtomicBatchOverwriteSameStateKeyTest {
      * Multiple wipe token
      * @return HAPI test
      */
-    @Order(6)
     @HapiTest
     @DisplayName("Multiple wipe token")
     public Stream<DynamicTest> multipleWipeToken() {
@@ -363,10 +350,4 @@ public class AtomicBatchOverwriteSameStateKeyTest {
                                 burnToken(nft, List.of(4L)).batchKey(batchOperator))
                         .payingWith(batchOperator));
     }
-
-    //    @Order(7)
-    //    @LeakyHapiTest
-    //    final Stream<DynamicTest> streamsAreValid() {
-    //        return hapiTest(validateStreams());
-    //    }
 }

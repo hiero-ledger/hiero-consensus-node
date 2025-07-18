@@ -1,7 +1,7 @@
 /**
- * # Token Service
+ * # Consensus Service
  * Block stream messages that report the trace data of transactions handled
- * by the `token` service.
+ * by the `consensus` service.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",

@@ -786,7 +786,7 @@ public class BaseTranslator {
     }
 
     private void scanUnit(@NonNull final BlockTransactionalUnit unit) {
-        final Map<TokenID, List<Long>> possibleMintSerialNos = new HashMap<>();
+        final Map<TokenID, List<Long>> deletedSerialNos = new HashMap<>();
         unit.stateChanges().forEach(stateChange -> {
             if (stateChange.hasMapDelete()) {
                 final var mapDelete = stateChange.mapDeleteOrThrow();
@@ -794,11 +794,11 @@ public class BaseTranslator {
                 if (key.hasScheduleIdKey()) {
                     purgedScheduleIds.add(key.scheduleIdKeyOrThrow());
                 }
-                // burn or wipe in batch can hide mints
+                // burn and wipe in batch can hide mints
                 if (key.hasNftIdKey()) {
                     final var nftId = key.nftIdKeyOrThrow();
                     final var tokenId = nftId.tokenId();
-                    possibleMintSerialNos
+                    deletedSerialNos
                             .computeIfAbsent(tokenId, ignore -> new LinkedList<>())
                             .add(nftId.serialNumber());
                 }
@@ -887,9 +887,9 @@ public class BaseTranslator {
                 }
             }
         });
-        // in batch burned serials will overwrite minted state changes
+        // in batch deleted serials will overwrite minted state changes
         // and those serials will be missed in highestPutSerialNos
-        maybeBurnedSerialsInBatch(unit, possibleMintSerialNos);
+        maybeDeletedSerialsInBatch(unit, deletedSerialNos);
     }
 
     private static boolean isContractOp(@NonNull final BlockTransactionParts parts) {
@@ -930,13 +930,14 @@ public class BaseTranslator {
     }
 
     /**
-     * This method trys to identify missing mapUpdate state changes with NftID, in case of mixed mint, burn and wipe
+     * This method tries to identify missing mapUpdate state changes with NftID, in case of mixed mint, burn, and wipe
      * transactions in atomic batch. If such, it will use mapDelete changes to fill missing ones.
      *
      * @param unit The block transactional unit.
      * @param deletedMintSerialNos Map derived from all mapDelete state changes with NftID key in the given unit.
      */
-    private void maybeBurnedSerialsInBatch(BlockTransactionalUnit unit, Map<TokenID, List<Long>> deletedMintSerialNos) {
+    private void maybeDeletedSerialsInBatch(
+            BlockTransactionalUnit unit, Map<TokenID, List<Long>> deletedMintSerialNos) {
         // if this unit is an atomic batch and not all mints are found in mapUpdate state changes,
         // try to identify the missing ones in mapDelete state changes
         if (isBatch(unit) && !allMintsAreFound()) {
