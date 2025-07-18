@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x167;
 
-import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.ARRAY_BRACKETS;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.EXPIRY_V2;
 import static com.hedera.node.app.hapi.utils.contracts.ParsingConstants.TOKEN_KEY;
@@ -21,11 +20,11 @@ import javax.inject.Singleton;
 @Singleton
 public class UpdateTranslator extends UpdateTokenCommonTranslator {
     private static final String HEDERA_TOKEN_STRUCT =
-            "(string,string,address,string,bool,uint32,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY + ")";
+            "(string,string,address,string,bool,uint32,bool," + TOKEN_KEY + "[]," + EXPIRY + ")";
     private static final String HEDERA_TOKEN_STRUCT_V2 =
-            "(string,string,address,string,bool,int64,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY + ")";
+            "(string,string,address,string,bool,int64,bool," + TOKEN_KEY + "[]," + EXPIRY + ")";
     private static final String HEDERA_TOKEN_STRUCT_V3 =
-            "(string,string,address,string,bool,int64,bool," + TOKEN_KEY + ARRAY_BRACKETS + "," + EXPIRY_V2 + ")";
+            "(string,string,address,string,bool,int64,bool," + TOKEN_KEY + "[]," + EXPIRY_V2 + ")";
     /** Selector for updateTokenInfo(address, HEDERA_TOKEN_STRUCT) method. */
     public static final SystemContractMethod TOKEN_UPDATE_INFO_FUNCTION_V1 = SystemContractMethod.declare(
                     UPDATE_TOKEN_INFO_STRING + HEDERA_TOKEN_STRUCT + ")", ReturnTypes.INT)
