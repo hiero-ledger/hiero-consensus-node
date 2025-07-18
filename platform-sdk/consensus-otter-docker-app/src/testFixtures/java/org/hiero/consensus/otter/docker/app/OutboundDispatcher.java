@@ -12,7 +12,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
-import org.hiero.otter.fixtures.container.proto.EventMessage.EventCase;
 
 /**
  * Handles queuing {@link EventMessage}s and delivering them to a gRPC {@link StreamObserver} on a
@@ -20,7 +19,7 @@ import org.hiero.otter.fixtures.container.proto.EventMessage.EventCase;
  */
 public final class OutboundDispatcher {
 
-    private static final Logger LOGGER = LogManager.getLogger(OutboundDispatcher.class);
+    private static final Logger log = LogManager.getLogger(OutboundDispatcher.class);
 
     /** Queue used to hand over messages from the platform threads to the dispatcher thread. */
     private final BlockingQueue<EventMessage> outboundQueue = new LinkedBlockingQueue<>();
@@ -56,10 +55,6 @@ public final class OutboundDispatcher {
      * @param message the message to enqueue
      */
     public void enqueue(@NonNull final EventMessage message) {
-        if (message.getEventCase() == EventCase.PLATFORM_STATUS_CHANGE) {
-            LOGGER.info(
-                    "Enqueuing platform status change ({}, {}): {}", cancelled.get(), outboundQueue.size(), message);
-        }
         if (!cancelled.get()) {
             outboundQueue.offer(message);
         }
@@ -93,12 +88,9 @@ public final class OutboundDispatcher {
                 final EventMessage msg = outboundQueue.take();
                 try {
                     observer.onNext(msg);
-                    if (msg.getEventCase() == EventCase.PLATFORM_STATUS_CHANGE) {
-                        LOGGER.info("Dispatched platform status change: {}", msg);
-                    }
                 } catch (final RuntimeException e) {
                     // Any exception here implies that the stream is no longer writable.
-                    LOGGER.error("Unexpected error while sending event message", e);
+                    log.error("Unexpected error while sending event message", e);
                     cancelled.set(true);
                 }
             }

@@ -26,7 +26,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -75,8 +74,6 @@ public class ContainerNode extends AbstractNode implements Node {
     private final ContainerNodeConfiguration nodeConfiguration = new ContainerNodeConfiguration();
     private final NodeResultsCollector resultsCollector;
     private final List<StructuredLog> receivedLogs = new CopyOnWriteArrayList<>();
-
-    private final AtomicLong notificationCounter = new AtomicLong(0);
 
     /**
      * Constructor for the {@link ContainerNode} class.
@@ -228,6 +225,7 @@ public class ContainerNode extends AbstractNode implements Node {
     @SuppressWarnings("ResultOfMethodCallIgnored")
     // ignoring the Empty answer from destroyContainer
     void destroy() throws IOException {
+        // copy logs from container to the local filesystem
         final Path logPath = Path.of("build", "container", "node-" + selfId.id());
         Files.createDirectories(logPath);
         Files.deleteIfExists(logPath.resolve("swirlds.log"));
@@ -283,15 +281,6 @@ public class ContainerNode extends AbstractNode implements Node {
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
-                    notificationCounter.incrementAndGet();
-                    if (value.getEventCase() == EventMessage.EventCase.PLATFORM_STATUS_CHANGE) {
-                        log.info(
-                                "Received platform status change from {} ({} notifications): {}",
-                                selfId,
-                                notificationCounter.get(),
-                                value.getPlatformStatusChange().getNewStatus());
-                    }
-
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);
                         case LOG_ENTRY -> receivedLogs.add(ProtobufConverter.toPlatform(value.getLogEntry()));
