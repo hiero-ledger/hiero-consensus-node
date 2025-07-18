@@ -111,7 +111,7 @@ public class RoleFreeBlockUnitSplit {
         for (int i = 0; i < n; i++) {
             final var item = items.get(i);
             if (item.hasStateChanges()) {
-                if (hasKvOrEmptyChanges(item.stateChangesOrThrow())) {
+                if (hasKvOrQueueOrEmptyChanges(item.stateChangesOrThrow())) {
                     stateChangeIndexes.add(i);
                 }
             } else if (item.hasEventTransaction()) {
@@ -282,9 +282,14 @@ public class RoleFreeBlockUnitSplit {
         txIndexes.clear();
     }
 
-    private static boolean hasKvOrEmptyChanges(@NonNull final StateChanges stateChanges) {
+    private static boolean hasKvOrQueueOrEmptyChanges(@NonNull final StateChanges stateChanges) {
         final var changes = stateChanges.stateChanges();
-        return changes.isEmpty() || changes.stream().anyMatch(change -> change.hasMapUpdate() || change.hasMapDelete());
+        return changes.isEmpty()
+                || changes.stream()
+                        .anyMatch(change -> change.hasMapUpdate()
+                                || change.hasMapDelete()
+                                || change.hasQueuePush()
+                                || change.hasQueuePop());
     }
 
     /**
