@@ -47,6 +47,8 @@ import java.time.Duration;
  *                                           second, regardless of this setting)
  * @param rpcIdleDispatchPollTimeout         how long should gossip rpc mechanism wait between dispatch actions if no
  *                                           events are ready to be processed (for example synchronization start)
+ * @param fairMaxConcurrentSyncs             description
+ * @param fairMinimalRoundRobinSize          description
  */
 @ConfigData("sync")
 public record SyncConfig(
@@ -64,6 +66,8 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "5") double permitsRevokedPerSecond,
         @ConfigProperty(defaultValue = "0.1") double permitsReturnedPerSecond,
         @ConfigProperty(defaultValue = "1") int minimumHealthyUnrevokedPermitCount,
-        @ConfigProperty(defaultValue = "0ms") Duration rpcSleepAfterSync,
+        @ConfigProperty(defaultValue = "5ms") Duration rpcSleepAfterSync,
         @ConfigProperty(defaultValue = "5ms") Duration rpcIdleWritePollTimeout,
-        @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout) {}
+        @ConfigProperty(defaultValue = "5ms") Duration rpcIdleDispatchPollTimeout,
+        @ConfigProperty(defaultValue = "0.5") double fairMaxConcurrentSyncs,
+        @ConfigProperty(defaultValue = "0.5") double fairMinimalRoundRobinSize) {}
