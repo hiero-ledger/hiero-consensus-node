@@ -52,7 +52,7 @@ public abstract class AbstractNode implements Node {
      * @param weight the weight of this node
      */
     protected AbstractNode(@NonNull final NodeId selfId, final long weight) {
-        this.selfId = selfId;
+        this.selfId = requireNonNull(selfId, "selfId must not be null");
         this.weight = weight;
     }
 

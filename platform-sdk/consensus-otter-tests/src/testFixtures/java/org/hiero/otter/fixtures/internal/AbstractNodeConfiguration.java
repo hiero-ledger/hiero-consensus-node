@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
+import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.swirlds.config.api.Configuration;
@@ -32,7 +33,7 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
      */
     protected AbstractNodeConfiguration(
             @NonNull final Supplier<LifeCycle> lifecycleSupplier, @NonNull final Path outputDirectory) {
-        this.lifecycleSupplier = lifecycleSupplier;
+        this.lifecycleSupplier = requireNonNull(lifecycleSupplier, "lifecycleSupplier must not be null");
         this.outputDirectory = outputDirectory.toString();
     }
 
