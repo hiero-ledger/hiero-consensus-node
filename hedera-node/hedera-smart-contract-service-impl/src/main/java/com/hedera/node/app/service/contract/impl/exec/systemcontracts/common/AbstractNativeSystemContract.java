@@ -31,7 +31,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemC
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,18 +56,15 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
 
     private final CallFactory callFactory;
     private final ContractMetrics contractMetrics;
-    private final HederaOpsDuration duration;
 
     protected AbstractNativeSystemContract(
             @NonNull final String name,
             @NonNull final CallFactory callFactory,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull final ContractMetrics contractMetrics,
-            @NonNull final HederaOpsDuration duration) {
+            @NonNull final ContractMetrics contractMetrics) {
         super(name, gasCalculator);
         this.callFactory = requireNonNull(callFactory);
         this.contractMetrics = requireNonNull(contractMetrics);
-        this.duration = requireNonNull(duration);
     }
 
     @Override
@@ -200,11 +196,6 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     private void reportToMetrics(@NonNull final Call call, @NonNull final FullResult fullResult) {
         contractMetrics.incrementSystemMethodCall(
                 call.getSystemContractMethod(), fullResult.result().getState());
-        contractMetrics
-                .opsDurationMetrics()
-                .recordSystemContractOpsDuration(
-                        call.getSystemContractMethod(),
-                        Math.round(fullResult.gasRequirement() * duration.systemContractDurationMultiplier()));
     }
 
     private static void externalizeFailure(

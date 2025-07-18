@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.incrementOpsDuration;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.opsDurationCounterOf;
-import static com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration.MULTIPLIER_FACTOR;
-
-import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.hyperledger.besu.evm.EVM;
@@ -69,10 +66,6 @@ public class HederaEVM extends EVM {
 
     // Optimized operation flags
     private final boolean enableShanghai;
-    private final HederaOpsDuration hederaOpsDuration;
-
-    // Metrics
-    private final ContractMetrics contractMetrics;
 
     /**
      * Instantiates a new Evm.
@@ -86,9 +79,7 @@ public class HederaEVM extends EVM {
             @NonNull final OperationRegistry operations,
             @NonNull final GasCalculator gasCalculator,
             @NonNull final EvmConfiguration evmConfiguration,
-            @NonNull final EvmSpecVersion evmSpecVersion,
-            @NonNull final HederaOpsDuration opsDuration,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final EvmSpecVersion evmSpecVersion) {
         super(operations, gasCalculator, evmConfiguration, evmSpecVersion);
         this.operations = operations;
         this.gasCalculator = gasCalculator;
@@ -96,8 +87,6 @@ public class HederaEVM extends EVM {
         this.evmSpecVersion = evmSpecVersion;
 
         enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
-        this.hederaOpsDuration = opsDuration;
-        this.contractMetrics = contractMetrics;
     }
 
     @Override
@@ -107,11 +96,12 @@ public class HederaEVM extends EVM {
         OperationTracer operationTracer = tracing == OperationTracer.NO_TRACING ? null : tracing;
         byte[] code = frame.getCode().getBytes().toArrayUnsafe();
         Operation[] operationArray = this.operations.getOperations();
-        long usedOpsDuration = 0;
-        // pre-fetch this at the beginning to improve performance
-        final HederaOpsDurationCounter opsDurationCounter = opsDurationCounterOf(frame);
-        final long hederaOpsDurationShift = this.hederaOpsDuration.durationCheckShift();
-        final long[] opsDurationArray = this.hederaOpsDuration.getOpsDuration();
+
+        final var opsDurationThrottle = FrameUtils.opsDurationThrottle(frame);
+        final var opsDurationSchedule = opsDurationThrottle.schedule();
+        final var opsDurationByOpCode = opsDurationSchedule.opsDurationByOpCode();
+        final var opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
+        final var opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -224,20 +214,12 @@ public class HederaEVM extends EVM {
                  ** As the code is in a while loop it is difficult to isolate.  We will need to maintain these changes
                  ** against new versions of the EVM class.
                  */
-                usedOpsDuration = opsDurationArray[opcode] == 0
-                        ? result.getGasCost() * hederaOpsDuration.opsDurationMultiplier() / MULTIPLIER_FACTOR
-                        : opsDurationArray[opcode];
-                // Record the operation duration in the metrics
-                contractMetrics.opsDurationMetrics().recordOpCodeOpsDuration(opcode, usedOpsDuration);
+                final var opsDurationUnitsCost = opsDurationByOpCode[opcode] == 0
+                        ? result.getGasCost() * opsDurationMultiplier / opsDurationDenominator
+                        : opsDurationByOpCode[opcode];
 
-                // Check the duration of the operations every durationCheckShift opcodes.
-                // This is to avoid checking the duration too frequently and slowing down execution.
-                // We base the shift on the program counter and if the code length is less than the shift we check on
-                // every iteration.
-                // It can be adjusted based on performance requirements.
-                if (hederaOpsDurationShift == 0
-                        || (pc % hederaOpsDurationShift == 0 || code.length < hederaOpsDurationShift)) {
-                    incrementOpsDuration(frame, opsDurationCounter, usedOpsDuration);
+                if (!opsDurationThrottle.tryConsumeOpsDurationUnits(opsDurationUnitsCost)) {
+                    throw new ResourceExhaustedException(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
                 }
             }
 
@@ -251,8 +233,5 @@ public class HederaEVM extends EVM {
                 operationTracer.tracePostExecution(frame, result);
             }
         }
-        /*
-         ** As above update this line if a new EVM class needs to be supported.
-         */
     }
 }

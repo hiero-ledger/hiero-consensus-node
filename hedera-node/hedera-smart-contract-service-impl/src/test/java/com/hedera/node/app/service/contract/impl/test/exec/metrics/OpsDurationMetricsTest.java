@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.test.exec.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.within;
-import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
@@ -28,9 +27,6 @@ class OpsDurationMetricsTest {
     private OpsDurationMetrics subject;
 
     @Mock
-    private SystemContractMethod method1;
-
-    @Mock
     private SystemContractMethod method2;
 
     @BeforeEach
@@ -44,36 +40,6 @@ class OpsDurationMetricsTest {
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
         subject = new OpsDurationMetrics(metrics);
-    }
-
-    @Test
-    void systemContractMetricsAreRecordedAndRetrieved() {
-        given(method1.methodName()).willReturn("method1");
-        given(method2.methodName()).willReturn("method2");
-        subject.recordSystemContractOpsDuration(method1, 100L);
-        subject.recordSystemContractOpsDuration(method1, 200L);
-        subject.recordSystemContractOpsDuration(method2, 300L);
-        assertThat(subject.getAverageSystemContractOpsDuration(method1)).isCloseTo(150.0, within(5.0));
-        assertThat(subject.getSystemContractOpsDurationCount(method1)).isEqualTo(2);
-        assertThat(subject.getTotalSystemContractOpsDuration(method1)).isEqualTo(300L);
-        assertThat(subject.getAverageSystemContractOpsDuration(method2)).isEqualTo(300.0);
-        assertThat(subject.getSystemContractOpsDurationCount(method2)).isEqualTo(1);
-        assertThat(subject.getTotalSystemContractOpsDuration(method2)).isEqualTo(300L);
-    }
-
-    @Test
-    void opCodeMetricsAreRecordedAndRetrieved() {
-        int opCode1 = 1;
-        int opCode2 = 2;
-        subject.recordOpCodeOpsDuration(opCode1, 100L);
-        subject.recordOpCodeOpsDuration(opCode1, 200L);
-        subject.recordOpCodeOpsDuration(opCode2, 300L);
-        assertThat(subject.getAverageOpCodeOpsDuration(opCode1)).isCloseTo(150.0, within(5.0));
-        assertThat(subject.getOpCodeOpsDurationCount(opCode1)).isEqualTo(2);
-        assertThat(subject.getTotalOpCodeOpsDuration(opCode1)).isEqualTo(300L);
-        assertThat(subject.getAverageOpCodeOpsDuration(opCode2)).isEqualTo(300.0);
-        assertThat(subject.getOpCodeOpsDurationCount(opCode2)).isEqualTo(1);
-        assertThat(subject.getTotalOpCodeOpsDuration(opCode2)).isEqualTo(300L);
     }
 
     @Test
@@ -103,9 +69,9 @@ class OpsDurationMetricsTest {
     @Test
     void throttledTransactionMetricsAreRecordedAndRetrieved() {
         assertThat(subject.getTransactionsThrottledByOpsDurationCount()).isZero();
-        subject.recordTransactionsThrottledByOpsDuration();
+        subject.recordTransactionThrottledByOpsDuration();
         assertThat(subject.getTransactionsThrottledByOpsDurationCount()).isEqualTo(1);
-        subject.recordTransactionsThrottledByOpsDuration();
+        subject.recordTransactionThrottledByOpsDuration();
         assertThat(subject.getTransactionsThrottledByOpsDurationCount()).isEqualTo(2);
     }
 }

@@ -19,6 +19,7 @@ import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import org.hiero.consensus.model.node.NodeId;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
@@ -119,7 +120,8 @@ public class ContractMetricsTest {
     void processedTransactionIsRecordedWithoutErrors() {
         when(contractsConfig.metricsSmartContractPrimaryEnabled()).thenReturn(true);
         final var subject = getSubject();
-        subject.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(10, 10, 10, 10, true));
+        subject.recordProcessedTransaction(
+                new ContractMetrics.TransactionProcessingSummary(10, 10, 10, Optional.of(10L), true));
         assertThat(subject.getProcessedTransactionCount()).isEqualTo(1L);
     }
 

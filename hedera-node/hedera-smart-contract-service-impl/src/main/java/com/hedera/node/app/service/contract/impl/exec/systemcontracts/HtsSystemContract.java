@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallFactory;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -38,9 +37,8 @@ public class HtsSystemContract extends AbstractNativeSystemContract implements H
     public HtsSystemContract(
             @NonNull final GasCalculator gasCalculator,
             @NonNull final HtsCallFactory callFactory,
-            @NonNull final ContractMetrics contractMetrics,
-            @NonNull final HederaOpsDuration hederaOpsDuration) {
-        super(HTS_SYSTEM_CONTRACT_NAME, callFactory, gasCalculator, contractMetrics, hederaOpsDuration);
+            @NonNull final ContractMetrics contractMetrics) {
+        super(HTS_SYSTEM_CONTRACT_NAME, callFactory, gasCalculator, contractMetrics);
     }
 
     @Override

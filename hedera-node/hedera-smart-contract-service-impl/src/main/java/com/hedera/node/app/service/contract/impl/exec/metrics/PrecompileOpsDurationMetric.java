@@ -16,8 +16,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class PrecompileOpsDurationMetric {
-    private static final String PRECOMPILE_CATEGORY = "precompile";
-
     private final Map<String, CountAccumulateAverageMetricTriplet> precompileOpsDurations = new HashMap<>();
     private final Metrics metrics;
 
@@ -36,8 +34,8 @@ public class PrecompileOpsDurationMetric {
                 precompileName,
                 unused -> CountAccumulateAverageMetricTriplet.create(
                         metrics,
-                        PRECOMPILE_CATEGORY,
-                        precompileName,
+                        ContractMetrics.METRIC_CATEGORY,
+                        String.format("%s:OpsDuration_ByPrecompile_%s", ContractMetrics.METRIC_SERVICE, precompileName),
                         "Ops duration of precompile " + precompileName + " in nanoseconds"));
         metric.recordObservation(durationNanos);
     }

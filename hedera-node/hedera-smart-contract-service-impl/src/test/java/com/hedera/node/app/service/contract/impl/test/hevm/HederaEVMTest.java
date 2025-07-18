@@ -1,138 +1,140 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HEDERA_OPS_DURATION;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.THROTTLE_BY_OPS_DURATION;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_THROTTLE;
+import static org.hyperledger.besu.evm.MainnetEVMs.registerShanghaiOperations;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
-import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
-import com.hedera.node.app.service.contract.impl.exec.utils.HederaOpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationThrottle;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.concurrent.atomic.AtomicInteger;
+import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
+import com.hedera.node.app.spi.workflows.HandleException;
+import java.math.BigInteger;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.evm.Code;
+import org.apache.tuweni.units.bigints.UInt256;
+import org.bouncycastle.util.encoders.Hex;
+import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.code.CodeFactory;
+import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.gascalculator.LondonGasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
-import org.hyperledger.besu.evm.operation.AddOperation;
-import org.hyperledger.besu.evm.operation.MulOperation;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
-import org.hyperledger.besu.evm.operation.PushOperation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.hyperledger.besu.evm.worldstate.WorldUpdater;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@ExtendWith(MockitoExtension.class)
 class HederaEVMTest {
 
-    @Mock
-    MessageFrame frame;
+    private final Random random = new Random(12345);
 
-    @Mock
-    OperationTracer operationTracer;
+    static List<Arguments> opsDurationThrottleTestParams() {
+        return List.of(
+                Arguments.of(1, 729),
+                Arguments.of(100, 51021),
+                Arguments.of(900, 457421),
+                Arguments.of(50000, 25400221),
+                Arguments.of(100000, 50800221));
+    }
 
-    @Mock
-    OperationRegistry operationRegistry;
+    @ParameterizedTest
+    @MethodSource("opsDurationThrottleTestParams")
+    void opsDurationThrottleTest(final int loopIterations, final long expectedOpsDurationUnitsConsumed) {
+        final var opsDurationSchedule = OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG);
 
-    @Mock
-    GasCalculator gasCalculator;
+        final var operationRegistry = new OperationRegistry();
+        registerShanghaiOperations(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO);
 
-    @Mock
-    EvmConfiguration evmConfiguration;
+        final var hederaEvm = new HederaEVM(
+                operationRegistry,
+                new LondonGasCalculator(),
+                EvmConfiguration.DEFAULT,
+                EvmSpecVersion.defaultVersion());
 
-    @Mock
-    EvmSpecVersion evmSpecVersion;
+        // Scenario 1: less than required ops duration limit
+        final var insufficientOpsDurationThrottle = OpsDurationThrottle.withInitiallyAvailableUnits(
+                opsDurationSchedule, expectedOpsDurationUnitsConsumed - 1L);
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> hederaEvm.runToHalt(
+                        prepareTestFrame(loopIterations, insufficientOpsDurationThrottle), OperationTracer.NO_TRACING));
+        assertEquals(THROTTLED_AT_CONSENSUS, exception.getStatus());
 
-    @Mock
-    HederaOpsDuration opsDuration;
+        // Scenario 2: exactly the required amount is available
+        final var exactOpsDurationThrottle =
+                OpsDurationThrottle.withInitiallyAvailableUnits(opsDurationSchedule, expectedOpsDurationUnitsConsumed);
+        final var exactFrame = prepareTestFrame(loopIterations, exactOpsDurationThrottle);
+        hederaEvm.runToHalt(exactFrame, OperationTracer.NO_TRACING);
+        assertEquals(expectedOpsDurationUnitsConsumed, exactOpsDurationThrottle.opsDurationUnitsConsumed());
+        assertTrue(exactFrame.getRevertReason().isEmpty());
 
-    @Mock
-    ContractMetrics contractMetrics;
+        // Scenario 3: more ops duration units available than necessary
+        final var excessOpsDurationThrottle = OpsDurationThrottle.withInitiallyAvailableUnits(
+                opsDurationSchedule, expectedOpsDurationUnitsConsumed + 1L);
+        final var excessFrame = prepareTestFrame(loopIterations, excessOpsDurationThrottle);
+        hederaEvm.runToHalt(excessFrame, OperationTracer.NO_TRACING);
+        assertEquals(expectedOpsDurationUnitsConsumed, excessOpsDurationThrottle.opsDurationUnitsConsumed());
+        assertTrue(excessFrame.getRevertReason().isEmpty());
+    }
 
-    @Mock
-    OpsDurationMetrics opsDurationMetrics;
+    private MessageFrame prepareTestFrame(final int loopIterations, final OpsDurationThrottle opsDurationThrottle) {
+        final var byteCodeBuilder = new ByteCodeBuilder()
+                .push32(UInt256.valueOf(loopIterations)) // Initialize the local var
+                .jumpdest()
+                .dup1()
+                .conditionalJump(39) // Skip the stop below if we're still iterating
+                .stop()
+                .jumpdest()
+                .push(1) // Subtract 1
+                .swap1()
+                .sub()
+                .jump(33) // Loop
+                .toString();
 
-    @Mock
-    HederaOpsDurationCounter opsDurationCounter;
+        final var code = CodeFactory.createCode(Bytes.fromHexString(byteCodeBuilder), 0, false);
 
-    @Test
-    void testRunToHaltOpsDurationIncrement() {
-        // Create bytecode with known operations
-        byte[] bytecode = new byte[] {
-            0x01, // ADD (3 + 4 = 7)
-            0x60,
-            0x02, // MUL (7 * 2 = 14)
-            0x00 // STOP
-        };
+        final var frame = MessageFrame.builder()
+                .type(MessageFrame.Type.MESSAGE_CALL)
+                .worldUpdater(mock(WorldUpdater.class))
+                .initialGas(10_000_000L)
+                .address(randomAddress())
+                .originator(randomAddress())
+                .contract(randomAddress())
+                .gasPrice(Wei.ONE)
+                .blobGasPrice(Wei.ONE)
+                .inputData(Bytes.EMPTY)
+                .sender(randomAddress())
+                .value(Wei.ZERO)
+                .apparentValue(Wei.ZERO)
+                .code(code)
+                .blockValues(mock(BlockValues.class))
+                .isStatic(false)
+                .maxStackSize(100)
+                .completer(unused -> {})
+                .blockHashLookup(unused -> {
+                    throw new IllegalStateException();
+                })
+                .contextVariables(Map.of(OPS_DURATION_THROTTLE, opsDurationThrottle))
+                .miningBeneficiary(randomAddress())
+                .build();
+        frame.setState(State.CODE_EXECUTING);
+        return frame;
+    }
 
-        Code code = CodeFactory.createCode(Bytes.wrap(bytecode), 0, false);
-        Operation[] operations = new Operation[] {
-            new AddOperation(gasCalculator), // ADD operation
-            new PushOperation(1, gasCalculator),
-            new MulOperation(gasCalculator) // MUL operation
-        };
-
-        long[] opsDurationValues = new long[] {
-            0L, // Initial ops duration
-            5L, // Duration for ADD operation
-            10L, // Duration for MUL operation
-        };
-
-        final Deque<MessageFrame> messageFrameStack = new ArrayDeque<>();
-        messageFrameStack.addFirst(frame);
-        given(frame.getCode()).willReturn(code);
-        given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
-        given(frame.getState()).willReturn(State.CODE_EXECUTING);
-
-        given(operationRegistry.getOperations()).willReturn(operations);
-        given(opsDuration.getOpsDuration()).willReturn(opsDurationValues);
-        given(contractMetrics.opsDurationMetrics()).willReturn(opsDurationMetrics);
-        given(frame.getContextVariable(HEDERA_OPS_DURATION)).willReturn(opsDurationCounter);
-        given(frame.getContextVariable(THROTTLE_BY_OPS_DURATION, false)).willReturn(false);
-
-        AtomicInteger pc = new AtomicInteger();
-        when(frame.getPC()).thenAnswer(invocation -> {
-            return pc.getAndIncrement();
-        });
-
-        when(frame.popStackItem()).thenAnswer(invocation -> {
-            // Simulate stack pop for PUSH1 operations
-            if (pc.get() == 0) {
-                return Bytes.of(3); // For PUSH1 3
-            } else if (pc.get() == 2) {
-                return Bytes.of(2); // For PUSH1 2
-            }
-            return Bytes.EMPTY; // For other operations
-        });
-
-        when(frame.getState()).thenAnswer(invocation -> {
-            if (pc.get() < 8) {
-                return State.CODE_EXECUTING; // Before STOP
-            } else {
-                return State.CODE_SUCCESS; // After STOP
-            }
-        });
-
-        // Create HederaEVM instance and execute bytecode
-        HederaEVM evm = new HederaEVM(
-                operationRegistry, gasCalculator, evmConfiguration, evmSpecVersion, opsDuration, contractMetrics);
-        evm.runToHalt(frame, operationTracer);
-
-        verify(opsDurationCounter, times(2)).incrementOpsDuration(0);
-        verify(opsDurationCounter).incrementOpsDuration(5);
-        verify(opsDurationCounter).incrementOpsDuration(10);
+    private Address randomAddress() {
+        final var bytes = new byte[20];
+        random.nextBytes(bytes);
+        return Address.fromHexString(Hex.toHexString(bytes));
     }
 }

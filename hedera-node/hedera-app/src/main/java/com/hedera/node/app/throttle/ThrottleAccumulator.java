@@ -194,19 +194,36 @@ public class ThrottleAccumulator {
     }
 
     /**
-     * Checks if capacity has been breached in the ops duration throttle.
-     *
-     * @param now the instant of consensus time the transaction throttling should be checked for
-     * @return whether the transaction should be throttled
+     * Returns the available ops duration capacity for the execution at a given time.
+     * Takes into account the amount leaked from the bucket up to the provided time.
+     * Returns Long.MAX_VALUE is the configured throttle type is NOOP_THROTTLE.
      */
-    public boolean checkAndEnforceOpsDurationThrottle(final long currentOpsDuration, @NonNull final Instant now) {
+    public long availableOpsDurationCapacity(@NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
-            return false;
+            // Effectively unlimited in case of a no-op throttle
+            return Long.MAX_VALUE;
         }
-        contractOpsDurationThrottle.resetLastAllowedUse();
+        return contractOpsDurationThrottle.capacityFree(now);
+    }
 
-        //  The feature flag for ops duration throttling is checked in the smart contract service
-        return !contractOpsDurationThrottle.allow(now, currentOpsDuration);
+    /**
+     * Consumes a given amount of ops duration units from the throttle's capacity.
+     * Takes into account the amount leaked from the bucket up to the provided time.
+     * If the amount to consume is greater than the available amount then consumes
+     * the available amount and returns (does not fail).
+     */
+    public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume, @NonNull final Instant now) {
+        if (throttleType == NOOP_THROTTLE) {
+            return;
+        }
+        if (!contractOpsDurationThrottle.allow(now, opsDurationUnitsToConsume)) {
+            // This indicates a bug - the execution somehow consumed more ops duration than was really available.
+            // Consume the available amount as a fallback and bump the metrics (which should trigger an alert).
+            contractOpsDurationThrottle.allow(now, contractOpsDurationThrottle.capacityFree(now));
+            if (throttleMetrics != null) {
+                throttleMetrics.incOpsDurationInvalidConsumeCalls();
+            }
+        }
     }
 
     /**

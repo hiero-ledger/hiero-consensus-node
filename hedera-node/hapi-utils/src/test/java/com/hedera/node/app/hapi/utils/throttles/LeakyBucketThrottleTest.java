@@ -16,6 +16,16 @@ class LeakyBucketThrottleTest {
     LeakyBucketThrottle subject = new LeakyBucketThrottle(BUCKET_CAPACITY);
 
     @Test
+    void hasExpectedCapacityFree() {
+        final var capacity = 1_000_000;
+        var subject = new LeakyBucketThrottle(capacity);
+        subject.bucket().useCapacity(capacity / 2);
+
+        assertEquals(capacity / 2, subject.capacityFree());
+        assertEquals(3 * capacity / 4, subject.capacityFree(SECONDS_TO_NANOSECONDS / 4));
+    }
+
+    @Test
     void hasExpectedPercentUsed() {
         final var capacity = 1_000_000;
         var subject = new LeakyBucketThrottle(capacity);

@@ -37,7 +37,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
-import com.hedera.node.app.service.contract.impl.hevm.HederaOpsDuration;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -87,16 +86,9 @@ public interface V064Module {
             @ServicesV064 @NonNull final CustomMessageCallProcessor messageCallProcessor,
             @ServicesV064 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
-            @ServicesV064 @NonNull final FeatureFlags featureFlags,
-            @NonNull final ContractMetrics contractMetrics) {
+            @ServicesV064 @NonNull final FeatureFlags featureFlags) {
         return new TransactionProcessor(
-                frameBuilder,
-                frameRunner,
-                gasCharging,
-                messageCallProcessor,
-                contractCreationProcessor,
-                featureFlags,
-                contractMetrics);
+                frameBuilder, frameRunner, gasCharging, messageCallProcessor, contractCreationProcessor, featureFlags);
     }
 
     @Provides
@@ -123,10 +115,9 @@ public interface V064Module {
             @ServicesV064 @NonNull final AddressChecks addressChecks,
             @ServicesV064 @NonNull final PrecompileContractRegistry registry,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
-            @NonNull final HederaOpsDuration hederaOpsDuration,
             @NonNull final ContractMetrics contractMetrics) {
         return new CustomMessageCallProcessor(
-                evm, featureFlags, registry, addressChecks, systemContracts, hederaOpsDuration, contractMetrics);
+                evm, featureFlags, registry, addressChecks, systemContracts, contractMetrics);
     }
 
     @Provides
@@ -136,9 +127,7 @@ public interface V064Module {
             @ServicesV064 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
-            @CustomOps @NonNull final Set<Operation> customOps,
-            @NonNull final HederaOpsDuration hederaOpsDuration,
-            @NonNull final ContractMetrics contractMetrics) {
+            @CustomOps @NonNull final Set<Operation> customOps) {
 
         oneTimeEVMModuleInitialization();
 
@@ -147,13 +136,7 @@ public interface V064Module {
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         // Create a return a custom HederaEVM instance
-        return new HederaEVM(
-                operationRegistry,
-                gasCalculator,
-                evmConfiguration,
-                EvmSpecVersion.CANCUN,
-                hederaOpsDuration,
-                contractMetrics);
+        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
     }
 
     @Provides

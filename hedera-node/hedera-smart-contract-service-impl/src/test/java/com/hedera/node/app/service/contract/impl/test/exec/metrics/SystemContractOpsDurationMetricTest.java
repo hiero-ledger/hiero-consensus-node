@@ -3,44 +3,37 @@ package com.hedera.node.app.service.contract.impl.test.exec.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.within;
-import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.SystemContractOpsDurationMetric;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.metrics.api.Metrics;
 import java.util.concurrent.Executors;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class SystemContractOpsDurationMetricTest {
+    private static final String SC1 = "sc1";
+    private static final String ADDR1 = "cafebabe";
 
-    private static final long DEFAULT_NODE_ID = 3;
-    private Metrics metrics;
+    private static final String SC2 = "sc2";
+    private static final String ADDR2 = "babecafe";
+
     private SystemContractOpsDurationMetric subject;
-
-    @Mock
-    private SystemContractMethod method1;
-
-    @Mock
-    private SystemContractMethod method2;
 
     @BeforeEach
     void setUp() {
         final MetricsConfig metricsConfig =
                 HederaTestConfigBuilder.createConfig().getConfigData(MetricsConfig.class);
 
-        metrics = new DefaultPlatformMetrics(
-                NodeId.of(DEFAULT_NODE_ID),
+        final var metrics = new DefaultPlatformMetrics(
+                NodeId.of(3),
                 new MetricKeyRegistry(),
                 Executors.newSingleThreadScheduledExecutor(),
                 new PlatformMetricsFactoryImpl(metricsConfig),
@@ -56,14 +49,17 @@ class SystemContractOpsDurationMetricTest {
         final long duration2 = 200L;
 
         // When
-        subject.recordOperationDuration(method1, duration1);
-        subject.recordOperationDuration(method1, duration2);
+        subject.recordOperationDuration(SC1, ADDR1, duration1);
+        subject.recordOperationDuration(SC1, ADDR1, duration2);
 
         // Then
-        final double average = subject.getAverageSystemContractOpsDuration(method1);
+        final double average =
+                subject.getSystemContractOpsDuration(SC1, ADDR1).average().get();
 
-        final double count = subject.getSystemContractOpsDurationCount(method1);
-        final double total = subject.getSystemContractOpsTotalDuration(method1);
+        final double count =
+                subject.getSystemContractOpsDuration(SC1, ADDR1).counter().get();
+        final double total =
+                subject.getSystemContractOpsDuration(SC1, ADDR1).accumulator().get();
         assertThat(average).isCloseTo(150.0, within(5.0)); // (100 + 200) / 2
         assertThat(count).isEqualTo(2.0); // Two durations recorded
         assertThat(total).isEqualTo(300.0); // 100 + 200
@@ -71,18 +67,10 @@ class SystemContractOpsDurationMetricTest {
 
     @Test
     void returnsZeroForNonExistentMethod() {
-        // Given
-        final SystemContractMethod nonExistentMethod = method2;
-
-        // When
-        final double duration = subject.getAverageSystemContractOpsDuration(nonExistentMethod);
-        final double count = subject.getSystemContractOpsDurationCount(nonExistentMethod);
-        final double total = subject.getSystemContractOpsTotalDuration(nonExistentMethod);
-
-        // Then
-        assertThat(duration).isZero();
-        assertThat(count).isZero();
-        assertThat(total).isZero();
+        final var metric = subject.getSystemContractOpsDuration(SC2, ADDR2);
+        assertThat(metric.average().get()).isZero();
+        assertThat(metric.accumulator().get()).isZero();
+        assertThat(metric.counter().get()).isZero();
     }
 
     @Test
@@ -91,23 +79,23 @@ class SystemContractOpsDurationMetricTest {
         final long duration1 = 100L;
         final long duration2 = 200L;
         final long duration3 = 300L;
-        given(method1.methodName()).willReturn("method1");
-        given(method2.methodName()).willReturn("method2");
 
         // When
-        subject.recordOperationDuration(method1, duration1);
-        subject.recordOperationDuration(method1, duration3);
-        subject.recordOperationDuration(method1, duration1);
-        subject.recordOperationDuration(method1, duration3);
-        subject.recordOperationDuration(method2, duration2);
-        subject.recordOperationDuration(method2, duration2);
+        subject.recordOperationDuration(SC1, ADDR1, duration1);
+        subject.recordOperationDuration(SC1, ADDR1, duration3);
+        subject.recordOperationDuration(SC1, ADDR1, duration1);
+        subject.recordOperationDuration(SC1, ADDR1, duration3);
+        subject.recordOperationDuration(SC2, ADDR2, duration2);
+        subject.recordOperationDuration(SC2, ADDR2, duration2);
 
         // Then
-        assertThat(subject.getAverageSystemContractOpsDuration(method1)).isCloseTo(200.0, within(5.0));
-        assertThat(subject.getSystemContractOpsDurationCount(method1)).isEqualTo(4);
-        assertThat(subject.getSystemContractOpsTotalDuration(method1)).isEqualTo(800L); // 100 + 300 + 100 + 300
-        assertThat(subject.getAverageSystemContractOpsDuration(method2)).isCloseTo(200.0, within(5.0));
-        assertThat(subject.getSystemContractOpsDurationCount(method2)).isEqualTo(2);
-        assertThat(subject.getSystemContractOpsTotalDuration(method2)).isEqualTo(400L); // 200 + 200
+        final var metric1 = subject.getSystemContractOpsDuration(SC1, ADDR1);
+        final var metric2 = subject.getSystemContractOpsDuration(SC2, ADDR2);
+        assertThat(metric1.average().get()).isCloseTo(200.0, within(5.0));
+        assertThat(metric1.counter().get()).isEqualTo(4);
+        assertThat(metric1.accumulator().get()).isEqualTo(800L); // 100 + 300 + 100 + 300
+        assertThat(metric2.average().get()).isCloseTo(200.0, within(5.0));
+        assertThat(metric2.counter().get()).isEqualTo(2);
+        assertThat(metric2.accumulator().get()).isEqualTo(400L); // 200 + 200
     }
 }
