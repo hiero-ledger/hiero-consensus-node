@@ -135,11 +135,11 @@ jobs:
           SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
           LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
           PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
-          
+
           echo "Using SDK version: $SDK_VERSION"
           echo "Using long version: $LONG_VERSION"
           echo "Using proto version: $PROTO_VERSION"
-          
+
           # Install with the extracted versions
           pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
           pnpm install
