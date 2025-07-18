@@ -126,8 +126,6 @@ public class AtomicBatchHandler implements TransactionHandler {
             if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
                 throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
             }
-
-            context.dispatchPureChecks(txBody);
         }
     }
 
