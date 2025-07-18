@@ -124,7 +124,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
             if (!hasInnerTxnFailed) {
                 configureDefaultExpectedStatus(op);
                 resolveInnerTxnStatus(op, spec);
-                if (!isTxnSuccessful(op)) {
+                if (!isInnerTxnSuccessful(op)) {
                     hasInnerTxnFailed = true;
                 }
             } else {
@@ -224,7 +224,7 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
         }
     }
 
-    private boolean isTxnSuccessful(final HapiTxnOp<?> op) {
+    private boolean isInnerTxnSuccessful(final HapiTxnOp<?> op) {
         return op.getActualStatus() == SUCCESS || op.getActualStatus() == REVERTED_SUCCESS;
     }
 }

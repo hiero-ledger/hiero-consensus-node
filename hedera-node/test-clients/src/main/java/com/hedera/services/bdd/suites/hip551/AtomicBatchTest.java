@@ -387,14 +387,14 @@ public class AtomicBatchTest {
                                             .txnId(firstTxnId)
                                             .payingWith(payer)
                                             .batchKey(batchOperator)
-                                            // defer status resolution, as the transaction will not be dispatched
+                                            // defer status resolution, as the transaction should not be dispatched
                                             .deferStatusResolution(),
-                                    // second inner txn will not be executed
+                                    // second inner txn should not be executed
                                     cryptoCreate("bar")
                                             .txnId(secondTxnId)
                                             .payingWith(payer)
                                             .batchKey(batchOperator)
-                                            // defer status resolution, as the transaction will not be dispatched
+                                            // defer status resolution, as the transaction should not be dispatched
                                             .deferStatusResolution())
                             .signedByPayerAnd(batchOperator)
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
