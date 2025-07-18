@@ -9,6 +9,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.otter.docker.app.platform.ConsensusNodeManager;
@@ -22,8 +23,6 @@ import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
-import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
-import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * gRPC service implementation for managing communication between the test framework and the platform.
@@ -45,6 +44,12 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
 
     /** Handles outgoing messages, may get called from different threads/callbacks */
     private volatile OutboundDispatcher dispatcher;
+
+    private final AtomicLong startCount = new AtomicLong(0);
+    private final AtomicLong statusNotificationCount = new AtomicLong(0);
+    private final AtomicLong transactionCount = new AtomicLong(0);
+    private final AtomicLong bottleneckCount = new AtomicLong(0);
+    private final AtomicLong killCount = new AtomicLong(0);
 
     /**
      * Constructs a DockerManager instance with the specified executor service.
@@ -69,6 +74,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        LOGGER.info("Received {} start requests", startCount.incrementAndGet());
         if (nodeManager != null) {
             responseObserver.onError(Status.ALREADY_EXISTS.asRuntimeException());
             return;
@@ -92,18 +98,17 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
             final OutboundDispatcher currentDispatcher = dispatcher;
 
             nodeManager.registerPlatformStatusChangeListener(notification -> {
-                final EventMessage message = EventMessageFactory.fromPlatformStatusChange(notification);
-                dispatcher.enqueue(message);
-                LOGGER.info("Sending platform status change: {}", message);
+                dispatcher.enqueue(EventMessageFactory.fromPlatformStatusChange(notification));
+                LOGGER.info("Sent {} platform status change notifications", statusNotificationCount.incrementAndGet());
             });
 
-            nodeManager.registerConsensusRoundListener(
-                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-
-            InMemoryAppender.subscribe(log -> {
-                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
-                return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-            });
+//            nodeManager.registerConsensusRoundListener(
+//                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
+//
+//            InMemoryAppender.subscribe(log -> {
+//                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
+//                return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+//            });
 
             nodeManager.start();
         } catch (final Exception e) {
@@ -161,6 +166,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     public synchronized void submitTransaction(
             @NonNull final TransactionRequest request,
             @NonNull final StreamObserver<TransactionRequestAnswer> responseObserver) {
+        LOGGER.info("Received {} transaction requests", transactionCount.incrementAndGet());
         if (nodeManager == null) {
             responseObserver.onError(Status.FAILED_PRECONDITION
                     .withDescription("Application not started yet")
@@ -190,6 +196,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void syntheticBottleneckUpdate(
             @NonNull final SyntheticBottleneckRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
+        LOGGER.info("Received {} bottleneck requests", bottleneckCount.incrementAndGet());
         nodeManager.updateSyntheticBottleneck(request.getSleepMillisPerRound());
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
@@ -206,6 +213,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void killImmediately(
             final KillImmediatelyRequest request, final StreamObserver<Empty> responseObserver) {
+        LOGGER.info("Received {} kill requests", killCount.incrementAndGet());
         try {
             if (nodeManager != null) {
                 nodeManager.destroy();
