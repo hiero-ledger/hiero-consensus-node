@@ -6,7 +6,6 @@ import static java.nio.file.Files.exists;
 
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -22,13 +21,13 @@ import java.util.concurrent.atomic.AtomicLong;
  * following structure:
  * <pre>
  * root
- * ├── USER
- * └── TMP
+ * ├── data
+ * └── tmp
  * </pre>
  * The name of the directories can be provided by configuration
  * <p>
- * If the root directory already exists, it is used. Otherwise, it is created. Similarly, if the 'USER' directory
- * already exists, it is used; otherwise, it is created. The 'TMP' directory is always recreated.
+ * If the root directory already exists, it is used. Otherwise, it is created. Similarly, if the 'data' directory
+ * already exists, it is used; otherwise, it is created. The 'tmp' directory is always recreated.
  * <p>
  * All {@link Path}s provided by this class are handled within the same filesystem as indicated by the
  * {@code rootLocation} parameter.
@@ -40,41 +39,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class FileSystemManagerImpl implements FileSystemManager {
 
     private final Path rootPath;
-    private final Path tempPath;
-    private final Path savedPath;
+    private final Path tmpPath;
+    private final Path dataPath;
     private final AtomicLong tmpFileNameIndex = new AtomicLong(0);
-    /**
-     * Creates a {@link FileSystemManager} and a {@link com.swirlds.common.io.utility.RecycleBin} by searching {@code root}
-     * path in the {@link Configuration} class using
-     * {@code FileSystemManagerConfig} record
-     *
-     * @param rootLocation      the location to be used as root path. It should not exist.
-     * @param dataDirName       the name of the user data file directory
-     * @param tmpDirName        the name of the tmp file directory
-     * @param recycleBin       for building the recycle bin.
-     * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
-     */
-    FileSystemManagerImpl(
-            @NonNull final String rootLocation,
-            final String dataDirName,
-            final String tmpDirName,
-            @NonNull final RecycleBin recycleBin) {
-        this.rootPath = Path.of(rootLocation).normalize();
-        if (!exists(rootPath)) {
-            rethrowIO(() -> Files.createDirectories(rootPath));
-        }
-
-        this.tempPath = rootPath.resolve(tmpDirName);
-        this.savedPath = rootPath.resolve(dataDirName);
-
-        if (!exists(savedPath)) {
-            rethrowIO(() -> Files.createDirectory(savedPath));
-        }
-        if (exists(tempPath)) {
-            rethrowIO(() -> FileUtils.deleteDirectory(tempPath));
-        }
-        rethrowIO(() -> Files.createDirectory(tempPath));
-    }
 
     /**
      * Creates a {@link FileSystemManager} and a {@link com.swirlds.common.io.utility.RecycleBin} by searching {@code root}
@@ -93,16 +60,16 @@ public class FileSystemManagerImpl implements FileSystemManager {
             rethrowIO(() -> Files.createDirectories(rootPath));
         }
 
-        this.tempPath = rootPath.resolve(tmpDirName);
-        this.savedPath = rootPath.resolve(dataDirName);
+        this.dataPath = rootPath.resolve(dataDirName);
+        this.tmpPath = rootPath.resolve(tmpDirName);
 
-        if (!exists(savedPath)) {
-            rethrowIO(() -> Files.createDirectory(savedPath));
+        if (!exists(dataPath)) {
+            rethrowIO(() -> Files.createDirectory(dataPath));
         }
-        if (exists(tempPath)) {
-            rethrowIO(() -> FileUtils.deleteDirectory(tempPath));
+        if (exists(tmpPath)) {
+            rethrowIO(() -> FileUtils.deleteDirectory(tmpPath));
         }
-        rethrowIO(() -> Files.createDirectory(tempPath));
+        rethrowIO(() -> Files.createDirectory(tmpPath));
     }
 
     /**
@@ -110,19 +77,19 @@ public class FileSystemManagerImpl implements FileSystemManager {
      *
      * @param relativePath the path to resolve against the root directory
      * @return the resolved path
-     * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo")
+     * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo"))
      */
     @NonNull
     @Override
     public Path resolve(@NonNull final Path relativePath) {
-        return requireValidSubPathOf(savedPath, savedPath.resolve(relativePath));
+        return requireValidSubPathOf(dataPath, dataPath.resolve(relativePath));
     }
 
     /**
      * Creates a path relative to the {@code tempPath} directory of the file system manager.
      * There is no file or directory actually being created after the invocation of this method.
-     * All calls to this method will return a different path even if {@code tag} is not set.
-     * A separate instance pointing to the same {@code rootPath} can create the same paths and should be managed outside this class.
+     * A call to this method will return a different path even if {@code tag} is not set for the same instance of this class.
+     * Two instances of this class pointing to the same root directory can generate repeated or existing paths as result of this method invocation.
      *
      * @param tag if indicated, will be suffixed to the returned path
      * @return the resolved path
@@ -132,14 +99,16 @@ public class FileSystemManagerImpl implements FileSystemManager {
     @Override
     public Path resolveNewTemp(@Nullable final String tag) {
         final StringBuilder nameBuilder = new StringBuilder();
-        nameBuilder.append(System.currentTimeMillis());
         nameBuilder.append(tmpFileNameIndex.getAndIncrement());
         if (tag != null) {
             nameBuilder.append("-");
             nameBuilder.append(tag);
         }
-
-        return requireValidSubPathOf(tempPath, tempPath.resolve(nameBuilder.toString()));
+        final Path result = tmpPath.resolve(nameBuilder.toString());
+        if (exists(result)) {
+            return resolveNewTemp(tag);
+        }
+        return result;
     }
 
     /**

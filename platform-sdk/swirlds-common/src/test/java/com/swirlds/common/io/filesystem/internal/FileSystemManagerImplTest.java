@@ -3,13 +3,13 @@ package com.swirlds.common.io.filesystem.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.concurrent.TestExecutor;
 import com.swirlds.base.test.fixtures.concurrent.WithTestExecutor;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.RecycleBin;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,15 +21,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 @WithTestExecutor
 public class FileSystemManagerImplTest {
-
-    @Mock
-    private RecycleBin mockRecycleBin;
 
     @TempDir
     private Path rootPathParent;
@@ -38,8 +34,7 @@ public class FileSystemManagerImplTest {
         return new FileSystemManagerImpl(
                 getTestRootPath(),
                 FileSystemManagerConfig.DEFAULT_DATA_DIR_NAME,
-                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME,
-                mockRecycleBin);
+                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME);
     }
 
     private String getTestRootPath() {
@@ -65,8 +60,7 @@ public class FileSystemManagerImplTest {
         new FileSystemManagerImpl(
                 largeRootLocation,
                 FileSystemManagerConfig.DEFAULT_DATA_DIR_NAME,
-                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME,
-                mockRecycleBin);
+                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME);
         // then
         assertThat(Path.of(largeRootLocation)).isDirectory().isNotEmptyDirectory();
     }
@@ -75,7 +69,7 @@ public class FileSystemManagerImplTest {
     public void testNew_deletesAllInTempFolderIfPathExist() throws IOException {
         // given
         final Path dir = Path.of(getTestRootPath());
-        final Path tmpDir = dir.resolve("tmp");
+        final Path tmpDir = dir.resolve(FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME);
         Files.createDirectories(tmpDir);
         final List<String> tmpFileNames = IntStream.range(0, 10)
                 .boxed()
@@ -86,11 +80,9 @@ public class FileSystemManagerImplTest {
         getFileSystemManager();
 
         // then
-        assertThat(dir)
-                .isNotEmptyDirectory()
-                .isDirectoryContaining("glob:**" + FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME)
-                .isDirectoryContaining("glob:**" + FileSystemManagerConfig.DEFAULT_DATA_DIR_NAME);
-        assertThat(tmpDir).isDirectoryNotContaining("glob:{" + String.join(",", tmpFileNames) + "}");
+        assertThat(dir).isNotEmptyDirectory();
+        assertThat(dir.resolve(FileSystemManagerConfig.DEFAULT_DATA_DIR_NAME)).exists();
+        assertThat(tmpDir).exists().isDirectoryNotContaining("glob:{" + String.join(",", tmpFileNames) + "}");
     }
 
     @Test
@@ -160,7 +152,8 @@ public class FileSystemManagerImplTest {
         // Assert that the temporary path has the expected format
         assertThat(tempPath)
                 .doesNotExist()
-                .satisfies(p -> assertThat(p.toAbsolutePath().toString()).contains(getTestRootPath() + "/tmp"))
+                .satisfies(p -> assertThat(p.toAbsolutePath().toString())
+                        .contains(getTestRootPath() + "/" + FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME))
                 .satisfies(p -> assertThat(p.getFileName().toString()).endsWith("myTempFile"));
     }
 
@@ -174,5 +167,34 @@ public class FileSystemManagerImplTest {
         final Executable executable = () -> testExecutor.executeAndWait(params);
         // then
         assertDoesNotThrow(executable);
+    }
+
+    @Test
+    public void testResolveNewTemp_twoInstancesDoNotCollide() {
+        // given
+        final FileSystemManagerImpl fileSystemManagerA = getFileSystemManager();
+        final FileSystemManagerImpl fileSystemManagerB = getFileSystemManager();
+
+        fileSystemManagerA.resolveNewTemp("aTag");
+
+        // then
+        assertDoesNotThrow(() -> fileSystemManagerB.resolveNewTemp("aTag"));
+    }
+
+    @Test
+    public void testResolveNewTemp_twoInstancesDoNotGenerateSamePath() throws IOException {
+        // given
+        final FileSystemManagerImpl fileSystemManagerA = getFileSystemManager();
+        final FileSystemManagerImpl fileSystemManagerB = getFileSystemManager();
+        final Path managerAPath = fileSystemManagerA.resolveNewTemp("aTag");
+        try {
+            Files.createFile(managerAPath);
+            Path managerBPath = fileSystemManagerB.resolveNewTemp("aTag");
+
+            // then
+            assertNotEquals(managerAPath, managerBPath);
+        } finally {
+            Files.delete(managerAPath);
+        }
     }
 }

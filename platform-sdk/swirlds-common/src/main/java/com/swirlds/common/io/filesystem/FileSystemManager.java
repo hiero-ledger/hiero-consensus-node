@@ -26,7 +26,7 @@ public interface FileSystemManager {
     @NonNull
     static FileSystemManager create(@NonNull final Configuration configuration) {
         final FileSystemManagerConfig fsmConfig = configuration.getConfigData(FileSystemManagerConfig.class);
-        return new FileSystemManagerImpl(fsmConfig.rootPath(), fsmConfig.userDataDir(), fsmConfig.tmpDir());
+        return new FileSystemManagerImpl(fsmConfig.rootPath(), fsmConfig.dataDir(), fsmConfig.tmpDir());
     }
 
     /**

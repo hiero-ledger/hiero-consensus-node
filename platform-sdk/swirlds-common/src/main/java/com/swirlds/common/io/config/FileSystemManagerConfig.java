@@ -17,13 +17,13 @@ import java.time.Duration;
 public record FileSystemManagerConfig(
         @ConfigProperty(defaultValue = "data")
                 String rootPath, // On purpose matches root of {@link StateCommonConfig#savedStateDirectory()}
-        @ConfigProperty(defaultValue = DEFAULT_DATA_DIR_NAME) String userDataDir,
+        @ConfigProperty(defaultValue = DEFAULT_DATA_DIR_NAME) String dataDir,
         @ConfigProperty(defaultValue = DEFAULT_TMP_DIR_NAME) String tmpDir,
         @ConfigProperty(defaultValue = DEFAULT_RECYCLE_BIN_DIR_NAME) String recycleBinDir,
         @ConfigProperty(defaultValue = "7d") Duration recycleBinMaximumFileAge,
         @ConfigProperty(defaultValue = "1d") Duration recycleBinCollectionPeriod) {
 
-    public static final String DEFAULT_TMP_DIR_NAME = "tmp";
+    public static final String DEFAULT_TMP_DIR_NAME = "saved/swirlds-tmp";
     public static final String DEFAULT_DATA_DIR_NAME = "saved";
     public static final String DEFAULT_RECYCLE_BIN_DIR_NAME = "saved/swirlds-recycle-bin";
 }
