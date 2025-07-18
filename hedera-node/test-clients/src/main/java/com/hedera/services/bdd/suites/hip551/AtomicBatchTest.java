@@ -71,7 +71,8 @@ import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
@@ -93,7 +94,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.RunnableOp;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -509,7 +509,7 @@ public class AtomicBatchTest {
                     atomicBatch(cryptoTransfer(tinyBarsFromTo("innerSender", "innerRecipient", 123L))
                                     // Use sender with zero balance
                                     .payingWith(DEFAULT_PAYER)
-                                    .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE)
+                                    .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                     .batchKey(batchOperator))
                             .payingWith(alias)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(alias))
@@ -1211,8 +1211,8 @@ public class AtomicBatchTest {
                 uploadInitCode("Multipurpose"),
                 contractCreate("Multipurpose"),
                 atomicBatch(cryptoTransfer(movingHbar(1).between("sender", "receiver"))
-                        .batchKey("batchOperator")
-                        .payingWith("Multipurpose"))
+                                .batchKey("batchOperator")
+                                .payingWith("Multipurpose"))
                         .payingWith("batchOperator")
                         .hasPrecheck(PAYER_ACCOUNT_NOT_FOUND));
     }
@@ -1226,9 +1226,9 @@ public class AtomicBatchTest {
                 cryptoCreate("payer"),
                 cryptoDelete("payer"),
                 atomicBatch(cryptoTransfer(movingHbar(1).between("sender", "receiver"))
-                        .batchKey("batchOperator")
-                        .payingWith("payer")
-                        .signedBy("payer", "sender"))
+                                .batchKey("batchOperator")
+                                .payingWith("payer")
+                                .signedBy("payer", "sender"))
                         .payingWith("batchOperator")
                         .via("batch")
                         .hasPrecheck(PAYER_ACCOUNT_DELETED));
