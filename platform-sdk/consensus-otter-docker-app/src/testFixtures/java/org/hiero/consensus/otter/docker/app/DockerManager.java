@@ -64,7 +64,8 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     }
 
     @Override
-    public synchronized void init(final InitRequest request, final StreamObserver<Empty> responseObserver) {
+    public synchronized void init(
+            @NonNull final InitRequest request, @NonNull final StreamObserver<Empty> responseObserver) {
         this.selfId = ProtobufConverter.toPbj(request.getSelfId());
         responseObserver.onNext(Empty.getDefaultInstance());
         responseObserver.onCompleted();
@@ -83,6 +84,7 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
     @Override
     public synchronized void start(
             @NonNull final StartRequest request, @NonNull final StreamObserver<EventMessage> responseObserver) {
+        // before starting the consensus node, the container must be initialized which sets the selfId
         if (selfId == null) {
             responseObserver.onError(Status.FAILED_PRECONDITION
                     .withDescription("DockerApp not initialized yet")
