@@ -102,13 +102,14 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
                 LOGGER.info("Sent {} platform status change notifications", statusNotificationCount.incrementAndGet());
             });
 
-//            nodeManager.registerConsensusRoundListener(
-//                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-//
-//            InMemoryAppender.subscribe(log -> {
-//                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
-//                return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
-//            });
+            //            nodeManager.registerConsensusRoundListener(
+            //                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
+            //
+            //            InMemoryAppender.subscribe(log -> {
+            //                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
+            //                return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE :
+            // SubscriberAction.CONTINUE;
+            //            });
 
             nodeManager.start();
         } catch (final Exception e) {
