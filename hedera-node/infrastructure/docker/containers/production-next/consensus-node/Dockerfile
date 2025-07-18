@@ -3,7 +3,7 @@
 # Define Global Build Arguments
 #
 ########################################################################################################################
-ARG UBUNTU_TAG="noble-20250714"
+ARG UBUNTU_TAG="mantic-20240216"
 ARG S6_OVERLAY_VERSION="3.1.6.2"
 ARG SOURCE_DATE_EPOCH="0"
 

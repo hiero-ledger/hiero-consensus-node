@@ -22,8 +22,9 @@ public abstract class AbstractNodeConfiguration<T extends AbstractNodeConfigurat
         implements NodeConfiguration<T> {
 
     protected final Map<String, String> overriddenProperties = new HashMap<>();
-    private final Supplier<LifeCycle> lifecycleSupplier;
     protected final String outputDirectory;
+
+    private final Supplier<LifeCycle> lifecycleSupplier;
 
     /**
      * Constructor for the {@link AbstractNodeConfiguration} class.
