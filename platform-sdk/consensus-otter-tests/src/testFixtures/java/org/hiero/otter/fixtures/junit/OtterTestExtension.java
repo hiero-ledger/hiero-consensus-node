@@ -10,7 +10,6 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.OtterTest;
@@ -184,14 +183,18 @@ public class OtterTestExtension
     @Override
     @NonNull
     public ConditionEvaluationResult evaluateExecutionCondition(@NonNull final ExtensionContext extensionContext) {
-        final Environment environment = getEnvironment();
+        final Environment environment = readEnvironmentFromSystemProperty();
         if (environment == null) {
             return ConditionEvaluationResult.enabled("No environment set, a matching one will be selected");
         }
-        final Set<Capability> supportedCapabilities = environment == Environment.CONTAINER
-                ? ContainerTestEnvironment.CAPABILITIES
-                : TurtleTestEnvironment.CAPABILITIES;
-        return supportsCapabilities(supportedCapabilities, extensionContext)
+
+        final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
+        final boolean allSupported =
+                switch (environment) {
+                    case TURTLE -> TurtleTestEnvironment.supports(requiredCapabilities);
+                    case CONTAINER -> ContainerTestEnvironment.supports(requiredCapabilities);
+                };
+        return allSupported
                 ? ConditionEvaluationResult.enabled(
                         "Environment %s supports all required capabilities".formatted(environment))
                 : ConditionEvaluationResult.disabled(
@@ -204,7 +207,7 @@ public class OtterTestExtension
      * @return the current {@link Environment}
      */
     @Nullable
-    private OtterTestExtension.Environment getEnvironment() {
+    private OtterTestExtension.Environment readEnvironmentFromSystemProperty() {
         final String propertyValue = System.getProperty(SYSTEM_PROPERTY_OTTER_ENV);
         if (propertyValue == null) {
             return null;
@@ -218,23 +221,15 @@ public class OtterTestExtension
     }
 
     /**
-     * Checks if the test requires specific capabilities and whether all of them are supported.
+     * Retrieves the required capabilities for a test method by evaluating {@link OtterTest#requires()}.
      *
-     * @param supportedCapabilities the set of supported capabilities
-     * @param extensionContext the current extension context; never {@code null}
-     * @return {@code true} if all required capabilities are supported, {@code false} otherwise
+     * @param extensionContext the extension context of the test
+     * @return a list of required capabilities
      */
-    private boolean supportsCapabilities(
-            @NonNull final Set<Capability> supportedCapabilities, @NonNull final ExtensionContext extensionContext) {
-        final OtterTest otterTestAnnotation = AnnotationSupport.findAnnotation(
-                        extensionContext.getElement(), OtterTest.class)
+    private List<Capability> getRequiredCapabilitiesFromTest(@NonNull final ExtensionContext extensionContext) {
+        final OtterTest otterTest = AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterTest.class)
                 .orElseThrow();
-        for (final Capability requiredCapability : otterTestAnnotation.requires()) {
-            if (!supportedCapabilities.contains(requiredCapability)) {
-                return false;
-            }
-        }
-        return true;
+        return List.of(otterTest.requires());
     }
 
     /**
@@ -246,11 +241,11 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        Environment environment = getEnvironment();
+        Environment environment = readEnvironmentFromSystemProperty();
         if (environment == null) {
-            environment = supportsCapabilities(TurtleTestEnvironment.CAPABILITIES, extensionContext)
-                    ? Environment.TURTLE
-                    : Environment.CONTAINER;
+            final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
+            environment =
+                    TurtleTestEnvironment.supports(requiredCapabilities) ? Environment.TURTLE : Environment.CONTAINER;
         }
         final TestEnvironment testEnvironment = environment == Environment.CONTAINER
                 ? createContainerTestEnvironment(extensionContext)

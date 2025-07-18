@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.container;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
@@ -16,7 +17,7 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  */
 public class ContainerTestEnvironment implements TestEnvironment {
 
-    public static final Set<Capability> CAPABILITIES = Set.of(Capability.RECONNECT, Capability.BACK_PRESSURE);
+    private static final Set<Capability> CAPABILITIES = Set.of(Capability.RECONNECT, Capability.BACK_PRESSURE);
 
     private final ContainerNetwork network;
     private final RegularTimeManager timeManager = new RegularTimeManager();
@@ -27,6 +28,10 @@ public class ContainerTestEnvironment implements TestEnvironment {
      */
     public ContainerTestEnvironment() {
         network = new ContainerNetwork(timeManager, transactionGenerator);
+    }
+
+    public static boolean supports(@NonNull final List<Capability> requiredCapabilities) {
+        return CAPABILITIES.containsAll(requiredCapabilities);
     }
 
     /**
