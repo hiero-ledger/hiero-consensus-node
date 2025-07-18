@@ -7,6 +7,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
+import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
@@ -34,11 +35,11 @@ class VirtualMapLargeReconnectTest extends VirtualMapReconnectTestBase {
     void largeTeacherLargerLearnerPermutations(int teacherStart, int teacherEnd, int learnerStart, int learnerEnd) {
 
         for (int i = teacherStart; i < teacherEnd; i++) {
-            teacherMap.put(new TestKey(i), new TestValue(i));
+            teacherMap.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
         for (int i = learnerStart; i < learnerEnd; i++) {
-            learnerMap.put(new TestKey(i), new TestValue(i));
+            learnerMap.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
         assertDoesNotThrow(this::reconnect, "Should not throw a Exception");
@@ -50,11 +51,11 @@ class VirtualMapLargeReconnectTest extends VirtualMapReconnectTestBase {
     @DisplayName("Reconnect aborts 3 times before success")
     void multipleAbortedReconnectsCanSucceed(int teacherStart, int teacherEnd, int learnerStart, int learnerEnd) {
         for (int i = teacherStart; i < teacherEnd; i++) {
-            teacherMap.put(new TestKey(i), new TestValue(i));
+            teacherMap.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
         for (int i = learnerStart; i < learnerEnd; i++) {
-            learnerMap.put(new TestKey(i), new TestValue(i));
+            learnerMap.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
 
         learnerBuilder.setNumCallsBeforeThrow((teacherEnd - teacherStart) / 2);

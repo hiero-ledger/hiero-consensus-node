@@ -6,6 +6,7 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getChildPath;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
 import static com.swirlds.virtualmap.internal.Path.isLeft;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
@@ -22,16 +23,13 @@ import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.virtualmap.VirtualKey;
-import com.swirlds.virtualmap.VirtualValue;
-import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.VirtualStateAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -45,14 +43,8 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
  * needs access both to the original state and records, and the current reconnect state and records.
  * This implementation uses {@link Long} as the representation of a node and corresponds directly
  * to the path of the node.
- *
- * @param <K>
- * 		The key
- * @param <V>
- * 		The value
  */
-public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends VirtualValue>
-        extends VirtualTreeViewBase<K, V> implements LearnerTreeView<Long> {
+public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView<Long> {
 
     private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
 
@@ -70,7 +62,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * Handles removal of old nodes.
      */
-    private final ReconnectNodeRemover<K, V> nodeRemover;
+    private final ReconnectNodeRemover nodeRemover;
 
     /**
      * As part of tracking {@link ExpectedLesson}s, this keeps track of the "nodeAlreadyPresent" boolean.
@@ -92,41 +84,41 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
     /**
      * A {@link RecordAccessor} for getting access to the original records.
      */
-    private final RecordAccessor<K, V> originalRecords;
+    private final RecordAccessor originalRecords;
 
     private final ReconnectMapStats mapStats;
 
     /**
      * Create a new {@link LearnerPushVirtualTreeView}.
      *
-     * @param root
-     * 		The root node of the <strong>reconnect</strong> tree. Cannot be null.
+     * @param map
+     * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
      * @param originalRecords
      * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
      * 		Cannot be null.
      * @param originalState
-     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		unmodified <strong>original</strong> tree. Cannot be null.
      * @param reconnectState
-     * 		A {@link VirtualStateAccessor} for accessing state (first and last paths) from the
+     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
      * @param mapStats
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushVirtualTreeView(
-            final ReconnectConfig reconnectConfig,
-            final VirtualRootNode<K, V> root,
-            final RecordAccessor<K, V> originalRecords,
-            final VirtualStateAccessor originalState,
-            final VirtualStateAccessor reconnectState,
-            final ReconnectNodeRemover<K, V> nodeRemover,
+            @NonNull final ReconnectConfig reconnectConfig,
+            @NonNull final VirtualMap map,
+            @NonNull final RecordAccessor originalRecords,
+            @NonNull final VirtualMapMetadata originalState,
+            @NonNull final VirtualMapMetadata reconnectState,
+            @NonNull final ReconnectNodeRemover nodeRemover,
             @NonNull final ReconnectMapStats mapStats) {
-        super(root, originalState, reconnectState);
-        this.reconnectConfig = reconnectConfig;
-        this.originalRecords = Objects.requireNonNull(originalRecords);
-        this.nodeRemover = nodeRemover;
-        this.mapStats = mapStats;
+        super(map, originalState, reconnectState);
+        this.reconnectConfig = requireNonNull(reconnectConfig);
+        this.originalRecords = requireNonNull(originalRecords);
+        this.nodeRemover = requireNonNull(nodeRemover);
+        this.mapStats = requireNonNull(mapStats);
     }
 
     @Override
@@ -236,10 +228,10 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
      */
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        final VirtualLeafRecord<K, V> leaf = in.readSerializable(false, VirtualLeafRecord::new);
-        nodeRemover.newLeafNode(leaf.getPath(), leaf.getKey());
-        root.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
-        return leaf.getPath();
+        final VirtualLeafBytes leaf = VirtualReconnectUtils.readLeafRecord(in);
+        nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
+        map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+        return leaf.path();
     }
 
     /**
@@ -253,13 +245,13 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
         if (node == ROOT_PATH) {
             // We send the first and last leaf path when reconnecting because we don't have access
             // to this information in the virtual root node at this point in the flow, even though
-            // the info has already been sent and resides in the VirtualMapState that is a sibling
+            // the info has already been sent and resides in the ExternalVirtualMapMetadata that is a sibling
             // of the VirtualRootNode. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnectState.setFirstLeafPath(firstLeafPath);
             reconnectState.setLastLeafPath(lastLeafPath);
-            root.prepareReconnectHashing(firstLeafPath, lastLeafPath);
+            reconnectState.setFirstLeafPath(firstLeafPath);
+            map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
             nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
         }
         return node;
@@ -281,7 +273,7 @@ public final class LearnerPushVirtualTreeView<K extends VirtualKey, V extends Vi
         logger.info(RECONNECT.getMarker(), "call nodeRemover.allNodesReceived()");
         nodeRemover.allNodesReceived();
         logger.info(RECONNECT.getMarker(), "call root.endLearnerReconnect()");
-        root.endLearnerReconnect();
+        map.endLearnerReconnect();
         logger.info(RECONNECT.getMarker(), "close() complete");
     }
 

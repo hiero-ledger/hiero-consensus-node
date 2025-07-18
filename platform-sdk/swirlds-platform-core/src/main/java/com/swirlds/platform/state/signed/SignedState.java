@@ -209,6 +209,7 @@ public class SignedState {
     public void init(@NonNull PlatformContext platformContext) {
         state.init(
                 platformContext.getTime(),
+                platformContext.getConfiguration(),
                 platformContext.getMetrics(),
                 platformContext.getMerkleCryptography(),
                 () -> {

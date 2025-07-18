@@ -9,9 +9,10 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.parameterresolver.ReportResolver;
 import com.hedera.statevalidation.parameterresolver.StateResolver;
 import com.hedera.statevalidation.reporting.Report;
@@ -20,8 +21,6 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.merkle.MerkleStateRoot;
-import com.swirlds.state.merkle.disk.OnDiskKey;
-import com.swirlds.state.merkle.disk.OnDiskValue;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
@@ -44,14 +43,7 @@ public class TokenRelationsIntegrity {
         final MerkleStateRoot servicesState =
                 (MerkleStateRoot) deserializedState.reservedSignedState().get().getState();
 
-        VirtualMap<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>> tokenRelsVm = null;
-
-        for (int i = 0; i < servicesState.getNumberOfChildren(); i++) {
-            if (servicesState.getChild(i) instanceof VirtualMap<?, ?> virtualMap
-                    && virtualMap.getLabel().equals("TokenService.TOKEN_RELS")) {
-                tokenRelsVm = (VirtualMap<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>>) virtualMap;
-            }
-        }
+        VirtualMap tokenRelsVm = null;
 
         assertNotNull(tokenRelsVm);
         log.debug("TokenService.TOKEN_RELS VM Size: {}", tokenRelsVm.size());
@@ -75,28 +67,35 @@ public class TokenRelationsIntegrity {
          * as it is much faster to iterate over the Virtual Map using `VirtualMapMigration.extractVirtualMapDataC`
          * than to iterate through the ReadableKVState.
          */
-        InterruptableConsumer<Pair<OnDiskKey<EntityIDPair>, OnDiskValue<TokenRelation>>> handler = pair -> {
-            AccountID keyAccountId = pair.key().getKey().accountId();
-            TokenID keyTokenId = pair.key().getKey().tokenId();
-            AccountID valueAccountId = pair.value().getValue().accountId();
-            TokenID valueTokenId = pair.value().getValue().tokenId();
+        InterruptableConsumer<Pair<Bytes, Bytes>> handler = pair -> {
+            try {
+                EntityIDPair entityIDPair1 = EntityIDPair.PROTOBUF.parse(pair.left());
+                AccountID accountId1 = entityIDPair1.accountId();
+                TokenID tokenId1 = entityIDPair1.tokenId();
 
-            assertNotNull(keyAccountId);
-            assertNotNull(keyTokenId);
-            assertNotNull(valueAccountId);
-            assertNotNull(valueTokenId);
+                EntityIDPair entityIDPair2 = EntityIDPair.PROTOBUF.parse(pair.right());
+                AccountID accountId2 = entityIDPair2.accountId();
+                TokenID tokenId2 = entityIDPair2.tokenId();
 
-            assertEquals(keyAccountId, valueAccountId);
-            assertEquals(keyTokenId, valueTokenId);
+                assertNotNull(accountId1);
+                assertNotNull(tokenId1);
+                assertNotNull(accountId2);
+                assertNotNull(tokenId2);
 
-            if (!tokenAccounts.contains(keyAccountId)) {
-                accountFailCounter.incrementAndGet();
+                assertEquals(accountId1, accountId2);
+                assertEquals(tokenId1, tokenId2);
+
+                if (!tokenAccounts.contains(accountId1)) {
+                    accountFailCounter.incrementAndGet();
+                }
+
+                if (!tokenTokens.contains(tokenId1)) {
+                    tokenFailCounter.incrementAndGet();
+                }
+                objectsProcessed.incrementAndGet();
+            } catch (ParseException e) {
+                throw new RuntimeException(e);
             }
-
-            if (!tokenTokens.contains(keyTokenId)) {
-                tokenFailCounter.incrementAndGet();
-            }
-            objectsProcessed.incrementAndGet();
         };
 
         VirtualMapMigration.extractVirtualMapDataC(

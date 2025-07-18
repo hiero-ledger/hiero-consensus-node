@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers.util;
 
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.B_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.C_COMPLEX_KEY;
@@ -22,6 +23,7 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
@@ -57,7 +59,6 @@ public class TokenHandlerTestBase {
     protected static final long REALM =
             configuration.getConfigData(HederaConfig.class).realm();
     protected static final EntityIdFactory idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
-    protected static final String TOKENS = "TOKENS";
     protected static final Key payerKey = A_COMPLEX_KEY;
     protected final Key adminKey = A_COMPLEX_KEY;
     protected final Key pauseKey = B_COMPLEX_KEY;
@@ -134,8 +135,8 @@ public class TokenHandlerTestBase {
     protected void refreshStoresWithCurrentTokenOnlyInReadable() {
         readableTokenState = readableTokenState();
         writableTokenState = emptyWritableTokenState();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
@@ -144,8 +145,8 @@ public class TokenHandlerTestBase {
     protected void refreshStoresWithCurrentTokenInWritable() {
         readableTokenState = readableTokenState();
         writableTokenState = writableTokenStateWithOneKey();
-        given(readableStates.<TokenID, Token>get(TOKENS)).willReturn(readableTokenState);
-        given(writableStates.<TokenID, Token>get(TOKENS)).willReturn(writableTokenState);
+        given(readableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(readableTokenState);
+        given(writableStates.<TokenID, Token>get(TOKENS_KEY)).willReturn(writableTokenState);
         readableTokenStore = new ReadableTokenStoreImpl(readableStates, readableEntityCounters);
         final var configuration = HederaTestConfigBuilder.createConfig();
         writableTokenStore = new WritableTokenStore(writableStates, writableEntityCounters);
@@ -153,19 +154,20 @@ public class TokenHandlerTestBase {
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> emptyWritableTokenState() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS).build();
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
+                .build();
     }
 
     @NonNull
     protected MapWritableKVState<TokenID, Token> writableTokenStateWithOneKey() {
-        return MapWritableKVState.<TokenID, Token>builder(TOKENS)
+        return MapWritableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(tokenId, token)
                 .build();
     }
 
     @NonNull
     protected MapReadableKVState<TokenID, Token> readableTokenState() {
-        return MapReadableKVState.<TokenID, Token>builder(TOKENS)
+        return MapReadableKVState.<TokenID, Token>builder(TokenService.NAME, TOKENS_KEY)
                 .value(tokenId, token)
                 .build();
     }

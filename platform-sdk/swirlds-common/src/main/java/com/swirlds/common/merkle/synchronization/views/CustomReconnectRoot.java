@@ -31,7 +31,7 @@ public interface CustomReconnectRoot<T, L> extends MerkleNode {
      *
      * @return a view representing this subtree
      */
-    TeacherTreeView<T> buildTeacherView(final ReconnectConfig reconnectConfig);
+    TeacherTreeView<T> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig);
 
     /**
      * Build a view of this subtree to be used for reconnect by the learner.
@@ -56,6 +56,14 @@ public interface CustomReconnectRoot<T, L> extends MerkleNode {
      * Called on a node if there is no data to be copied.
      */
     void setupWithNoData();
+
+    /**
+     * Creates a new empty root instance of the same type and registers the current instance with
+     * {@link #setupWithOriginalNode(com.swirlds.common.merkle.MerkleNode)}
+     *
+     * @return new empty root instance
+     */
+    CustomReconnectRoot<T, L> createNewRoot();
 
     /**
      * {@inheritDoc}

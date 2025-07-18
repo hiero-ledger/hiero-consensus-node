@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import com.swirlds.common.utility.StopWatch;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.test.fixtures.ExampleFixedSizeDataSerializer;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -80,7 +79,6 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
             throws IOException, InterruptedException {
 
         // Collection of database files and index
-        final var serializer = new ExampleFixedSizeDataSerializer();
         LongListOffHeap storeIndex = new LongListOffHeap(1024 * 1024, 2L * 1024 * 1024, 256 * 1024);
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
