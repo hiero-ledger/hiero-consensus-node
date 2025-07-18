@@ -11,6 +11,7 @@ import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -21,12 +22,13 @@ import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
 import com.swirlds.state.spi.QueueChangeListener;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableSingletonStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVStateBase;
 import com.swirlds.state.spi.WritableQueueStateBase;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.ListReadableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
@@ -120,11 +122,11 @@ public class FakeState implements MerkleNodeState {
                 final var stateName = entry.getKey();
                 final var state = entry.getValue();
                 if (state instanceof Queue queue) {
-                    states.put(stateName, new ListReadableQueueState(stateName, queue));
+                    states.put(stateName, new ListReadableQueueState(serviceName, stateName, queue));
                 } else if (state instanceof Map map) {
-                    states.put(stateName, new MapReadableKVState(stateName, map));
+                    states.put(stateName, new MapReadableKVState(serviceName, stateName, map));
                 } else if (state instanceof AtomicReference ref) {
-                    states.put(stateName, new ReadableSingletonStateBase<>(stateName, ref::get));
+                    states.put(stateName, new FunctionReadableSingletonState(serviceName, stateName, ref::get));
                 }
             }
             return new MapReadableStates(states);
@@ -147,11 +149,13 @@ public class FakeState implements MerkleNodeState {
                 if (state instanceof Queue<?> queue) {
                     data.put(
                             stateName,
-                            withAnyRegisteredListeners(serviceName, new ListWritableQueueState<>(stateName, queue)));
+                            withAnyRegisteredListeners(
+                                    serviceName, new ListWritableQueueState<>(serviceName, stateName, queue)));
                 } else if (state instanceof Map<?, ?> map) {
                     data.put(
                             stateName,
-                            withAnyRegisteredListeners(serviceName, new MapWritableKVState<>(stateName, map)));
+                            withAnyRegisteredListeners(
+                                    serviceName, new MapWritableKVState<>(serviceName, stateName, map)));
                 } else if (state instanceof AtomicReference<?> ref) {
                     data.put(stateName, withAnyRegisteredListeners(serviceName, stateName, ref));
                 }
@@ -185,7 +189,7 @@ public class FakeState implements MerkleNodeState {
 
     private <V> WritableSingletonStateBase<V> withAnyRegisteredListeners(
             @NonNull final String serviceName, @NonNull final String stateKey, @NonNull final AtomicReference<V> ref) {
-        final var state = new WritableSingletonStateBase<>(stateKey, ref::get, ref::set);
+        final var state = new FunctionWritableSingletonState<>(serviceName, stateKey, ref::get, ref::set);
         listeners.forEach(listener -> {
             if (listener.stateTypes().contains(SINGLETON)) {
                 registerSingletonListener(serviceName, state, listener);
@@ -266,7 +270,12 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void init(Time time, Metrics metrics, MerkleCryptography merkleCryptography, LongSupplier roundSupplier) {
+    public void init(
+            Time time,
+            Configuration configuration,
+            Metrics metrics,
+            MerkleCryptography merkleCryptography,
+            LongSupplier roundSupplier) {
         // no-op
     }
 

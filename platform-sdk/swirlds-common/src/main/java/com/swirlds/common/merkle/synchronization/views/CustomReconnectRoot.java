@@ -31,7 +31,7 @@ public interface CustomReconnectRoot<T, L> extends MerkleNode {
      *
      * @return a view representing this subtree
      */
-    TeacherTreeView<T> buildTeacherView(final ReconnectConfig reconnectConfig);
+    TeacherTreeView<T> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig);
 
     /**
      * Build a view of this subtree to be used for reconnect by the learner.

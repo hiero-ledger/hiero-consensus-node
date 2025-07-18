@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.internal.pipeline;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableIgnored;
@@ -82,7 +83,7 @@ public final class NoOpVirtualRoot extends PartialMerkleLeaf implements VirtualR
     }
 
     @Override
-    public void snapshot(final Path destination) {}
+    public void snapshot(@NonNull final Path destination) {}
 
     @Override
     public boolean isDetached() {

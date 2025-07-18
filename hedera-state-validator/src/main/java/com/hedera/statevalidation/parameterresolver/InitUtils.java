@@ -340,7 +340,6 @@ public class InitUtils {
                 version,
                 configuration,
                 configuration,
-                new NoOpMetrics(),
                 new FakeStartupNetworks(Network.newBuilder().build()),
                 new StoreMetricsServiceImpl(new NoOpMetrics()),
                 new ConfigProviderImpl(),

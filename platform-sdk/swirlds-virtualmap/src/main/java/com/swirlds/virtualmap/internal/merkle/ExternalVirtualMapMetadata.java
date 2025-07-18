@@ -17,9 +17,9 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * the first (left) child of the VFCMap / {@link VirtualMap}.
  * This class exist only for backward compatibility with {@link VirtualMap} of versions prior to {@link ClassVersion#NO_VIRTUAL_ROOT_NODE}
  *
- * Use {@link VirtualMapState} instead.
+ * Use {@link VirtualMapMetadata} instead.
  */
-public class ExternalVirtualMapState extends PartialMerkleLeaf implements MerkleLeaf {
+public class ExternalVirtualMapMetadata extends PartialMerkleLeaf implements MerkleLeaf {
     public static final long CLASS_ID = 0x9e698c13a408250dL;
     private static final int CLASS_VERSION = 1;
 
@@ -42,29 +42,29 @@ public class ExternalVirtualMapState extends PartialMerkleLeaf implements Merkle
     private String label;
 
     /**
-     * Create a new {@link ExternalVirtualMapState}.
+     * Create a new {@link ExternalVirtualMapMetadata}.
      */
-    public ExternalVirtualMapState() {
+    public ExternalVirtualMapMetadata() {
         // Only use this constructor for serialization
         this((String) null);
     }
 
     /**
-     * Create a new {@link ExternalVirtualMapState}.
+     * Create a new {@link ExternalVirtualMapMetadata}.
      */
-    public ExternalVirtualMapState(String label) {
+    public ExternalVirtualMapMetadata(String label) {
         firstLeafPath = -1;
         lastLeafPath = -1;
         this.label = label;
     }
 
     /**
-     * Create a copy of the {@link ExternalVirtualMapState}.
+     * Create a copy of the {@link ExternalVirtualMapMetadata}.
      *
      * @param source
      * 		The map state to copy. Cannot be null.
      */
-    private ExternalVirtualMapState(final ExternalVirtualMapState source) {
+    private ExternalVirtualMapMetadata(final ExternalVirtualMapMetadata source) {
         this.firstLeafPath = source.firstLeafPath;
         this.lastLeafPath = source.lastLeafPath;
         this.label = source.label;
@@ -188,8 +188,8 @@ public class ExternalVirtualMapState extends PartialMerkleLeaf implements Merkle
      * {@inheritDoc}
      */
     @Override
-    public ExternalVirtualMapState copy() {
-        return new ExternalVirtualMapState(this);
+    public ExternalVirtualMapMetadata copy() {
+        return new ExternalVirtualMapMetadata(this);
     }
 
     @Override

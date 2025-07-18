@@ -57,7 +57,7 @@ public class RecordAccessorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        VirtualMapState state = new VirtualMapState(VM_LABEL);
+        VirtualMapMetadata state = new VirtualMapMetadata(VM_LABEL);
         VirtualNodeCache cache = new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         dataSource = new BreakableDataSource();
         records = new RecordAccessor(state, cache, dataSource);

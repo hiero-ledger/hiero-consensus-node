@@ -17,7 +17,7 @@ import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.Queue;
@@ -76,7 +76,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
             final ThreadManager threadManager,
             final ReconnectConfig reconnectConfig,
             final VirtualMap map,
-            final VirtualMapState state,
+            final VirtualMapMetadata state,
             final VirtualPipeline pipeline) {
         // There is no distinction between originalState and reconnectState in this implementation
         super(map, state, state);

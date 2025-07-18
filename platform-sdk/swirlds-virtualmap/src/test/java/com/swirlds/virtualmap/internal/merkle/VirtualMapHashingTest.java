@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-@DisplayName("VirtualRootNode Hashing Tests")
+@DisplayName("VirtualMap Hashing Tests")
 class VirtualMapHashingTest {
 
     // FUTURE WORK tests to write:

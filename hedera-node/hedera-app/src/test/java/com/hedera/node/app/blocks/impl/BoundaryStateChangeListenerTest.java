@@ -1,20 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_POP;
-import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.SINGLETON_UPDATE;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.stateIdFor;
-import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
+import static com.swirlds.state.merkle.StateUtils.stateIdFor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
@@ -29,20 +22,20 @@ import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class BoundaryStateChangeListenerTest {
     private static final int STATE_ID = 1;
     private static final int STATE_ID_ENTITY_COUNTS = 41;
     public static final ProtoString PROTO_STRING = new ProtoString("test");
-    public static final ProtoBytes PROTO_BYTES = new ProtoBytes(Bytes.wrap(new byte[] {1, 2, 3}));
     public static final EntityCounts ENTITY_COUNTS = EntityCounts.newBuilder()
             .numNfts(1)
             .numAccounts(2)
@@ -70,8 +63,8 @@ class BoundaryStateChangeListenerTest {
     }
 
     @Test
-    void targetTypesAreSingletonAndQueue() {
-        assertEquals(Set.of(SINGLETON, QUEUE), listener.stateTypes());
+    void targetTypeIsSingleton() {
+        assertEquals(Set.of(SINGLETON), listener.stateTypes());
     }
 
     @Test
@@ -82,41 +75,11 @@ class BoundaryStateChangeListenerTest {
     }
 
     @Test
-    void testFlushChanges() {
-        listener.setBoundaryTimestamp(Instant.now());
-        listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
-        BlockItem blockItem = listener.flushChanges();
-
-        assertNotNull(blockItem);
-        assertTrue(listener.allStateChanges().isEmpty());
-    }
-
-    @Test
     void testAllStateChanges() {
         listener.singletonUpdateChange(STATE_ID, PROTO_STRING);
-        listener.queuePushChange(STATE_ID, PROTO_BYTES);
 
         List<StateChange> stateChanges = listener.allStateChanges();
-        assertEquals(2, stateChanges.size());
-    }
-
-    @Test
-    void testQueuePushChange() {
-        listener.queuePushChange(STATE_ID, PROTO_BYTES);
-
-        StateChange stateChange = listener.allStateChanges().getFirst();
-        assertEquals(QUEUE_PUSH, stateChange.changeOperation().kind());
-        assertEquals(STATE_ID, stateChange.stateId());
-        assertEquals(PROTO_BYTES.value(), stateChange.queuePush().protoBytesElement());
-    }
-
-    @Test
-    void testQueuePopChange() {
-        listener.queuePopChange(STATE_ID);
-
-        StateChange stateChange = listener.allStateChanges().getFirst();
-        assertEquals(QUEUE_POP, stateChange.changeOperation().kind());
-        assertEquals(STATE_ID, stateChange.stateId());
+        assertEquals(1, stateChanges.size());
     }
 
     @Test

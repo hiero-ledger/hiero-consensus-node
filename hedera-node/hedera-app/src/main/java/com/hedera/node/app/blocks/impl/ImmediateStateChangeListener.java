@@ -2,11 +2,15 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
+import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
 import com.hedera.hapi.block.stream.output.MapDeleteChange;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
+import com.hedera.hapi.block.stream.output.QueuePopChange;
+import com.hedera.hapi.block.stream.output.QueuePushChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -37,6 +41,7 @@ import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
+import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.schedule.ScheduleList;
@@ -58,9 +63,11 @@ import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.merkle.StateUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -69,16 +76,33 @@ import java.util.Set;
  * A state change listener that tracks an entire sequence of changes, even if this sequence
  * repeats changes to the same key multiple times in a block boundary.
  */
-public class KVStateChangeListener implements StateChangeListener {
-    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(MAP);
+public class ImmediateStateChangeListener implements StateChangeListener {
+    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(MAP, QUEUE);
 
-    private final List<StateChange> stateChanges = new ArrayList<>();
+    private final List<StateChange> kvStateChanges = new ArrayList<>();
+
+    private final List<StateChange> queueStateChanges = new ArrayList<>();
 
     /**
-     * Resets the state changes.
+     * Resets kv state changes.
+     */
+    public void resetKvStateChanges() {
+        kvStateChanges.clear();
+    }
+
+    /**
+     * Resets queue state changes.
+     */
+    public void resetQueueStateChanges() {
+        queueStateChanges.clear();
+    }
+
+    /**
+     * Resets all state changes.
      */
     public void reset() {
-        stateChanges.clear();
+        kvStateChanges.clear();
+        queueStateChanges.clear();
     }
 
     @Override
@@ -91,7 +115,7 @@ public class KVStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(serviceName, "serviceName must not be null");
         Objects.requireNonNull(stateKey, "stateKey must not be null");
 
-        return BlockImplUtils.stateIdFor(serviceName, stateKey);
+        return StateUtils.stateIdFor(serviceName, stateKey);
     }
 
     @Override
@@ -104,7 +128,7 @@ public class KVStateChangeListener implements StateChangeListener {
                 .build();
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
-        stateChanges.add(stateChange);
+        kvStateChanges.add(stateChange);
     }
 
     @Override
@@ -112,8 +136,43 @@ public class KVStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(key, "key must not be null");
         final var change =
                 MapDeleteChange.newBuilder().key(mapChangeKeyFor(key)).build();
-        stateChanges.add(
+        kvStateChanges.add(
                 StateChange.newBuilder().stateId(stateId).mapDelete(change).build());
+    }
+
+    @Override
+    public <V> void queuePushChange(final int stateId, @NonNull final V value) {
+        requireNonNull(value);
+        final var stateChange = StateChange.newBuilder()
+                .stateId(stateId)
+                .queuePush(new QueuePushChange(queuePushChangeValueFor(value)))
+                .build();
+        queueStateChanges.add(stateChange);
+    }
+
+    @Override
+    public void queuePopChange(final int stateId) {
+        final var stateChange = StateChange.newBuilder()
+                .stateId(stateId)
+                .queuePop(new QueuePopChange())
+                .build();
+        queueStateChanges.add(stateChange);
+    }
+
+    /**
+     * Returns the list of kv state changes.
+     * @return the list of kv state changes
+     */
+    public List<StateChange> getKvStateChanges() {
+        return kvStateChanges;
+    }
+
+    /**
+     * Returns the list of queue state changes.
+     * @return the list of queue state changes
+     */
+    public List<StateChange> getQueueStateChanges() {
+        return queueStateChanges;
     }
 
     /**
@@ -121,7 +180,10 @@ public class KVStateChangeListener implements StateChangeListener {
      * @return the list of state changes
      */
     public List<StateChange> getStateChanges() {
-        return stateChanges;
+        final var allStateChanges = new LinkedList<StateChange>();
+        allStateChanges.addAll(kvStateChanges);
+        allStateChanges.addAll(queueStateChanges);
+        return allStateChanges;
     }
 
     private static <K> MapChangeKey mapChangeKeyFor(@NonNull final K key) {
@@ -246,5 +308,21 @@ public class KVStateChangeListener implements StateChangeListener {
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());
         };
+    }
+
+    private static <V> OneOf<QueuePushChange.ValueOneOfType> queuePushChangeValueFor(@NonNull final V value) {
+        switch (value) {
+            case ProtoBytes protoBytesElement -> {
+                return new OneOf<>(QueuePushChange.ValueOneOfType.PROTO_BYTES_ELEMENT, protoBytesElement.value());
+            }
+            case TransactionReceiptEntries transactionReceiptEntriesElement -> {
+                return new OneOf<>(
+                        QueuePushChange.ValueOneOfType.TRANSACTION_RECEIPT_ENTRIES_ELEMENT,
+                        transactionReceiptEntriesElement);
+            }
+            default ->
+                throw new IllegalArgumentException(
+                        "Unknown value type " + value.getClass().getName());
+        }
     }
 }
