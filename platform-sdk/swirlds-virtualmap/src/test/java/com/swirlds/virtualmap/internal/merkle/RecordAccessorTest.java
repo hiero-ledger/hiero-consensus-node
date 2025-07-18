@@ -17,6 +17,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafRecord;
+import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.serialize.KeySerializer;
 import com.swirlds.virtualmap.serialize.ValueSerializer;
@@ -40,7 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-public class RecordAccessorImplTest {
+public class RecordAccessorTest {
 
     private static final int MAX_PATH = 12;
     private static final Cryptography CRYPTO = CryptographyProvider.getInstance();
@@ -56,8 +57,8 @@ public class RecordAccessorImplTest {
     private static final long BOGUS_LEAF_PATH = 22;
 
     private BreakableDataSource dataSource;
-    private RecordAccessorImpl<TestKey, TestValue> records;
-    private RecordAccessorImpl<TestKey, TestValue> mutableRecords;
+    private RecordAccessor<TestKey, TestValue> records;
+    private RecordAccessor<TestKey, TestValue> mutableRecords;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -65,7 +66,7 @@ public class RecordAccessorImplTest {
         VirtualNodeCache<TestKey, TestValue> cache =
                 new VirtualNodeCache<>(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         dataSource = new BreakableDataSource();
-        records = new RecordAccessorImpl<>(
+        records = new RecordAccessor<>(
                 state, cache, TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, dataSource);
 
         // Prepopulate the database with some records
@@ -105,7 +106,7 @@ public class RecordAccessorImplTest {
         cache.deleteLeaf(seventhLeafGone);
         cache.deleteHash(DELETED_INTERNAL_PATH);
         cache.deleteHash(OLD_DELETED_INTERNAL_PATH);
-        mutableRecords = new RecordAccessorImpl<>(
+        mutableRecords = new RecordAccessor<>(
                 state, cache.copy(), TestKeySerializer.INSTANCE, TestValueSerializer.INSTANCE, dataSource);
         cache.prepareForHashing();
         cache.putHash(rootChanged);
