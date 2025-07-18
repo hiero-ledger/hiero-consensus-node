@@ -20,6 +20,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreateF
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithAlias;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.hbarLimit;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.maxCustomFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
@@ -59,6 +61,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.IDENTICAL_SCHE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEES_IS_NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULED_TRANSACTION_NOT_IN_WHITELIST;
@@ -73,6 +76,7 @@ import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import java.security.SecureRandom;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -481,5 +485,21 @@ public class ScheduleCreateTest {
                 scheduleCreate("ok", createTopic(NEVER_TO_BE))
                         // prevent multiple runs of this test causing duplicates
                         .withEntityMemo("" + new SecureRandom().nextLong()));
+    }
+
+    @HapiTest
+    @DisplayName("Adding custom fee limit to not supported transactions fails")
+    final Stream<DynamicTest> notSupportedFeeLimitsFails() {
+        return hapiTest(
+                cryptoCreate("sender"),
+                // Testing that max_custom_fee is not supported and fails the transaction
+                cryptoCreate("foo")
+                        .maxCustomFee(maxCustomFee("sender", hbarLimit(1)))
+                        .hasPrecheck(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED),
+                // Testing the behavior is the same when inside schedule
+                scheduleCreate(
+                                "schedule",
+                                cryptoCreate("fooInsideSchedule").maxCustomFee(maxCustomFee("sender", hbarLimit(1))))
+                        .hasKnownStatus(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED));
     }
 }

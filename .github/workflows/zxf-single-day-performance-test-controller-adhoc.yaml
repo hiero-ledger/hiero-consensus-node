@@ -1,13 +1,75 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Single Day Performance Test Controller (SDPT)"
+name: "ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)"
 on:
   workflow_dispatch:
     inputs:
+      test-asset:
+        required: true
+        default: "AdHoc7"
+        description: "Performance test on machine: AdHoc5, 6, 7"
+        type: choice
+        options:
+          - AdHoc5
+          - AdHoc6
+          - AdHoc7
       ref:
         required: true
         default: "main"
         description: "Version of hiero-consensus-node: branch, tag, commit"
         type: string
+      solo-version:
+        required: true
+        default: "latest_tested_solo-charts0.59"
+        description: "Use: latest_tested_solo-charts if Hedera code <=0.58, latest_tested_solo-charts0.59 if >= 0.59"
+        type: string
+      nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+          - "20000000"
+          - "100000000"
+          - "500000000"
+          - "1000000000"
+      nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
+        required: true
+        default: "3"
+        description: "Test execution time options"
+        type: choice
+        options:
+          - "3"
+          - "9"
+          - "21"
+          - "180"
+          - "330"
+      add-app-props:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
+      add-settings:
+        required: false
+        default: ""
+        type: string
+        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      crypto-bench-merkle-db-java-args:
+        required: true
+        default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
+        description: "JMH javaargs"
+        type: string
+      crypto-bench-merkle-db-test-params:
+        required: true
+        default: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=60"
+        description: "Test params"
+        type: string
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
 
 defaults:
   run:
@@ -28,7 +90,7 @@ jobs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -66,17 +128,17 @@ jobs:
     needs:
       - verify-tag
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
-    if: ${{ needs.verify-tag.result == 'success' }}
+    if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
-      test-asset: "SDPT1"
+      test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
-      solo-version: "latest_tested_solo-charts0.59"
-      nlg-accounts: "100000000"
-      nlg-time: "330"
-      add-app-props: ""
-      add-settings: ""
-      crypto-bench-merkle-db-java-args: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"
-      crypto-bench-merkle-db-test-params: "-p maxKey=500000000 -p numRecords=100000 -p keySize=24 -p recordSize=1024 -p numFiles=6000"
+      solo-version: "${{ inputs.solo-version }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-time: "${{ inputs.nlg-time }}"
+      add-app-props: "${{ inputs.add-app-props }}"
+      add-settings: "${{ inputs.add-settings }}"
+      crypto-bench-merkle-db-java-args: "${{ inputs.crypto-bench-merkle-db-java-args }}"
+      crypto-bench-merkle-db-test-params: "${{ inputs.crypto-bench-merkle-db-test-params }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
@@ -86,10 +148,10 @@ jobs:
     needs:
       - run-single-day-performance-test
       - verify-tag
-    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' }}
+    if: ${{ needs.run-single-day-performance-test.outputs.result  == 'success' && inputs.disable-notifications != true }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -122,6 +184,7 @@ jobs:
   get-commit-info:
     name: Get Commit Information
     runs-on: hiero-citr-linux-medium
+    if: ${{ inputs.disable-notifications != true }}
     needs:
       - verify-tag
     outputs:
@@ -130,7 +193,7 @@ jobs:
       slack-user-id: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -178,10 +241,10 @@ jobs:
       needs.tag-sdpt-passing.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
-      !cancelled() }}
+      inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 
@@ -302,11 +365,11 @@ jobs:
       needs.tag-sdpt-passing.result != 'success' ||
       needs.run-single-day-performance-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success') &&
-      !cancelled() && always() }}
+      inputs.disable-notifications != true && !cancelled() && always() }}
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
         with:
           egress-policy: audit
 

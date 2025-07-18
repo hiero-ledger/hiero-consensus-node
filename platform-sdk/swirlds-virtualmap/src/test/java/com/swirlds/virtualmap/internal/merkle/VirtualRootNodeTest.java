@@ -417,7 +417,7 @@ class VirtualRootNodeTest extends VirtualTestBase {
 
         original.release();
         copy.release();
-        detachedCopy.getDataSource().close();
+        detachedCopy.close();
     }
 
     @Test
