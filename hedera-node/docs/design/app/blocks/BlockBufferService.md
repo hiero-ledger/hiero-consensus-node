@@ -54,14 +54,59 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 - A periodic pruning mechanism removes acknowledged and expired entries.
 - The buffer size is monitored to implement backpressure when needed.
 
+### Buffer State
+
+The buffer can be in one of three states at any given time:
+- Zero/Low Saturation: There are no blocks unacked or there are some but not enough to warrant any actions.
+- Action Stage Saturation: Once the buffer reaches a level of saturation called the 'action stage', proactive actions
+are taken to attempt buffery recovery. Currently, this means forcing a connection to a different block node.
+- Full Saturation: The buffer is full of unacked blocks and no more blocks can be opened until recovery happens (i.e.
+blocks are acknowledged.)
+
+Over the course of the buffer's lifecycle there are several state transitions that can occur, each with its own set of
+actions to take.
+- Zero/Low Saturation to Full Saturation
+- Back pressure is enabled
+- Switch block nodes<sup>1</sup>
+- Zero/Low Saturation to Action Stage Saturation
+- Switch block nodes<sup>1</sup>
+- Zero/Low Saturation to Zero/Low Saturation
+- No action required
+- Action Stage Saturation to Full Saturation
+- Back pressure is enabled
+- Switch block nodes<sup>1</sup>
+- Action Stage Saturation to Action Stage Saturation
+- Switch block nodes<sup>1</sup>
+- Action Stage Saturation to Zero/Low Saturation
+- No action required
+- Full Saturation to Full Saturation
+- Back pressure is enabled (though it should already be)
+- Switch block nodes<sup>1</sup>
+- Full Saturation to Action Stage Saturation
+- Disable back pressure<sup>2</sup>
+- Switch block nodes<sup>1</sup>
+- Full Saturation to Zero/Low Saturation
+- Disable back pressure<sup>2</sup>
+
+Additionally, upon each iteration a secondary check will be performed to determine if back pressure needs to be disabled
+if the buffer saturation falls below the recovery threshold. This check is performed regardless of the above operations.
+
+<sup>1</sup> Switching block node connections may not happen every time. Whether or not to switch block nodes is dictated
+by a grace period between switch attempts. This is configured by `blockStream.buffer.actionGracePeriod`. If this property
+is configured to 10 seconds, then switching nodes will only happen once every 10 seconds.
+
+<sup>2</sup> Disabling back pressure has an additional gate in form of a recovery threshold. This is configured by
+`blockStream.buffer.recoveryThreshold`. If this property is configured to 70.0, then the buffer saturated must be less
+than or equal to 70% before back pressure is disabled.
+
 ### Backpressure Implementation
 
 The backpressure mechanism operates at two levels:
 
 1. **Block State Buffer Level**
    - An asynchronous thread is continuously running in the background to prune the buffer.
-   - Pruning occurs on a configurable interval defined in `blockStream.blockBufferPruneInterval` (if set to `0`, the pruning is disabled)
-   - Acknowledged states older than `blockStream.blockBufferTtl` are removed
+   - Pruning occurs on a configurable interval defined in `blockStream.buffer.pruneInterval` (if set to `0`, the pruning is disabled)
+   - Acknowledged states older than `blockStream.buffer.blockTtl` are removed
    - If buffer size exceeds safe thresholds after pruning, backpressure is applied
 2. **HandleWorkflow Level**
    - `HandleWorkflow` checks for backpressure signals before processing each round of transactions
@@ -73,7 +118,7 @@ The backpressure mechanism operates at two levels:
 
 1. **Monitoring Phase**
    - `BlockBufferService` tracks buffer size and block age
-   - Periodic pruning task runs based on `blockStream.blockBufferPruneInterval`
+   - Periodic pruning task runs based on `blockStream.buffer.pruneInterval`
    - Buffer metrics are updated for monitoring purposes
 2. **Triggering Phase**
    - Backpressure triggers when:
@@ -89,6 +134,9 @@ The backpressure mechanism operates at two levels:
 4. **Recovery Phase**
    - Buffer saturation recovers as more blocks are acknowledged
    - Once buffer reaches safe levels, backpressure releases
+     - The 'recovery threshold' is configured by the property `blockStream.buffer.recoveryThreshold`. This value represents
+       the saturation level at which the buffer is considered sufficiently free to accept more blocks. For example, if
+       this value is 60%, then the buffer must be at or below 60% saturation before back pressure is removed.
    - Transaction processing resumes
 
 ## Sequence Diagrams
