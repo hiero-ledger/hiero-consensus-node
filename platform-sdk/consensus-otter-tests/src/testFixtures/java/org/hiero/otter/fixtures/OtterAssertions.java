@@ -11,6 +11,7 @@ import org.hiero.otter.fixtures.assertions.MultipleNodeLogResultsContinuousAsser
 import org.hiero.otter.fixtures.assertions.MultipleNodePcesResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsAssert;
 import org.hiero.otter.fixtures.assertions.MultipleNodePlatformStatusResultsContinuousAssert;
+import org.hiero.otter.fixtures.assertions.MultipleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeConsensusResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodeLogResultAssert;
@@ -18,14 +19,17 @@ import org.hiero.otter.fixtures.assertions.SingleNodeLogResultContinuousAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePcesResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultAssert;
 import org.hiero.otter.fixtures.assertions.SingleNodePlatformStatusResultContinuousAssert;
+import org.hiero.otter.fixtures.assertions.SingleNodeReconnectResultsAssert;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * This class contains all {@code assertThat()} methods for test results of the Otter framework.
@@ -194,5 +198,27 @@ public class OtterAssertions extends Assertions {
     @NonNull
     public static MultipleNodePcesResultsAssert assertThat(@Nullable final MultipleNodePcesResults actual) {
         return MultipleNodePcesResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link SingleNodeReconnectResult} to assert
+     * @return an assertion for the given {@link SingleNodeReconnectResult}
+     */
+    @NonNull
+    public static SingleNodeReconnectResultsAssert assertThat(@Nullable final SingleNodeReconnectResult actual) {
+        return SingleNodeReconnectResultsAssert.assertThat(actual);
+    }
+
+    /**
+     * Creates an assertion for the given {@link SingleNodeReconnectResult}.
+     *
+     * @param actual the {@link MultipleNodeReconnectResults} to assert
+     * @return an assertion for the given {@link MultipleNodeReconnectResults}
+     */
+    @NonNull
+    public static MultipleNodeReconnectResultsAssert assertThat(@Nullable final MultipleNodeReconnectResults actual) {
+        return MultipleNodeReconnectResultsAssert.assertThat(actual);
     }
 }

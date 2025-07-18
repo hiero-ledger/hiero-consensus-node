@@ -28,14 +28,17 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
+import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
 import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
+import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -197,6 +200,17 @@ public abstract class AbstractNetwork implements Network {
         final List<SingleNodePlatformStatusResults> statusProgressions =
                 getNodes().stream().map(Node::getPlatformStatusResults).toList();
         return new MultipleNodePlatformStatusResultsImpl(statusProgressions);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public MultipleNodeReconnectResults getReconnectResults() {
+        final List<SingleNodeReconnectResult> reconnectResults =
+                getNodes().stream().map(Node::getReconnectResults).toList();
+        return new MultipleNodeReconnectResultsImpl(reconnectResults);
     }
 
     /**
