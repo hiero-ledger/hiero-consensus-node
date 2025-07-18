@@ -283,7 +283,14 @@ public class ContainerNode extends AbstractNode implements Node {
             stub.start(startRequest, new StreamObserver<>() {
                 @Override
                 public void onNext(final EventMessage value) {
-                    log.info("Received {} notifications from node {}", notificationCounter.incrementAndGet(), selfId);
+                    notificationCounter.incrementAndGet();
+                    if (value.getEventCase() == EventMessage.EventCase.PLATFORM_STATUS_CHANGE) {
+                        log.info(
+                                "Received platform status change from {} ({} notifications): {}",
+                                selfId,
+                                notificationCounter.get(),
+                                value.getPlatformStatusChange().getNewStatus());
+                    }
 
                     switch (value.getEventCase()) {
                         case PLATFORM_STATUS_CHANGE -> handlePlatformChange(value);

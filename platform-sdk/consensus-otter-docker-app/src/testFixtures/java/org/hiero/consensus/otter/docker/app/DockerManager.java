@@ -23,6 +23,8 @@ import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TestControlGrpc;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.logging.internal.InMemoryAppender;
+import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * gRPC service implementation for managing communication between the test framework and the platform.
@@ -102,14 +104,13 @@ public final class DockerManager extends TestControlGrpc.TestControlImplBase {
                 LOGGER.info("Sent {} platform status change notifications", statusNotificationCount.incrementAndGet());
             });
 
-            //            nodeManager.registerConsensusRoundListener(
-            //                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
-            //
-            //            InMemoryAppender.subscribe(log -> {
-            //                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
-            //                return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE :
-            // SubscriberAction.CONTINUE;
-            //            });
+            nodeManager.registerConsensusRoundListener(
+                    rounds -> dispatcher.enqueue(EventMessageFactory.fromConsensusRounds(rounds)));
+
+            InMemoryAppender.subscribe(log -> {
+                dispatcher.enqueue(EventMessageFactory.fromStructuredLog(log));
+                return currentDispatcher.isCancelled() ? SubscriberAction.UNSUBSCRIBE : SubscriberAction.CONTINUE;
+            });
 
             nodeManager.start();
         } catch (final Exception e) {
