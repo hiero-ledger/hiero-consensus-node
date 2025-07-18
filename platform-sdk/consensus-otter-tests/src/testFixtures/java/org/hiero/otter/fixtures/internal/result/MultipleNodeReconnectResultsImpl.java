@@ -5,9 +5,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.otter.fixtures.result.MultipleNodePcesResults;
 import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
-import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**

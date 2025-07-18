@@ -1,15 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
+
+import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.logging.legacy.payload.ReconnectFailurePayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import com.hedera.hapi.platform.state.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.jetbrains.annotations.NotNull;
-
-import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.status.PlatformStatus.RECONNECT_COMPLETE;
 
 /**
  * Implementation of the {@link SingleNodeReconnectResult} interface.
@@ -25,7 +26,9 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      * @param statusResults the platform status results for the single node
      * @param logResults the log results for the single node
      */
-    public SingleNodeReconnectResultImpl(@NonNull final NodeId nodeId, @NonNull final SingleNodePlatformStatusResults statusResults,
+    public SingleNodeReconnectResultImpl(
+            @NonNull final NodeId nodeId,
+            @NonNull final SingleNodePlatformStatusResults statusResults,
             @NonNull final SingleNodeLogResult logResults) {
         this.nodeId = requireNonNull(nodeId);
         this.statusResults = requireNonNull(statusResults);
@@ -45,7 +48,9 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      */
     @Override
     public int numSuccessfulReconnects() {
-        return (int) statusResults.statusProgression().stream().filter(RECONNECT_COMPLETE::equals).count();
+        return (int) statusResults.statusProgression().stream()
+                .filter(RECONNECT_COMPLETE::equals)
+                .count();
     }
 
     /**
@@ -53,7 +58,9 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
      */
     @Override
     public int numFailedReconnects() {
-        return (int) logResults.logs().stream().filter(log -> log.message().contains(ReconnectFailurePayload.class.toString())).count();
+        return (int) logResults.logs().stream()
+                .filter(log -> log.message().contains(ReconnectFailurePayload.class.toString()))
+                .count();
     }
 
     /**
